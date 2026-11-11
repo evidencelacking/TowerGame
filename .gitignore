@@ -1,0 +1,14 @@
+.godot/
+/references/
+/builds/
+/build/
+/export/
+*.translation
+*.tmp
+.claude/worktrees/
+.claude/hook-log.jsonl
+.claude/settings.local.json
+.claude/script-checks.txt
+*.local.json
+.env
+__pycache__/

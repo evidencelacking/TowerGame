@@ -1,0 +1,23 @@
+; Engine configuration file.
+; Prefer editing settings in the Godot editor; it rewrites this file.
+
+config_version=5
+
+[application]
+
+config/name="Tower Game"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/resizable=true
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
