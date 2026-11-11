@@ -15,6 +15,7 @@ Local copies are in `D:\Claude\Tower Game\references\` (git-ignored, never commi
 | I | Player guide, 2000 | Medium; short |
 | S | Player guide, 2003-04 | Medium; some claims marked unconfirmed by its author |
 | W | StrategyWiki overview page (subpages are empty) | Overview only |
+| V | Player video guide (one full run to the top rank; captions turned into text, 2026) | Medium-high for on-screen costs, caps and unlocks; medium for mechanics, where it hedges; the author plays at top rent |
 
 **Rule for conflicts (owner, 2026-11-10):** M wins, unless two or more player sources agree
 with each other on a different value; then they win. Where M is silent, use a value two player
@@ -37,7 +38,9 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 - The manual's simulation model uses 300 frames a period as an illustration, not a real tick
   count (M p62). Our ticks per period are our own constants, unverified and tunable (owner, #2).
 - Offices are empty on weekends; shops and food do most weekend trade (K, I).
-- Office rent arrives at the start of each quarter, on the 1st WD (K, S).
+- Office rent arrives at the start of each quarter, on the 1st WD (K, S). V puts the renewal
+  at 5:00 that day (*unverified*; V hedges).
+- Condos do not sell between 21:00 and 7:00; offices lease only until 13:00 on weekdays (V).
 - Some events happen only on the 1st WD or only on the weekend (F). Known: rent on the 1st WD
   (K, S); the wedding and the weekend shop and food trade on WE (M p28, W, K, I). Any other
   WD1-only events are unverified.
@@ -49,14 +52,15 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 - Running costs are charged per quarter: elevators (about $10,000 a quarter each, K),
   security, housekeeping, recycling, parking ramps, escalators, lobbies. Stairs have none (K).
 - Condos are sold once. If the owners leave or the condo is destroyed, the sale price is
-  refunded, even into a negative balance (M p53, p65; F).
+  refunded, even into a negative balance (M p53, p65; F, V).
+- Rent is set per unit, not per type (V).
 
 ## Star ratings
 
 | Rank | Requirement (agreed by K, F, S, I unless noted) |
 |---|---|
 | 1 | Start |
-| 2 | Population 300 (S says 250) |
+| 2 | Population 300 (V agrees; S says 250) |
 | 3 | Population 1,000 and a security office (I says two; K corrected itself to one) |
 | 4 | Population 5,000, recycling and medical demand met, more than one hotel suite (K), a good VIP visit |
 | 5 | Population 10,000 and a metro station |
@@ -98,7 +102,9 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 
 - Limits (I): 24 shafts, 8 cars per shaft, 64 stairs and escalators together, 512 parking
   spaces and shops, 10 medical and security, 16 theatres and party halls, 1 metro,
-  1 cathedral. S says 8 security offices.
+  1 cathedral. S says 8 security offices; I and V say 10, so 10 wins.
+- A 3-floor ground lobby uses up floors 2 and 3, so rooms start on floor 4 (V). Its price
+  per floor of height is *unverified*; proposal: the per-unit price once per floor.
 - The tower is 100 floors up and 10 down (M p26). There is no floor 0: floor 1 is the ground
   lobby (a 2- or 3-floor lobby is floors 1-2 or 1-3), and basements are B1-B10 (owner, #3, #10).
   Nothing may be wider than the ground lobby.
@@ -107,8 +113,8 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 
 | Way | Rule | Conflicts |
 |---|---|---|
-| Stairs | At most 4 in a trip (M) | F: capacity 21 |
-| Escalator | No waiting, so always preferred; at most 7 in a trip (M, I) | Decided: 7 |
+| Stairs | At most 4 in a trip (M) | F: capacity 21; V says 3 (M wins) |
+| Escalator | No waiting, so always preferred; at most 7 in a trip (M, I) | Decided: 7; V says 6 |
 | Local (standard) elevator | 17 per car, 8 cars (M) | Decided: 17 |
 | Express elevator | 36 per car (M) | Decided: 36 |
 | Service elevator | 17 per car; housekeepers only; must reach recycling (M) | K doubts the recycling rule |
@@ -116,6 +122,11 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 
 - **Transfers:** people change between elevators only at lobbies, and only once a trip (M).
   S says twice. Sky lobbies are the only transfer points (K, I).
+- Two kinds of transport connect only where one lobby touches both, so a sky lobby need only
+  span the shafts. Passing a lobby starts a new leg, which resets the stairs and escalator
+  counts (V).
+- Tenants go down to shops and food, rarely up (V). Housekeepers use service elevators and
+  stairs only, mostly going up (V).
 - **Order of preference:** escalator, then a waiting elevator, then stairs (M p59, F).
 - Above floor 60 you need express elevators (two 30-floor shafts reach only 60) (K).
 - **Car controls:** home floor, per-floor stop on/off, and weekday/weekend schedules per
@@ -144,11 +155,14 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 
 ## Services
 
-- Housekeeping sends one cleaner per floor and covers about 6 floors (K, I).
+- Housekeeping sends one cleaner per floor and covers about 6 floors (K, I). V: 6 cleaners,
+  each on a different floor and about 18 rooms a day; without a service elevator most idle.
 - Rooms left dirty get pests, which spread along the floor; the only fix is to demolish (M p55, K).
-- Recycling fills each day and empties next morning; full centres stop working (K).
-- Medical centres serve office workers (M p56).
+- Recycling fills each day and empties next morning; full centres stop working (K). Centres
+  need no transport link, and about 9 serve a full tower (V).
+- Medical centres serve office workers (M p56). The cap of 10 counts bulldozed ones (V).
 - Parking: office workers demand it from 3 stars; each suite needs a space (M p53, K).
+  Office and suite demand can share spaces, as their hours are opposite (V).
 
 ## Events
 
@@ -173,8 +187,11 @@ Fires and threats only happen once the tower has security (M p58).
 | Ctrl / Ctrl+Shift for a 2- or 3-floor ground lobby | Keep as a normal option |
 | Shift-click replaces a room in one step (K) | Keep as a "replace" tool |
 | Lowest rent makes tenants stay forever (K) | Replicate first; flag for balance |
-| Lower then restore rent clears "conditions are terrible" (F) | Exploit; replicate the rule, then fix |
-| Escalators in office floors by building before the office (K) | Bug; don't replicate |
+| Lower then restore rent clears "conditions are terrible" (F, V) | Exploit; replicate the rule, then fix |
+| Escalators in office floors by building before the office (K, V) | Bug; don't replicate |
+| Raising a condo's price before it has transport sells it at the higher price (V) | Exploit; owner to decide |
+| Only the first 128 shops and food venues draw their own customers (V) | Bug; owner to decide (conflicts with I's 512 limit) |
+| A multi-floor escalator on the ground lobby blocks one directly below (V) | Bug; don't replicate |
 | Building on B10 blocks the metro forever (K) | Don't replicate; reserve or warn |
 | Leaving the game running overnight earns fortunes (K) | Background and fast-forward play are fine |
 

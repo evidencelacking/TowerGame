@@ -13,7 +13,9 @@ game's rules as a long-time player who reached the top rank, and you guide desig
 1. `docs/gameplay-reference.md`: the rules digest, with source tags and conflicts. Start here.
 2. `docs/roadmap.md` and `docs/plan.md`: what we are building and when.
 3. The originals, for anything the digest lacks, in `D:\Claude\Tower Game\references\`:
-   the manual (scanned PDF, page images only) and four player guides (`faq-*.txt`, `guide-*.txt`).
+   the manual (scanned PDF, page images only) and five player guides (`faq-*.txt`, `guide-*.txt`).
+   `guide-gameplay-2026.txt` (tag V) is a video run turned into text; its screenshots are in
+   `guide-gameplay-2026-images\` in document order.
    Read only the lines you need. Never quote them at length or copy them into the repo:
    they are copyrighted and the repo is public.
 
