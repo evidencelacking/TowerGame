@@ -7,6 +7,7 @@ extends RefCounted
 ## tick, in queue order, at one fixed point (see step). Everything random comes from rng.
 
 const Rng := preload("res://scripts/sim/sim_rng.gd")
+const Clock := preload("res://scripts/sim/clock.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
 ## point in that tick (see step). Integers only, so it saves and hashes exactly.
@@ -28,12 +29,13 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
 
 var tick: int = 0
 var rng := Rng.new()
+var clock := Clock.new()
 ## Placeholder state that commands change, so tests can see them. Replaced as real state lands.
 var notes: int = 0
 
@@ -83,9 +85,9 @@ func _apply_command(command: Command) -> void:
 			push_error("Unknown sim command kind %d" % command.kind)
 
 
-## Hook for per-tick systems. Empty in the foundation.
+## Per-tick systems, in a fixed order: the clock first, then (later) the grid and the rest.
 func _run_systems() -> void:
-	pass
+	clock.advance()
 
 
 ## Deterministic 64-bit hash of the whole simulation state, RNG and queue included.
@@ -97,7 +99,9 @@ func state_hash() -> int:
 
 
 func _state_ints() -> Array[int]:
-	var ints: Array[int] = [tick, rng.state, notes, _queue.size()]
+	var ints: Array[int] = [tick, rng.state, notes]
+	ints.append_array(clock.state_ints())
+	ints.append(_queue.size())
 	for command in _queue:
 		ints.append(command.tick)
 		ints.append(command.kind)
@@ -117,13 +121,15 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "clock": clock.state_ints(), "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
 ## the data is not a supported save.
 func load_state(data: Dictionary) -> bool:
 	if data.get("version", 0) != SAVE_VERSION:
+		return false
+	if not clock.load_ints(data["clock"]):
 		return false
 	tick = data["tick"]
 	rng.state = data["rng_state"]
