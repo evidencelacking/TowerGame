@@ -279,6 +279,65 @@ func bulldoze(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_t
 	return OK
 
 
+## Checks a replace without changing anything: the room covering (floor_number, x_left) goes and
+## a new room of kind (a catalogue id) takes its place with its left edge at x_left. Returns
+## {"reason", "cost", "refund", "net", "room_id", "floor_units"}: cost is the new room's price plus
+## missing floor units, refund is a sold condo's payback, and net is cost + refund, the one amount
+## the replace charges. The new placement is judged on a copy of the grid with the old room gone.
+func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: String, floor_number: int, x_left: int) -> Dictionary:
+	var result := {"reason": OK, "cost": 0, "refund": 0, "net": 0, "room_id": 0, "floor_units": 0}
+	var removal := check_bulldoze(grid, floors, floor_number, x_left)
+	if removal["reason"] != OK:
+		result["reason"] = removal["reason"]
+		return result
+	var id: int = removal["room_id"]
+	result["room_id"] = id
+	result["refund"] = removal["refund"]
+	var after: GridScript = GridScript.new()
+	after.load_ints(grid.state_ints())
+	after.remove(id)
+	if kind_of(id) == "stairs":
+		after.remove(id + 1)
+	var placed := check_place(after, floors, kind, floor_number, x_left)
+	result["cost"] = placed["cost"]
+	result["floor_units"] = placed["floor_units"]
+	result["net"] = placed["cost"] + removal["refund"]
+	if placed["reason"] != OK:
+		result["reason"] = placed["reason"]
+	elif result["net"] > balance:
+		result["reason"] = SHORT_OF_FUNDS
+	return result
+
+
+## Replaces a room in one step (the REPLACE_ROOM command): bulldoze the room covering
+## (floor_number, x_left), then place kind_index there. All or nothing: on any refusal the old room
+## stays and money is unchanged. The sold-condo payback and the new cost are one CHARGE line.
+func replace_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, kind_index: int, floor_number: int, x_left: int) -> int:
+	if kind_index < 0 or kind_index >= CatalogueScript.IDS.size():
+		return UNKNOWN_KIND
+	var kind: String = CatalogueScript.IDS[kind_index]
+	var checked := check_replace(grid, floors, ledger.balance, kind, floor_number, x_left)
+	if checked["reason"] != OK:
+		return checked["reason"]
+	var id: int = checked["room_id"]
+	if ledger.charge(at_tick, checked["net"], kind_index) != LedgerScript.OK:
+		return SHORT_OF_FUNDS
+	occupants_removed += people_in(id)
+	grid.remove(id)
+	if kind_of(id) == "stairs":
+		grid.remove(id + 1)
+	_kind_of.erase(id)
+	_sold.erase(id)
+	var width: int = CatalogueScript.field(kind, "width")
+	floors.fill_span(floor_number, x_left, x_left + width - 1)
+	while grid.has_occupant(_next_id):
+		_next_id += 1
+	grid.place(_next_id, floor_number, x_left, width)
+	_kind_of[_next_id] = kind_index
+	_next_id += 1
+	return OK
+
+
 ## Flat ints for hashing and saving: next id, count, then (id, kind index, sold) triples ordered
 ## by id, then occupants_removed.
 func state_ints() -> Array[int]:
