@@ -3,9 +3,10 @@ extends CanvasLayer
 ## Reads the sim read-only; pause and speed go to the SimDriver, never into the sim.
 
 const Clock := preload("res://scripts/sim/clock.gd")
+const Driver := preload("res://scripts/view/sim_driver.gd")
 const DAY_NAMES: Array[String] = ["WD1", "WD2", "WE"]
 
-@onready var _driver: SimDriver = $SimDriver
+@onready var _driver: Driver = $SimDriver
 @onready var _date: Label = %DateLabel
 @onready var _period: Label = %PeriodLabel
 @onready var _money: Label = %MoneyLabel
@@ -41,13 +42,23 @@ func _toggle_pause() -> void:
 	_driver.set_paused(not _driver.paused)
 
 
+## Whole dollars with thousands separators: 2000000 -> "$2,000,000", -500 -> "-$500".
+static func format_money(dollars: int) -> String:
+	var digits := str(absi(dollars))
+	var grouped := ""
+	while digits.length() > 3:
+		grouped = "," + digits.substr(digits.length() - 3) + grouped
+		digits = digits.substr(0, digits.length() - 3)
+	return ("-" if dollars < 0 else "") + "$" + digits + grouped
+
+
 func _refresh() -> void:
 	var clock := _driver.tower.clock
 	_date.text = "Y%d Q%d %s  %02d:%02d" % [
 		clock.year(), clock.quarter(), DAY_NAMES[clock.day_of_week()], clock.hour(), clock.minute()]
 	_period.text = "Period %d" % clock.period()
+	_money.text = format_money(_driver.tower.ledger.balance)
 	# No sim value yet for these (later issues); show 0 until they land.
-	_money.text = "$0"
 	_population.text = "Pop 0"
 	_stars.text = "Stars 0"
 	_pause.text = "Resume" if _driver.paused else "Pause"
