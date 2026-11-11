@@ -29,6 +29,7 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 | 2026-11-10 | Resolved values: one transfer per trip; at most 7 escalators a trip; fire rescue $500,000 and treasure $500,000 (players agree); ransom $200,000 (M) |
 | 2026-11-10 | We add our own cheats later (M12+); the original's bugs are not replicated |
 | 2026-11-10 | Graphics start as native Godot shapes so the game is playable first; original art comes in M10. No art or animation from the original game is used |
+| 2026-11-11 | Office hours are tunable constants, starting at arrive 9:00, break 10:30, lunch 12:00, leave 17:00 (#67) |
 | 2026-11-11 | Condo price set before transport (V): fixed for now. A condo cannot sell until people can reach it; may be revisited |
 
 ## Time
