@@ -84,3 +84,12 @@ static func run(check: Callable) -> void:
 		Command.make(3, Command.BUILD_FLOOR, [4, 25, 30]),
 	]
 	check.call(Harness.run_script(7, script, 4) == Harness.run_script(7, script, 4), "the same lobby commands give the same hash trace")
+
+	# The view redraws when the revision moves.
+	var rev := Harness.make(1)
+	var before := rev.floors.revision
+	_lobby(rev, 1, 0, 9, 1)
+	check.call(rev.floors.revision > before, "building the lobby bumps the floors revision for the view")
+	var same := rev.floors.revision
+	_lobby(rev, 1, 20, 29, 1)
+	check.call(rev.floors.revision == same, "a refused build leaves the revision alone")

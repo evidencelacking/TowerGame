@@ -32,6 +32,21 @@ var room_type_of: Callable = func(id: int) -> int: return id % ROOM_COLORS.size(
 var people: Array[Array] = []
 
 
+var _seen_revision: int = -1
+var _seen_occupants: int = -1
+
+
+## Redraws when the floors or rooms change; the view never polls the whole tower.
+func _process(_delta: float) -> void:
+	if tower == null:
+		return
+	var occupants := tower.grid.occupant_count()
+	if tower.floors.revision != _seen_revision or occupants != _seen_occupants:
+		_seen_revision = tower.floors.revision
+		_seen_occupants = occupants
+		queue_redraw()
+
+
 func set_tower(value: Tower) -> void:
 	tower = value
 	queue_redraw()

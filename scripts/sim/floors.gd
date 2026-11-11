@@ -37,6 +37,8 @@ const SHAFT := 2
 const LOBBY := 4  # the ground lobby occupies the cell (it is also BUILT)
 const LOBBY_MAX_HEIGHT := 3
 
+## Bumps on every change, so the view knows when to redraw. Not saved or hashed.
+var revision: int = 0
 var _flags := PackedByteArray()  # FLOOR_COUNT * WIDTH_UNITS flag bytes
 
 
@@ -59,8 +61,10 @@ func mark_shaft(floor_number: int, column: int, on: bool = true) -> bool:
 		return false
 	if on:
 		_flags[index] = _flags[index] | SHAFT
+		revision += 1
 	else:
 		_flags[index] = _flags[index] & ~SHAFT
+		revision += 1
 	return true
 
 
@@ -119,6 +123,7 @@ func build_span(ledger: LedgerScript, at_tick: int, floor_number: int, x_start: 
 	for column in range(x_start, x_end + 1):
 		var index := _cell_index(floor_number, column)
 		_flags[index] = _flags[index] | BUILT
+	revision += 1
 	return OK
 
 
@@ -189,6 +194,7 @@ func build_lobby(ledger: LedgerScript, at_tick: int, floor_number: int, x_start:
 		for column in range(x_start, x_end + 1):
 			var index := _cell_index(level, column)
 			_flags[index] = _flags[index] | BUILT | LOBBY
+	revision += 1
 	return OK
 
 
@@ -247,6 +253,7 @@ func load_ints(ints: Array) -> bool:
 		for column in range(ints[base + 2], ints[base + 2] + ints[base + 3]):
 			loaded[row * GridScript.WIDTH_UNITS + column] = ints[base + 1]
 	_flags = loaded
+	revision += 1
 	return true
 
 

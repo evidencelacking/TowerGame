@@ -3,7 +3,8 @@ extends Node
 
 const SKY := Color(0.53, 0.78, 0.95)
 
-var _tower := Tower.new()
+## The tower the HUD's SimDriver steps: the view must draw this one, not a copy.
+@onready var _tower: Tower = $Hud/SimDriver.tower
 
 
 func _ready() -> void:
