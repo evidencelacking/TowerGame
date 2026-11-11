@@ -30,6 +30,7 @@ var tower: Tower = null
 const KIND_COLORS: Dictionary = {
 	"office": Color(0.55, 0.70, 0.90),
 	"condo": Color(0.85, 0.65, 0.85),
+	"stairs": Color(0.80, 0.72, 0.45),
 }
 
 ## Maps an occupant id to a ROOM_COLORS key. Replace once the sim stores room types.
@@ -122,7 +123,17 @@ func _draw_rooms() -> void:
 				column += 1
 				continue
 			seen[id] = true
+			if tower.rooms.is_stairs_upper(id):
+				column += grid.run_of(id)[2]
+				continue
 			var run := grid.run_of(id)
+			if tower.rooms.kind_of(id) == "stairs":
+				# Stairs span their own floor and the one above.
+				var span := Rect2i(run[1] * VC.CELL_PX, VC.floor_to_row(Tower.RoomsScript.floor_above(floor_number)) * VC.CELL_PX, run[2] * VC.CELL_PX, 2 * VC.CELL_PX)
+				draw_rect(span, KIND_COLORS["stairs"])
+				draw_rect(span, KIND_COLORS["stairs"].darkened(0.5), false, 1.0)
+				column += run[2]
+				continue
 			var rect := Rect2i(run[1] * VC.CELL_PX, VC.floor_to_row(floor_number) * VC.CELL_PX, run[2] * VC.CELL_PX, VC.CELL_PX)
 			var color: Color = EMPTY_ROOM_COLOR
 			if tower.rooms.has_room(id):

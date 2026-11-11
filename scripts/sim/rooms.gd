@@ -29,9 +29,12 @@ const OVERLAPS_LOBBY := 25  ## The ground lobby is in the way.
 const OVER_SHAFT := 26  ## A shaft is in the way.
 const NOTHING_BELOW := 27  ## No new floor unit has a floor to rest on.
 const OVERHANG := 28  ## Some units rest on a floor, others hang past it.
+const NO_FLOOR_FOR_STAIRS := 29  ## Stairs: one of the two floors is not built under the stairs.
 const NOTHING_THERE := 30  ## Bulldoze: the cell is empty (or off the tower).
 const PERMANENT := 31  ## Bulldoze: the lobby or another room the player cannot remove.
 const NOT_A_ROOM := 32  ## Bulldoze: the cell holds an occupant that is not a placed room.
+
+const STAIRS_LIMIT := 34  ## Stairs: the tower already holds the most stairs and escalators.
 
 const PLACEABLE: Array[String] = ["office", "condo"]
 const FIRST_ID := 1000  ## Room occupant ids start here, clear of ids given to PLACE commands.
@@ -39,6 +42,7 @@ const FIRST_ID := 1000  ## Room occupant ids start here, clear of ids given to P
 var _kind_of: Dictionary = {}  # occupant id -> index in RoomCatalogue.IDS
 var _sold: Dictionary = {}  # condo occupant id -> true once sold (sales come in M3; tests set it)
 var _next_id: int = FIRST_ID
+## Stairs hold two grid occupants, one per floor: the room id (lower floor) and id + 1 (upper).
 ## Hook until population exists (M3): the running total of workers and residents removed by
 ## bulldozing. A room holds RoomCatalogue "people" of them.
 var occupants_removed: int = 0
@@ -127,6 +131,81 @@ func place_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at
 	return OK
 
 
+## The floor above floor_number, or 0 when there is none (floor 100; there is no floor 0).
+static func floor_above(floor_number: int) -> int:
+	if floor_number == -1:
+		return 1
+	if floor_number == GridScript.FLOOR_MAX:
+		return 0
+	return floor_number + 1
+
+
+## How many stairs and escalators the tower holds (they share one limit).
+func _stairs_and_escalators() -> int:
+	var count := 0
+	for id: int in _kind_of:
+		if CatalogueScript.field(kind_of(id), "limit_group") == "stairs_escalators":
+			count += 1
+	return count
+
+
+## Checks stairs linking floor_number and the floor above, x_left being the left column. Returns
+## {"reason", "cost"}. Needs a built floor (a lobby counts) under all columns on both floors, no
+## shaft on either, nothing else in the way (a lobby is fine), and room under the 64 stairs and
+## escalators limit. The placement ghost (#13) uses this.
+func check_place_stairs(grid: GridScript, floors: FloorsScript, floor_number: int, x_left: int) -> Dictionary:
+	var result := {"reason": OK, "cost": 0}
+	var upper := floor_above(floor_number)
+	if not GridScript.is_valid_floor(floor_number) or upper == 0:
+		result["reason"] = BAD_FLOOR
+		return result
+	var width: int = CatalogueScript.field("stairs", "width")
+	if x_left < 0 or x_left + width > GridScript.WIDTH_UNITS:
+		result["reason"] = OFF_TOWER
+		return result
+	for column in range(x_left, x_left + width):
+		for level: int in [floor_number, upper]:
+			if grid.cell_at(level, column) != GridScript.EMPTY:
+				result["reason"] = OVERLAPS_ROOM
+				return result
+			if floors.has_shaft(level, column):
+				result["reason"] = OVER_SHAFT
+				return result
+	for column in range(x_left, x_left + width):
+		if not floors.has_floor(floor_number, column) or not floors.has_floor(upper, column):
+			result["reason"] = NO_FLOOR_FOR_STAIRS
+			return result
+	if _stairs_and_escalators() >= int(CatalogueScript.field("stairs", "limit")):
+		result["reason"] = STAIRS_LIMIT
+		return result
+	result["cost"] = CatalogueScript.cost("stairs")
+	return result
+
+
+## Places stairs (the PLACE_STAIRS command): args are the lower floor and the left column. One
+## ledger charge, ref = the catalogue index of "stairs". Returns OK or a reason code.
+func place_stairs(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, floor_number: int, x_left: int) -> int:
+	var checked := check_place_stairs(grid, floors, floor_number, x_left)
+	if checked["reason"] != OK:
+		return checked["reason"]
+	var kind_index: int = CatalogueScript.IDS.find("stairs")
+	if ledger.charge(at_tick, checked["cost"], kind_index) != LedgerScript.OK:
+		return SHORT_OF_FUNDS
+	var width: int = CatalogueScript.field("stairs", "width")
+	while grid.has_occupant(_next_id) or grid.has_occupant(_next_id + 1):
+		_next_id += 1
+	grid.place(_next_id, floor_number, x_left, width)
+	grid.place(_next_id + 1, floor_above(floor_number), x_left, width)
+	_kind_of[_next_id] = kind_index
+	_next_id += 2
+	return OK
+
+
+## True when id is the upper-floor half of a stairs (not a room of its own).
+func is_stairs_upper(id: int) -> bool:
+	return not _kind_of.has(id) and kind_of(id - 1) == "stairs"
+
+
 ## Marks a room sold (or not). Only a condo can be sold; returns false otherwise. Sales
 ## themselves come in M3; this lets tests and later code set the flag.
 func set_sold(id: int, sold: bool) -> bool:
@@ -159,13 +238,13 @@ func check_bulldoze(grid: GridScript, floors: FloorsScript, floor_number: int, x
 	if not GridScript.is_valid_floor(floor_number):
 		result["reason"] = BAD_FLOOR
 		return result
-	if floors.has_lobby_at(floor_number, x):
-		result["reason"] = PERMANENT
-		return result
 	var id := grid.cell_at(floor_number, x)
 	if id == GridScript.EMPTY:
-		result["reason"] = NOTHING_THERE
+		# Stairs can stand inside a lobby, so only an empty lobby cell is the lobby itself.
+		result["reason"] = PERMANENT if floors.has_lobby_at(floor_number, x) else NOTHING_THERE
 		return result
+	if is_stairs_upper(id):
+		id -= 1
 	if not _kind_of.has(id):
 		result["reason"] = NOT_A_ROOM
 		return result
@@ -193,6 +272,8 @@ func bulldoze(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_t
 	if checked["refund"] > 0:
 		ledger.payout(at_tick, checked["refund"], id)
 	grid.remove(id)
+	if kind_of(id) == "stairs":
+		grid.remove(id + 1)
 	_kind_of.erase(id)
 	_sold.erase(id)
 	return OK
@@ -239,5 +320,7 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 		if id < 1 or kind_index < 0 or kind_index >= CatalogueScript.IDS.size() or (sold != 0 and sold != 1):
 			return false
 		if grid != null and not grid.has_occupant(id):
+			return false
+		if grid != null and kind_index == CatalogueScript.IDS.find("stairs") and not grid.has_occupant(id + 1):
 			return false
 	return true
