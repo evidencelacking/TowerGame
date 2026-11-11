@@ -72,8 +72,7 @@ accessibility, controller and touch input.
 
 ## Open questions for the owner
 
-1. Godot 4 and GDScript, as in the strategy game?
-2. When `TowerGame` is set up (task 0.1), these docs move there. Agreed?
-3. Name now, or with the art direction in M10?
+1. Name now, or with the art direction in M10?
 Settled 2026-11-10: conflicting values (rule above), elevators (local 17, express 36),
-our own cheats later, and native shapes before art.
+our own cheats later, and native shapes before art. Settled since: Godot 4 and GDScript,
+and these docs live in `TowerGame`.
