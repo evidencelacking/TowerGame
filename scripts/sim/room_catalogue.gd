@@ -18,6 +18,8 @@ extends RefCounted
 ##   placement      a PLACE_* rule, a hint for the building issues to enforce.
 ##   limit          most allowed per tower, or 0 for no limit.
 ##   limit_group    rooms sharing one limit share this group name; "" counts alone.
+##   people         workers (office) or residents (condo) the room holds; absent elsewhere for now.
+##                  Population, rent and "condo sold once" (M3+) come later.
 ##   capacity       passengers per car (car rows only; 0 elsewhere).
 ##   limit_scope    "tower", or "shaft" for elevator cars (limit is cars per shaft).
 
@@ -63,10 +65,10 @@ const _ROWS: Dictionary = {
 	"local_car": {"capacity": 17, "width": 4, "height": 1, "cost": 80000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_CAR, "limit": 8,
 		"limit_group": "", "limit_scope": "shaft"},
-	"office": {"width": 9, "height": 1, "cost": 40000, "per_unit": false, "star": 1,
+	"office": {"people": 6, "width": 9, "height": 1, "cost": 40000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
-	"condo": {"width": 16, "height": 1, "cost": 80000, "per_unit": false, "star": 1,
+	"condo": {"people": 3, "width": 16, "height": 1, "cost": 80000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"fast_food": {"width": 16, "height": 1, "cost": 100000, "per_unit": false, "star": 1,

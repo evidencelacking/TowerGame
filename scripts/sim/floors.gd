@@ -127,6 +127,21 @@ func build_span(ledger: LedgerScript, at_tick: int, floor_number: int, x_start: 
 	return OK
 
 
+## Builds the units of a span that are not yet floor, free of charge. The caller (a room, #12)
+## has already checked support and charged. Cells with a shaft or lobby are left alone.
+func fill_span(floor_number: int, x_start: int, x_end: int) -> void:
+	for column in range(x_start, x_end + 1):
+		var index := _cell_index(floor_number, column)
+		if index >= 0 and (_flags[index] & (SHAFT | LOBBY)) == 0:
+			_flags[index] = _flags[index] | BUILT
+	revision += 1
+
+
+## True when the ground lobby occupies this cell.
+func has_lobby_at(floor_number: int, column: int) -> bool:
+	return _has(floor_number, column, LOBBY)
+
+
 ## True once the ground lobby is built.
 func has_lobby() -> bool:
 	return not lobby_span().is_empty()
