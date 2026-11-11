@@ -18,9 +18,11 @@ extends RefCounted
 ##   placement      a PLACE_* rule, a hint for the building issues to enforce.
 ##   limit          most allowed per tower, or 0 for no limit.
 ##   limit_group    rooms sharing one limit share this group name; "" counts alone.
+##   capacity       passengers per car (car rows only; 0 elsewhere).
 ##   limit_scope    "tower", or "shaft" for elevator cars (limit is cars per shaft).
 
 const FLOOR_COST_PER_UNIT := 500  ## Dollars per unit for the floor under any room.
+const RESCUE_COST := 500000  ## Fire rescue, dollars (decided 2026-11-10).
 
 const PLACE_ANYWHERE := 0  ## Above or below ground.
 const PLACE_ABOVE_GROUND := 1
@@ -56,9 +58,9 @@ const _ROWS: Dictionary = {
 		"removable": true, "placement": PLACE_BETWEEN_FLOORS, "limit": 64,
 		"limit_group": "stairs_escalators", "limit_scope": "tower"},
 	"local_shaft": {"width": 4, "height": 1, "cost": 200000, "per_unit": false, "star": 1,
-		"removable": true, "placement": PLACE_SHAFT, "limit": 24,
+		"removable": true, "placement": PLACE_SHAFT, "limit": 24,  # unverified: reference doesn't scope 24 shafts
 		"limit_group": "shafts", "limit_scope": "tower"},
-	"local_car": {"width": 4, "height": 1, "cost": 80000, "per_unit": false, "star": 1,
+	"local_car": {"capacity": 17, "width": 4, "height": 1, "cost": 80000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_CAR, "limit": 8,
 		"limit_group": "", "limit_scope": "shaft"},
 	"office": {"width": 9, "height": 1, "cost": 40000, "per_unit": false, "star": 1,
@@ -71,9 +73,9 @@ const _ROWS: Dictionary = {
 		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"service_shaft": {"width": 4, "height": 1, "cost": 100000, "per_unit": false, "star": 2,
-		"removable": true, "placement": PLACE_SHAFT, "limit": 24,
+		"removable": true, "placement": PLACE_SHAFT, "limit": 24,  # unverified: reference doesn't scope 24 shafts
 		"limit_group": "shafts", "limit_scope": "tower"},
-	"service_car": {"width": 4, "height": 1, "cost": 50000, "per_unit": false, "star": 2,
+	"service_car": {"capacity": 17, "width": 4, "height": 1, "cost": 50000, "per_unit": false, "star": 2,
 		"removable": true, "placement": PLACE_CAR, "limit": 8,
 		"limit_group": "", "limit_scope": "shaft"},
 	"hotel_single": {"width": 4, "height": 1, "cost": 20000, "per_unit": false, "star": 2,
@@ -90,9 +92,9 @@ const _ROWS: Dictionary = {
 		"removable": true, "placement": PLACE_ESCALATOR, "limit": 64,
 		"limit_group": "stairs_escalators", "limit_scope": "tower"},
 	"express_shaft": {"width": 6, "height": 1, "cost": 400000, "per_unit": false, "star": 3,
-		"removable": true, "placement": PLACE_SHAFT, "limit": 24,
+		"removable": true, "placement": PLACE_SHAFT, "limit": 24,  # unverified: reference doesn't scope 24 shafts
 		"limit_group": "shafts", "limit_scope": "tower"},
-	"express_car": {"width": 6, "height": 1, "cost": 150000, "per_unit": false, "star": 3,
+	"express_car": {"capacity": 36, "width": 6, "height": 1, "cost": 150000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_CAR, "limit": 8,
 		"limit_group": "", "limit_scope": "shaft"},
 	"hotel_twin": {"width": 6, "height": 1, "cost": 50000, "per_unit": false, "star": 3,

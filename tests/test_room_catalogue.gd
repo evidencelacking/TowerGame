@@ -76,6 +76,13 @@ static func run(check: Callable) -> void:
 	check.call(Catalogue.field("stairs", "limit") == Catalogue.field("escalator", "limit"), "stairs and escalators share a limit")
 	check.call(Catalogue.field("security", "limit") == 10, "security limit is 10")
 
+	# Resolved values: passengers per car and the rescue cost.
+	check.call(Catalogue.field("local_car", "capacity") == 17, "a local car carries 17")
+	check.call(Catalogue.field("express_car", "capacity") == 36, "an express car carries 36")
+	check.call(Catalogue.field("service_car", "capacity") == 17, "a service car carries 17")
+	check.call(Catalogue.field("office", "capacity") == 0, "a non-car room has no car capacity")
+	check.call(Catalogue.RESCUE_COST == 500000, "fire rescue costs $500,000")
+
 	# Unknown ids.
 	check.call(not Catalogue.has("nonsense"), "an unknown id has no row")
 	check.call(Catalogue.row("nonsense").is_empty(), "an unknown id gives an empty row")
