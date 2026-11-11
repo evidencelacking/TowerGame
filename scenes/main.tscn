@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/view/tower_renderer.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/view/tower_camera.gd" id="cam"]
+[ext_resource type="Script" path="res://scripts/view/message_log.gd" id="msglog"]
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="hud"]
 
 [node name="Main" type="Node"]
@@ -20,6 +21,9 @@ script = ExtResource("ghost")
 script = ExtResource("cam")
 
 [node name="Hud" parent="." instance=ExtResource("hud")]
+
+[node name="MessageLog" type="CanvasLayer" parent="."]
+script = ExtResource("msglog")
 
 [node name="Toolbar" type="CanvasLayer" parent="."]
 script = ExtResource("toolbar")

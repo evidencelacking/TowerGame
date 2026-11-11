@@ -131,6 +131,21 @@ static func period_start(index: int) -> int:
 		_: return PERIOD_1_START
 
 
+## The clock as it stands after ticks advance() calls from the start, without replaying them. quarter_started is left clear.
+func set_to_tick(count: int) -> void:
+	var ticks := maxi(count, 0)
+	var day_ticks := 0
+	for p in PERIODS:
+		day_ticks += period_ticks(p)
+	var days := ticks / day_ticks
+	var left := ticks % day_ticks
+	var index := 0
+	while left >= period_ticks(index):
+		left -= period_ticks(index)
+		index += 1
+	load_ints([index, left, days % DAYS_PER_QUARTER, (days / DAYS_PER_QUARTER) % QUARTERS_PER_YEAR, 1 + days / (DAYS_PER_QUARTER * QUARTERS_PER_YEAR), 0] as Array[int])
+
+
 ## State for hashing and saving, in a fixed order.
 func state_ints() -> Array[int]:
 	return [_period, _ticks_in_period, _day, _quarter, _year, 1 if quarter_started else 0]
