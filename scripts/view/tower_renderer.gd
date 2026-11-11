@@ -47,6 +47,7 @@ func _draw() -> void:
 	if tower == null:
 		return
 	_draw_grid(world)
+	_draw_floors()
 	_draw_rooms()
 	_draw_people()
 
@@ -58,6 +59,22 @@ func _draw_grid(world: Rect2i) -> void:
 		draw_line(Vector2(0, row * cell), Vector2(world.size.x, row * cell), GRID_COLOR, -1.0)
 	for column in range(0, Tower.Grid.WIDTH_UNITS + 1, 10):
 		draw_line(Vector2(column * cell, 0), Vector2(column * cell, world.size.y), GRID_COLOR, -1.0)
+
+
+## Built floor units: a thin slab along the bottom of each floor's row.
+func _draw_floors() -> void:
+	for index: int in Tower.Grid.FLOOR_COUNT:
+		var floor_number := Tower.Grid.index_to_floor(index)
+		var column := 0
+		while column < Tower.Grid.WIDTH_UNITS:
+			if not tower.floors.has_floor(floor_number, column):
+				column += 1
+				continue
+			var start := column
+			while column < Tower.Grid.WIDTH_UNITS and tower.floors.has_floor(floor_number, column):
+				column += 1
+			var y := (VC.floor_to_row(floor_number) + 1) * VC.CELL_PX - 3
+			draw_rect(Rect2i(start * VC.CELL_PX, y, (column - start) * VC.CELL_PX, 3), FLOOR_COLOR)
 
 
 func _draw_rooms() -> void:
