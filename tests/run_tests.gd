@@ -11,6 +11,7 @@ const TestHarness := preload("res://tests/test_harness.gd")
 const TestRoomCatalogue := preload("res://tests/test_room_catalogue.gd")
 const TestMoney := preload("res://tests/test_money.gd")
 const TestHud := preload("res://tests/test_hud.gd")
+const TestDisplay := preload("res://tests/test_display.gd")
 
 var failures := 0
 
@@ -25,6 +26,7 @@ func _initialize() -> void:
 	TestRoomCatalogue.run(check)
 	TestMoney.run(check)
 	TestHud.run(check)
+	TestDisplay.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 
