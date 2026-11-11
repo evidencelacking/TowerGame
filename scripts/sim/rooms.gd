@@ -29,12 +29,19 @@ const OVERLAPS_LOBBY := 25  ## The ground lobby is in the way.
 const OVER_SHAFT := 26  ## A shaft is in the way.
 const NOTHING_BELOW := 27  ## No new floor unit has a floor to rest on.
 const OVERHANG := 28  ## Some units rest on a floor, others hang past it.
+const NOTHING_THERE := 30  ## Bulldoze: the cell is empty (or off the tower).
+const PERMANENT := 31  ## Bulldoze: the lobby or another room the player cannot remove.
+const NOT_A_ROOM := 32  ## Bulldoze: the cell holds an occupant that is not a placed room.
 
 const PLACEABLE: Array[String] = ["office", "condo"]
 const FIRST_ID := 1000  ## Room occupant ids start here, clear of ids given to PLACE commands.
 
 var _kind_of: Dictionary = {}  # occupant id -> index in RoomCatalogue.IDS
+var _sold: Dictionary = {}  # condo occupant id -> true once sold (sales come in M3; tests set it)
 var _next_id: int = FIRST_ID
+## Hook until population exists (M3): the running total of workers and residents removed by
+## bulldozing. A room holds RoomCatalogue "people" of them.
+var occupants_removed: int = 0
 
 
 func room_count() -> int:
@@ -120,13 +127,86 @@ func place_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at
 	return OK
 
 
-## Flat ints for hashing and saving: next id, count, then (id, kind index) pairs ordered by id.
+## Marks a room sold (or not). Only a condo can be sold; returns false otherwise. Sales
+## themselves come in M3; this lets tests and later code set the flag.
+func set_sold(id: int, sold: bool) -> bool:
+	if kind_of(id) != "condo":
+		return false
+	if sold:
+		_sold[id] = true
+	else:
+		_sold.erase(id)
+	return true
+
+
+func is_sold(id: int) -> bool:
+	return _sold.has(id)
+
+
+## Workers or residents a room holds (all of the catalogue's people until population exists).
+func people_in(id: int) -> int:
+	var kind := kind_of(id)
+	if kind == "":
+		return 0
+	return int(CatalogueScript.row(kind).get("people", 0))
+
+
+## Checks a bulldoze without changing anything. Returns {"reason", "refund", "room_id",
+## "occupants"}: refund is what a sold condo pays back to its buyer (0 otherwise). The ghost (#13)
+## uses this.
+func check_bulldoze(grid: GridScript, floors: FloorsScript, floor_number: int, x: int) -> Dictionary:
+	var result := {"reason": OK, "refund": 0, "room_id": 0, "occupants": 0}
+	if not GridScript.is_valid_floor(floor_number):
+		result["reason"] = BAD_FLOOR
+		return result
+	if floors.has_lobby_at(floor_number, x):
+		result["reason"] = PERMANENT
+		return result
+	var id := grid.cell_at(floor_number, x)
+	if id == GridScript.EMPTY:
+		result["reason"] = NOTHING_THERE
+		return result
+	if not _kind_of.has(id):
+		result["reason"] = NOT_A_ROOM
+		return result
+	var kind := kind_of(id)
+	if not CatalogueScript.field(kind, "removable"):
+		result["reason"] = PERMANENT
+		return result
+	result["room_id"] = id
+	result["occupants"] = people_in(id)
+	if _sold.has(id):
+		result["refund"] = CatalogueScript.cost(kind)
+	return result
+
+
+## Removes the room covering the cell, free. Its occupants go (counted in occupants_removed), and
+## a sold condo pays its sale price back as a PAYOUT ledger line, even into a negative balance.
+## The floor units under the room stay, so a room stacked above keeps its support. Returns OK or
+## a reason code, changing nothing on a refusal.
+func bulldoze(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, floor_number: int, x: int) -> int:
+	var checked := check_bulldoze(grid, floors, floor_number, x)
+	if checked["reason"] != OK:
+		return checked["reason"]
+	var id: int = checked["room_id"]
+	occupants_removed += checked["occupants"]
+	if checked["refund"] > 0:
+		ledger.payout(at_tick, checked["refund"], id)
+	grid.remove(id)
+	_kind_of.erase(id)
+	_sold.erase(id)
+	return OK
+
+
+## Flat ints for hashing and saving: next id, count, then (id, kind index, sold) triples ordered
+## by id, then occupants_removed.
 func state_ints() -> Array[int]:
 	var ids: Array = _kind_of.keys()
 	ids.sort()
 	var ints: Array[int] = [_next_id, ids.size()]
 	for id: int in ids:
-		ints.append_array([id, _kind_of[id]] as Array[int])
+		ints.append_array([id, _kind_of[id], 1 if _sold.has(id) else 0] as Array[int])
+	ints.append(occupants_removed)
 	return ints
 
 
@@ -135,8 +215,12 @@ func load_ints(ints: Array) -> bool:
 	if not valid_ints(ints, null):
 		return false
 	_kind_of = {}
+	_sold = {}
 	for i in range(ints[1]):
-		_kind_of[ints[2 + 2 * i]] = ints[3 + 2 * i]
+		_kind_of[ints[2 + 3 * i]] = ints[3 + 3 * i]
+		if ints[4 + 3 * i] == 1:
+			_sold[ints[2 + 3 * i]] = true
+	occupants_removed = ints[2 + 3 * ints[1]]
 	_next_id = ints[0]
 	return true
 
@@ -146,12 +230,13 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 	for value in ints:
 		if typeof(value) != TYPE_INT:
 			return false
-	if ints.size() < 2 or ints[1] < 0 or ints.size() != 2 + 2 * ints[1] or ints[0] < 1:
+	if ints.size() < 2 or ints[1] < 0 or ints.size() != 3 + 3 * ints[1] or ints[0] < 1 or ints[2 + 3 * ints[1]] < 0:
 		return false
 	for i in range(ints[1]):
-		var id: int = ints[2 + 2 * i]
-		var kind_index: int = ints[3 + 2 * i]
-		if id < 1 or kind_index < 0 or kind_index >= CatalogueScript.IDS.size():
+		var id: int = ints[2 + 3 * i]
+		var kind_index: int = ints[3 + 3 * i]
+		var sold: int = ints[4 + 3 * i]
+		if id < 1 or kind_index < 0 or kind_index >= CatalogueScript.IDS.size() or (sold != 0 and sold != 1):
 			return false
 		if grid != null and not grid.has_occupant(id):
 			return false
