@@ -9,7 +9,10 @@ extends RefCounted
 ## on basements, so each basement unit mirrors the rule and needs a unit directly above it
 ## (B1 needs floor 1, B2 needs B1, and so on).
 ## Shafts do not exist yet: mark_shaft() is the hook #10 will call. A shaft cell takes no floor.
-## Not enforced here: "nothing wider than the ground lobby" (the lobby does not exist yet).
+## Ground lobby (2.2): build_lobby() builds floors 1 to its height as floor units flagged LOBBY.
+## Those cells are taken, so a floor or room cannot be built on them (OCCUPIED_BY_LOBBY). The
+## lobby's width caps everything above it through the no-wider-than-below rule. Floors built
+## before the lobby are not capped (UNVERIFIED: the reference does not say).
 
 const GridScript := preload("res://scripts/sim/grid.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
@@ -24,10 +27,18 @@ const NOTHING_BELOW := 12  ## No new unit of the span has a floor to rest on.
 const WIDER_THAN_BELOW := 13  ## Some units rest on a floor, others hang past it.
 const OVER_SHAFT := 14  ## The span crosses a shaft cell.
 const ALREADY_BUILT := 15  ## Every unit in the span is already a floor.
+const OCCUPIED_BY_LOBBY := 16  ## The span crosses a cell the ground lobby occupies.
+const LOBBY_BAD_FLOOR := 17  ## The ground lobby goes on floor 1 only.
+const LOBBY_BAD_HEIGHT := 18  ## The ground lobby is 1, 2 or 3 floors tall.
+const LOBBY_EXISTS := 19  ## The tower already has its ground lobby.
 
 const BUILT := 1  # cell flag bits
 const SHAFT := 2
+const LOBBY := 4  # the ground lobby occupies the cell (it is also BUILT)
+const LOBBY_MAX_HEIGHT := 3
 
+## Bumps on every change, so the view knows when to redraw. Not saved or hashed.
+var revision: int = 0
 var _flags := PackedByteArray()  # FLOOR_COUNT * WIDTH_UNITS flag bytes
 
 
@@ -50,8 +61,10 @@ func mark_shaft(floor_number: int, column: int, on: bool = true) -> bool:
 		return false
 	if on:
 		_flags[index] = _flags[index] | SHAFT
+		revision += 1
 	else:
 		_flags[index] = _flags[index] & ~SHAFT
+		revision += 1
 	return true
 
 
@@ -77,6 +90,9 @@ func check_span(floor_number: int, x_start: int, x_end: int) -> Dictionary:
 	var new_units := 0
 	var supported := 0
 	for column in range(x_start, x_end + 1):
+		if _has(floor_number, column, LOBBY):
+			result["reason"] = OCCUPIED_BY_LOBBY
+			return result
 		if has_shaft(floor_number, column):
 			result["reason"] = OVER_SHAFT
 			return result
@@ -107,6 +123,78 @@ func build_span(ledger: LedgerScript, at_tick: int, floor_number: int, x_start: 
 	for column in range(x_start, x_end + 1):
 		var index := _cell_index(floor_number, column)
 		_flags[index] = _flags[index] | BUILT
+	revision += 1
+	return OK
+
+
+## True once the ground lobby is built.
+func has_lobby() -> bool:
+	return not lobby_span().is_empty()
+
+
+## The ground lobby as [x_start, x_end, height], or empty when there is none.
+func lobby_span() -> Array[int]:
+	var span: Array[int] = []
+	var base := GridScript.floor_to_index(1) * GridScript.WIDTH_UNITS
+	for column in GridScript.WIDTH_UNITS:
+		if (_flags[base + column] & LOBBY) == 0:
+			continue
+		if span.is_empty():
+			span = [column, column, 1] as Array[int]
+		span[1] = column
+	if span.is_empty():
+		return span
+	for floor_number in range(2, LOBBY_MAX_HEIGHT + 1):
+		if _has(floor_number, span[0], LOBBY):
+			span[2] = floor_number
+	return span
+
+
+## Checks a ground lobby without changing anything. Returns {"reason", "new_units", "cost"}.
+## Cost is the lobby price per unit for every floor it occupies, plus the floor price for each
+## unit not already built. UNVERIFIED: tall lobby priced per floor (gameplay review left it open).
+func check_lobby(floor_number: int, x_start: int, x_end: int, height: int) -> Dictionary:
+	var result := {"reason": OK, "new_units": 0, "cost": 0}
+	if floor_number != 1:
+		result["reason"] = LOBBY_BAD_FLOOR
+		return result
+	if height < 1 or height > LOBBY_MAX_HEIGHT:
+		result["reason"] = LOBBY_BAD_HEIGHT
+		return result
+	if has_lobby():
+		result["reason"] = LOBBY_EXISTS
+		return result
+	if x_end < x_start or x_start < 0 or x_end >= GridScript.WIDTH_UNITS:
+		result["reason"] = BAD_SPAN
+		return result
+	var new_units := 0
+	for level in range(1, height + 1):
+		for column in range(x_start, x_end + 1):
+			if has_shaft(level, column):
+				result["reason"] = OVER_SHAFT
+				return result
+			if not has_floor(level, column):
+				new_units += 1
+	var width := x_end - x_start + 1
+	# unverified: tall lobby priced per floor
+	result["new_units"] = new_units
+	result["cost"] = CatalogueScript.cost("lobby") * width * height + new_units * CatalogueScript.FLOOR_COST_PER_UNIT
+	return result
+
+
+## Builds the ground lobby over floors 1 to height in one charge. Returns OK or a reason code,
+## and changes nothing on a refusal.
+func build_lobby(ledger: LedgerScript, at_tick: int, floor_number: int, x_start: int, x_end: int, height: int) -> int:
+	var checked := check_lobby(floor_number, x_start, x_end, height)
+	if checked["reason"] != OK:
+		return checked["reason"]
+	if ledger.charge(at_tick, checked["cost"], CatalogueScript.IDS.find("lobby")) != LedgerScript.OK:
+		return SHORT_OF_FUNDS
+	for level in range(1, height + 1):
+		for column in range(x_start, x_end + 1):
+			var index := _cell_index(level, column)
+			_flags[index] = _flags[index] | BUILT | LOBBY
+	revision += 1
 	return OK
 
 
@@ -134,7 +222,7 @@ func _has(floor_number: int, column: int, flag: int) -> bool:
 
 
 ## Flat ints for hashing and saving: run count then runs (floor, flag, start, length) in
-## floor, then column order, one flag value per run (1 built, 2 shaft, 3 both).
+## floor, then column order, one flag value per run (bits: 1 built, 2 shaft, 4 lobby).
 func state_ints() -> Array[int]:
 	var runs: Array[int] = []
 	for row in GridScript.FLOOR_COUNT:
@@ -165,6 +253,7 @@ func load_ints(ints: Array) -> bool:
 		for column in range(ints[base + 2], ints[base + 2] + ints[base + 3]):
 			loaded[row * GridScript.WIDTH_UNITS + column] = ints[base + 1]
 	_flags = loaded
+	revision += 1
 	return true
 
 
@@ -184,7 +273,7 @@ static func _valid_shape(ints: Array) -> bool:
 		var flag: int = ints[base + 1]
 		var start: int = ints[base + 2]
 		var length: int = ints[base + 3]
-		if GridScript.floor_to_index(ints[base]) < 0 or flag < 1 or flag > 3:
+		if GridScript.floor_to_index(ints[base]) < 0 or flag < 1 or flag > 7:
 			return false
 		if start < 0 or length < 1 or start + length > GridScript.WIDTH_UNITS:
 			return false

@@ -24,6 +24,7 @@ class Command:
 	const PURCHASE := 5  ## Spends money: args are cost, ref (room id). Refused if short.
 	const REFUND := 6  ## Returns money: args are amount, ref. Always applies.
 	const BUILD_FLOOR := 7  ## Builds a floor span: args are floor, x_start, x_end (inclusive).
+	const BUILD_LOBBY := 8  ## Builds the ground lobby: args are floor (must be 1), x_start, x_end, height (1 to 3).
 
 	var tick: int = 0  ## The tick this command applies at.
 	var kind: int = 0
@@ -47,7 +48,7 @@ var clock := Clock.new()
 var grid := Grid.new()
 var ledger := LedgerScript.new()
 var floors := FloorsScript.new()
-## Result of the most recent PURCHASE or BUILD_FLOOR command (OK or a refusal reason; see
+## Result of the most recent PURCHASE, BUILD_FLOOR or BUILD_LOBBY command (OK or a refusal reason; see
 ## Ledger and Floors for the codes).
 var last_refusal: int = 0
 ## Placeholder state that commands change, so tests can see them. Replaced as real state lands.
@@ -111,6 +112,9 @@ func _apply_command(command: Command) -> void:
 		Command.BUILD_FLOOR:
 			if command.args.size() == 3:
 				last_refusal = floors.build_span(ledger, tick, command.args[0], command.args[1], command.args[2])
+		Command.BUILD_LOBBY:
+			if command.args.size() == 4:
+				last_refusal = floors.build_lobby(ledger, tick, command.args[0], command.args[1], command.args[2], command.args[3])
 		_:
 			push_error("Unknown sim command kind %d" % command.kind)
 
