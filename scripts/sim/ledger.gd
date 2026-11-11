@@ -9,6 +9,7 @@ const DEFAULT_STARTING_FUNDS := 2000000  ## Dollars; a setting, overridable per 
 const OPENING := 1  ## The starting funds, tick 0.
 const CHARGE := 2  ## A purchase: amount is negative.
 const REFUND := 3  ## Any adjustment that always applies (positive money back, or negative).
+const PAYOUT := 4  ## Money paid out that is never refused (a bulldozed sold condo); amount is negative.
 
 ## Results returned by charge().
 const OK := 0
@@ -39,6 +40,11 @@ func charge(at_tick: int, cost: int, ref: int) -> int:
 ## clawback) is also accepted, so the balance may go negative.
 func refund(at_tick: int, amount: int, ref: int) -> void:
 	_add(at_tick, amount, REFUND, ref)
+
+
+## Pays out amount dollars (zero or more). Never refused: the balance may go negative.
+func payout(at_tick: int, amount: int, ref: int) -> void:
+	_add(at_tick, -amount, PAYOUT, ref)
 
 
 func line_sum() -> int:
