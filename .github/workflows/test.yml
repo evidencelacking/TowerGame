@@ -1,0 +1,51 @@
+name: Tests
+
+# Headless Godot tests, the simulation lint, the clean-room check and the python tool tests.
+# The pre-push hook runs the same checks locally, so CI is the second check. The repo is public,
+# so minutes are free, but docs-only PRs skip CI to match tools/issue.py (CI_SKIPS).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".claude/**"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.7.2-stable
+
+jobs:
+  test:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache Godot
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}
+      - name: Install Godot
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot/releases/download/$GODOT_VERSION/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip -d "$HOME/godot"
+          rm godot.zip
+      - name: Import project
+        run: |
+          echo "GODOT=$HOME/godot/Godot_v${GODOT_VERSION}_linux.x86_64" >> "$GITHUB_ENV"
+          "$HOME/godot/Godot_v${GODOT_VERSION}_linux.x86_64" --headless --path . --import
+      - name: Run all checks
+        run: python tools/check.py --full
