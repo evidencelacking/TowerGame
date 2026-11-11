@@ -3,7 +3,9 @@
   "permissions": {
     "allow": [
       "Bash(python tools/issue.py finish:*)",
-      "PowerShell(python tools/issue.py finish:*)"
+      "PowerShell(python tools/issue.py finish:*)",
+      "Bash(python tools/issue.py merge:*)",
+      "PowerShell(python tools/issue.py merge:*)"
     ]
   },
   "hooks": {
