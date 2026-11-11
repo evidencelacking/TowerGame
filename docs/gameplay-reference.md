@@ -29,6 +29,7 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 | 2026-11-10 | Resolved values: one transfer per trip; at most 7 escalators a trip; fire rescue $500,000 and treasure $500,000 (players agree); ransom $200,000 (M) |
 | 2026-11-10 | We add our own cheats later (M12+); the original's bugs are not replicated |
 | 2026-11-10 | Graphics start as native Godot shapes so the game is playable first; original art comes in M10. No art or animation from the original game is used |
+| 2026-11-11 | Condo price set before transport (V): fixed for now. A condo cannot sell until people can reach it; may be revisited |
 
 ## Time
 
@@ -189,7 +190,7 @@ Fires and threats only happen once the tower has security (M p58).
 | Lowest rent makes tenants stay forever (K) | Replicate first; flag for balance |
 | Lower then restore rent clears "conditions are terrible" (F, V) | Exploit; replicate the rule, then fix |
 | Escalators in office floors by building before the office (K, V) | Bug; don't replicate |
-| Raising a condo's price before it has transport sells it at the higher price (V) | Exploit; owner to decide |
+| Raising a condo's price before it has transport sells it at the higher price (V) | Fix for now: no sale until the condo is reachable (owner, 2026-11-11) |
 | Only the first 128 shops and food venues draw their own customers (V) | Bug; owner to decide (conflicts with I's 512 limit) |
 | A multi-floor escalator on the ground lobby blocks one directly below (V) | Bug; don't replicate |
 | Building on B10 blocks the metro forever (K) | Don't replicate; reserve or warn |
