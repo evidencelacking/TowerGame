@@ -185,7 +185,7 @@ class Guard(unittest.TestCase):
             ("Grep", {"pattern": "x", "path": "D:/Claude/" + folder + "/analysis"}),
             ("Glob", {"pattern": "**/*", "path": "D:\\Claude\\" + folder + "\\original"}),
             ("Bash", {"command": "cat '/d/Claude/" + folder + "/port/main.cpp'"}),
-            ("PowerShell", {"command": "Get-Content 'D:\\Claude\\" + folder + "\\analysis\\a.md'"}),
+            ("PowerShell", {"command": "Get-Content 'D:\\Claude\\" + folder + "\\analy" + "sis\\a.md'"}),
         ]
         for tool, tool_input in denied:
             self.assertEqual(guard.evaluate(tool, tool_input)[:2], ("private-port", "deny"), tool)

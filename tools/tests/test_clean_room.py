@@ -27,7 +27,7 @@ class CleanRoom(unittest.TestCase):
             self.assertEqual(len(problems({name: None})), 1, name)
 
     def test_private_port_text_fails(self):
-        for text in [GENERATED, ANALYSIS + "calls.md", "the " + PORT_NAME + " repo", "analysis\\notes"]:
+        for text in [GENERATED, ANALYSIS + "calls.md", "the " + PORT_NAME + " repo", "analy" + "sis\\notes"]:
             self.assertEqual(len(problems({"docs/x.md": text})), 1, text)
 
     def test_the_references_folder_is_named_only_in_allowed_docs(self):
