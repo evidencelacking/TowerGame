@@ -5,6 +5,7 @@ extends CanvasLayer
 ## the star that unlocks it, and an item the sim cannot build yet is greyed with a tooltip saying
 ## so. Picking an item sets the PlacementGhost's tool, the same as its hotkey. View only.
 
+const TowerSim := preload("res://scripts/sim/tower.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const HudScript := preload("res://scripts/view/hud.gd")
@@ -144,7 +145,7 @@ func _on_category_pressed(index: int) -> void:
 func _refresh() -> void:
 	if _bar == null:
 		return
-	var star_rating: int = ghost.stars if ghost != null else 1
+	var star_rating: int = ghost.stars if ghost != null else TowerSim.START_STARS
 	_shown_stars = star_rating
 	_shown_tool = ghost.tool if ghost != null else ""
 	for c in CATEGORIES.size():

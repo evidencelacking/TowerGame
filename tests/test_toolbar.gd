@@ -59,7 +59,9 @@ static func run(check: Callable) -> void:
 		check.call(bar.select(id) and ghost.tool == "", "picking %s again turns the tool off" % id)
 	bar.select("condo")
 	check.call(ghost.last_room == "condo", "choosing a room tool sets the room replace builds")
-	ghost.stars = 2
+	ghost.tower = TowerSim.new(0)
+	ghost.tower.stars = 2
+	check.call(ghost.stars == 2, "the ghost reads the sim's star rating")
 	check.call(Toolbar.item_state("service_shaft", 2)["locked"] == false, "a star 2 item unlocks at 2 stars")
 
 	# The ghost's click sends the matching command for each M2 tool.
