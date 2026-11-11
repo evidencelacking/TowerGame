@@ -9,6 +9,10 @@ config/name="Tower Game"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
+[autoload]
+
+DisplaySettings="*res://scripts/view/display_settings.gd"
+
 [display]
 
 window/size/viewport_width=1920
@@ -16,6 +20,7 @@ window/size/viewport_height=1080
 window/size/resizable=true
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+window/stretch/scale_mode="integer"
 
 [rendering]
 

@@ -34,9 +34,13 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 - A day has 6 periods; the clock runs fast at night and slow at rush hours (M p26).
 - A week is 2 weekdays (WD) and 1 weekend day (WE); each week is a quarter; 4 quarters a year,
   so a year is 12 days (M, F). A game starts at 5:00 on 1st WD, 1Q, year 1 (F).
-- One period is 300 frames in the manual's model (M p62).
+- The manual's simulation model uses 300 frames a period as an illustration, not a real tick
+  count (M p62). Our ticks per period are our own constants, unverified and tunable (owner, #2).
 - Offices are empty on weekends; shops and food do most weekend trade (K, I).
 - Office rent arrives at the start of each quarter, on the 1st WD (K, S).
+- Some events happen only on the 1st WD or only on the weekend (F). Known: rent on the 1st WD
+  (K, S); the wedding and the weekend shop and food trade on WE (M p28, W, K, I). Any other
+  WD1-only events are unverified.
 
 ## Money
 
@@ -66,7 +70,7 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 
 | Item | Cost | Unlock | Removable | Size and placement |
 |---|---|---|---|---|
-| Lobby | $5,000 per unit | 1 | No | Floor 1, then every 15 floors (15, 30 ... 90). Ground lobby may be 2 or 3 floors tall |
+| Lobby | $5,000 per unit, plus the $500-per-unit floor under it (I, F, K) | 1 | No | Floor 1, then every 15 floors (15, 30 ... 90). Ground lobby may be 2 or 3 floors tall |
 | Floor | $500 per unit | 1 | No | No floor wider than the one below (M p50) |
 | Stairs | $5,000 | 1 | Yes | Between two floors; not over elevators |
 | Local elevator | $200,000 shaft, $80,000 car | 1 | Yes | Up to 30 floors including basements |
@@ -95,7 +99,9 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 - Limits (I): 24 shafts, 8 cars per shaft, 64 stairs and escalators together, 512 parking
   spaces and shops, 10 medical and security, 16 theatres and party halls, 1 metro,
   1 cathedral. S says 8 security offices.
-- The tower is 100 floors up and 10 down (M p26). Nothing may be wider than the ground lobby.
+- The tower is 100 floors up and 10 down (M p26). There is no floor 0: floor 1 is the ground
+  lobby (a 2- or 3-floor lobby is floors 1-2 or 1-3), and basements are B1-B10 (owner, #3, #10).
+  Nothing may be wider than the ground lobby.
 
 ## Transport
 
