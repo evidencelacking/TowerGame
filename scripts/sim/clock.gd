@@ -136,9 +136,10 @@ func state_ints() -> Array[int]:
 	return [_period, _ticks_in_period, _day, _quarter, _year, 1 if quarter_started else 0]
 
 
-## Restores state_ints(). Returns false, changing nothing, if the array is the wrong shape.
+## Restores state_ints(). Returns false, changing nothing, if the array is the wrong shape
+## or holds a value out of range.
 func load_ints(ints: Array) -> bool:
-	if ints.size() != 6:
+	if not valid_ints(ints):
 		return false
 	_period = ints[0]
 	_ticks_in_period = ints[1]
@@ -147,3 +148,20 @@ func load_ints(ints: Array) -> bool:
 	_year = ints[4]
 	quarter_started = ints[5] != 0
 	return true
+
+
+## Whether ints is a state_ints() result that load_ints() would accept.
+static func valid_ints(ints: Array) -> bool:
+	if ints.size() != 6:
+		return false
+	for value in ints:
+		if typeof(value) != TYPE_INT:
+			return false
+	return (
+		ints[0] >= 0 and ints[0] < PERIODS
+		and ints[1] >= 0 and ints[1] < period_ticks(ints[0])
+		and ints[2] >= 0 and ints[2] < DAYS_PER_QUARTER
+		and ints[3] >= 0 and ints[3] < QUARTERS_PER_YEAR
+		and ints[4] >= 1
+		and (ints[5] == 0 or ints[5] == 1)
+	)

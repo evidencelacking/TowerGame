@@ -4,6 +4,7 @@ extends SceneTree
 
 const TestTower := preload("res://tests/test_tower.gd")
 const TestClock := preload("res://tests/test_clock.gd")
+const TestGrid := preload("res://tests/test_grid.gd")
 
 var failures := 0
 
@@ -11,6 +12,7 @@ var failures := 0
 func _initialize() -> void:
 	TestTower.run(check)
 	TestClock.run(check)
+	TestGrid.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 
