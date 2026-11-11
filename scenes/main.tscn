@@ -1,6 +1,7 @@
 [gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/view/placement_ghost.gd" id="ghost"]
+[ext_resource type="Script" path="res://scripts/view/toolbar.gd" id="toolbar"]
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/view/tower_renderer.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/view/tower_camera.gd" id="cam"]
@@ -23,3 +24,6 @@ script = ExtResource("cam")
 
 [node name="MessageLog" type="CanvasLayer" parent="."]
 script = ExtResource("msglog")
+
+[node name="Toolbar" type="CanvasLayer" parent="."]
+script = ExtResource("toolbar")

@@ -22,6 +22,7 @@ var _line: Button
 var _panel: PanelContainer
 var _text: Label
 var _bar: VScrollBar
+var _root: VBoxContainer
 var _shown_count: int = -1
 var _shown_tick: int = -1
 
@@ -34,6 +35,7 @@ func _ready() -> void:
 	root.anchor_right = 0.5
 	root.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root = root
 	add_child(root)
 	_panel = PanelContainer.new()
 	var row := HBoxContainer.new()
@@ -71,7 +73,14 @@ func toggle() -> void:
 
 
 func _process(_delta: float) -> void:
+	_sit_above_toolbar()
 	_refresh()
+
+
+## Keeps the line and log just above the toolbar bar (a sibling node named Toolbar), whatever its height.
+func _sit_above_toolbar() -> void:
+	var bar := get_node_or_null("../Toolbar/Bar") as Control
+	_root.offset_bottom = -bar.size.y if bar != null else 0.0
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
