@@ -48,6 +48,7 @@ func _draw() -> void:
 		return
 	_draw_grid(world)
 	_draw_floors()
+	_draw_lobby()
 	_draw_rooms()
 	_draw_people()
 
@@ -75,6 +76,17 @@ func _draw_floors() -> void:
 				column += 1
 			var y := (VC.floor_to_row(floor_number) + 1) * VC.CELL_PX - 3
 			draw_rect(Rect2i(start * VC.CELL_PX, y, (column - start) * VC.CELL_PX, 3), FLOOR_COLOR)
+
+
+## The ground lobby, in the lobby room colour, over floors 1 to its height.
+func _draw_lobby() -> void:
+	var span := tower.floors.lobby_span()
+	if span.is_empty():
+		return
+	var color: Color = ROOM_COLORS[0]
+	var rect := Rect2i(span[0] * VC.CELL_PX, VC.floor_to_row(span[2]) * VC.CELL_PX, (span[1] - span[0] + 1) * VC.CELL_PX, span[2] * VC.CELL_PX)
+	draw_rect(rect, color)
+	draw_rect(rect, color.darkened(0.5), false, 1.0)
 
 
 func _draw_rooms() -> void:
