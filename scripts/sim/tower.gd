@@ -12,6 +12,8 @@ const Grid := preload("res://scripts/sim/grid.gd")
 const LedgerScript := preload("res://scripts/sim/ledger.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
+const MessagesScript := preload("res://scripts/sim/messages.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
 ## point in that tick (see step). Integers only, so it saves and hashes exactly.
@@ -43,7 +45,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 7
+const SAVE_VERSION := 8
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
 
@@ -54,6 +56,8 @@ var grid := Grid.new()
 var ledger := LedgerScript.new()
 var floors := FloorsScript.new()
 var rooms := RoomsScript.new()
+## Refusals and notable events, for the message log (see Messages).
+var messages := MessagesScript.new()
 ## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY, PLACE_ROOM, PLACE_STAIRS, BULLDOZE or REPLACE_ROOM command (OK or a refusal reason; see
 ## Ledger and Floors for the codes).
 var last_refusal: int = 0
@@ -112,29 +116,57 @@ func _apply_command(command: Command) -> void:
 		Command.PURCHASE:
 			if command.args.size() == 2:
 				last_refusal = ledger.charge(tick, command.args[0], command.args[1])
+				_note_refusal(MessagesScript.PURCHASE_REFUSED, command.args[1])
 		Command.REFUND:
 			if command.args.size() == 2:
 				ledger.refund(tick, command.args[0], command.args[1])
 		Command.BUILD_FLOOR:
 			if command.args.size() == 3:
 				last_refusal = floors.build_span(ledger, tick, command.args[0], command.args[1], command.args[2])
+				if not _note_refusal(MessagesScript.FLOOR_REFUSED, command.args[0]):
+					messages.add(tick, MessagesScript.FLOOR_BUILT, command.args[0])
 		Command.BUILD_LOBBY:
 			if command.args.size() == 4:
 				last_refusal = floors.build_lobby(ledger, tick, command.args[0], command.args[1], command.args[2], command.args[3])
+				if not _note_refusal(MessagesScript.LOBBY_REFUSED, 0):
+					messages.add(tick, MessagesScript.LOBBY_BUILT, command.args[3])
 		Command.PLACE_ROOM:
 			if command.args.size() == 3:
 				last_refusal = rooms.place_room(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2])
+				if not _note_refusal(MessagesScript.ROOM_REFUSED, command.args[0]):
+					messages.add(tick, MessagesScript.ROOM_BUILT, command.args[0], command.args[1])
 		Command.BULLDOZE:
 			if command.args.size() == 2:
+				var doomed := rooms.check_bulldoze(grid, floors, command.args[0], command.args[1])
+				var doomed_kind := CatalogueScript.IDS.find(rooms.kind_of(doomed["room_id"]))
 				last_refusal = rooms.bulldoze(grid, floors, ledger, tick, command.args[0], command.args[1])
+				if not _note_refusal(MessagesScript.BULLDOZE_REFUSED, command.args[0]):
+					messages.add(tick, MessagesScript.ROOM_REMOVED, doomed_kind, command.args[0])
+					if doomed["refund"] > 0:
+						messages.add(tick, MessagesScript.CONDO_REFUND, doomed["refund"])
 		Command.REPLACE_ROOM:
 			if command.args.size() == 3:
+				var replaced := rooms.check_bulldoze(grid, floors, command.args[1], command.args[2])
 				last_refusal = rooms.replace_room(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2])
+				if not _note_refusal(MessagesScript.REPLACE_REFUSED, command.args[0]):
+					messages.add(tick, MessagesScript.ROOM_REPLACED, command.args[0], command.args[1])
+					if replaced["refund"] > 0:
+						messages.add(tick, MessagesScript.CONDO_REFUND, replaced["refund"])
 		Command.PLACE_STAIRS:
 			if command.args.size() == 2:
 				last_refusal = rooms.place_stairs(grid, floors, ledger, tick, command.args[0], command.args[1])
+				if not _note_refusal(MessagesScript.STAIRS_REFUSED, command.args[0]):
+					messages.add(tick, MessagesScript.STAIRS_BUILT, command.args[0])
 		_:
 			push_error("Unknown sim command kind %d" % command.kind)
+
+
+## Logs the refusal in last_refusal, if it is one. Returns true if it was.
+func _note_refusal(code: int, detail: int) -> bool:
+	if last_refusal == 0:
+		return false
+	messages.add(tick, code, last_refusal, detail)
+	return true
 
 
 ## Per-tick systems, in a fixed order: the clock first, then (later) the grid and the rest.
@@ -158,6 +190,7 @@ func _state_ints() -> Array[int]:
 	ints.append_array(ledger.state_ints())
 	ints.append_array(floors.state_ints())
 	ints.append_array(rooms.state_ints())
+	ints.append_array(messages.state_ints())
 	ints.append(last_refusal)
 	ints.append(_queue.size())
 	for command in _queue:
@@ -179,7 +212,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -195,13 +228,16 @@ func load_state(data: Dictionary) -> bool:
 	var ledger_ints: Variant = data.get("ledger")
 	var floors_ints: Variant = data.get("floors")
 	var rooms_ints: Variant = data.get("rooms")
+	var messages_ints: Variant = data.get("messages")
 	var queue_data: Variant = data.get("queue")
-	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and queue_data is Array):
+	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and queue_data is Array):
 		return false
 	var loaded_grid := Grid.new()
 	if not Clock.valid_ints(clock_ints) or not loaded_grid.load_ints(grid_ints) or not LedgerScript.valid_ints(ledger_ints) or not FloorsScript.valid_ints(floors_ints):
 		return false
 	if not RoomsScript.valid_ints(rooms_ints, loaded_grid):
+		return false
+	if not MessagesScript.valid_ints(messages_ints):
 		return false
 	var loaded_queue: Array[Command] = []
 	for entry in queue_data:
@@ -222,6 +258,7 @@ func load_state(data: Dictionary) -> bool:
 	ledger = loaded_ledger
 	floors.load_ints(floors_ints)
 	rooms.load_ints(rooms_ints)
+	messages.load_ints(messages_ints)
 	last_refusal = data["last_refusal"]
 	tick = data["tick"]
 	rng.state = data["rng_state"]

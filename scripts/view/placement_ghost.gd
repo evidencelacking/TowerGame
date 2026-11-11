@@ -45,6 +45,8 @@ const ROOM_TEXT: Dictionary = {
 	RoomsScript.OVER_SHAFT: "Over a shaft",
 	RoomsScript.NOTHING_BELOW: "Nothing below to rest on",
 	RoomsScript.OVERHANG: "Too wide for the floor below",
+	RoomsScript.NO_FLOOR_FOR_STAIRS: "No floor to stand the stairs on",
+	RoomsScript.STAIRS_LIMIT: "Too many stairs already",
 }
 const BULLDOZE_TEXT: Dictionary = {
 	RoomsScript.BAD_FLOOR: "Not a floor",

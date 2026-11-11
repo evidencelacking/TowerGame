@@ -17,3 +17,4 @@ func _ready() -> void:
 	renderer.people = [[1, 240], [3, 800]]
 	renderer.set_tower(_tower)
 	($PlacementGhost as PlacementGhost).set_tower(_tower)
+	($MessageLog as MessageLog).set_tower(_tower)
