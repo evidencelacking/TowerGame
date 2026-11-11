@@ -1,7 +1,8 @@
 class_name TowerRenderer
 extends Node2D
+const VC := preload("res://scripts/view/view_consts.gd")
 ## Draws the tower with native shapes only. Reads the Tower read-only; never mutates sim state.
-## All geometry is integer pixels from ViewConstants, so edges stay aligned at any zoom.
+## All geometry is integer pixels from view_consts.gd, so edges stay aligned at any zoom.
 
 const SKY_COLOR := Color(0.53, 0.78, 0.95)
 const GROUND_COLOR := Color(0.36, 0.26, 0.17)
@@ -12,7 +13,7 @@ const EMPTY_ROOM_COLOR := Color(0.85, 0.2, 0.85)
 const PERSON_COLOR := Color(0.95, 0.9, 0.2)
 const MARGIN: int = 4000  ## Sky and ground extend this far past the tower, in pixels.
 const PERSON_W: int = 4
-const PERSON_H: int = 10
+const PERSON_H: int = 10  # a cell is 16 px tall
 
 ## Room type -> colour. The only place room colours are defined. Room types do not exist in
 ## the sim yet (issue 2.x); keys are placeholder type ids until they do.
@@ -37,30 +38,26 @@ func set_tower(value: Tower) -> void:
 
 
 func _draw() -> void:
-	var top := ViewConstants.floor_top_y(Tower.Grid.FLOOR_COUNT - 1)
-	var bottom := ViewConstants.floor_top_y(0) + ViewConstants.FLOOR_H
-	var left := -MARGIN
-	var width := ViewConstants.TOWER_PX_W + 2 * MARGIN
-	draw_rect(Rect2i(left, top - MARGIN, width, -top + MARGIN), SKY_COLOR)
-	draw_rect(Rect2i(left, 0, width, bottom + MARGIN), GROUND_COLOR)
-	draw_rect(Rect2i(left, 0, width, 4), GRASS_COLOR)
+	var cell := VC.CELL_PX
+	var world := Rect2i(VC.world_rect())
+	var ground_y := (Tower.Grid.FLOOR_MAX) * cell  # bottom of floor 1, top of B1
+	draw_rect(Rect2i(-MARGIN, world.position.y - MARGIN, world.size.x + 2 * MARGIN, ground_y + MARGIN), SKY_COLOR)
+	draw_rect(Rect2i(-MARGIN, ground_y, world.size.x + 2 * MARGIN, world.size.y - ground_y + MARGIN), GROUND_COLOR)
+	draw_rect(Rect2i(-MARGIN, ground_y, world.size.x + 2 * MARGIN, 4), GRASS_COLOR)
 	if tower == null:
 		return
-	_draw_floors()
+	_draw_grid(world)
 	_draw_rooms()
 	_draw_people()
 
 
-func _draw_floors() -> void:
-	for index: int in Tower.Grid.FLOOR_COUNT:
-		var y := ViewConstants.floor_top_y(index)
-		if index >= 10:  # floor separator lines, 1 screen pixel at any zoom
-			var line_y := y + ViewConstants.FLOOR_H
-			draw_line(Vector2(0, line_y), Vector2(ViewConstants.TOWER_PX_W, line_y), GRID_COLOR, -1.0)
+## Hairline lines (1 screen pixel at any zoom) every floor and every 10 columns.
+func _draw_grid(world: Rect2i) -> void:
+	var cell := VC.CELL_PX
+	for row in range(0, Tower.Grid.FLOOR_COUNT + 1):
+		draw_line(Vector2(0, row * cell), Vector2(world.size.x, row * cell), GRID_COLOR, -1.0)
 	for column in range(0, Tower.Grid.WIDTH_UNITS + 1, 10):
-		var x := ViewConstants.column_x(column)
-		var y0 := ViewConstants.floor_top_y(Tower.Grid.FLOOR_COUNT - 1)
-		draw_line(Vector2(x, y0), Vector2(x, y0 + Tower.Grid.FLOOR_COUNT * ViewConstants.FLOOR_H), GRID_COLOR, -1.0)
+		draw_line(Vector2(column * cell, 0), Vector2(column * cell, world.size.y), GRID_COLOR, -1.0)
 
 
 func _draw_rooms() -> void:
@@ -76,7 +73,7 @@ func _draw_rooms() -> void:
 				continue
 			seen[id] = true
 			var run := grid.run_of(id)
-			var rect := Rect2i(ViewConstants.column_x(run[1]), ViewConstants.floor_top_y(index), run[2] * ViewConstants.CELL_W, ViewConstants.FLOOR_H)
+			var rect := Rect2i(run[1] * VC.CELL_PX, VC.floor_to_row(floor_number) * VC.CELL_PX, run[2] * VC.CELL_PX, VC.CELL_PX)
 			var type_id: int = room_type_of.call(id)
 			var color: Color = ROOM_COLORS.get(type_id, EMPTY_ROOM_COLOR)
 			draw_rect(rect, color)
@@ -86,8 +83,7 @@ func _draw_rooms() -> void:
 
 func _draw_people() -> void:
 	for person in people:
-		var index := Tower.Grid.floor_to_index(person[0])
-		if index < 0:
+		if not Tower.Grid.is_valid_floor(person[0]):
 			continue
-		var y := ViewConstants.floor_top_y(index) + ViewConstants.FLOOR_H - PERSON_H
+		var y: int = (VC.floor_to_row(person[0]) + 1) * VC.CELL_PX - PERSON_H
 		draw_rect(Rect2i(person[1], y, PERSON_W, PERSON_H), PERSON_COLOR)

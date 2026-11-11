@@ -13,5 +13,5 @@ func _ready() -> void:
 		_tower.grid.place(i + 1, 1 + i % 8, 10 + (i * 7) % 60, 4 + i % 5)
 	_tower.grid.place(100, -2, 20, 12)
 	var renderer: TowerRenderer = $TowerRenderer
-	renderer.people = [[1, 120], [3, 400]]
+	renderer.people = [[1, 240], [3, 800]]
 	renderer.set_tower(_tower)
