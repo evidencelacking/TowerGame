@@ -27,3 +27,19 @@ static func run(check: Callable) -> void:
 	# A view bigger than the world is centred.
 	var c: Vector2 = Cam.clamp_position(Vector2(5, 5), Vector2(100000, 100000), 1, world)
 	check.call(c == world.get_center(), "oversized view centres")
+	# Starting on the lobby and zooming in keeps the lobby row visible at every zoom.
+	var focus: Vector2 = Cam.start_focus()
+	var lobby_top: float = VC.floor_to_row(1) * VC.CELL_PX
+	for z: int in Cam.ZOOM_STEPS:
+		var pos: Vector2 = Cam.view_position(focus, view, z, world)
+		var vis := Rect2(pos - view / (2.0 * z), view / float(z))
+		check.call(vis.position.y <= lobby_top and vis.end.y >= lobby_top + VC.CELL_PX, "lobby visible at zoom %d" % z)
+	# Cursor-anchored zoom keeps the world point under the cursor at the same screen spot.
+	var centre := Vector2(800, 900)
+	var cursor_world := Vector2(1000, 950)
+	for z: int in range(1, 4):
+		var nz: int = z + 1
+		var before: Vector2 = (cursor_world - centre) * z
+		var nc: Vector2 = Cam.zoom_about(centre, cursor_world, z, nz)
+		var after: Vector2 = (cursor_world - nc) * nz
+		check.call((after - before).length() <= 1.0, "cursor stays put zooming %d to %d" % [z, nz])
