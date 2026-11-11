@@ -26,6 +26,12 @@ const ROOM_COLORS: Dictionary = {
 }
 
 var tower: Tower = null
+## Colour of each placed room kind (catalogue id). Rooms placed by PLACE_ROOM use these.
+const KIND_COLORS: Dictionary = {
+	"office": Color(0.55, 0.70, 0.90),
+	"condo": Color(0.85, 0.65, 0.85),
+}
+
 ## Maps an occupant id to a ROOM_COLORS key. Replace once the sim stores room types.
 var room_type_of: Callable = func(id: int) -> int: return id % ROOM_COLORS.size()
 ## Stub for people until the sim has them: each entry is [floor, x_in_pixels_within_tower].
@@ -118,8 +124,11 @@ func _draw_rooms() -> void:
 			seen[id] = true
 			var run := grid.run_of(id)
 			var rect := Rect2i(run[1] * VC.CELL_PX, VC.floor_to_row(floor_number) * VC.CELL_PX, run[2] * VC.CELL_PX, VC.CELL_PX)
-			var type_id: int = room_type_of.call(id)
-			var color: Color = ROOM_COLORS.get(type_id, EMPTY_ROOM_COLOR)
+			var color: Color = EMPTY_ROOM_COLOR
+			if tower.rooms.has_room(id):
+				color = KIND_COLORS.get(tower.rooms.kind_of(id), EMPTY_ROOM_COLOR)
+			else:
+				color = ROOM_COLORS.get(room_type_of.call(id), EMPTY_ROOM_COLOR)
 			draw_rect(rect, color)
 			draw_rect(rect, color.darkened(0.5), false, 1.0)
 			column += run[2]

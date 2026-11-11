@@ -11,6 +11,7 @@ const Clock := preload("res://scripts/sim/clock.gd")
 const Grid := preload("res://scripts/sim/grid.gd")
 const LedgerScript := preload("res://scripts/sim/ledger.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
+const RoomsScript := preload("res://scripts/sim/rooms.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
 ## point in that tick (see step). Integers only, so it saves and hashes exactly.
@@ -25,6 +26,7 @@ class Command:
 	const REFUND := 6  ## Returns money: args are amount, ref. Always applies.
 	const BUILD_FLOOR := 7  ## Builds a floor span: args are floor, x_start, x_end (inclusive).
 	const BUILD_LOBBY := 8  ## Builds the ground lobby: args are floor (must be 1), x_start, x_end, height (1 to 3).
+	const PLACE_ROOM := 9  ## Places a room: args are room_kind (index in RoomCatalogue.IDS), floor, x_left.
 
 	var tick: int = 0  ## The tick this command applies at.
 	var kind: int = 0
@@ -38,7 +40,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 5
+const SAVE_VERSION := 6
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
 
@@ -48,7 +50,8 @@ var clock := Clock.new()
 var grid := Grid.new()
 var ledger := LedgerScript.new()
 var floors := FloorsScript.new()
-## Result of the most recent PURCHASE, BUILD_FLOOR or BUILD_LOBBY command (OK or a refusal reason; see
+var rooms := RoomsScript.new()
+## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY or PLACE_ROOM command (OK or a refusal reason; see
 ## Ledger and Floors for the codes).
 var last_refusal: int = 0
 ## Placeholder state that commands change, so tests can see them. Replaced as real state lands.
@@ -115,6 +118,9 @@ func _apply_command(command: Command) -> void:
 		Command.BUILD_LOBBY:
 			if command.args.size() == 4:
 				last_refusal = floors.build_lobby(ledger, tick, command.args[0], command.args[1], command.args[2], command.args[3])
+		Command.PLACE_ROOM:
+			if command.args.size() == 3:
+				last_refusal = rooms.place_room(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2])
 		_:
 			push_error("Unknown sim command kind %d" % command.kind)
 
@@ -139,6 +145,7 @@ func _state_ints() -> Array[int]:
 	ints.append_array(grid.state_ints())
 	ints.append_array(ledger.state_ints())
 	ints.append_array(floors.state_ints())
+	ints.append_array(rooms.state_ints())
 	ints.append(last_refusal)
 	ints.append(_queue.size())
 	for command in _queue:
@@ -160,7 +167,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -175,11 +182,14 @@ func load_state(data: Dictionary) -> bool:
 	var grid_ints: Variant = data.get("grid")
 	var ledger_ints: Variant = data.get("ledger")
 	var floors_ints: Variant = data.get("floors")
+	var rooms_ints: Variant = data.get("rooms")
 	var queue_data: Variant = data.get("queue")
-	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and queue_data is Array):
+	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and queue_data is Array):
 		return false
 	var loaded_grid := Grid.new()
 	if not Clock.valid_ints(clock_ints) or not loaded_grid.load_ints(grid_ints) or not LedgerScript.valid_ints(ledger_ints) or not FloorsScript.valid_ints(floors_ints):
+		return false
+	if not RoomsScript.valid_ints(rooms_ints, loaded_grid):
 		return false
 	var loaded_queue: Array[Command] = []
 	for entry in queue_data:
@@ -199,6 +209,7 @@ func load_state(data: Dictionary) -> bool:
 	loaded_ledger.load_ints(ledger_ints)
 	ledger = loaded_ledger
 	floors.load_ints(floors_ints)
+	rooms.load_ints(rooms_ints)
 	last_refusal = data["last_refusal"]
 	tick = data["tick"]
 	rng.state = data["rng_state"]
