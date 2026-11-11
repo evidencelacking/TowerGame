@@ -10,6 +10,7 @@ const EDGE_SPEED_PX := 500.0
 
 var _zoom_index: int = 0
 var _dragging: bool = false
+var _focus: Vector2 = Vector2.ZERO  ## Intended view centre (world px); `position` is its clamped result.
 
 
 ## Clamp a camera centre so a view of view_px at integer zoom stays inside world.
@@ -28,10 +29,24 @@ static func clamp_position(pos: Vector2, view_px: Vector2, zoom: int, world: Rec
 	return out
 
 
-func _ready() -> void:
-	# Start on the lobby, the centre of the tower's width.
+## The focus point that centres the lobby (floor 1), the middle of the tower's width.
+static func start_focus() -> Vector2:
 	var row: int = ViewConsts.floor_to_row(1)
-	position = Vector2(ViewConsts.world_rect().size.x / 2.0, (row + 0.5) * ViewConsts.CELL_PX)
+	return Vector2(ViewConsts.world_rect().size.x / 2.0, (row + 0.5) * ViewConsts.CELL_PX)
+
+
+## Applied camera position for an intended focus: view-clamped, whole pixels.
+static func view_position(focus: Vector2, view_px: Vector2, zoom: int, world: Rect2) -> Vector2:
+	return clamp_position(focus, view_px, zoom, world).round()
+
+
+## New centre after zooming old_z to new_z so cursor_world stays under the cursor.
+static func zoom_about(centre: Vector2, cursor_world: Vector2, old_z: int, new_z: int) -> Vector2:
+	return cursor_world - (cursor_world - centre) * float(old_z) / float(new_z)
+
+
+func _ready() -> void:
+	_focus = start_focus()
 	_apply()
 
 
@@ -48,16 +63,34 @@ func set_zoom_index(index: int) -> void:
 	_apply()
 
 
+## Zoom one step (+1 / -1) keeping the world point under the cursor fixed.
+func zoom_at_cursor(step: int) -> void:
+	var old_z: int = ZOOM_STEPS[_zoom_index]
+	var cursor_world: Vector2 = get_global_mouse_position()
+	var centre: Vector2 = position
+	set_zoom_index(_zoom_index + step)
+	var new_z: int = ZOOM_STEPS[_zoom_index]
+	if new_z == old_z:
+		return
+	_focus = _clamp_focus(zoom_about(centre, cursor_world, old_z, new_z))
+	_apply()
+
+
+func _clamp_focus(f: Vector2) -> Vector2:
+	var w: Rect2 = ViewConsts.world_rect()
+	return Vector2(clampf(f.x, w.position.x, w.end.x), clampf(f.y, w.position.y, w.end.y))
+
+
 func pan_by_screen(delta_px: Vector2) -> void:
-	position += delta_px / float(ZOOM_STEPS[_zoom_index])
+	_focus = _clamp_focus(_focus + delta_px / float(ZOOM_STEPS[_zoom_index]))
 	_apply()
 
 
 func _apply() -> void:
 	var z: int = ZOOM_STEPS[_zoom_index]
 	zoom = Vector2(z, z)
-	position = clamp_position(position, get_viewport_rect().size, z, ViewConsts.world_rect())
-	position = position.round()  # whole pixels keep integer zoom sharp
+	# Whole pixels keep integer zoom sharp; _focus is left alone so zooming back recovers it.
+	position = view_position(_focus, get_viewport_rect().size, z, ViewConsts.world_rect())
 
 
 func _process(delta: float) -> void:
@@ -105,9 +138,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if mb.button_index == MOUSE_BUTTON_MIDDLE or mb.button_index == MOUSE_BUTTON_RIGHT:
 			_dragging = mb.pressed
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-			zoom_in()
+			zoom_at_cursor(1)
 		elif mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			zoom_out()
+			zoom_at_cursor(-1)
 	elif event is InputEventMouseMotion and _dragging:
 		pan_by_screen(-(event as InputEventMouseMotion).relative)
 	elif event is InputEventKey and (event as InputEventKey).pressed:
