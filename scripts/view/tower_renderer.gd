@@ -69,9 +69,9 @@ func _draw() -> void:
 	if tower == null:
 		return
 	_draw_grid(world)
-	_draw_floors()
 	_draw_lobby()
 	_draw_rooms()
+	_draw_floors()  # last: a room fills its whole row and would hide its own slab
 	_draw_people()
 
 
