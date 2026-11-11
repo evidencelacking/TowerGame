@@ -46,6 +46,7 @@ class Command:
 
 
 const SAVE_VERSION := 8
+const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
 
@@ -63,6 +64,8 @@ var messages := MessagesScript.new()
 var last_refusal: int = 0
 ## Placeholder state that commands change, so tests can see them. Replaced as real state lands.
 var notes: int = 0
+## The tower's star rating, 1 to 5. Nothing raises it yet (later issue); the HUD, toolbar and ghost read it.
+var stars: int = START_STARS
 
 var _queue: Array[Command] = []
 
@@ -183,7 +186,7 @@ func state_hash() -> int:
 
 
 func _state_ints() -> Array[int]:
-	var ints: Array[int] = [tick, rng.state, notes]
+	var ints: Array[int] = [tick, rng.state, notes, stars]
 	ints.append_array(clock.state_ints())
 	ints.append(grid.occupant_count())
 	ints.append_array(grid.state_ints())
@@ -212,7 +215,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -223,6 +226,10 @@ func load_state(data: Dictionary) -> bool:
 	for key in ["tick", "rng_state", "notes", "last_refusal"]:
 		if typeof(data.get(key)) != TYPE_INT:
 			return false
+	# "stars" is absent in saves from before the sim held it: those load at the start rating.
+	var loaded_stars: Variant = data.get("stars", START_STARS)
+	if typeof(loaded_stars) != TYPE_INT or loaded_stars < 1 or loaded_stars > 5:
+		return false
 	var clock_ints: Variant = data.get("clock")
 	var grid_ints: Variant = data.get("grid")
 	var ledger_ints: Variant = data.get("ledger")
@@ -263,5 +270,6 @@ func load_state(data: Dictionary) -> bool:
 	tick = data["tick"]
 	rng.state = data["rng_state"]
 	notes = data["notes"]
+	stars = loaded_stars
 	_queue = loaded_queue
 	return true
