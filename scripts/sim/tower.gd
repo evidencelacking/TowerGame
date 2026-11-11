@@ -27,6 +27,7 @@ class Command:
 	const BUILD_FLOOR := 7  ## Builds a floor span: args are floor, x_start, x_end (inclusive).
 	const BUILD_LOBBY := 8  ## Builds the ground lobby: args are floor (must be 1), x_start, x_end, height (1 to 3).
 	const PLACE_ROOM := 9  ## Places a room: args are room_kind (index in RoomCatalogue.IDS), floor, x_left.
+	const REPLACE_ROOM := 12  ## Bulldozes the room covering (floor, x_left) and places a room there, atomically: args are room_kind, floor, x_left. See Rooms.replace_room.
 	const BULLDOZE := 10  ## Removes the room covering a cell, free: args are floor, x. See Rooms.bulldoze.
 	const PLACE_STAIRS := 11  ## Places stairs between two floors: args are lower floor, x_left. See Rooms.place_stairs.
 
@@ -53,7 +54,7 @@ var grid := Grid.new()
 var ledger := LedgerScript.new()
 var floors := FloorsScript.new()
 var rooms := RoomsScript.new()
-## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY, PLACE_ROOM, PLACE_STAIRS or BULLDOZE command (OK or a refusal reason; see
+## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY, PLACE_ROOM, PLACE_STAIRS, BULLDOZE or REPLACE_ROOM command (OK or a refusal reason; see
 ## Ledger and Floors for the codes).
 var last_refusal: int = 0
 ## Placeholder state that commands change, so tests can see them. Replaced as real state lands.
@@ -126,6 +127,9 @@ func _apply_command(command: Command) -> void:
 		Command.BULLDOZE:
 			if command.args.size() == 2:
 				last_refusal = rooms.bulldoze(grid, floors, ledger, tick, command.args[0], command.args[1])
+		Command.REPLACE_ROOM:
+			if command.args.size() == 3:
+				last_refusal = rooms.replace_room(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2])
 		Command.PLACE_STAIRS:
 			if command.args.size() == 2:
 				last_refusal = rooms.place_stairs(grid, floors, ledger, tick, command.args[0], command.args[1])
