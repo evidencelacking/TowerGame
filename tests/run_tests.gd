@@ -8,6 +8,7 @@ const TestGrid := preload("res://tests/test_grid.gd")
 const TestCamera := preload("res://tests/test_camera.gd")
 const TestDriver := preload("res://tests/test_driver.gd")
 const TestHarness := preload("res://tests/test_harness.gd")
+const TestRoomCatalogue := preload("res://tests/test_room_catalogue.gd")
 
 var failures := 0
 
@@ -19,6 +20,7 @@ func _initialize() -> void:
 	TestCamera.run(check)
 	TestDriver.run(check)
 	TestHarness.run(check)
+	TestRoomCatalogue.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 
