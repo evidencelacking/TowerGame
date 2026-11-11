@@ -58,9 +58,9 @@ func _refresh() -> void:
 		clock.year(), clock.quarter(), DAY_NAMES[clock.day_of_week()], clock.hour(), clock.minute()]
 	_period.text = "Period %d" % clock.period()
 	_money.text = format_money(_driver.tower.ledger.balance)
-	# No sim value yet for these (later issues); show 0 until they land.
+	_stars.text = "Stars %d" % _driver.tower.stars
+	# No sim value yet for population (a later issue); show 0 until it lands.
 	_population.text = "Pop 0"
-	_stars.text = "Stars 0"
 	_pause.text = "Resume" if _driver.paused else "Pause"
 	for i in _speed_buttons.size():
 		_speed_buttons[i].disabled = i == _driver.speed_index

@@ -93,4 +93,18 @@ static func run(check: Callable) -> void:
 			same = false
 	check.call(same, "a loaded tower continues identically to tick 1,000")
 	check.call(first[TICKS - 1] == original.state_hash(), "the resumed run matches the uninterrupted run")
+	check.call(TowerSim.new(0).stars == 1, "a new tower starts at 1 star")
+	var starred := TowerSim.new(0)
+	starred.stars = 3
+	var starred_copy := TowerSim.new(0)
+	check.call(starred_copy.load_state(starred.save()) and starred_copy.stars == 3, "the star rating saves and loads")
+	check.call(starred.state_hash() != TowerSim.new(0).state_hash(), "the star rating is in the state hash")
+	var old_save := TowerSim.new(0).save()
+	old_save.erase("stars")
+	var old_loaded := TowerSim.new(0)
+	old_loaded.stars = 4
+	check.call(old_loaded.load_state(old_save) and old_loaded.stars == 1, "a save without stars loads at 1 star")
+	var bad_save := TowerSim.new(0).save()
+	bad_save["stars"] = 9
+	check.call(not TowerSim.new(0).load_state(bad_save), "a save with an out-of-range star rating is refused")
 	check.call(not TowerSim.new(0).load_state({"version": 999}), "an unsupported save version is refused")
