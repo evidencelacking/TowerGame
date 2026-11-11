@@ -2,20 +2,9 @@ extends RefCounted
 ## Grid tests: floor numbering, placing, querying, removing, hashing, save and load.
 
 const TowerSim := preload("res://scripts/sim/tower.gd")
-const Command := TowerSim.Command
 const Grid := preload("res://scripts/sim/grid.gd")
-
-
-static func _built(seed_value: int) -> TowerSim:
-	var tower := TowerSim.new(seed_value)
-	tower.enqueue(Command.make(1, Command.PLACE, [1, -10, 0, 4] as Array[int]))
-	tower.enqueue(Command.make(2, Command.PLACE, [2, 1, 10, 30] as Array[int]))
-	tower.enqueue(Command.make(3, Command.PLACE, [3, 100, 399, 1] as Array[int]))
-	tower.enqueue(Command.make(4, Command.PLACE, [4, 5, 20, 6] as Array[int]))
-	tower.enqueue(Command.make(5, Command.REMOVE, [4] as Array[int]))
-	for _i in 6:
-		tower.step()
-	return tower
+const Fixtures := preload("res://tests/fixtures.gd")
+const Harness := preload("res://tests/harness.gd")
 
 
 static func run(check: Callable) -> void:
@@ -90,23 +79,22 @@ static func run(check: Callable) -> void:
 	check.call(wide.place(8, 3, 10, 9), "a removed run can be placed again")
 
 	# Through the Tower: commands, hash, save and load.
-	var tower := _built(5)
+	var tower := Fixtures.grid_sample(5)
 	check.call(tower.grid.cell_at(-10, 3) == 1, "a PLACE command places on the grid")
 	check.call(tower.grid.cell_at(1, 39) == 2, "a PLACE command covers its whole run")
 	check.call(tower.grid.cell_at(5, 20) == Grid.EMPTY, "a REMOVE command clears the occupant")
-	check.call(_built(5).state_hash() == tower.state_hash(), "the grid hashes identically across two runs")
+	check.call(Fixtures.grid_sample(5).state_hash() == tower.state_hash(), "the grid hashes identically across two runs")
 	var empty_hash := TowerSim.new(5)
-	for _i in 6:
-		empty_hash.step()
+	Harness.step(empty_hash, 6)
 	check.call(empty_hash.state_hash() != tower.state_hash(), "the grid is part of the hash")
 
-	var copy := TowerSim.new(0)
-	check.call(copy.load_state(tower.save()), "a save with a grid loads")
+	var copy := Harness.clone_via_save(tower)
+	check.call(copy != null, "a save with a grid loads")
 	check.call(copy.state_hash() == tower.state_hash(), "the grid survives save and load")
 	check.call(copy.grid.cell_at(100, 399) == 3, "a loaded grid answers queries")
 
 	# An invalid save changes nothing.
-	var untouched := _built(5)
+	var untouched := Fixtures.grid_sample(5)
 	var good := untouched.save()
 	var hash_before := untouched.state_hash()
 	var bad_clock := good.duplicate(true)
