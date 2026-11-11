@@ -1,0 +1,26 @@
+{
+  "autoCompactWindow": 250000,
+  "permissions": {
+    "allow": [
+      "Bash(python tools/issue.py finish:*)",
+      "PowerShell(python tools/issue.py finish:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Write|Edit|NotebookEdit|Read|Grep|Glob",
+        "hooks": [
+          { "type": "command", "command": "test ! -f .claude/hooks/guard.py || python .claude/hooks/guard.py" }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "test ! -f .claude/hooks/session_start.py || python .claude/hooks/session_start.py" }
+        ]
+      }
+    ]
+  }
+}
