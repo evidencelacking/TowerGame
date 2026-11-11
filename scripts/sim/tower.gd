@@ -9,6 +9,7 @@ extends RefCounted
 const Rng := preload("res://scripts/sim/sim_rng.gd")
 const Clock := preload("res://scripts/sim/clock.gd")
 const Grid := preload("res://scripts/sim/grid.gd")
+const LedgerScript := preload("res://scripts/sim/ledger.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
 ## point in that tick (see step). Integers only, so it saves and hashes exactly.
@@ -19,6 +20,8 @@ class Command:
 	const ROLL := 2  ## Foundation placeholder: adds a random draw below args[0] to Tower.notes.
 	const PLACE := 3  ## Places an occupant on the grid: args are id, floor, column, length.
 	const REMOVE := 4  ## Removes an occupant from the grid: args[0] is its id.
+	const PURCHASE := 5  ## Spends money: args are cost, ref (room id). Refused if short.
+	const REFUND := 6  ## Returns money: args are amount, ref. Always applies.
 
 	var tick: int = 0  ## The tick this command applies at.
 	var kind: int = 0
@@ -32,7 +35,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 3
+const SAVE_VERSION := 4
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
 
@@ -40,14 +43,18 @@ var tick: int = 0
 var rng := Rng.new()
 var clock := Clock.new()
 var grid := Grid.new()
+var ledger := LedgerScript.new()
+## Result of the most recent PURCHASE command (Ledger.OK or a refusal reason).
+var last_refusal: int = 0
 ## Placeholder state that commands change, so tests can see them. Replaced as real state lands.
 var notes: int = 0
 
 var _queue: Array[Command] = []
 
 
-func _init(seed_value: int = 0) -> void:
+func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_STARTING_FUNDS) -> void:
 	rng.reseed(seed_value)
+	ledger = LedgerScript.new(starting_funds)
 
 
 ## Queues a command for a future tick. Returns false (and queues nothing) if that tick has
@@ -91,6 +98,12 @@ func _apply_command(command: Command) -> void:
 		Command.REMOVE:
 			if command.args.size() == 1:
 				grid.remove(command.args[0])
+		Command.PURCHASE:
+			if command.args.size() == 2:
+				last_refusal = ledger.charge(tick, command.args[0], command.args[1])
+		Command.REFUND:
+			if command.args.size() == 2:
+				ledger.refund(tick, command.args[0], command.args[1])
 		_:
 			push_error("Unknown sim command kind %d" % command.kind)
 
@@ -113,6 +126,8 @@ func _state_ints() -> Array[int]:
 	ints.append_array(clock.state_ints())
 	ints.append(grid.occupant_count())
 	ints.append_array(grid.state_ints())
+	ints.append_array(ledger.state_ints())
+	ints.append(last_refusal)
 	ints.append(_queue.size())
 	for command in _queue:
 		ints.append(command.tick)
@@ -133,7 +148,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "clock": clock.state_ints(), "grid": grid.state_ints(), "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -141,16 +156,17 @@ func save() -> Dictionary:
 func load_state(data: Dictionary) -> bool:
 	if data.get("version", 0) != SAVE_VERSION:
 		return false
-	for key in ["tick", "rng_state", "notes"]:
+	for key in ["tick", "rng_state", "notes", "last_refusal"]:
 		if typeof(data.get(key)) != TYPE_INT:
 			return false
 	var clock_ints: Variant = data.get("clock")
 	var grid_ints: Variant = data.get("grid")
+	var ledger_ints: Variant = data.get("ledger")
 	var queue_data: Variant = data.get("queue")
-	if not (clock_ints is Array and grid_ints is Array and queue_data is Array):
+	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and queue_data is Array):
 		return false
 	var loaded_grid := Grid.new()
-	if not Clock.valid_ints(clock_ints) or not loaded_grid.load_ints(grid_ints):
+	if not Clock.valid_ints(clock_ints) or not loaded_grid.load_ints(grid_ints) or not LedgerScript.valid_ints(ledger_ints):
 		return false
 	var loaded_queue: Array[Command] = []
 	for entry in queue_data:
@@ -166,6 +182,10 @@ func load_state(data: Dictionary) -> bool:
 		loaded_queue.append(Command.make(entry[0], entry[1], command_args))
 	clock.load_ints(clock_ints)
 	grid = loaded_grid
+	var loaded_ledger := LedgerScript.new()
+	loaded_ledger.load_ints(ledger_ints)
+	ledger = loaded_ledger
+	last_refusal = data["last_refusal"]
 	tick = data["tick"]
 	rng.state = data["rng_state"]
 	notes = data["notes"]

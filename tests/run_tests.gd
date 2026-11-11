@@ -9,6 +9,8 @@ const TestCamera := preload("res://tests/test_camera.gd")
 const TestDriver := preload("res://tests/test_driver.gd")
 const TestHarness := preload("res://tests/test_harness.gd")
 const TestRoomCatalogue := preload("res://tests/test_room_catalogue.gd")
+const TestMoney := preload("res://tests/test_money.gd")
+const TestHud := preload("res://tests/test_hud.gd")
 
 var failures := 0
 
@@ -21,6 +23,8 @@ func _initialize() -> void:
 	TestDriver.run(check)
 	TestHarness.run(check)
 	TestRoomCatalogue.run(check)
+	TestMoney.run(check)
+	TestHud.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 
