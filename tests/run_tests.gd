@@ -16,6 +16,7 @@ const TestFloors := preload("res://tests/test_floors.gd")
 const TestLobby := preload("res://tests/test_lobby.gd")
 const TestRooms := preload("res://tests/test_rooms.gd")
 const TestBulldoze := preload("res://tests/test_bulldoze.gd")
+const TestGhost := preload("res://tests/test_ghost.gd")
 
 var failures := 0
 
@@ -35,6 +36,7 @@ func _initialize() -> void:
 	TestLobby.run(check)
 	TestRooms.run(check)
 	TestBulldoze.run(check)
+	TestGhost.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 
