@@ -181,7 +181,7 @@ func _note_refusal(code: int, detail: int) -> bool:
 ## Per-tick systems, in a fixed order: the clock first, then (later) the grid and the rest.
 func _run_systems() -> void:
 	clock.advance()
-	tenancy.tick(clock, floors, rooms, grid, people, rng)
+	tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
 	people.tick(clock)
 
 
