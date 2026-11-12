@@ -14,7 +14,7 @@ const FloorsScript := preload("res://scripts/sim/floors.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
-const MessagesScript :=preload("res://scripts/sim/messages.gd")
+const MessagesScript := preload("res://scripts/sim/messages.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
