@@ -29,6 +29,7 @@ const TestCondos := preload("res://tests/test_condos.gd")
 const TestStress := preload("res://tests/test_stress.gd")
 const TestPeopleView := preload("res://tests/test_people_view.gd")
 const TestPopulation := preload("res://tests/test_population.gd")
+const TestPeopleRemoval := preload("res://tests/test_people_removal.gd")
 
 var failures := 0
 
@@ -61,6 +62,7 @@ func _initialize() -> void:
 	TestStress.run(check)
 	TestPeopleView.run(check)
 	TestPopulation.run(check)
+	TestPeopleRemoval.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 
