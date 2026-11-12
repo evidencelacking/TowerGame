@@ -97,6 +97,11 @@ func enqueue(command: Command) -> bool:
 ##   1. the tick counter increments
 ##   2. commands due at this tick apply, in queue order
 ##   3. systems run (clock #2, grid #3 and later systems hook in here, in a fixed order)
+## People in the tower right now (derived from people, not saved).
+func population() -> int:
+	return people.in_tower_count()
+
+
 func step() -> void:
 	tick += 1
 	_apply_due_commands()
