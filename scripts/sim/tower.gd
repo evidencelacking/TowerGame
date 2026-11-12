@@ -13,6 +13,7 @@ const LedgerScript := preload("res://scripts/sim/ledger.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
+const TripsScript := preload("res://scripts/sim/trips.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
@@ -47,7 +48,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 9
+const SAVE_VERSION := 10
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -65,6 +66,8 @@ var messages := MessagesScript.new()
 var people := PeopleScript.new()
 ## Office tenancy: moves workers in (see Tenancy). Derived from people, so not saved.
 var tenancy := TenancyScript.new()
+## Trip executor: moves people along routes and charges travel stress (see Trips). Not saved.
+var trips := TripsScript.new()
 ## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY, PLACE_ROOM, PLACE_STAIRS, BULLDOZE or REPLACE_ROOM command (OK or a refusal reason; see
 ## Ledger and Floors for the codes).
 var last_refusal: int = 0
@@ -182,6 +185,7 @@ func _note_refusal(code: int, detail: int) -> bool:
 func _run_systems() -> void:
 	clock.advance()
 	tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
+	trips.tick(clock, floors, rooms, grid, people)
 	people.tick(clock)
 
 

@@ -37,7 +37,14 @@ const TRIP_REQUESTED := 1  ## The goal changed; waiting for the router to start 
 const TRIP_MOVING := 2  ## Routing has the person in transit.
 
 const STRESS_MAX := 300
-const FIELDS := 8  ## Per person: id, home, work, offset, goal, trip_state, location, stress.
+## Stress bands (3.6, docs/gameplay-reference.md): under 80 calm, 80 to 120 uneasy, over 120 angry.
+const BAND_CALM := 0
+const BAND_UNEASY := 1
+const BAND_ANGRY := 2
+const UNEASY_FROM := 80  ## Stress at or above this is uneasy.
+const ANGRY_OVER := 120  ## Stress above this is angry.
+
+const FIELDS := 10  ## Per person: id, home, work, offset, goal, trip_state, location, stress, trip_left, trip_total.
 const _ID := 0
 const _HOME := 1
 const _WORK := 2
@@ -46,6 +53,8 @@ const _GOAL := 4
 const _TRIP := 5
 const _LOCATION := 6
 const _STRESS := 7
+const _TRIP_LEFT := 8  ## Minutes of travel left while moving; while idle, minutes before a given-up trip is retried.
+const _TRIP_TOTAL := 9  ## Minutes the current trip takes in all (for drawing).
 
 var _next_id: int = 0
 var _last_minute: int = -1  ## The last minute of day the plan was checked at.
@@ -64,7 +73,7 @@ func add_person(home: int, work: int, rng: Object) -> int:
 	var start := home if home != NONE else work
 	var goal := DEST_HOME if home != NONE else DEST_WORK
 	var offset: int = rng.next_below(ARRIVAL_SPREAD + 1)
-	_data.append_array([id, home, work, offset, goal, TRIP_IDLE, start, 0] as Array[int])
+	_data.append_array([id, home, work, offset, goal, TRIP_IDLE, start, 0, 0, 0] as Array[int])
 	return id
 
 
@@ -117,6 +126,27 @@ func stress_of(i: int) -> int:
 ## Sets stress, clamped to 0 to STRESS_MAX.
 func set_stress(i: int, value: int) -> void:
 	_data[i * FIELDS + _STRESS] = clampi(value, 0, STRESS_MAX)
+
+
+## The stress band for a stress value: BAND_CALM, BAND_UNEASY or BAND_ANGRY.
+static func band_of(stress: int) -> int:
+	if stress > ANGRY_OVER:
+		return BAND_ANGRY
+	if stress >= UNEASY_FROM:
+		return BAND_UNEASY
+	return BAND_CALM
+
+
+func stress_band(i: int) -> int:
+	return band_of(stress_of(i))
+
+
+func trip_left(i: int) -> int:
+	return _data[i * FIELDS + _TRIP_LEFT]
+
+
+func trip_total(i: int) -> int:
+	return _data[i * FIELDS + _TRIP_TOTAL]
 
 
 func add_stress(i: int, amount: int) -> void:
@@ -181,20 +211,43 @@ func tick(clock: Clock) -> void:
 		var goal := scheduled_goal(i, clock.day_of_week(), minute)
 		if goal != goal_of(i):
 			_data[i * FIELDS + _GOAL] = goal
-		if goal_room(i) != location_of(i) and trip_state(i) == TRIP_IDLE:
+		if goal_room(i) != location_of(i) and trip_state(i) == TRIP_IDLE and trip_left(i) == 0:
 			_data[i * FIELDS + _TRIP] = TRIP_REQUESTED
 
 
 ## Routing seam: marks a requested trip as under way (the person is between rooms).
-func start_trip(i: int) -> void:
+func start_trip(i: int, minutes: int = 1) -> void:
 	_data[i * FIELDS + _TRIP] = TRIP_MOVING
+	_data[i * FIELDS + _TRIP_LEFT] = minutes
+	_data[i * FIELDS + _TRIP_TOTAL] = minutes
 	_data[i * FIELDS + _LOCATION] = NONE
 
 
 ## Routing seam: the person arrives at their goal room.
 func finish_trip(i: int) -> void:
 	_data[i * FIELDS + _TRIP] = TRIP_IDLE
+	_data[i * FIELDS + _TRIP_LEFT] = 0
+	_data[i * FIELDS + _TRIP_TOTAL] = 0
 	_data[i * FIELDS + _LOCATION] = goal_room(i)
+
+
+## Trips seam: the person spends one minute of the trip. Returns the minutes left.
+func spend_trip_minute(i: int) -> int:
+	_data[i * FIELDS + _TRIP_LEFT] = maxi(0, trip_left(i) - 1)
+	return trip_left(i)
+
+
+## Trips seam: the person gives up the requested trip and stays where they are; the retry
+## waits cooldown minutes.
+func give_up_trip(i: int, cooldown: int) -> void:
+	_data[i * FIELDS + _TRIP] = TRIP_IDLE
+	_data[i * FIELDS + _TRIP_LEFT] = cooldown
+	_data[i * FIELDS + _TRIP_TOTAL] = 0
+
+
+## Trips seam: counts an idle retry cooldown down.
+func cool_down(i: int) -> void:
+	_data[i * FIELDS + _TRIP_LEFT] = maxi(0, trip_left(i) - 1)
 
 
 ## Flat ints for hashing and saving: next id, last minute, count, then the people.
@@ -221,6 +274,8 @@ static func valid_ints(ints: Array) -> bool:
 		if ints[b + _GOAL] < DEST_HOME or ints[b + _GOAL] > DEST_AWAY or ints[b + _TRIP] < TRIP_IDLE or ints[b + _TRIP] > TRIP_MOVING:
 			return false
 		if ints[b + _OFFSET] < 0 or ints[b + _OFFSET] > ARRIVAL_SPREAD or ints[b + _STRESS] < 0 or ints[b + _STRESS] > STRESS_MAX:
+			return false
+		if ints[b + _TRIP_LEFT] < 0 or ints[b + _TRIP_TOTAL] < 0:
 			return false
 		for field in [_HOME, _WORK, _LOCATION]:
 			if ints[b + field] < NONE:
