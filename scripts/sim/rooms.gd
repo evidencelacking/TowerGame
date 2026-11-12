@@ -14,6 +14,7 @@ extends RefCounted
 const GridScript := preload("res://scripts/sim/grid.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const LedgerScript := preload("res://scripts/sim/ledger.gd")
+const CarsScript := preload("res://scripts/sim/cars.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
 
 ## Result codes. OK and SHORT_OF_FUNDS match Floors' and Ledger's; 10 to 19 belong to Floors.
@@ -47,6 +48,9 @@ const STAR_CAR_CAP := 46  ## Car: the tower's star rating allows no more cars in
 const BAD_HOME_FLOOR := 47  ## Car: the home floor is outside the shaft's span or is not a stop.
 const NO_CARS_HERE := 48  ## Car: only local and service shafts take cars (so far).
 const HOME_DROPPED := 49  ## Shaft resize: the new span would drop a car's home floor.
+const HOME_STOP := 50  ## Shaft stop: the floor is a car's home floor, which must stay a stop.
+const NOT_A_STOP := 51  ## Send car: the target is not a stop of the car's shaft.
+const NO_SUCH_CAR := 52  ## Send car: there is no such car.
 
 const MAX_CARS_PER_SHAFT := 8  ## Cars in one shaft (reference).
 const CAR_CAPACITY := 17  ## People a local car holds (reference); #94 enforces it.
@@ -66,7 +70,7 @@ var _next_id: int = FIRST_ID
 var occupants_removed: int = 0
 ## Shafts hold one grid occupant per floor, ids base .. base + span - 1 from the bottom up.
 var _shafts: Dictionary = {}  # shaft id (stable) -> [span, bottom floor, x_left, stops off (floors, ascending), first grid occupant id]
-var _cars: Array = []  # [shaft id, home floor, current floor, load], oldest first
+var _cars: Array = []  # [shaft id, home, floor, load, state, dir, target, ticks left], oldest first (see cars.gd)
 
 
 func room_count() -> int:
@@ -406,8 +410,12 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, 
 			off.append(floor_number)
 	_shafts[id] = [span, bottom, x_left, off, base]
 	for car: Array in _cars:
-		if car[0] == id and not _in_shaft_span([span, bottom], car[2]):
+		if car[0] == id and (not _in_shaft_span([span, bottom], car[2]) or (car[4] != 0 and not _in_shaft_span([span, bottom], car[6]))):
 			car[2] = car[1]
+			car[4] = 0
+			car[5] = 0
+			car[6] = 0
+			car[7] = 0
 	return OK
 
 
@@ -425,7 +433,7 @@ func car_capacity() -> int:
 	return CAR_CAPACITY
 
 
-## Cars of a shaft, oldest first: each [shaft id, home floor, current floor, load].
+## Cars of a shaft, oldest first: each [shaft id, home, floor, load, state, dir, target, ticks left].
 func cars_of(shaft_id: int) -> Array:
 	var result: Array = []
 	for car: Array in _cars:
@@ -452,7 +460,7 @@ func add_car(ledger: LedgerScript, at_tick: int, stars: int, shaft_id: int, home
 	var car_index: int = CatalogueScript.IDS.find(shaft_kind.replace("_shaft", "_car"))
 	if ledger.charge(at_tick, int(CatalogueScript.field(CatalogueScript.IDS[car_index], "cost")), car_index) != LedgerScript.OK:
 		return SHORT_OF_FUNDS
-	_cars.append([shaft_id, home, home, 0])
+	_cars.append([shaft_id, home, home, 0, 0, 0, 0, 0])
 	return OK
 
 
@@ -471,11 +479,31 @@ func set_shaft_stop(id: int, floor_number: int, on: bool) -> int:
 	if not _shafts.has(id) or not _in_shaft_span(_shafts[id], floor_number):
 		return NOT_IN_SHAFT
 	var off: Array[int] = _shafts[id][3]
+	if not on:
+		for car: Array in _cars:
+			if car[0] == id and car[1] == floor_number:
+				return HOME_STOP
 	off.erase(floor_number)
 	if not on:
 		off.append(floor_number)
 		off.sort()
 	return OK
+
+
+## Sends a car to a floor (the seam for dispatch, #93). The car must be idle; the floor a stop.
+## Returns OK, NO_SUCH_CAR (bad index or the car is busy) or NOT_A_STOP. See cars.gd.
+func send_car(car_index: int, floor_number: int) -> int:
+	if car_index < 0 or car_index >= _cars.size() or _cars[car_index][4] != 0:
+		return NO_SUCH_CAR
+	if not is_stop(_cars[car_index][0], floor_number):
+		return NOT_A_STOP
+	CarsScript.start(_cars[car_index], floor_number)
+	return OK
+
+
+## Number of cars in the tower; car_index in send_car counts them oldest first.
+func total_cars() -> int:
+	return _cars.size()
 
 
 ## True when the shaft's cars stop at floor (in the span and not disabled).
@@ -703,7 +731,7 @@ func load_ints(ints: Array) -> bool:
 		at += 6 + ints[at + 5]
 	_cars = []
 	for i in range(ints[at]):
-		_cars.append([ints[at + 1 + 4 * i], ints[at + 2 + 4 * i], ints[at + 3 + 4 * i], ints[at + 4 + 4 * i]])
+		_cars.append(ints.slice(at + 1 + 8 * i, at + 9 + 8 * i))
 	_next_id = ints[0]
 	return true
 
@@ -731,7 +759,7 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 			return false
 		shaft_ids[ints[at]] = true
 		at += 6 + ints[at + 5]
-	if at >= ints.size() or ints[at] < 0 or at + 1 + 4 * ints[at] != ints.size():
+	if at >= ints.size() or ints[at] < 0 or at + 1 + 8 * ints[at] != ints.size():
 		return false
 	for i in range(ints[1]):
 		var id: int = ints[2 + 3 * i]

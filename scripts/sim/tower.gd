@@ -14,6 +14,7 @@ const FloorsScript := preload("res://scripts/sim/floors.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const TripsScript := preload("res://scripts/sim/trips.gd")
+const CarsScript := preload("res://scripts/sim/cars.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
@@ -53,7 +54,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 14
+const SAVE_VERSION := 15
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -221,6 +222,7 @@ func _run_systems() -> void:
 	clock.advance()
 	tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
 	trips.tick(clock, floors, rooms, grid, people)
+	CarsScript.tick(rooms)
 	people.tick(clock)
 
 
