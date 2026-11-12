@@ -40,6 +40,8 @@ const MAX_SHAFTS := 41  ## Shaft: the tower already holds 24 shafts.
 const NO_FLOOR_FOR_SHAFT := 42  ## Shaft: some floor it spans is not built under the shaft.
 const BAD_SHAFT_SPAN := 43  ## Shaft: the top is not above the bottom.
 
+const NOT_IN_SHAFT := 44  ## Shaft stop: the floor is not in the shaft's span (or the shaft is unknown).
+
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
 const PLACEABLE: Array[String] = ["office", "condo"]
@@ -53,7 +55,7 @@ var _next_id: int = FIRST_ID
 ## bulldozing. A room holds RoomCatalogue "people" of them.
 var occupants_removed: int = 0
 ## Shafts hold one grid occupant per floor, ids base .. base + span - 1 from the bottom up.
-var _shafts: Dictionary = {}  # base id -> [span, bottom floor, x_left]
+var _shafts: Dictionary = {}  # base id -> [span, bottom floor, x_left, stops off (floors, ascending)]
 
 
 func room_count() -> int:
@@ -317,9 +319,113 @@ func place_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, a
 			floors.mark_shaft(level, column)
 		level = floor_above(level)
 	_kind_of[_next_id] = kind_index
-	_shafts[_next_id] = [span, bottom, x_left]
+	_shafts[_next_id] = [span, bottom, x_left, [] as Array[int]]
 	_next_id += span
 	return OK
+
+## Occupant cells and marks of a shaft: base id, span floors from bottom, x_left, width.
+func _put_shaft_cells(grid: GridScript, floors: FloorsScript, base: int, bottom: int, span: int, x_left: int, width: int) -> void:
+	var level := bottom
+	for i in span:
+		grid.place(base + i, level, x_left, width)
+		for column in range(x_left, x_left + width):
+			floors.mark_shaft(level, column)
+		level = floor_above(level)
+
+
+func _clear_shaft_cells(grid: GridScript, floors: FloorsScript, base: int, bottom: int, span: int, x_left: int, width: int) -> void:
+	var level := bottom
+	for i in span:
+		grid.remove(base + i)
+		for column in range(x_left, x_left + width):
+			floors.mark_shaft(level, column, false)
+		level = floor_above(level)
+
+
+## True when floor lies within the shaft's span.
+func _in_shaft_span(info: Array, floor_number: int) -> bool:
+	if not GridScript.is_valid_floor(floor_number):
+		return false
+	var offset := _level(floor_number) - _level(info[1])
+	return offset >= 0 and offset < int(info[0])
+
+
+## Resizes a shaft in place (the RESIZE_SHAFT command): shaft id, new bottom, new top, same
+## column. Same limits as placement; free (a shaft is priced flat). Stop flags of floors that
+## remain are kept; new floors are stops. The occupant ids move to a new base when the old one
+## has no room to grow. Calls and cars (#93, #94) must drop the removed floors here.
+func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, top: int) -> int:
+	if not _shafts.has(id):
+		return NOTHING_THERE
+	var info: Array = _shafts[id]
+	var kind: String = kind_of(id)
+	var width: int = CatalogueScript.field(kind, "width")
+	var old_span: int = info[0]
+	var old_bottom: int = info[1]
+	var x_left: int = info[2]
+	_clear_shaft_cells(grid, floors, id, old_bottom, old_span, x_left, width)
+	_shafts.erase(id)
+	var checked := check_place_shaft(grid, floors, kind, bottom, top, x_left)
+	if checked["reason"] != OK:
+		_put_shaft_cells(grid, floors, id, old_bottom, old_span, x_left, width)
+		_shafts[id] = info
+		return checked["reason"]
+	var span: int = checked["span"]
+	var base := id
+	var clear := false
+	while not clear:
+		clear = true
+		for i in span:
+			if grid.has_occupant(base + i):
+				base = _next_id
+				_next_id += span
+				clear = false
+				break
+	_put_shaft_cells(grid, floors, base, bottom, span, x_left, width)
+	var off: Array[int] = []
+	for floor_number: int in info[3]:
+		if _in_shaft_span([span, bottom], floor_number):
+			off.append(floor_number)
+	_shafts[base] = [span, bottom, x_left, off]
+	if base != id:
+		_kind_of[base] = _kind_of[id]
+		_kind_of.erase(id)
+	return OK
+
+
+## Turns a shaft's stop on a floor on or off (the SET_SHAFT_STOP command). Refused if the floor
+## is outside the span. A disabled floor is passed, not stopped at.
+func set_shaft_stop(id: int, floor_number: int, on: bool) -> int:
+	if not _shafts.has(id) or not _in_shaft_span(_shafts[id], floor_number):
+		return NOT_IN_SHAFT
+	var off: Array[int] = _shafts[id][3]
+	off.erase(floor_number)
+	if not on:
+		off.append(floor_number)
+		off.sort()
+	return OK
+
+
+## True when the shaft's cars stop at floor (in the span and not disabled).
+func is_stop(id: int, floor_number: int) -> bool:
+	if not _shafts.has(id) or not _in_shaft_span(_shafts[id], floor_number):
+		return false
+	var off: Array[int] = _shafts[id][3]
+	return not off.has(floor_number)
+
+
+## Floors the shaft stops at, bottom to top. Car motion (#92) uses this to skip disabled floors.
+func stops_of(id: int) -> Array[int]:
+	var stops: Array[int] = []
+	if not _shafts.has(id):
+		return stops
+	var off: Array[int] = _shafts[id][3]
+	var level: int = _shafts[id][1]
+	for i in int(_shafts[id][0]):
+		if not off.has(level):
+			stops.append(level)
+		level = floor_above(level)
+	return stops
 
 
 ## Removes a room's grid occupants (stairs have two, a shaft one per floor) and clears shaft marks.
@@ -491,7 +597,8 @@ func state_ints() -> Array[int]:
 	bases.sort()
 	ints.append(bases.size())
 	for base: int in bases:
-		ints.append_array([base, _shafts[base][0], _shafts[base][1], _shafts[base][2]] as Array[int])
+		ints.append_array([base, _shafts[base][0], _shafts[base][1], _shafts[base][2], _shafts[base][3].size()] as Array[int])
+		ints.append_array(_shafts[base][3] as Array[int])
 	return ints
 
 
@@ -507,9 +614,13 @@ func load_ints(ints: Array) -> bool:
 			_sold[ints[2 + 3 * i]] = true
 	occupants_removed = ints[2 + 3 * ints[1]]
 	_shafts = {}
-	var shaft_start: int = 4 + 3 * ints[1]
-	for i in range(ints[3 + 3 * ints[1]]):
-		_shafts[ints[shaft_start + 4 * i]] = [ints[shaft_start + 4 * i + 1], ints[shaft_start + 4 * i + 2], ints[shaft_start + 4 * i + 3]]
+	var at: int = 4 + 3 * ints[1]
+	for i in range(ints[at - 1]):
+		var off: Array[int] = []
+		for j in range(ints[at + 4]):
+			off.append(ints[at + 5 + j])
+		_shafts[ints[at]] = [ints[at + 1], ints[at + 2], ints[at + 3], off]
+		at += 5 + ints[at + 4]
 	_next_id = ints[0]
 	return true
 
@@ -522,15 +633,21 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 	if ints.size() < 2 or ints[1] < 0 or ints.size() < 4 + 3 * ints[1] or ints[0] < 1 or ints[2 + 3 * ints[1]] < 0:
 		return false
 	var shaft_total: int = ints[3 + 3 * ints[1]]
-	if shaft_total < 0 or ints.size() != 4 + 3 * ints[1] + 4 * shaft_total:
+	if shaft_total < 0:
 		return false
+	var at: int = 4 + 3 * ints[1]
 	for i in range(shaft_total):
-		var base: int = ints[4 + 3 * ints[1] + 4 * i]
-		var span: int = ints[5 + 3 * ints[1] + 4 * i]
-		if base < 1 or span < 1 or span > GridScript.FLOOR_COUNT or not GridScript.is_valid_floor(ints[6 + 3 * ints[1] + 4 * i]):
+		if at + 5 > ints.size() or ints[at + 4] < 0 or at + 5 + ints[at + 4] > ints.size():
+			return false
+		var base: int = ints[at]
+		var span: int = ints[at + 1]
+		if base < 1 or span < 1 or span > GridScript.FLOOR_COUNT or not GridScript.is_valid_floor(ints[at + 2]):
 			return false
 		if grid != null and not grid.has_occupant(base + span - 1):
 			return false
+		at += 5 + ints[at + 4]
+	if at != ints.size():
+		return false
 	for i in range(ints[1]):
 		var id: int = ints[2 + 3 * i]
 		var kind_index: int = ints[3 + 3 * i]
