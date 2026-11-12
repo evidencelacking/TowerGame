@@ -139,21 +139,35 @@ func day_plan(i: int, day: int) -> Array[Array]:
 	return plan
 
 
-## Called once per tick after the clock. Plan entries whose minute fell in (last checked, now] fire:
-## the person's goal changes, and if it is a different room a trip is requested. A drop in the
-## minute of day means midnight passed, so the check restarts from the start of the day.
+## The destination the day plan puts this person at, at a minute of a clock day. Before the first
+## entry (and all weekend) a worker is away: DEST_HOME, which is outside the tower (NONE) for
+## office workers. Break and lunch are the single seam for food rooms (#74): today both resolve to
+## the work room in goal_room, so people stay at their desks.
+func scheduled_goal(i: int, day: int, minute: int) -> int:
+	var goal := DEST_HOME
+	for entry in day_plan(i, day):
+		if entry[0] <= minute:
+			goal = entry[1]
+	return goal
+
+
+## Called once per tick after the clock. When the minute of day changes, every worker's goal is
+## set from the schedule (so a worker who moves in mid-day, or on a weekend, is placed correctly),
+## and if the goal room differs from where they are a trip is requested. People without a work
+## room keep their goal.
 func tick(clock: Clock) -> void:
 	var minute := clock.minute_of_day()
 	if minute == _last_minute:
 		return
-	var from := _last_minute if minute > _last_minute else -1
 	_last_minute = minute
 	for i in count():
-		for entry in day_plan(i, clock.day_of_week()):
-			if entry[0] > from and entry[0] <= minute:
-				_data[i * FIELDS + _GOAL] = entry[1]
-				if goal_room(i) != location_of(i):
-					_data[i * FIELDS + _TRIP] = TRIP_REQUESTED
+		if work_of(i) == NONE:
+			continue
+		var goal := scheduled_goal(i, clock.day_of_week(), minute)
+		if goal != goal_of(i):
+			_data[i * FIELDS + _GOAL] = goal
+		if goal_room(i) != location_of(i) and trip_state(i) == TRIP_IDLE:
+			_data[i * FIELDS + _TRIP] = TRIP_REQUESTED
 
 
 ## Routing seam: marks a requested trip as under way (the person is between rooms).
