@@ -31,14 +31,15 @@ static func run(check: Callable) -> void:
 	check.call(t.rooms.stops_of(id) == ([5, 6, 7, 8, 9, 10] as Array[int]) and t.rooms.is_stop(id, 7), "every spanned floor is a stop by default")
 
 	# Grow and shrink.
+	var first := id
 	check.call(_resize(t, id, 3, 12) == RoomsScript.OK, "growing both ways is accepted")
-	id = _id_at(t, 3, 100)
+	check.call(_id_at(t, 3, 100) == first and _id_at(t, 12, 100) == first, "the shaft id is unchanged after a grow")
 	check.call(t.grid.cell_at(3, 100) != 0 and t.grid.cell_at(12, 103) != 0 and t.grid.cell_at(2, 100) == 0 and t.grid.cell_at(13, 100) == 0, "grow fills the new floors")
 	check.call(t.floors.has_shaft(3, 101) and t.floors.has_shaft(12, 100), "grow marks the new floors")
 	check.call(t.ledger.balance == funds and t.rooms.shaft_count() == 1, "resize is free and keeps one shaft")
 	check.call(t.rooms.stops_of(id).size() == 10 and t.rooms.is_stop(id, 3), "new floors are stops")
 	check.call(_resize(t, id, 6, 8) == RoomsScript.OK, "shrinking is accepted")
-	id = _id_at(t, 6, 100)
+	check.call(_id_at(t, 6, 100) == first, "the shaft id is unchanged after a shrink")
 	check.call(t.grid.cell_at(5, 100) == 0 and t.grid.cell_at(9, 100) == 0 and t.grid.cell_at(7, 100) != 0, "shrink frees dropped cells")
 	check.call(not t.floors.has_shaft(5, 100) and not t.floors.has_shaft(12, 103) and t.floors.has_shaft(8, 100), "shrink clears dropped marks")
 	check.call(TestShafts._shaft(t, 3, 5, 100) == RoomsScript.OK, "a dropped floor takes another shaft")
