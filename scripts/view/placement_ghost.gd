@@ -50,6 +50,10 @@ const ROOM_TEXT: Dictionary = {
 	RoomsScript.OVERHANG: "Too wide for the floor below",
 	RoomsScript.NO_FLOOR_FOR_STAIRS: "Needs a floor on both levels",
 	RoomsScript.STAIRS_LIMIT: "Too many stairs and escalators",
+	RoomsScript.MAX_SHAFT_FLOORS: "A shaft spans at most 30 floors",
+	RoomsScript.MAX_SHAFTS: "The tower has the most shafts (24)",
+	RoomsScript.NO_FLOOR_FOR_SHAFT: "Needs a built floor on every level",
+	RoomsScript.BAD_SHAFT_SPAN: "The top must be above the bottom",
 }
 const BULLDOZE_TEXT: Dictionary = {
 	RoomsScript.BAD_FLOOR: "Not a floor",

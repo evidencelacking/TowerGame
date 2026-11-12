@@ -35,6 +35,7 @@ class Command:
 	const REPLACE_ROOM := 12  ## Bulldozes the room covering (floor, x_left) and places a room there, atomically: args are room_kind, floor, x_left. See Rooms.replace_room.
 	const BULLDOZE := 10  ## Removes the room covering a cell, free: args are floor, x. See Rooms.bulldoze.
 	const PLACE_STAIRS := 11  ## Places stairs between two floors: args are lower floor, x_left. See Rooms.place_stairs.
+	const PLACE_SHAFT := 13  ## Places an elevator shaft: args are room_kind (index in RoomCatalogue.IDS), bottom floor, top floor, x_left. See Rooms.place_shaft.
 
 	var tick: int = 0  ## The tick this command applies at.
 	var kind: int = 0
@@ -48,7 +49,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 11
+const SAVE_VERSION := 12
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -178,6 +179,11 @@ func _apply_command(command: Command) -> void:
 				last_refusal = rooms.place_stairs(grid, floors, ledger, tick, command.args[0], command.args[1])
 				if not _note_refusal(MessagesScript.STAIRS_REFUSED, command.args[0]):
 					messages.add(tick, MessagesScript.STAIRS_BUILT, command.args[0])
+		Command.PLACE_SHAFT:
+			if command.args.size() == 4:
+				last_refusal = rooms.place_shaft(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2], command.args[3])
+				if not _note_refusal(MessagesScript.ROOM_REFUSED, command.args[0]):
+					messages.add(tick, MessagesScript.ROOM_BUILT, command.args[0], command.args[1])
 		_:
 			push_error("Unknown sim command kind %d" % command.kind)
 
