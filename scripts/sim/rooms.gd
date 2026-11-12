@@ -42,6 +42,16 @@ const BAD_SHAFT_SPAN := 43  ## Shaft: the top is not above the bottom.
 
 const NOT_IN_SHAFT := 44  ## Shaft stop: the floor is not in the shaft's span (or the shaft is unknown).
 
+const MAX_CARS := 45  ## Car: the shaft already holds MAX_CARS_PER_SHAFT cars.
+const STAR_CAR_CAP := 46  ## Car: the tower's star rating allows no more cars in the shaft.
+const BAD_HOME_FLOOR := 47  ## Car: the home floor is outside the shaft's span or is not a stop.
+const NO_CARS_HERE := 48  ## Car: only local and service shafts take cars (so far).
+const HOME_DROPPED := 49  ## Shaft resize: the new span would drop a car's home floor.
+
+const MAX_CARS_PER_SHAFT := 8  ## Cars in one shaft (reference).
+const CAR_CAPACITY := 17  ## People a local car holds (reference); #94 enforces it.
+## Cars allowed per shaft by star rating, index = stars - 1 (a guess, tunable).
+const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
 const PLACEABLE: Array[String] = ["office", "condo"]
@@ -55,7 +65,8 @@ var _next_id: int = FIRST_ID
 ## bulldozing. A room holds RoomCatalogue "people" of them.
 var occupants_removed: int = 0
 ## Shafts hold one grid occupant per floor, ids base .. base + span - 1 from the bottom up.
-var _shafts: Dictionary = {}  # base id -> [span, bottom floor, x_left, stops off (floors, ascending)]
+var _shafts: Dictionary = {}  # shaft id (stable) -> [span, bottom floor, x_left, stops off (floors, ascending), first grid occupant id]
+var _cars: Array = []  # [shaft id, home floor, current floor, load], oldest first
 
 
 func room_count() -> int:
@@ -235,11 +246,12 @@ func shaft_count() -> int:
 	return _shafts.size()
 
 
-## Base id of the shaft owning occupant id, or 0 if it is not a shaft cell.
+## Shaft id owning grid occupant id, or 0 if it is not a shaft cell.
 func _shaft_base(id: int) -> int:
-	for base: int in _shafts:
-		if id >= base and id < base + int(_shafts[base][0]):
-			return base
+	for shaft: int in _shafts:
+		var first: int = _shafts[shaft][4]
+		if id >= first and id < first + int(_shafts[shaft][0]):
+			return shaft
 	return 0
 
 
@@ -319,7 +331,7 @@ func place_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, a
 			floors.mark_shaft(level, column)
 		level = floor_above(level)
 	_kind_of[_next_id] = kind_index
-	_shafts[_next_id] = [span, bottom, x_left, [] as Array[int]]
+	_shafts[_next_id] = [span, bottom, x_left, [] as Array[int], _next_id]
 	_next_id += span
 	return OK
 
@@ -363,15 +375,21 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, 
 	var old_span: int = info[0]
 	var old_bottom: int = info[1]
 	var x_left: int = info[2]
-	_clear_shaft_cells(grid, floors, id, old_bottom, old_span, x_left, width)
+	var old_base: int = info[4]
+	_clear_shaft_cells(grid, floors, old_base, old_bottom, old_span, x_left, width)
 	_shafts.erase(id)
 	var checked := check_place_shaft(grid, floors, kind, bottom, top, x_left)
-	if checked["reason"] != OK:
-		_put_shaft_cells(grid, floors, id, old_bottom, old_span, x_left, width)
+	var reason: int = checked["reason"]
+	if reason == OK:
+		for car: Array in _cars:
+			if car[0] == id and not _in_shaft_span([checked["span"], bottom], car[1]):
+				reason = HOME_DROPPED
+	if reason != OK:
+		_put_shaft_cells(grid, floors, old_base, old_bottom, old_span, x_left, width)
 		_shafts[id] = info
-		return checked["reason"]
+		return reason
 	var span: int = checked["span"]
-	var base := id
+	var base := old_base
 	var clear := false
 	while not clear:
 		clear = true
@@ -386,11 +404,65 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, 
 	for floor_number: int in info[3]:
 		if _in_shaft_span([span, bottom], floor_number):
 			off.append(floor_number)
-	_shafts[base] = [span, bottom, x_left, off]
-	if base != id:
-		_kind_of[base] = _kind_of[id]
-		_kind_of.erase(id)
+	_shafts[id] = [span, bottom, x_left, off, base]
+	for car: Array in _cars:
+		if car[0] == id and not _in_shaft_span([span, bottom], car[2]):
+			car[2] = car[1]
 	return OK
+
+
+## Cars in a shaft.
+func car_count(shaft_id: int) -> int:
+	var total := 0
+	for car: Array in _cars:
+		if car[0] == shaft_id:
+			total += 1
+	return total
+
+
+## People a car holds. #94 refuses the 18th boarder against this.
+func car_capacity() -> int:
+	return CAR_CAPACITY
+
+
+## Cars of a shaft, oldest first: each [shaft id, home floor, current floor, load].
+func cars_of(shaft_id: int) -> Array:
+	var result: Array = []
+	for car: Array in _cars:
+		if car[0] == shaft_id:
+			result.append(car.duplicate())
+	return result
+
+
+## Adds a car (the ADD_CAR command): shaft id, home floor. Local and service shafts only; at most
+## MAX_CARS_PER_SHAFT and the star cap; home must be a stop. Charges the catalogue car price.
+func add_car(ledger: LedgerScript, at_tick: int, stars: int, shaft_id: int, home: int) -> int:
+	if not _shafts.has(shaft_id):
+		return NOTHING_THERE
+	var shaft_kind: String = kind_of(shaft_id)
+	if shaft_kind != "local_shaft" and shaft_kind != "service_shaft":
+		return NO_CARS_HERE
+	var count := car_count(shaft_id)
+	if count >= MAX_CARS_PER_SHAFT:
+		return MAX_CARS
+	if count >= CARS_BY_STAR[clampi(stars, 1, 5) - 1]:
+		return STAR_CAR_CAP
+	if not is_stop(shaft_id, home):
+		return BAD_HOME_FLOOR
+	var car_index: int = CatalogueScript.IDS.find(shaft_kind.replace("_shaft", "_car"))
+	if ledger.charge(at_tick, int(CatalogueScript.field(CatalogueScript.IDS[car_index], "cost")), car_index) != LedgerScript.OK:
+		return SHORT_OF_FUNDS
+	_cars.append([shaft_id, home, home, 0])
+	return OK
+
+
+## Removes the shaft's newest car (the REMOVE_CAR command). No refund.
+func remove_car(shaft_id: int) -> int:
+	for n in range(_cars.size() - 1, -1, -1):
+		if _cars[n][0] == shaft_id:
+			_cars.remove_at(n)
+			return OK
+	return NOTHING_THERE
 
 
 ## Turns a shaft's stop on a floor on or off (the SET_SHAFT_STOP command). Refused if the floor
@@ -430,15 +502,19 @@ func stops_of(id: int) -> Array[int]:
 
 ## Removes a room's grid occupants (stairs have two, a shaft one per floor) and clears shaft marks.
 func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
-	grid.remove(id)
+	if not _shafts.has(id):
+		grid.remove(id)
 	if kind_of(id) == "stairs":
 		grid.remove(id + 1)
 	if _shafts.has(id):
 		var info: Array = _shafts[id]
 		var width: int = CatalogueScript.field(kind_of(id), "width")
 		var level: int = info[1]
-		for i in range(1, int(info[0])):
-			grid.remove(id + i)
+		for i in int(info[0]):
+			grid.remove(int(info[4]) + i)
+		for n in range(_cars.size() - 1, -1, -1):
+			if _cars[n][0] == id:
+				_cars.remove_at(n)
 		for i in int(info[0]):
 			for column in range(info[2], info[2] + width):
 				floors.mark_shaft(level, column, false)
@@ -540,12 +616,13 @@ func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: S
 	result["refund"] = removal["refund"]
 	var after: GridScript = GridScript.new()
 	after.load_ints(grid.state_ints())
-	after.remove(id)
+	if _shafts.has(id):
+		for i in int(_shafts[id][0]):
+			after.remove(int(_shafts[id][4]) + i)
+	else:
+		after.remove(id)
 	if kind_of(id) == "stairs":
 		after.remove(id + 1)
-	if _shafts.has(id):
-		for i in range(1, int(_shafts[id][0])):
-			after.remove(id + i)
 	var placed := check_place(after, floors, kind, floor_number, x_left)
 	result["cost"] = placed["cost"]
 	result["floor_units"] = placed["floor_units"]
@@ -597,8 +674,11 @@ func state_ints() -> Array[int]:
 	bases.sort()
 	ints.append(bases.size())
 	for base: int in bases:
-		ints.append_array([base, _shafts[base][0], _shafts[base][1], _shafts[base][2], _shafts[base][3].size()] as Array[int])
+		ints.append_array([base, _shafts[base][0], _shafts[base][1], _shafts[base][2], _shafts[base][4], _shafts[base][3].size()] as Array[int])
 		ints.append_array(_shafts[base][3] as Array[int])
+	ints.append(_cars.size())
+	for car: Array in _cars:
+		ints.append_array(car as Array[int])
 	return ints
 
 
@@ -617,10 +697,13 @@ func load_ints(ints: Array) -> bool:
 	var at: int = 4 + 3 * ints[1]
 	for i in range(ints[at - 1]):
 		var off: Array[int] = []
-		for j in range(ints[at + 4]):
-			off.append(ints[at + 5 + j])
-		_shafts[ints[at]] = [ints[at + 1], ints[at + 2], ints[at + 3], off]
-		at += 5 + ints[at + 4]
+		for j in range(ints[at + 5]):
+			off.append(ints[at + 6 + j])
+		_shafts[ints[at]] = [ints[at + 1], ints[at + 2], ints[at + 3], off, ints[at + 4]]
+		at += 6 + ints[at + 5]
+	_cars = []
+	for i in range(ints[at]):
+		_cars.append([ints[at + 1 + 4 * i], ints[at + 2 + 4 * i], ints[at + 3 + 4 * i], ints[at + 4 + 4 * i]])
 	_next_id = ints[0]
 	return true
 
@@ -636,17 +719,19 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 	if shaft_total < 0:
 		return false
 	var at: int = 4 + 3 * ints[1]
+	var shaft_ids: Dictionary = {}
 	for i in range(shaft_total):
-		if at + 5 > ints.size() or ints[at + 4] < 0 or at + 5 + ints[at + 4] > ints.size():
+		if at + 6 > ints.size() or ints[at + 5] < 0 or at + 6 + ints[at + 5] > ints.size():
 			return false
-		var base: int = ints[at]
+		var base: int = ints[at + 4]
 		var span: int = ints[at + 1]
-		if base < 1 or span < 1 or span > GridScript.FLOOR_COUNT or not GridScript.is_valid_floor(ints[at + 2]):
+		if ints[at] < 1 or base < 1 or span < 1 or span > GridScript.FLOOR_COUNT or not GridScript.is_valid_floor(ints[at + 2]):
 			return false
 		if grid != null and not grid.has_occupant(base + span - 1):
 			return false
-		at += 5 + ints[at + 4]
-	if at != ints.size():
+		shaft_ids[ints[at]] = true
+		at += 6 + ints[at + 5]
+	if at >= ints.size() or ints[at] < 0 or at + 1 + 4 * ints[at] != ints.size():
 		return false
 	for i in range(ints[1]):
 		var id: int = ints[2 + 3 * i]
@@ -654,7 +739,7 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 		var sold: int = ints[4 + 3 * i]
 		if id < 1 or kind_index < 0 or kind_index >= CatalogueScript.IDS.size() or (sold != 0 and sold != 1):
 			return false
-		if grid != null and not grid.has_occupant(id):
+		if grid != null and not shaft_ids.has(id) and not grid.has_occupant(id):
 			return false
 		if grid != null and kind_index == CatalogueScript.IDS.find("stairs") and not grid.has_occupant(id + 1):
 			return false
