@@ -63,6 +63,15 @@ func add_person(home: int, work: int, rng: Object) -> int:
 	return id
 
 
+## How many people work in this room.
+func workers_in(room: int) -> int:
+	var n := 0
+	for i in count():
+		if _data[i * FIELDS + _WORK] == room:
+			n += 1
+	return n
+
+
 ## Index of the person with this id, or -1.
 func index_of(id: int) -> int:
 	for i in count():
