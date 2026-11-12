@@ -7,6 +7,14 @@ extends RefCounted
 ## moving car takes the call floor as an intermediate target and resumes its old target (NEXT)
 ## after the doors close. A call clears when its car's doors open. Deterministic: integers only.
 ##
+## Boarding (#94): when the doors reach DOORS_OPEN, riders bound for the floor alight first (the
+## Rooms.on_alight hook), then people queued there (Rooms.join_queue) board in arrival order while
+## the car is heading their way and holds fewer than car_capacity(). Each rider's destination is a
+## car stop (Rooms.add_car_stop). A full car does not take calls and passes a call floor it
+## reaches without stopping; the call goes back to unassigned for another car or a later pass.
+## After the doors close a car goes to the nearest pending stop in its heading, then the nearest
+## the other way, and idles when none is left.
+##
 ## The clock runs 2.5 ticks per sim minute, so TICKS_PER_FLOOR 1 makes a 10-floor trip 10 ticks
 ## (4 sim minutes) and a full stop's doors take 8 ticks (3.2 minutes).
 
@@ -84,28 +92,27 @@ static func tick(rooms: RefCounted) -> void:
 				car[FLOOR] = _next(car[FLOOR], car[DIR])
 				if car[FLOOR] != car[TARGET]:
 					car[TICKS] = TICKS_PER_FLOOR
-				elif rooms.is_stop(car[SHAFT], car[FLOOR]):
+				elif not rooms.is_stop(car[SHAFT], car[FLOOR]):
+					_alight_all_here(rooms, n)
+					_resume(rooms, n)
+				elif car[LOAD] >= rooms.car_capacity() and not rooms._stops[n].has(car[FLOOR]):
+					for call: Array in rooms._calls:
+						if call[CALL_CAR] == n and call[CALL_FLOOR] == car[FLOOR]:
+							call[CALL_CAR] = -1
+					_resume(rooms, n)
+				else:
 					car[STATE] = DOORS_OPENING
 					car[DIR] = 0
 					car[TICKS] = DOOR_OPEN_TICKS
-				else:
-					idle(car)
 			DOORS_OPENING:
 				car[STATE] = DOORS_OPEN
 				car[TICKS] = DOOR_HOLD_TICKS
-				for c in range(rooms._calls.size() - 1, -1, -1):
-					if rooms._calls[c][CALL_CAR] == n and rooms._calls[c][CALL_FLOOR] == car[FLOOR]:
-						rooms._calls.remove_at(c)
+				_exchange(rooms, n)
 			DOORS_OPEN:
 				car[STATE] = DOORS_CLOSING
 				car[TICKS] = DOOR_CLOSE_TICKS
 			_:
-				if car[NEXT] != 0:
-					var resume: int = car[NEXT]
-					car[NEXT] = 0
-					start(car, resume)
-				else:
-					idle(car)
+				_resume(rooms, n)
 
 
 ## Gives each unassigned call, oldest first, to the nearest idle car or car that will pass it.
@@ -118,7 +125,7 @@ static func _dispatch(rooms: RefCounted) -> void:
 		var best_distance := 0
 		for n in rooms._cars.size():
 			var car: Array = rooms._cars[n]
-			if car[SHAFT] != call[CALL_SHAFT]:
+			if car[SHAFT] != call[CALL_SHAFT] or car[LOAD] >= rooms.car_capacity():
 				continue
 			var ahead: int = (at - _level(car[FLOOR])) * call[CALL_DIR]
 			var goes_by: bool = car[STATE] == MOVING and car[DIR] == call[CALL_DIR] and ahead > 0 and (at - _level(car[TARGET])) * call[CALL_DIR] <= 0 and (car[NEXT] == 0 or call[CALL_FLOOR] == car[TARGET])
@@ -146,3 +153,89 @@ static func idle(car: Array) -> void:
 	car[DIR] = 0
 	car[TARGET] = 0
 	car[TICKS] = 0
+
+
+## Direction (UP or DOWN) from one floor to another, 0 when they are the same.
+static func dir_to(from_floor: int, to_floor: int) -> int:
+	return signi(_level(to_floor) - _level(from_floor))
+
+
+## Car n has just opened its doors: riders bound here alight, the car's calls here clear, then
+## queued people going the car's way board in arrival order up to the capacity.
+static func _exchange(rooms: RefCounted, n: int) -> void:
+	var car: Array = rooms._cars[n]
+	var floor_number: int = car[FLOOR]
+	_alight_all_here(rooms, n)
+	var dir := 0
+	for call: Array in rooms._calls:
+		if call[CALL_CAR] == n and call[CALL_FLOOR] == floor_number and dir == 0:
+			dir = call[CALL_DIR]
+	for c in range(rooms._calls.size() - 1, -1, -1):
+		if rooms._calls[c][CALL_CAR] == n and rooms._calls[c][CALL_FLOOR] == floor_number:
+			rooms._calls.remove_at(c)
+	var riders: Array = rooms._riders[n]
+	if not riders.is_empty():
+		dir = dir_to(floor_number, riders[0][1])
+	for entry: Array in rooms._queue:
+		if dir == 0 and entry[1] == car[SHAFT] and entry[2] == floor_number:
+			dir = dir_to(floor_number, entry[3])
+	rooms._heading[n] = dir
+	var q := 0
+	while q < rooms._queue.size() and riders.size() < rooms.car_capacity():
+		var entry: Array = rooms._queue[q]
+		if entry[1] == car[SHAFT] and entry[2] == floor_number and dir_to(floor_number, entry[3]) == dir:
+			riders.append([entry[0], entry[3]])
+			rooms.add_car_stop(n, entry[3])
+			rooms._queue.remove_at(q)
+		else:
+			q += 1
+	car[LOAD] = riders.size()
+	for entry: Array in rooms._queue:
+		if entry[1] == car[SHAFT] and entry[2] == floor_number:
+			rooms.place_call(entry[1], floor_number, dir_to(floor_number, entry[3]))
+
+
+## Riders of car n whose destination is its floor get off, and that floor stops being a stop.
+static func _alight_all_here(rooms: RefCounted, n: int) -> void:
+	var car: Array = rooms._cars[n]
+	var kept: Array = []
+	for rider: Array in rooms._riders[n]:
+		if rider[1] == car[FLOOR]:
+			rooms.on_alight(rider[0], car[FLOOR])
+		else:
+			kept.append(rider)
+	rooms._riders[n] = kept
+	rooms._stops[n].erase(car[FLOOR])
+	car[LOAD] = kept.size()
+
+
+## After the doors close (or a pass): go to the nearest pending stop in the heading, else the
+## nearest the other way, else idle. NEXT counts as a stop and is kept unless chosen.
+static func _resume(rooms: RefCounted, n: int) -> void:
+	var car: Array = rooms._cars[n]
+	var options: Array[int] = []
+	for stop: int in rooms._stops[n]:
+		options.append(stop)
+	if car[NEXT] != 0 and not options.has(car[NEXT]):
+		options.append(car[NEXT])
+	options.erase(car[FLOOR])
+	var heading: int = rooms._heading[n]
+	var best := 0
+	var best_distance := 0
+	for pass_number in 2:
+		for stop in options:
+			if pass_number == 0 and dir_to(car[FLOOR], stop) != heading:
+				continue
+			var distance: int = absi(_level(stop) - _level(car[FLOOR]))
+			if best == 0 or distance < best_distance:
+				best = stop
+				best_distance = distance
+		if best != 0:
+			break
+	if best == 0:
+		idle(car)
+		return
+	rooms._heading[n] = dir_to(car[FLOOR], best)
+	if car[NEXT] == best:
+		car[NEXT] = 0
+	start(car, best)
