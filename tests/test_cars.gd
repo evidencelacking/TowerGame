@@ -43,18 +43,18 @@ static func run(check: Callable) -> void:
 	check.call(_add(u, uid, 5) == RoomsScript.BAD_HOME_FLOOR and u.ledger.balance == funds, "a non-stop home floor is refused, free")
 	check.call(_add(u, 999999, 4) == RoomsScript.NOTHING_THERE, "an unknown shaft is refused")
 	check.call(_add(u, uid, 4) == RoomsScript.OK and funds - u.ledger.balance == CatalogueScript.cost("local_car"), "a car is charged the catalogue price")
-	check.call(u.rooms.cars_of(uid) == [[uid, 4, 4, 0, 0, 0, 0, 0]] and u.rooms.car_capacity() == 17, "a car starts at home, empty; capacity is 17")
+	check.call(u.rooms.cars_of(uid) == [[uid, 4, 4, 0, 0, 0, 0, 0, 0]] and u.rooms.car_capacity() == 17, "a car starts at home, empty; capacity is 17")
 	TestShafts._shaft(u, 3, 8, 110, "express_shaft")
 	check.call(_add(u, _shaft_id(u, 3, 110), 4) == RoomsScript.NO_CARS_HERE, "express shafts take no cars")
 
 	# Remove: newest car, no refund.
 	_add(u, uid, 6)
 	funds = u.ledger.balance
-	check.call(TestRooms._send(u, Command.REMOVE_CAR, [uid] as Array[int]) == RoomsScript.OK and u.rooms.cars_of(uid) == [[uid, 4, 4, 0, 0, 0, 0, 0]] and u.ledger.balance == funds, "remove takes the newest car, no refund")
+	check.call(TestRooms._send(u, Command.REMOVE_CAR, [uid] as Array[int]) == RoomsScript.OK and u.rooms.cars_of(uid) == [[uid, 4, 4, 0, 0, 0, 0, 0, 0]] and u.ledger.balance == funds, "remove takes the newest car, no refund")
 
 	# Shrink dropping the home floor is refused; one keeping it is fine.
 	check.call(TestRooms._send(u, Command.RESIZE_SHAFT, [uid, 5, 8] as Array[int]) == RoomsScript.HOME_DROPPED, "a shrink dropping a home floor is refused")
-	check.call(u.rooms.cars_of(uid) == [[uid, 4, 4, 0, 0, 0, 0, 0]] and u.grid.cell_at(4, 100) != 0, "a refused shrink changes nothing")
+	check.call(u.rooms.cars_of(uid) == [[uid, 4, 4, 0, 0, 0, 0, 0, 0]] and u.grid.cell_at(4, 100) != 0, "a refused shrink changes nothing")
 	check.call(TestRooms._send(u, Command.RESIZE_SHAFT, [uid, 4, 8] as Array[int]) == RoomsScript.OK, "a shrink keeping the home floor is accepted")
 
 	# Shaft id stays stable even when the occupant ids must move.

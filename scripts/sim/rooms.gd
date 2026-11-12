@@ -51,7 +51,9 @@ const HOME_DROPPED := 49  ## Shaft resize: the new span would drop a car's home 
 const HOME_STOP := 50  ## Shaft stop: the floor is a car's home floor, which must stay a stop.
 const NOT_A_STOP := 51  ## Send car: the target is not a stop of the car's shaft.
 const NO_SUCH_CAR := 52  ## Send car: there is no such car.
+const BAD_CALL := 53  ## Place call: the direction is not UP or DOWN, or no car can go that way from the floor.
 
+const CAR_INTS := 9  ## Ints in one saved car (SHAFT to NEXT in cars.gd).
 const MAX_CARS_PER_SHAFT := 8  ## Cars in one shaft (reference).
 const CAR_CAPACITY := 17  ## People a local car holds (reference); #94 enforces it.
 ## Cars allowed per shaft by star rating, index = stars - 1 (a guess, tunable).
@@ -70,7 +72,8 @@ var _next_id: int = FIRST_ID
 var occupants_removed: int = 0
 ## Shafts hold one grid occupant per floor, ids base .. base + span - 1 from the bottom up.
 var _shafts: Dictionary = {}  # shaft id (stable) -> [span, bottom floor, x_left, stops off (floors, ascending), first grid occupant id]
-var _cars: Array = []  # [shaft id, home, floor, load, state, dir, target, ticks left], oldest first (see cars.gd)
+var _cars: Array = []  # a car is SHAFT..NEXT in cars.gd (9 ints), oldest first
+var _calls: Array = []  # hall calls [shaft id, floor, dir, car index or -1] in arrival order (see cars.gd)
 
 
 func room_count() -> int:
@@ -386,7 +389,7 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, 
 	var reason: int = checked["reason"]
 	if reason == OK:
 		for car: Array in _cars:
-			if car[0] == id and not _in_shaft_span([checked["span"], bottom], car[1]):
+			if car[CarsScript.SHAFT] == id and not _in_shaft_span([checked["span"], bottom], car[CarsScript.HOME]):
 				reason = HOME_DROPPED
 	if reason != OK:
 		_put_shaft_cells(grid, floors, old_base, old_bottom, old_span, x_left, width)
@@ -410,12 +413,14 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, 
 			off.append(floor_number)
 	_shafts[id] = [span, bottom, x_left, off, base]
 	for car: Array in _cars:
-		if car[0] == id and (not _in_shaft_span([span, bottom], car[2]) or (car[4] != 0 and not _in_shaft_span([span, bottom], car[6]))):
-			car[2] = car[1]
-			car[4] = 0
-			car[5] = 0
-			car[6] = 0
-			car[7] = 0
+		if car[CarsScript.SHAFT] == id and (not _in_shaft_span([span, bottom], car[CarsScript.FLOOR]) or (car[CarsScript.STATE] != CarsScript.IDLE and not _in_shaft_span([span, bottom], car[CarsScript.TARGET]))):
+			car[CarsScript.FLOOR] = car[CarsScript.HOME]
+			CarsScript.idle(car)
+	for n in range(_calls.size() - 1, -1, -1):
+		if _calls[n][CarsScript.CALL_SHAFT] == id:
+			_calls[n][CarsScript.CALL_CAR] = -1
+			if not is_stop(id, _calls[n][CarsScript.CALL_FLOOR]):
+				_calls.remove_at(n)
 	return OK
 
 
@@ -423,7 +428,7 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, 
 func car_count(shaft_id: int) -> int:
 	var total := 0
 	for car: Array in _cars:
-		if car[0] == shaft_id:
+		if car[CarsScript.SHAFT] == shaft_id:
 			total += 1
 	return total
 
@@ -433,11 +438,11 @@ func car_capacity() -> int:
 	return CAR_CAPACITY
 
 
-## Cars of a shaft, oldest first: each [shaft id, home, floor, load, state, dir, target, ticks left].
+## Cars of a shaft, oldest first: each an array indexed by the CarsScript constants (SHAFT to NEXT).
 func cars_of(shaft_id: int) -> Array:
 	var result: Array = []
 	for car: Array in _cars:
-		if car[0] == shaft_id:
+		if car[CarsScript.SHAFT] == shaft_id:
 			result.append(car.duplicate())
 	return result
 
@@ -460,15 +465,15 @@ func add_car(ledger: LedgerScript, at_tick: int, stars: int, shaft_id: int, home
 	var car_index: int = CatalogueScript.IDS.find(shaft_kind.replace("_shaft", "_car"))
 	if ledger.charge(at_tick, int(CatalogueScript.field(CatalogueScript.IDS[car_index], "cost")), car_index) != LedgerScript.OK:
 		return SHORT_OF_FUNDS
-	_cars.append([shaft_id, home, home, 0, 0, 0, 0, 0])
+	_cars.append([shaft_id, home, home, 0, 0, 0, 0, 0, 0])
 	return OK
 
 
 ## Removes the shaft's newest car (the REMOVE_CAR command). No refund.
 func remove_car(shaft_id: int) -> int:
 	for n in range(_cars.size() - 1, -1, -1):
-		if _cars[n][0] == shaft_id:
-			_cars.remove_at(n)
+		if _cars[n][CarsScript.SHAFT] == shaft_id:
+			_drop_car(n)
 			return OK
 	return NOTHING_THERE
 
@@ -481,24 +486,58 @@ func set_shaft_stop(id: int, floor_number: int, on: bool) -> int:
 	var off: Array[int] = _shafts[id][3]
 	if not on:
 		for car: Array in _cars:
-			if car[0] == id and car[1] == floor_number:
+			if car[CarsScript.SHAFT] == id and car[CarsScript.HOME] == floor_number:
 				return HOME_STOP
 	off.erase(floor_number)
 	if not on:
 		off.append(floor_number)
 		off.sort()
+		for n in range(_calls.size() - 1, -1, -1):
+			if _calls[n][CarsScript.CALL_SHAFT] == id and _calls[n][CarsScript.CALL_FLOOR] == floor_number:
+				_calls.remove_at(n)
 	return OK
 
 
 ## Sends a car to a floor (the seam for dispatch, #93). The car must be idle; the floor a stop.
 ## Returns OK, NO_SUCH_CAR (bad index or the car is busy) or NOT_A_STOP. See cars.gd.
 func send_car(car_index: int, floor_number: int) -> int:
-	if car_index < 0 or car_index >= _cars.size() or _cars[car_index][4] != 0:
+	if car_index < 0 or car_index >= _cars.size() or _cars[car_index][CarsScript.STATE] != CarsScript.IDLE:
 		return NO_SUCH_CAR
-	if not is_stop(_cars[car_index][0], floor_number):
+	if not is_stop(_cars[car_index][CarsScript.SHAFT], floor_number):
 		return NOT_A_STOP
 	CarsScript.start(_cars[car_index], floor_number)
 	return OK
+
+
+## Removes car n, unassigning its calls and renumbering the others' assignments.
+func _drop_car(n: int) -> void:
+	_cars.remove_at(n)
+	for call: Array in _calls:
+		if call[CarsScript.CALL_CAR] == n:
+			call[CarsScript.CALL_CAR] = -1
+		elif call[CarsScript.CALL_CAR] > n:
+			call[CarsScript.CALL_CAR] -= 1
+
+
+## Places a hall call (the seam for #94/#95): a shaft, a floor and a direction (CarsScript.UP or
+## DOWN). Refuses a non-stop floor (NOT_A_STOP), and UP at the top stop or DOWN at the bottom stop
+## (BAD_CALL). A duplicate of a pending call is merged: OK, nothing added. See cars.gd.
+func place_call(shaft_id: int, floor_number: int, dir: int) -> int:
+	if not is_stop(shaft_id, floor_number):
+		return NOT_A_STOP
+	var stops := stops_of(shaft_id)
+	if (dir != CarsScript.UP and dir != CarsScript.DOWN) or (dir == CarsScript.UP and floor_number == stops[-1]) or (dir == CarsScript.DOWN and floor_number == stops[0]):
+		return BAD_CALL
+	for call: Array in _calls:
+		if call[CarsScript.CALL_SHAFT] == shaft_id and call[CarsScript.CALL_FLOOR] == floor_number and call[CarsScript.CALL_DIR] == dir:
+			return OK
+	_calls.append([shaft_id, floor_number, dir, -1])
+	return OK
+
+
+## Pending hall calls in arrival order: each [shaft id, floor, dir, assigned car index or -1].
+func calls() -> Array:
+	return _calls.duplicate(true)
 
 
 ## Number of cars in the tower; car_index in send_car counts them oldest first.
@@ -541,8 +580,11 @@ func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
 		for i in int(info[0]):
 			grid.remove(int(info[4]) + i)
 		for n in range(_cars.size() - 1, -1, -1):
-			if _cars[n][0] == id:
-				_cars.remove_at(n)
+			if _cars[n][CarsScript.SHAFT] == id:
+				_drop_car(n)
+		for n in range(_calls.size() - 1, -1, -1):
+			if _calls[n][CarsScript.CALL_SHAFT] == id:
+				_calls.remove_at(n)
 		for i in int(info[0]):
 			for column in range(info[2], info[2] + width):
 				floors.mark_shaft(level, column, false)
@@ -707,6 +749,9 @@ func state_ints() -> Array[int]:
 	ints.append(_cars.size())
 	for car: Array in _cars:
 		ints.append_array(car as Array[int])
+	ints.append(_calls.size())
+	for call: Array in _calls:
+		ints.append_array(call as Array[int])
 	return ints
 
 
@@ -731,7 +776,11 @@ func load_ints(ints: Array) -> bool:
 		at += 6 + ints[at + 5]
 	_cars = []
 	for i in range(ints[at]):
-		_cars.append(ints.slice(at + 1 + 8 * i, at + 9 + 8 * i))
+		_cars.append(ints.slice(at + 1 + CAR_INTS * i, at + 1 + CAR_INTS * (i + 1)))
+	at += 1 + CAR_INTS * _cars.size()
+	_calls = []
+	for i in range(ints[at]):
+		_calls.append(ints.slice(at + 1 + 4 * i, at + 5 + 4 * i))
 	_next_id = ints[0]
 	return true
 
@@ -759,7 +808,10 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 			return false
 		shaft_ids[ints[at]] = true
 		at += 6 + ints[at + 5]
-	if at >= ints.size() or ints[at] < 0 or at + 1 + 8 * ints[at] != ints.size():
+	if at >= ints.size() or ints[at] < 0 or at + 1 + CAR_INTS * ints[at] >= ints.size():
+		return false
+	at += 1 + CAR_INTS * ints[at]
+	if ints[at] < 0 or at + 1 + 4 * ints[at] != ints.size():
 		return false
 	for i in range(ints[1]):
 		var id: int = ints[2 + 3 * i]

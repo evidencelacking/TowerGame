@@ -54,7 +54,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 15
+const SAVE_VERSION := 16
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
