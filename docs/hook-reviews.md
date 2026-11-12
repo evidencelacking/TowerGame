@@ -3,6 +3,16 @@
 Newest first. The latest date here sets when the next review is due. Firings logged on that
 date count as reviewed.
 
+## 2026-11-12
+
+No firings logged after 2026-11-11 (`hook_report.py`); the start-of-session count included
+firings already reviewed on that date.
+
+- **Fix:** the unbounded-script tightening from 2026-11-11 still waits for the owner.
+- **Retire:** none. The never-fired rules (force-push, push-main, history-rewrite and the like)
+  guard rare but costly mistakes, so silence is expected.
+- **Add, Promote, Trim:** nothing new.
+
 ## 2026-11-11
 
 Firings since 2026-11-10: script-logic 16, owner-move 4, raw-api 1, history-rewrite 1,
