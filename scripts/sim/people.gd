@@ -78,6 +78,22 @@ func add_person(home: int, work: int, rng: Object) -> int:
 	return id
 
 
+## Removes everyone whose home or work is room (it was bulldozed or replaced), wherever they are,
+## mid-trip included. Returns how many went. Keeps _data compact and in id order; ids are not
+## reused. They vanish at once: no walk-out animation (a possible later improvement).
+func remove_room(room: int) -> int:
+	var kept: Array[int] = []
+	var removed := 0
+	for i in count():
+		var b := i * FIELDS
+		if _data[b + _HOME] == room or _data[b + _WORK] == room:
+			removed += 1
+		else:
+			kept.append_array(_data.slice(b, b + FIELDS))
+	_data = kept
+	return removed
+
+
 ## How many people work in this room.
 func workers_in(room: int) -> int:
 	var n := 0

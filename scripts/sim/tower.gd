@@ -157,6 +157,8 @@ func _apply_command(command: Command) -> void:
 				var doomed := rooms.check_bulldoze(grid, floors, command.args[0], command.args[1])
 				var doomed_kind := CatalogueScript.IDS.find(rooms.kind_of(doomed["room_id"]))
 				last_refusal = rooms.bulldoze(grid, floors, ledger, tick, command.args[0], command.args[1])
+				if last_refusal == RoomsScript.OK:
+					people.remove_room(doomed["room_id"])
 				if not _note_refusal(MessagesScript.BULLDOZE_REFUSED, command.args[0]):
 					messages.add(tick, MessagesScript.ROOM_REMOVED, doomed_kind, command.args[0])
 					if doomed["refund"] > 0:
@@ -165,6 +167,8 @@ func _apply_command(command: Command) -> void:
 			if command.args.size() == 3:
 				var replaced := rooms.check_bulldoze(grid, floors, command.args[1], command.args[2])
 				last_refusal = rooms.replace_room(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2])
+				if last_refusal == RoomsScript.OK:
+					people.remove_room(replaced["room_id"])
 				if not _note_refusal(MessagesScript.REPLACE_REFUSED, command.args[0]):
 					messages.add(tick, MessagesScript.ROOM_REPLACED, command.args[0], command.args[1])
 					if replaced["refund"] > 0:
