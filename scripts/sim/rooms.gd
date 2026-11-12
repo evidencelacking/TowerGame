@@ -35,6 +35,12 @@ const PERMANENT := 31  ## Bulldoze: the lobby or another room the player cannot 
 const NOT_A_ROOM := 32  ## Bulldoze: the cell holds an occupant that is not a placed room.
 
 const STAIRS_LIMIT := 34  ## Stairs: the tower already holds the most stairs and escalators.
+const MAX_SHAFT_FLOORS := 40  ## Shaft: spans more than 30 floors (basements count; express is exempt).
+const MAX_SHAFTS := 41  ## Shaft: the tower already holds 24 shafts.
+const NO_FLOOR_FOR_SHAFT := 42  ## Shaft: some floor it spans is not built under the shaft.
+const BAD_SHAFT_SPAN := 43  ## Shaft: the top is not above the bottom.
+
+const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
 const PLACEABLE: Array[String] = ["office", "condo"]
 const FIRST_ID := 1000  ## Room occupant ids start here, clear of ids given to PLACE commands.
@@ -46,6 +52,8 @@ var _next_id: int = FIRST_ID
 ## Running total of workers and residents removed by
 ## bulldozing. A room holds RoomCatalogue "people" of them.
 var occupants_removed: int = 0
+## Shafts hold one grid occupant per floor, ids base .. base + span - 1 from the bottom up.
+var _shafts: Dictionary = {}  # base id -> [span, bottom floor, x_left]
 
 
 func room_count() -> int:
@@ -209,6 +217,129 @@ func place_stairs(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, 
 	return OK
 
 
+## Index of a floor counting upward with no floor 0, so spans count basements: B1 is -1, 1 is 0.
+static func _level(floor_number: int) -> int:
+	return floor_number if floor_number < 0 else floor_number - 1
+
+
+## Floors a shaft from bottom to top covers (inclusive; basements count), or 0 if top is not above.
+static func shaft_span(bottom: int, top: int) -> int:
+	if not GridScript.is_valid_floor(bottom) or not GridScript.is_valid_floor(top):
+		return 0
+	return maxi(0, _level(top) - _level(bottom) + 1)
+
+
+func shaft_count() -> int:
+	return _shafts.size()
+
+
+## Base id of the shaft owning occupant id, or 0 if it is not a shaft cell.
+func _shaft_base(id: int) -> int:
+	for base: int in _shafts:
+		if id >= base and id < base + int(_shafts[base][0]):
+			return base
+	return 0
+
+
+## Checks a shaft: kind is a catalogue id with the shaft placement, bottom and top are floor
+## numbers (inclusive). Returns {"reason", "cost", "span"}. Needs 1 to 30 floors (express: any
+## height), fewer than 24 shafts, a built floor under every column on every floor, and nothing
+## else in the way (a lobby is fine, as for stairs).
+func check_place_shaft(grid: GridScript, floors: FloorsScript, kind: String, bottom: int, top: int, x_left: int) -> Dictionary:
+	var result := {"reason": OK, "cost": 0, "span": 0}
+	if not CatalogueScript.IDS.has(kind) or CatalogueScript.field(kind, "placement") != CatalogueScript.PLACE_SHAFT:
+		result["reason"] = UNKNOWN_KIND
+		return result
+	if not GridScript.is_valid_floor(bottom) or not GridScript.is_valid_floor(top):
+		result["reason"] = BAD_FLOOR
+		return result
+	var span := shaft_span(bottom, top)
+	result["span"] = span
+	if span == 0:
+		result["reason"] = BAD_SHAFT_SPAN
+		return result
+	if kind != "express_shaft" and span > SHAFT_FLOOR_LIMIT:
+		result["reason"] = MAX_SHAFT_FLOORS
+		return result
+	if _shafts.size() >= int(CatalogueScript.field(kind, "limit")):
+		result["reason"] = MAX_SHAFTS
+		return result
+	var width: int = CatalogueScript.field(kind, "width")
+	if x_left < 0 or x_left + width > GridScript.WIDTH_UNITS:
+		result["reason"] = OFF_TOWER
+		return result
+	var level := bottom
+	for i in span:
+		for column in range(x_left, x_left + width):
+			if grid.cell_at(level, column) != GridScript.EMPTY:
+				result["reason"] = OVERLAPS_ROOM
+				return result
+			if floors.has_shaft(level, column):
+				result["reason"] = OVER_SHAFT
+				return result
+		level = floor_above(level)
+	level = bottom
+	for i in span:
+		for column in range(x_left, x_left + width):
+			if not floors.has_floor(level, column):
+				result["reason"] = NO_FLOOR_FOR_SHAFT
+				return result
+		level = floor_above(level)
+	result["cost"] = CatalogueScript.cost(kind)
+	return result
+
+
+## Places a shaft (the PLACE_SHAFT command): kind_index, bottom, top, x_left. One ledger charge
+## (the catalogue price, however tall), ref = the catalogue index. Returns OK or a reason code.
+func place_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, kind_index: int, bottom: int, top: int, x_left: int) -> int:
+	if kind_index < 0 or kind_index >= CatalogueScript.IDS.size():
+		return UNKNOWN_KIND
+	var kind: String = CatalogueScript.IDS[kind_index]
+	var checked := check_place_shaft(grid, floors, kind, bottom, top, x_left)
+	if checked["reason"] != OK:
+		return checked["reason"]
+	if ledger.charge(at_tick, checked["cost"], kind_index) != LedgerScript.OK:
+		return SHORT_OF_FUNDS
+	var span: int = checked["span"]
+	var width: int = CatalogueScript.field(kind, "width")
+	var clear := false
+	while not clear:  # _next_id only grows, so this ends once a free run of span ids is found
+		clear = true
+		for i in span:
+			if grid.has_occupant(_next_id + i):
+				_next_id += i + 1
+				clear = false
+				break
+	var level := bottom
+	for i in span:
+		grid.place(_next_id + i, level, x_left, width)
+		for column in range(x_left, x_left + width):
+			floors.mark_shaft(level, column)
+		level = floor_above(level)
+	_kind_of[_next_id] = kind_index
+	_shafts[_next_id] = [span, bottom, x_left]
+	_next_id += span
+	return OK
+
+
+## Removes a room's grid occupants (stairs have two, a shaft one per floor) and clears shaft marks.
+func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
+	grid.remove(id)
+	if kind_of(id) == "stairs":
+		grid.remove(id + 1)
+	if _shafts.has(id):
+		var info: Array = _shafts[id]
+		var width: int = CatalogueScript.field(kind_of(id), "width")
+		var level: int = info[1]
+		for i in range(1, int(info[0])):
+			grid.remove(id + i)
+		for i in int(info[0]):
+			for column in range(info[2], info[2] + width):
+				floors.mark_shaft(level, column, false)
+			level = floor_above(level)
+		_shafts.erase(id)
+
+
 ## True when id is the upper-floor half of a stairs (not a room of its own).
 func is_stairs_upper(id: int) -> bool:
 	return not _kind_of.has(id) and kind_of(id - 1) == "stairs"
@@ -253,6 +384,8 @@ func check_bulldoze(grid: GridScript, floors: FloorsScript, floor_number: int, x
 		return result
 	if is_stairs_upper(id):
 		id -= 1
+	if _shaft_base(id) != 0:
+		id = _shaft_base(id)
 	if not _kind_of.has(id):
 		result["reason"] = NOT_A_ROOM
 		return result
@@ -279,9 +412,7 @@ func bulldoze(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_t
 	occupants_removed += checked["occupants"]
 	if checked["refund"] > 0:
 		ledger.payout(at_tick, checked["refund"], id)
-	grid.remove(id)
-	if kind_of(id) == "stairs":
-		grid.remove(id + 1)
+	_remove_occupants(grid, floors, id)
 	_kind_of.erase(id)
 	_sold.erase(id)
 	return OK
@@ -306,6 +437,9 @@ func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: S
 	after.remove(id)
 	if kind_of(id) == "stairs":
 		after.remove(id + 1)
+	if _shafts.has(id):
+		for i in range(1, int(_shafts[id][0])):
+			after.remove(id + i)
 	var placed := check_place(after, floors, kind, floor_number, x_left)
 	result["cost"] = placed["cost"]
 	result["floor_units"] = placed["floor_units"]
@@ -331,9 +465,7 @@ func replace_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, 
 	if ledger.charge(at_tick, checked["net"], kind_index) != LedgerScript.OK:
 		return SHORT_OF_FUNDS
 	occupants_removed += people_in(id)
-	grid.remove(id)
-	if kind_of(id) == "stairs":
-		grid.remove(id + 1)
+	_remove_occupants(grid, floors, id)
 	_kind_of.erase(id)
 	_sold.erase(id)
 	var width: int = CatalogueScript.field(kind, "width")
@@ -355,6 +487,11 @@ func state_ints() -> Array[int]:
 	for id: int in ids:
 		ints.append_array([id, _kind_of[id], 1 if _sold.has(id) else 0] as Array[int])
 	ints.append(occupants_removed)
+	var bases: Array = _shafts.keys()
+	bases.sort()
+	ints.append(bases.size())
+	for base: int in bases:
+		ints.append_array([base, _shafts[base][0], _shafts[base][1], _shafts[base][2]] as Array[int])
 	return ints
 
 
@@ -369,6 +506,10 @@ func load_ints(ints: Array) -> bool:
 		if ints[4 + 3 * i] == 1:
 			_sold[ints[2 + 3 * i]] = true
 	occupants_removed = ints[2 + 3 * ints[1]]
+	_shafts = {}
+	var shaft_start: int = 4 + 3 * ints[1]
+	for i in range(ints[3 + 3 * ints[1]]):
+		_shafts[ints[shaft_start + 4 * i]] = [ints[shaft_start + 4 * i + 1], ints[shaft_start + 4 * i + 2], ints[shaft_start + 4 * i + 3]]
 	_next_id = ints[0]
 	return true
 
@@ -378,8 +519,18 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 	for value in ints:
 		if typeof(value) != TYPE_INT:
 			return false
-	if ints.size() < 2 or ints[1] < 0 or ints.size() != 3 + 3 * ints[1] or ints[0] < 1 or ints[2 + 3 * ints[1]] < 0:
+	if ints.size() < 2 or ints[1] < 0 or ints.size() < 4 + 3 * ints[1] or ints[0] < 1 or ints[2 + 3 * ints[1]] < 0:
 		return false
+	var shaft_total: int = ints[3 + 3 * ints[1]]
+	if shaft_total < 0 or ints.size() != 4 + 3 * ints[1] + 4 * shaft_total:
+		return false
+	for i in range(shaft_total):
+		var base: int = ints[4 + 3 * ints[1] + 4 * i]
+		var span: int = ints[5 + 3 * ints[1] + 4 * i]
+		if base < 1 or span < 1 or span > GridScript.FLOOR_COUNT or not GridScript.is_valid_floor(ints[6 + 3 * ints[1] + 4 * i]):
+			return false
+		if grid != null and not grid.has_occupant(base + span - 1):
+			return false
 	for i in range(ints[1]):
 		var id: int = ints[2 + 3 * i]
 		var kind_index: int = ints[3 + 3 * i]
