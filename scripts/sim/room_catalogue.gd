@@ -19,7 +19,7 @@ extends RefCounted
 ##   limit          most allowed per tower, or 0 for no limit.
 ##   limit_group    rooms sharing one limit share this group name; "" counts alone.
 ##   people         workers (office) or residents (condo) the room holds; absent elsewhere for now.
-##                  Population, rent and "condo sold once" (M3+) come later.
+##                  Rent comes later; population is People.in_tower_count().
 ##   capacity       passengers per car (car rows only; 0 elsewhere).
 ##   limit_scope    "tower", or "shaft" for elevator cars (limit is cars per shaft).
 
