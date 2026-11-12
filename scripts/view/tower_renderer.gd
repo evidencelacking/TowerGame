@@ -1,6 +1,7 @@
 class_name TowerRenderer
 extends Node2D
 const VC := preload("res://scripts/view/view_consts.gd")
+const PeopleView := preload("res://scripts/view/people_view.gd")
 ## Draws the tower with native shapes only. Reads the Tower read-only; never mutates sim state.
 ## All geometry is integer pixels from view_consts.gd, so edges stay aligned at any zoom.
 
@@ -10,7 +11,6 @@ const GRASS_COLOR := Color(0.30, 0.62, 0.25)
 const FLOOR_COLOR := Color(0.16, 0.16, 0.20)
 const GRID_COLOR := Color(1, 1, 1, 0.12)
 const EMPTY_ROOM_COLOR := Color(0.85, 0.2, 0.85)
-const PERSON_COLOR := Color(0.95, 0.9, 0.2)
 const MARGIN: int = 4000  ## Sky and ground extend this far past the tower, in pixels.
 const PERSON_W: int = 4
 const PERSON_H: int = 10  # a cell is 16 px tall
@@ -35,9 +35,8 @@ const KIND_COLORS: Dictionary = {
 
 ## Maps an occupant id to a ROOM_COLORS key. Replace once the sim stores room types.
 var room_type_of: Callable = func(id: int) -> int: return id % ROOM_COLORS.size()
-## Stub for people until the sim has them: each entry is [floor, x_in_pixels_within_tower].
-var people: Array[Array] = []
-
+var _people_view := PeopleView.new()
+var _seen_tick: int = -1
 
 var _seen_revision: int = -1
 var _seen_occupants: int = -1
@@ -51,7 +50,11 @@ func _process(_delta: float) -> void:
 	if tower.floors.revision != _seen_revision or occupants != _seen_occupants:
 		_seen_revision = tower.floors.revision
 		_seen_occupants = occupants
+		_people_view.route_cache.clear()
 		queue_redraw()
+	elif tower.tick != _seen_tick:
+		queue_redraw()  # people move
+	_seen_tick = tower.tick
 
 
 func set_tower(value: Tower) -> void:
@@ -146,8 +149,12 @@ func _draw_rooms() -> void:
 
 
 func _draw_people() -> void:
-	for person in people:
-		if not Tower.Grid.is_valid_floor(person[0]):
-			continue
-		var y: int = (VC.floor_to_row(person[0]) + 1) * VC.CELL_PX - PERSON_H
-		draw_rect(Rect2i(person[1], y, PERSON_W, PERSON_H), PERSON_COLOR)
+	for figure: Dictionary in _people_view.figures(tower):
+		var band: int = figure["band"]
+		var color := PeopleView.color_of(band)
+		var x: int = (figure["x"] as int) * VC.CELL_PX + (VC.CELL_PX - PERSON_W) / 2
+		var base: int = (VC.floor_to_row(figure["floor"]) + 1) * VC.CELL_PX - 3
+		draw_rect(Rect2i(x, base - 7, PERSON_W, 7), color)  # body
+		draw_circle(Vector2(x + PERSON_W / 2.0, base - 9), 2.0, color)  # head
+		for mark in PeopleView.marks_of(band):  # shape cue: one dot uneasy, two angry
+			draw_rect(Rect2i(x + mark * 3 - 1, base - 14, 2, 2), color)

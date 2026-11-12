@@ -44,7 +44,7 @@ const BAND_ANGRY := 2
 const UNEASY_FROM := 80  ## Stress at or above this is uneasy.
 const ANGRY_OVER := 120  ## Stress above this is angry.
 
-const FIELDS := 10  ## Per person: id, home, work, offset, goal, trip_state, location, stress, trip_left, trip_total.
+const FIELDS := 11  ## Per person: id, home, work, offset, goal, trip_state, location, stress, trip_left, trip_total, trip_from.
 const _ID := 0
 const _HOME := 1
 const _WORK := 2
@@ -55,6 +55,7 @@ const _LOCATION := 6
 const _STRESS := 7
 const _TRIP_LEFT := 8  ## Minutes of travel left while moving; while idle, minutes before a given-up trip is retried.
 const _TRIP_TOTAL := 9  ## Minutes the current trip takes in all (for drawing).
+const _TRIP_FROM := 10  ## Room the current trip started in, or NONE for outside (for drawing).
 
 var _next_id: int = 0
 var _last_minute: int = -1  ## The last minute of day the plan was checked at.
@@ -73,7 +74,7 @@ func add_person(home: int, work: int, rng: Object) -> int:
 	var start := home if home != NONE else work
 	var goal := DEST_HOME if home != NONE else DEST_WORK
 	var offset: int = rng.next_below(ARRIVAL_SPREAD + 1)
-	_data.append_array([id, home, work, offset, goal, TRIP_IDLE, start, 0, 0, 0] as Array[int])
+	_data.append_array([id, home, work, offset, goal, TRIP_IDLE, start, 0, 0, 0, NONE] as Array[int])
 	return id
 
 
@@ -143,6 +144,10 @@ func stress_band(i: int) -> int:
 
 func trip_left(i: int) -> int:
 	return _data[i * FIELDS + _TRIP_LEFT]
+
+
+func trip_from(i: int) -> int:
+	return _data[i * FIELDS + _TRIP_FROM]
 
 
 func trip_total(i: int) -> int:
@@ -217,6 +222,7 @@ func tick(clock: Clock) -> void:
 
 ## Routing seam: marks a requested trip as under way (the person is between rooms).
 func start_trip(i: int, minutes: int = 1) -> void:
+	_data[i * FIELDS + _TRIP_FROM] = location_of(i)
 	_data[i * FIELDS + _TRIP] = TRIP_MOVING
 	_data[i * FIELDS + _TRIP_LEFT] = minutes
 	_data[i * FIELDS + _TRIP_TOTAL] = minutes
@@ -277,7 +283,7 @@ static func valid_ints(ints: Array) -> bool:
 			return false
 		if ints[b + _TRIP_LEFT] < 0 or ints[b + _TRIP_TOTAL] < 0:
 			return false
-		for field in [_HOME, _WORK, _LOCATION]:
+		for field in [_HOME, _WORK, _LOCATION, _TRIP_FROM]:
 			if ints[b + field] < NONE:
 				return false
 	return true
