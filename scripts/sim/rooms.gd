@@ -55,7 +55,7 @@ const BAD_CALL := 53  ## Place call: the direction is not UP or DOWN, or no car 
 
 const CAR_INTS := 9  ## Ints in one saved car (SHAFT to NEXT in cars.gd).
 const MAX_CARS_PER_SHAFT := 8  ## Cars in one shaft (reference).
-const CAR_CAPACITY := 17  ## People a local car holds (reference); #94 enforces it.
+const CAR_CAPACITY := 17  ## People a local car holds (reference); enforced in cars.gd (#94).
 ## Cars allowed per shaft by star rating, index = stars - 1 (a guess, tunable).
 const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
@@ -73,6 +73,11 @@ var occupants_removed: int = 0
 ## Shafts hold one grid occupant per floor, ids base .. base + span - 1 from the bottom up.
 var _shafts: Dictionary = {}  # shaft id (stable) -> [span, bottom floor, x_left, stops off (floors, ascending), first grid occupant id]
 var _cars: Array = []  # a car is SHAFT..NEXT in cars.gd (9 ints), oldest first
+var _riders: Array = []  # per car: its riders, each [person id, destination floor], boarding order
+var _stops: Array = []  # per car: floors it still has to stop at for its riders
+var _heading: Array[int] = []  # per car: the direction it is serving (UP, DOWN or 0)
+var _queue: Array = []  # people waiting for a car: [person id, shaft id, floor, destination], arrival order
+var alighted: Array = []  # [person id, floor] of recent alighters until #95 takes them with take_alighted()
 var _calls: Array = []  # hall calls [shaft id, floor, dir, car index or -1] in arrival order (see cars.gd)
 
 
@@ -412,10 +417,17 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, 
 		if _in_shaft_span([span, bottom], floor_number):
 			off.append(floor_number)
 	_shafts[id] = [span, bottom, x_left, off, base]
-	for car: Array in _cars:
+	for n in _cars.size():
+		var car: Array = _cars[n]
 		if car[CarsScript.SHAFT] == id and (not _in_shaft_span([span, bottom], car[CarsScript.FLOOR]) or (car[CarsScript.STATE] != CarsScript.IDLE and not _in_shaft_span([span, bottom], car[CarsScript.TARGET]))):
 			car[CarsScript.FLOOR] = car[CarsScript.HOME]
+			car[CarsScript.LOAD] = 0
+			_riders[n] = []
+			_stops[n] = []
 			CarsScript.idle(car)
+	for n in range(_queue.size() - 1, -1, -1):
+		if _queue[n][1] == id and not is_stop(id, _queue[n][2]):
+			_queue.remove_at(n)
 	for n in range(_calls.size() - 1, -1, -1):
 		if _calls[n][CarsScript.CALL_SHAFT] == id:
 			_calls[n][CarsScript.CALL_CAR] = -1
@@ -433,7 +445,7 @@ func car_count(shaft_id: int) -> int:
 	return total
 
 
-## People a car holds. #94 refuses the 18th boarder against this.
+## People a car holds; the 18th boarder waits for the next car.
 func car_capacity() -> int:
 	return CAR_CAPACITY
 
@@ -466,6 +478,9 @@ func add_car(ledger: LedgerScript, at_tick: int, stars: int, shaft_id: int, home
 	if ledger.charge(at_tick, int(CatalogueScript.field(CatalogueScript.IDS[car_index], "cost")), car_index) != LedgerScript.OK:
 		return SHORT_OF_FUNDS
 	_cars.append([shaft_id, home, home, 0, 0, 0, 0, 0, 0])
+	_riders.append([])
+	_stops.append([])
+	_heading.append(0)
 	return OK
 
 
@@ -495,6 +510,9 @@ func set_shaft_stop(id: int, floor_number: int, on: bool) -> int:
 		for n in range(_calls.size() - 1, -1, -1):
 			if _calls[n][CarsScript.CALL_SHAFT] == id and _calls[n][CarsScript.CALL_FLOOR] == floor_number:
 				_calls.remove_at(n)
+		for n in range(_queue.size() - 1, -1, -1):
+			if _queue[n][1] == id and _queue[n][2] == floor_number:
+				_queue.remove_at(n)
 	return OK
 
 
@@ -512,6 +530,9 @@ func send_car(car_index: int, floor_number: int) -> int:
 ## Removes car n, unassigning its calls and renumbering the others' assignments.
 func _drop_car(n: int) -> void:
 	_cars.remove_at(n)
+	_riders.remove_at(n)
+	_stops.remove_at(n)
+	_heading.remove_at(n)
 	for call: Array in _calls:
 		if call[CarsScript.CALL_CAR] == n:
 			call[CarsScript.CALL_CAR] = -1
@@ -533,6 +554,74 @@ func place_call(shaft_id: int, floor_number: int, dir: int) -> int:
 			return OK
 	_calls.append([shaft_id, floor_number, dir, -1])
 	return OK
+
+
+## Puts a person in the hall queue of a shaft at a floor, bound for dest_floor (a person counts
+## per head), and places a hall call that way. Refuses a non-stop floor or destination
+## (NOT_A_STOP), the same floor, or a person already queued (BAD_CALL). Bulldozing a shaft drops
+## its queues and riders; those people stay in People and #95 decides where they end up.
+func join_queue(person_id: int, shaft_id: int, floor_number: int, dest_floor: int) -> int:
+	if not is_stop(shaft_id, floor_number) or not is_stop(shaft_id, dest_floor):
+		return NOT_A_STOP
+	if floor_number == dest_floor:
+		return BAD_CALL
+	for entry: Array in _queue:
+		if entry[0] == person_id:
+			return BAD_CALL
+	var result := place_call(shaft_id, floor_number, CarsScript.dir_to(floor_number, dest_floor))
+	if result == OK:
+		_queue.append([person_id, shaft_id, floor_number, dest_floor])
+	return result
+
+
+## Makes a floor a stop for car n's riders (no duplicates). Refuses a bad car or a non-stop.
+func add_car_stop(car_index: int, floor_number: int) -> int:
+	if car_index < 0 or car_index >= _cars.size():
+		return NO_SUCH_CAR
+	if not is_stop(_cars[car_index][CarsScript.SHAFT], floor_number):
+		return NOT_A_STOP
+	if not _stops[car_index].has(floor_number):
+		_stops[car_index].append(floor_number)
+	return OK
+
+
+## Hook called when a rider gets off; #95 connects it to trips. For now it records the event.
+func on_alight(person_id: int, floor_number: int) -> void:
+	alighted.append([person_id, floor_number])
+	if alighted.size() > 256:
+		alighted.pop_front()
+
+
+## Returns and clears the recorded alighters, each [person id, floor].
+func take_alighted() -> Array:
+	var result := alighted
+	alighted = []
+	return result
+
+
+## Ids of people waiting in hall queues, in arrival order.
+func queued_ids() -> Array[int]:
+	var ids: Array[int] = []
+	for entry: Array in _queue:
+		ids.append(entry[0])
+	return ids
+
+
+## People waiting at a shaft's floor, in arrival order.
+func queue_at(shaft_id: int, floor_number: int) -> Array[int]:
+	var ids: Array[int] = []
+	for entry: Array in _queue:
+		if entry[1] == shaft_id and entry[2] == floor_number:
+			ids.append(entry[0])
+	return ids
+
+
+## Person ids riding car n, in boarding order.
+func riders_of(car_index: int) -> Array[int]:
+	var ids: Array[int] = []
+	for rider: Array in _riders[car_index]:
+		ids.append(rider[0])
+	return ids
 
 
 ## Pending hall calls in arrival order: each [shaft id, floor, dir, assigned car index or -1].
@@ -585,6 +674,9 @@ func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
 		for n in range(_calls.size() - 1, -1, -1):
 			if _calls[n][CarsScript.CALL_SHAFT] == id:
 				_calls.remove_at(n)
+		for n in range(_queue.size() - 1, -1, -1):
+			if _queue[n][1] == id:
+				_queue.remove_at(n)
 		for i in int(info[0]):
 			for column in range(info[2], info[2] + width):
 				floors.mark_shaft(level, column, false)
@@ -752,6 +844,15 @@ func state_ints() -> Array[int]:
 	ints.append(_calls.size())
 	for call: Array in _calls:
 		ints.append_array(call as Array[int])
+	ints.append(_queue.size())
+	for entry: Array in _queue:
+		ints.append_array(entry as Array[int])
+	for n in _cars.size():
+		ints.append_array([_heading[n], _stops[n].size()] as Array[int])
+		ints.append_array(_stops[n] as Array[int])
+		ints.append(_riders[n].size())
+		for rider: Array in _riders[n]:
+			ints.append_array(rider as Array[int])
 	return ints
 
 
@@ -781,6 +882,24 @@ func load_ints(ints: Array) -> bool:
 	_calls = []
 	for i in range(ints[at]):
 		_calls.append(ints.slice(at + 1 + 4 * i, at + 5 + 4 * i))
+	at += 1 + 4 * _calls.size()
+	_queue = []
+	for i in range(ints[at]):
+		_queue.append(ints.slice(at + 1 + 4 * i, at + 5 + 4 * i))
+	at += 1 + 4 * _queue.size()
+	_riders = []
+	_stops = []
+	_heading = []
+	for n in _cars.size():
+		_heading.append(ints[at])
+		_stops.append(ints.slice(at + 2, at + 2 + ints[at + 1]))
+		at += 2 + ints[at + 1]
+		var riders: Array = []
+		for i in range(ints[at]):
+			riders.append(ints.slice(at + 1 + 2 * i, at + 3 + 2 * i))
+		_riders.append(riders)
+		at += 1 + 2 * riders.size()
+	alighted = []
 	_next_id = ints[0]
 	return true
 
@@ -810,8 +929,22 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 		at += 6 + ints[at + 5]
 	if at >= ints.size() or ints[at] < 0 or at + 1 + CAR_INTS * ints[at] >= ints.size():
 		return false
+	var car_total: int = ints[at]
 	at += 1 + CAR_INTS * ints[at]
-	if ints[at] < 0 or at + 1 + 4 * ints[at] != ints.size():
+	if ints[at] < 0 or at + 1 + 4 * ints[at] >= ints.size():
+		return false
+	at += 1 + 4 * ints[at]
+	if ints[at] < 0 or at + 1 + 4 * ints[at] > ints.size():
+		return false
+	at += 1 + 4 * ints[at]
+	for n in range(car_total):
+		if at + 2 > ints.size() or ints[at + 1] < 0 or at + 3 + ints[at + 1] > ints.size():
+			return false
+		at += 2 + ints[at + 1]
+		if ints[at] < 0 or at + 1 + 2 * ints[at] > ints.size():
+			return false
+		at += 1 + 2 * ints[at]
+	if at != ints.size():
 		return false
 	for i in range(ints[1]):
 		var id: int = ints[2 + 3 * i]

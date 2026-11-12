@@ -43,6 +43,10 @@ func tick(clock: Object, floors: FloorsScript, rooms: RoomsScript, grid: GridScr
 	if minute == _last_minute:
 		return
 	_last_minute = minute
+	for id: int in rooms.queued_ids():  # waiting in an elevator hall queue (#94)
+		var queued: int = people.index_of(id)
+		if queued != -1:
+			people.add_stress(queued, STRESS_PER_WAIT_MINUTE)
 	if not floors.has_lobby():
 		return
 	var entry: Array[int] = [GROUND_FLOOR, floors.lobby_span()[0]]  # left-edge entry, outside the tower
