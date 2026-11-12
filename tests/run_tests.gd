@@ -23,6 +23,7 @@ const TestMessages := preload("res://tests/test_messages.gd")
 const TestToolbar := preload("res://tests/test_toolbar.gd")
 const TestPeople := preload("res://tests/test_people.gd")
 const TestRoutes := preload("res://tests/test_routes.gd")
+const TestTenancy := preload("res://tests/test_tenancy.gd")
 
 var failures := 0
 
@@ -49,6 +50,7 @@ func _initialize() -> void:
 	TestToolbar.run(check)
 	TestPeople.run(check)
 	TestRoutes.run(check)
+	TestTenancy.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 

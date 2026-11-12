@@ -13,7 +13,8 @@ const LedgerScript := preload("res://scripts/sim/ledger.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
-const MessagesScript := preload("res://scripts/sim/messages.gd")
+const TenancyScript := preload("res://scripts/sim/tenancy.gd")
+const MessagesScript :=preload("res://scripts/sim/messages.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
@@ -62,6 +63,8 @@ var rooms := RoomsScript.new()
 var messages := MessagesScript.new()
 ## The people: home, work, day plan, trip and stress (see People).
 var people := PeopleScript.new()
+## Office tenancy: moves workers in (see Tenancy). Derived from people, so not saved.
+var tenancy := TenancyScript.new()
 ## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY, PLACE_ROOM, PLACE_STAIRS, BULLDOZE or REPLACE_ROOM command (OK or a refusal reason; see
 ## Ledger and Floors for the codes).
 var last_refusal: int = 0
@@ -178,6 +181,7 @@ func _note_refusal(code: int, detail: int) -> bool:
 ## Per-tick systems, in a fixed order: the clock first, then (later) the grid and the rest.
 func _run_systems() -> void:
 	clock.advance()
+	tenancy.tick(clock, floors, rooms, grid, people, rng)
 	people.tick(clock)
 
 

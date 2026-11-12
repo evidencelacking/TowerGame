@@ -56,6 +56,14 @@ func has_room(id: int) -> bool:
 	return _kind_of.has(id)
 
 
+## Ids of every placed room, ascending.
+func room_ids() -> Array[int]:
+	var ids: Array[int] = []
+	ids.assign(_kind_of.keys())
+	ids.sort()
+	return ids
+
+
 ## The catalogue id ("office", "condo") of a placed room, or "" if id is not a room.
 func kind_of(id: int) -> String:
 	if not _kind_of.has(id):
