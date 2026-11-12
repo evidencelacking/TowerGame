@@ -10,6 +10,7 @@ const OPENING := 1  ## The starting funds, tick 0.
 const CHARGE := 2  ## A purchase: amount is negative.
 const REFUND := 3  ## Any adjustment that always applies (positive money back, or negative).
 const PAYOUT := 4  ## Money paid out that is never refused (a bulldozed sold condo); amount is negative.
+const INCOME := 5  ## Money earned (a condo sale); amount is positive.
 
 ## Results returned by charge().
 const OK := 0
@@ -45,6 +46,11 @@ func refund(at_tick: int, amount: int, ref: int) -> void:
 ## Pays out amount dollars (zero or more). Never refused: the balance may go negative.
 func payout(at_tick: int, amount: int, ref: int) -> void:
 	_add(at_tick, -amount, PAYOUT, ref)
+
+
+## Earns amount dollars (zero or more), such as a condo sale.
+func income(at_tick: int, amount: int, ref: int) -> void:
+	_add(at_tick, amount, INCOME, ref)
 
 
 func line_sum() -> int:
