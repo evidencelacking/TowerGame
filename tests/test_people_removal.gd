@@ -5,6 +5,7 @@ const TowerSim := preload("res://scripts/sim/tower.gd")
 const Command := TowerSim.Command
 const TestPopulation := preload("res://tests/test_population.gd")
 const TestOfficeDay := preload("res://tests/test_office_day.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const TestRooms := preload("res://tests/test_rooms.gd")
 
 
@@ -82,3 +83,13 @@ static func run(check: Callable) -> void:
 
 	# Determinism.
 	check.call(_run_bulldoze().state_hash() == _run_bulldoze().state_hash(), "a same-seed run with a bulldoze is identical twice")
+
+	# Replace: the old office's workers go, and the new office refills through tenancy.
+	var r := _filled()
+	var old_office := r.grid.cell_at(3, 112)
+	var office_kind := CatalogueScript.IDS.find("office")
+	check.call(TestRooms._send(r, Command.REPLACE_ROOM, [office_kind, 3, 110] as Array[int]) == 0, "the office is replaced by a new office")
+	check.call(not _has_room(r, old_office) and r.people.count() == 3, "replacing an office removes its 6 workers")
+	TestPopulation._at(r, 10 * 60, 10)
+	var new_office := r.grid.cell_at(3, 112)
+	check.call(new_office != old_office and r.people.workers_in(new_office) == 6 and r.people.count() == 9, "the replacement office refills through tenancy")
