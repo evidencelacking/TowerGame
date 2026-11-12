@@ -120,6 +120,16 @@ func location_of(i: int) -> int:
 	return _data[i * FIELDS + _LOCATION]
 
 
+## People inside the tower now: everyone unless their location is NONE and they are not moving.
+## Mid-trip counts (an arrival's trip starts outside but they are already inside).
+func in_tower_count() -> int:
+	var n := 0
+	for i in count():
+		if location_of(i) != NONE or trip_state(i) == TRIP_MOVING:
+			n += 1
+	return n
+
+
 func stress_of(i: int) -> int:
 	return _data[i * FIELDS + _STRESS]
 

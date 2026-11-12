@@ -4,7 +4,7 @@ extends RefCounted
 ##
 ## A room is a grid occupant (its position lives in Grid) plus a kind, stored here as an index
 ## into RoomCatalogue.IDS. Only kinds in PLACEABLE can be placed for now; add a kind there once
-## its rules are built. Population, rent and "condo sold once" (M3+) come later.
+## its rules are built. Rent and "condo sold once" (M3+) come later.
 ## Rules: floor 2 or higher (floor 1 is the lobby floor, basements are refused; UNVERIFIED: the
 ## reference only says "above ground"), no overlap with another room, the lobby or a shaft, inside
 ## the tower width, and every new floor unit under the room needs a floor directly below it (the
@@ -43,7 +43,7 @@ var _kind_of: Dictionary = {}  # occupant id -> index in RoomCatalogue.IDS
 var _sold: Dictionary = {}  # condo occupant id -> true once sold (sales come in M3; tests set it)
 var _next_id: int = FIRST_ID
 ## Stairs hold two grid occupants, one per floor: the room id (lower floor) and id + 1 (upper).
-## Hook until population exists (M3): the running total of workers and residents removed by
+## Running total of workers and residents removed by
 ## bulldozing. A room holds RoomCatalogue "people" of them.
 var occupants_removed: int = 0
 
@@ -230,7 +230,7 @@ func is_sold(id: int) -> bool:
 	return _sold.has(id)
 
 
-## Workers or residents a room holds (all of the catalogue's people until population exists).
+## Workers or residents a room holds when full (the catalogue's "people"; tenancy fills it).
 func people_in(id: int) -> int:
 	var kind := kind_of(id)
 	if kind == "":

@@ -52,6 +52,10 @@ static func format_money(dollars: int) -> String:
 	return ("-" if dollars < 0 else "") + "$" + digits + grouped
 
 
+static func format_population(count: int) -> String:
+	return "Pop %d" % count
+
+
 func _refresh() -> void:
 	var clock := _driver.tower.clock
 	_date.text = "Y%d Q%d %s  %02d:%02d" % [
@@ -59,8 +63,7 @@ func _refresh() -> void:
 	_period.text = "Period %d" % clock.period()
 	_money.text = format_money(_driver.tower.ledger.balance)
 	_stars.text = "Stars %d" % _driver.tower.stars
-	# No sim value yet for population (a later issue); show 0 until it lands.
-	_population.text = "Pop 0"
+	_population.text = format_population(_driver.tower.population())
 	_pause.text = "Resume" if _driver.paused else "Pause"
 	for i in _speed_buttons.size():
 		_speed_buttons[i].disabled = i == _driver.speed_index
