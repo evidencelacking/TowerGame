@@ -22,8 +22,8 @@ static func run(check: Callable) -> void:
 	check.call(plan[0][0] >= People.ARRIVE and plan[0][0] <= People.ARRIVE + People.ARRIVAL_SPREAD and plan[1][0] == People.BREAK and plan[3][0] == People.LUNCH and plan[5][0] == People.LEAVE, "weekday plan follows the office hours")
 	check.call(a.people.day_plan(0, Clock.WE).is_empty(), "the weekend office plan is empty")
 	var workless := People.new()
-	workless.add_person(3, People.NONE, a.rng)
-	check.call(workless.day_plan(0, Clock.WD1).is_empty(), "a person with no work has no office plan")
+	workless.add_person(People.NONE, People.NONE, a.rng)
+	check.call(workless.day_plan(0, Clock.WD1).is_empty(), "a person with no home or work has no plan")
 
 	# Model fields.
 	check.call(a.people.count() == 2 and a.people.home_of(0) == 5 and a.people.work_of(0) == 7 and a.people.home_of(1) == People.NONE, "home and work are kept, either may be none")

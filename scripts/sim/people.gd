@@ -17,6 +17,10 @@ const ARRIVE := 540  ## 9:00
 const BREAK := 630  ## 10:30
 const LUNCH := 720  ## 12:00
 const LEAVE := 1020  ## 17:00
+## Resident hours (condos, 3.4): out to work from RESIDENT_OUT, back at RESIDENT_BACK, every day.
+## Guesses, tunable.
+const RESIDENT_OUT := 480  ## 8:00
+const RESIDENT_BACK := 1080  ## 18:00
 const BREAK_LENGTH := 15  ## Minutes, then back to work.
 const LUNCH_LENGTH := 60  ## Minutes, then back to work.
 const ARRIVAL_SPREAD := 15  ## Each person arrives 0 to this many minutes late, drawn once from the seeded RNG.
@@ -26,6 +30,7 @@ const DEST_HOME := 0
 const DEST_WORK := 1
 const DEST_BREAK := 2
 const DEST_LUNCH := 3
+const DEST_AWAY := 4  ## Outside the tower (residents at work elsewhere).
 
 const TRIP_IDLE := 0  ## At the goal.
 const TRIP_REQUESTED := 1  ## The goal changed; waiting for the router to start moving.
@@ -120,14 +125,24 @@ func add_stress(i: int, amount: int) -> void:
 
 ## The room a goal means for this person, or NONE.
 func goal_room(i: int) -> int:
-	return home_of(i) if goal_of(i) == DEST_HOME else work_of(i)
+	match goal_of(i):
+		DEST_HOME:
+			return home_of(i)
+		DEST_AWAY:
+			return NONE
+	return work_of(i)
 
 
 ## The person's day plan for a clock day (Clock.WD1, WD2 or WE) as [minute, destination] pairs in
 ## time order. Only people with a work room have one; the weekend plan is empty. Derived, not stored.
 func day_plan(i: int, day: int) -> Array[Array]:
 	var plan: Array[Array] = []
-	if work_of(i) == NONE or day == Clock.WE:
+	if work_of(i) == NONE:
+		if home_of(i) != NONE:  # a resident, all week
+			plan.append([RESIDENT_OUT, DEST_AWAY] as Array[int])
+			plan.append([RESIDENT_BACK, DEST_HOME] as Array[int])
+		return plan
+	if day == Clock.WE:
 		return plan
 	var arrive := ARRIVE + _data[i * FIELDS + _OFFSET]
 	plan.append([arrive, DEST_WORK] as Array[int])
@@ -161,7 +176,7 @@ func tick(clock: Clock) -> void:
 		return
 	_last_minute = minute
 	for i in count():
-		if work_of(i) == NONE:
+		if work_of(i) == NONE and home_of(i) == NONE:
 			continue
 		var goal := scheduled_goal(i, clock.day_of_week(), minute)
 		if goal != goal_of(i):
@@ -203,7 +218,7 @@ static func valid_ints(ints: Array) -> bool:
 		if ints[b + _ID] <= previous_id or ints[b + _ID] >= ints[0]:
 			return false
 		previous_id = ints[b + _ID]
-		if ints[b + _GOAL] < DEST_HOME or ints[b + _GOAL] > DEST_LUNCH or ints[b + _TRIP] < TRIP_IDLE or ints[b + _TRIP] > TRIP_MOVING:
+		if ints[b + _GOAL] < DEST_HOME or ints[b + _GOAL] > DEST_AWAY or ints[b + _TRIP] < TRIP_IDLE or ints[b + _TRIP] > TRIP_MOVING:
 			return false
 		if ints[b + _OFFSET] < 0 or ints[b + _OFFSET] > ARRIVAL_SPREAD or ints[b + _STRESS] < 0 or ints[b + _STRESS] > STRESS_MAX:
 			return false

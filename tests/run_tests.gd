@@ -25,6 +25,7 @@ const TestPeople := preload("res://tests/test_people.gd")
 const TestRoutes := preload("res://tests/test_routes.gd")
 const TestTenancy := preload("res://tests/test_tenancy.gd")
 const TestOfficeDay := preload("res://tests/test_office_day.gd")
+const TestCondos := preload("res://tests/test_condos.gd")
 
 var failures := 0
 
@@ -53,6 +54,7 @@ func _initialize() -> void:
 	TestRoutes.run(check)
 	TestTenancy.run(check)
 	TestOfficeDay.run(check)
+	TestCondos.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 
