@@ -43,8 +43,8 @@ static func run(check: Callable) -> void:
 	t.step()
 	check.call(_car(t)[CarsScript.STATE] == CarsScript.IDLE and _car(t)[CarsScript.FLOOR] == 6, "the doors close in the second tick, then the car is idle where it stopped")
 	var idle := _car(t).duplicate()
-	Harness.step(t, 20)
-	check.call(_car(t) == idle, "an idle car with no target stays put")
+	Harness.step(t, CarsScript.IDLE_DWELL / CarsScript.TICK_UNITS - 1)  # an idle car goes home only after the dwell (#109)
+	check.call(_car(t)[CarsScript.FLOOR] == idle[CarsScript.FLOOR] and _car(t)[CarsScript.STATE] == CarsScript.IDLE, "an idle car with no target stays put")
 
 	# Moving down, and the send refusals.
 	check.call(t.rooms.send_car(0, 2) == RoomsScript.OK and _until(t, CarsScript.IDLE) == 2 and _car(t)[CarsScript.FLOOR] == 2, "a 4-floor ride (36 units plus 70 for the doors) is idle after exactly 2 ticks")
