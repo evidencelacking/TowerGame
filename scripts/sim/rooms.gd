@@ -642,6 +642,34 @@ func is_stop(id: int, floor_number: int) -> bool:
 	return not off.has(floor_number)
 
 
+## Ids of every shaft, ascending (routing reads them).
+func shaft_ids() -> Array[int]:
+	var ids: Array[int] = []
+	for id: int in _shafts:
+		ids.append(id)
+	ids.sort()
+	return ids
+
+
+## The left column of a shaft, or -1 for an unknown shaft. People wait and board here.
+func shaft_x(id: int) -> int:
+	return int(_shafts[id][2]) if _shafts.has(id) else -1
+
+
+## True when the person is queued for a car or riding one.
+func in_elevator(person_id: int) -> bool:
+	return car_floor_of(person_id) != 0 or queued_ids().has(person_id)
+
+
+## The floor of the car this person rides, or 0 when they are not riding.
+func car_floor_of(person_id: int) -> int:
+	for n in _cars.size():
+		for rider: Array in _riders[n]:
+			if rider[0] == person_id:
+				return _cars[n][CarsScript.FLOOR]
+	return 0
+
+
 ## Floors the shaft stops at, bottom to top. Car motion (#92) uses this to skip disabled floors.
 func stops_of(id: int) -> Array[int]:
 	var stops: Array[int] = []

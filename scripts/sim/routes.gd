@@ -1,12 +1,14 @@
 class_name Routes
 extends RefCounted
-## Route finder (3.5): walking along built floors and taking stairs, at most 4 stairs a trip.
+## Route finder (3.5, 4.7): walking along built floors, taking stairs and elevators.
 ## Pure and deterministic: reads the tower, changes nothing, integers only.
 ##
 ## A trip is a list of legs. Walking along a floor costs its distance; a stairs segment joins
 ## floor N and the floor above and costs STAIRS_COST. Walking over a ground-lobby cell starts a
-## new leg and resets the stairs count (V). Elevators are a seam for later (ELEVATOR leg kind,
-## not produced yet). Stairs are entered at their left column (unverified choice).
+## new leg and resets the stairs count (V), and so does arriving by elevator at a lobby floor.
+## An elevator leg rides one shaft between two of its stops (express shafts take no cars yet).
+## A trip rides at most two elevators and the transfer between them happens on a lobby floor
+## (is_lobby_floor, the seam for sky lobbies). Stairs are entered at their left column (unverified choice).
 ## Ties are broken by the lowest cost, then the lowest state index, so equal runs agree.
 
 const GridScript := preload("res://scripts/sim/grid.gd")
@@ -18,13 +20,17 @@ const BAD_FLOOR := 10  ## Start or goal is not a real floor number.
 const NO_FLOOR := 40  ## Start or goal has no floor under it.
 const NO_ROUTE := 41  ## No way there, even with unlimited stairs.
 const TOO_MANY_STAIRS := 42  ## A way exists, but needs more than MAX_STAIRS stairs in one leg.
+const TOO_MANY_TRANSFERS := 43  ## A way exists, but needs a second transfer or one off a lobby floor.
 
 const WALK := 1  ## Leg kinds. Fields: kind, floor, from_x, to_x, to_floor.
 const STAIRS := 2
-const ELEVATOR := 3  ## Reserved for the elevator milestone.
+const ELEVATOR := 3  ## Fields: also shaft. from_x and to_x are the shaft's column.
 
 const MAX_STAIRS := 4  ## M (V says 3, F's 21 is capacity).
 const STAIRS_COST := 10  ## Walking-column equivalent of one stairs segment.
+const ELEVATOR_BASE_COST := 20  ## Guess: walking-column equivalent of waiting for and boarding a car.
+const ELEVATOR_COST_PER_FLOOR := 1  ## Guess: per floor ridden; a ride beats stairs from 3 floors up.
+const MAX_ELEVATORS := 2  ## One transfer a trip (M).
 
 const _INF := 1 << 40
 
@@ -43,6 +49,7 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 	# Nodes: 0 start, 1 goal, then a lower and an upper node per stairs.
 	var node_floor: Array[int] = [from_floor, to_floor]
 	var node_x: Array[int] = [from_x, to_x]
+	var node_shaft: Array[int] = [0, 0]
 	var seen: Dictionary = {}
 	for floor_number in range(GridScript.FLOOR_MIN, GridScript.FLOOR_MAX + 1):
 		if not GridScript.is_valid_floor(floor_number):
@@ -59,8 +66,18 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 			node_x.append(column)
 			node_floor.append(upper)
 			node_x.append(column)
+			node_shaft.append(0)
+			node_shaft.append(0)
+	var stair_nodes := node_floor.size()
+	for shaft: int in rooms.shaft_ids():
+		if rooms.kind_of(shaft) == "express_shaft":
+			continue
+		for stop: int in rooms.stops_of(shaft):
+			node_floor.append(stop)
+			node_x.append(rooms.shaft_x(shaft))
+			node_shaft.append(shaft)
 	var count := node_floor.size()
-	# Edges per node, in node order: [to, cost, is_stairs, resets_count].
+	# Edges per node, in node order: [to, cost, kind (0 walk, 1 stairs, 2 elevator), resets_count].
 	var edges: Array = []
 	for i in count:
 		edges.append([])
@@ -79,21 +96,41 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 				if floors.has_lobby_at(node_floor[i], column):
 					lobby = true
 			if walkable:
-				edges[i].append([j, high - low, false, lobby])
-	for k in range(2, count, 2):
-		edges[k].append([k + 1, STAIRS_COST, true, false])
-		edges[k + 1].append([k, STAIRS_COST, true, false])
+				edges[i].append([j, high - low, 0, lobby])
+	for k in range(2, stair_nodes, 2):
+		edges[k].append([k + 1, STAIRS_COST, 1, false])
+		edges[k + 1].append([k, STAIRS_COST, 1, false])
+	for i in range(stair_nodes, count):
+		for j in range(stair_nodes, count):
+			if i != j and node_shaft[i] == node_shaft[j]:
+				var rise := absi(GridScript.floor_to_index(node_floor[i]) - GridScript.floor_to_index(node_floor[j]))
+				edges[i].append([j, ELEVATOR_BASE_COST + ELEVATOR_COST_PER_FLOOR * rise, 2, is_lobby_floor(floors, node_floor[j])])
 
-	if not _search(node_floor, node_x, edges, result):
-		# Tell "too many stairs" from "no way at all" with an unlimited reachability pass.
-		result["reason"] = TOO_MANY_STAIRS if _reachable(edges, count) else NO_ROUTE
+	if not _search(node_floor, node_x, node_shaft, edges, floors, true, result):
+		# Tell the refusals apart: no way at all, a transfer rule, or the stairs limit.
+		if not _reachable(edges, count):
+			result["reason"] = NO_ROUTE
+		elif _search(node_floor, node_x, node_shaft, edges, floors, false, {}):
+			result["reason"] = TOO_MANY_TRANSFERS
+		else:
+			result["reason"] = TOO_MANY_STAIRS
 	return result
 
 
-## Dijkstra over (node, stairs used) states. Fills result.legs and returns true when the goal is reached.
-static func _search(node_floor: Array[int], node_x: Array[int], edges: Array, result: Dictionary) -> bool:
+## True when floor_number is a lobby floor, where elevator transfers are allowed. Today that is
+## the ground lobby's floors; sky lobbies join here later.
+static func is_lobby_floor(floors: FloorsScript, floor_number: int) -> bool:
+	var span := floors.lobby_span()
+	return not span.is_empty() and floor_number >= 1 and floor_number <= span[2]
+
+
+## Dijkstra over (node, stairs used, elevator state) states. Elevator state: 0 none ridden, 1 one
+## ridden and landed off a lobby floor (no more rides), 2 one ridden and landed on a lobby floor
+## (a second ride may start on a lobby floor), 3 two ridden. With limit_transfers false any number
+## of rides is fine. Fills result.legs and returns true when the goal is reached.
+static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Array[int], edges: Array, floors: FloorsScript, limit_transfers: bool, result: Dictionary) -> bool:
 	var step := MAX_STAIRS + 1
-	var states := node_floor.size() * step
+	var states := node_floor.size() * step * 4
 	var dist: Array[int] = []
 	var prev: Array[int] = []
 	var done: Array[bool] = []
@@ -104,33 +141,47 @@ static func _search(node_floor: Array[int], node_x: Array[int], edges: Array, re
 	prev.fill(-1)
 	done.fill(false)
 	dist[0] = 0
+	var open: Array[int] = [0]
 	var goal_state := -1
-	while true:
+	while not open.is_empty():
 		var best := -1
 		var best_dist := _INF
-		for s in states:
-			if not done[s] and dist[s] < best_dist:
+		var best_at := 0
+		for k in open.size():
+			var s: int = open[k]
+			if dist[s] < best_dist or (dist[s] == best_dist and s < best):
 				best_dist = dist[s]
 				best = s
-		if best == -1:
-			break
+				best_at = k
+		open.remove_at(best_at)
 		done[best] = true
-		var node := best / step
-		var used := best % step
+		var es := best % 4
+		var node := best / 4 / step
+		var used := (best / 4) % step
 		if node == 1:
 			goal_state = best
 			break
 		for edge: Array in edges[node]:
 			var next_used := used
-			if edge[2]:
+			var next_es := es
+			if edge[2] == 1:
 				next_used += 1
 				if next_used > MAX_STAIRS:
 					continue
 			elif edge[3]:
 				next_used = 0
-			var next_state: int = (edge[0] as int) * step + next_used
+			if edge[2] == 2 and limit_transfers:
+				if es == 0:
+					next_es = 2 if edge[3] else 1
+				elif es == 2 and is_lobby_floor(floors, node_floor[node]):
+					next_es = 3
+				else:
+					continue
+			var next_state: int = ((edge[0] as int) * step + next_used) * 4 + next_es
 			var next_dist: int = best_dist + (edge[1] as int)
-			if next_dist < dist[next_state]:
+			if not done[next_state] and next_dist < dist[next_state]:
+				if dist[next_state] == _INF:
+					open.append(next_state)
 				dist[next_state] = next_dist
 				prev[next_state] = best
 	if goal_state == -1:
@@ -138,13 +189,15 @@ static func _search(node_floor: Array[int], node_x: Array[int], edges: Array, re
 	var path: Array[int] = []
 	var cursor := goal_state
 	while cursor != -1:
-		path.push_front(cursor / step)
+		path.push_front(cursor / 4 / step)
 		cursor = prev[cursor]
 	var legs: Array = []
 	for n in range(1, path.size()):
 		var a: int = path[n - 1]
 		var b: int = path[n]
-		if node_floor[a] == node_floor[b]:
+		if node_shaft[a] != 0 and node_shaft[a] == node_shaft[b]:
+			legs.append({"kind": ELEVATOR, "floor": node_floor[a], "from_x": node_x[a], "to_x": node_x[b], "to_floor": node_floor[b], "shaft": node_shaft[a]})
+		elif node_floor[a] == node_floor[b]:
 			if node_x[a] != node_x[b]:
 				legs.append({"kind": WALK, "floor": node_floor[a], "from_x": node_x[a], "to_x": node_x[b], "to_floor": node_floor[a]})
 		else:
