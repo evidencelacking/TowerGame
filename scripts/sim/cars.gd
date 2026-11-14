@@ -20,6 +20,11 @@ extends RefCounted
 ## car spends a tick's units across phases, so leftover units carry from one phase into the next
 ## within the tick. A floor costs LOCAL_UNITS_PER_FLOOR (local and service cars) or
 ## EXPRESS_UNITS_PER_FLOOR (express shafts, 1.5x faster) and a stop costs the doors, 0.7 tick.
+##
+## Home (#109): a car with no calls, no stops and no riders that is away from its home floor counts
+## idle time (its TICKS, which an idle car does not otherwise use). After IDLE_DWELL units it heads
+## home. A car on its way home counts as moving, not waiting (Rooms.car_waiting_at), but dispatch may
+## take it for a call from wherever it is. Any call or rider resets the dwell. It parks on arrival.
 
 const IDLE := 0
 const MOVING := 1
@@ -34,6 +39,7 @@ const EXPRESS_UNITS_PER_FLOOR := 6  ## 100 floors in 6 ticks.
 const DOOR_OPEN_UNITS := 20
 const DOOR_HOLD_UNITS := 30
 const DOOR_CLOSE_UNITS := 20
+const IDLE_DWELL := 500  ## Idle time before a car returns home: 5 ticks, 2 sim minutes. Unverified.
 
 # Indices into a car array.
 const SHAFT := 0
@@ -91,6 +97,8 @@ static func tick(rooms: RefCounted) -> void:
 	_dispatch(rooms)
 	for n in rooms._cars.size():
 		var car: Array = rooms._cars[n]
+		if car[STATE] == IDLE:
+			_count_idle(rooms, n)
 		var budget := TICK_UNITS
 		while budget > 0 and car[STATE] != IDLE:
 			var spent := mini(budget, car[TICKS])
@@ -109,6 +117,8 @@ static func _finish_phase(rooms: RefCounted, n: int) -> void:
 			car[FLOOR] = _next(car[FLOOR], car[DIR])
 			if car[FLOOR] != car[TARGET]:
 				car[TICKS] = units_per_floor(rooms.kind_of(car[SHAFT]))
+			elif going_home(rooms, n) and car[FLOOR] == car[HOME]:
+				idle(car)
 			elif not rooms.is_stop(car[SHAFT], car[FLOOR]):
 				_alight_all_here(rooms, n)
 				_resume(rooms, n)
@@ -144,9 +154,10 @@ static func _dispatch(rooms: RefCounted) -> void:
 			var car: Array = rooms._cars[n]
 			if car[SHAFT] != call[CALL_SHAFT] or car[LOAD] >= rooms.car_capacity():
 				continue
+			var homing := going_home(rooms, n)
 			var ahead: int = (at - _level(car[FLOOR])) * call[CALL_DIR]
 			var goes_by: bool = car[STATE] == MOVING and car[DIR] == call[CALL_DIR] and ahead > 0 and (at - _level(car[TARGET])) * call[CALL_DIR] <= 0 and (car[NEXT] == 0 or call[CALL_FLOOR] == car[TARGET])
-			if car[STATE] != IDLE and not goes_by:
+			if car[STATE] != IDLE and not goes_by and not homing:
 				continue
 			var distance: int = absi(at - _level(car[FLOOR]))
 			if best == -1 or distance < best_distance:
@@ -154,13 +165,55 @@ static func _dispatch(rooms: RefCounted) -> void:
 				best_distance = distance
 		if best == -1:
 			continue
+		var returning := going_home(rooms, best)
 		call[CALL_CAR] = best
 		var chosen: Array = rooms._cars[best]
 		if chosen[STATE] == IDLE:
 			rooms.send_car(best, call[CALL_FLOOR])
+		elif returning:
+			_redirect(rooms, best, call[CALL_FLOOR])
 		elif chosen[TARGET] != call[CALL_FLOOR]:
 			chosen[NEXT] = chosen[TARGET]
 			chosen[TARGET] = call[CALL_FLOOR]
+
+
+## True when car n is on its way home with nothing else to do: moving to its home floor, empty,
+## with no stops and no call assigned to it.
+static func going_home(rooms: RefCounted, n: int) -> bool:
+	var car: Array = rooms._cars[n]
+	if car[STATE] != MOVING or car[TARGET] != car[HOME] or car[NEXT] != 0 or car[LOAD] != 0:
+		return false
+	if not rooms._riders[n].is_empty() or not rooms._stops[n].is_empty():
+		return false
+	for call: Array in rooms._calls:
+		if call[CALL_CAR] == n:
+			return false
+	return true
+
+
+## Sends a car that is on its way home to a call floor instead, from where it is.
+static func _redirect(rooms: RefCounted, n: int, floor_number: int) -> void:
+	var car: Array = rooms._cars[n]
+	var dir := dir_to(car[FLOOR], floor_number)
+	if dir != 0 and dir == car[DIR]:
+		car[TARGET] = floor_number
+		return
+	start(car, floor_number, units_per_floor(rooms.kind_of(car[SHAFT])))
+
+
+## An idle car counts its dwell in TICKS and heads home when it runs out. Anything to do (a call,
+## a stop, a rider), or being home already, resets the count.
+static func _count_idle(rooms: RefCounted, n: int) -> void:
+	var car: Array = rooms._cars[n]
+	var busy: bool = car[FLOOR] == car[HOME] or car[LOAD] != 0 or not rooms._riders[n].is_empty() or not rooms._stops[n].is_empty()
+	for call: Array in rooms._calls:
+		busy = busy or call[CALL_CAR] == n
+	if busy:
+		car[TICKS] = 0
+		return
+	car[TICKS] += TICK_UNITS
+	if car[TICKS] >= IDLE_DWELL:
+		start(car, car[HOME], units_per_floor(rooms.kind_of(car[SHAFT])))
 
 
 ## Parks a car: idle, no target.

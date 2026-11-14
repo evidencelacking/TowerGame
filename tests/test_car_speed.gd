@@ -88,7 +88,7 @@ static func run(check: Callable) -> void:
 	v.rooms._heading[stopper] = CarsScript.UP
 	v.rooms.send_car(stopper, 8)
 	var ticks_taken := -1
-	for ticks in range(1, 41):
+	for ticks in range(1, 7):
 		v.step()
 		if ticks_taken == -1 and _doors_opened_at(v, stopper, 26):
 			ticks_taken = ticks
