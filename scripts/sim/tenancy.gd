@@ -49,6 +49,11 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 				people.add_person(id, PeopleScript.NONE, rng)
 
 
+## True if the lobby's route reaches the room (used by Evaluation for friends).
+func reachable(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, id: int, entry_x: int) -> bool:
+	return _reachable(floors, rooms, grid, id, entry_x)
+
+
 func _reachable(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, id: int, entry_x: int) -> bool:
 	var run := grid.run_of(id)
 	if run.is_empty():
