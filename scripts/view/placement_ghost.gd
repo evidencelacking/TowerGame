@@ -16,6 +16,7 @@ const GridScript := preload("res://scripts/sim/grid.gd")
 const BULLDOZE := "bulldoze"  ## Tools that are not catalogue ids: BULLDOZE and REPLACE.
 const REPLACE := "replace"  ## Bulldoze the room under the cursor and build last_room there.
 const STAIRS := "stairs"
+const ESCALATOR := "escalator"
 const FLOOR_SPAN_WIDTH: int = 10  ## Ghost width for the floor tool (view tunable).
 const LOBBY_SPAN_WIDTH: int = 20  ## Ghost width for the lobby tool (view tunable).
 const PERMANENT_TEXT := "Permanent: cannot be removed once built"
@@ -49,6 +50,8 @@ const ROOM_TEXT: Dictionary = {
 	RoomsScript.NOTHING_BELOW: "Nothing below to rest on",
 	RoomsScript.OVERHANG: "Too wide for the floor below",
 	RoomsScript.NO_FLOOR_FOR_STAIRS: "Needs a floor on both levels",
+	RoomsScript.NO_FLOOR_FOR_ESCALATOR: "Needs a floor on both levels",
+	RoomsScript.OVERLAPS_LINK: "Overlaps stairs, an escalator or a shaft",
 	RoomsScript.STAIRS_LIMIT: "Too many stairs and escalators",
 	RoomsScript.MAX_SHAFT_FLOORS: "A shaft spans at most 30 floors",
 	RoomsScript.MAX_SHAFTS: "The tower has the most shafts (24)",
@@ -100,7 +103,7 @@ func set_tool(value: String) -> void:
 
 ## True for every tool the sim can build today (the rest show in the toolbar but cannot be picked).
 static func is_buildable(tool_id: String) -> bool:
-	return tool_id in [BULLDOZE, REPLACE, STAIRS, "lobby", "floor"] or tool_id in RoomsScript.PLACEABLE
+	return tool_id in [BULLDOZE, REPLACE, STAIRS, ESCALATOR, "lobby", "floor"] or tool_id in RoomsScript.PLACEABLE
 
 
 ## Wording for a sim refusal code. source is "floors", "rooms" or "bulldoze".
@@ -154,8 +157,8 @@ static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: in
 			var span := t.floors.check_span(floor_number, x_left, x_left + FLOOR_SPAN_WIDTH - 1)
 			code = span["reason"]
 			out["cost"] = span["cost"]
-		STAIRS:
-			var stairs := t.rooms.check_place_stairs(t.grid, t.floors, floor_number, x_left)
+		STAIRS, ESCALATOR:
+			var stairs := t.rooms.check_place_escalator(t.grid, t.floors, floor_number, x_left) if tool_id == ESCALATOR else t.rooms.check_place_stairs(t.grid, t.floors, floor_number, x_left)
 			code = stairs["reason"]
 			out["cost"] = stairs["cost"]
 			out["height"] = 2
@@ -182,7 +185,7 @@ static func _evaluate_replace(t: TowerSim, kind: String, floor_number: int, x: i
 	if hit["reason"] != 0:
 		out["text"] = reason_text("replace", hit["reason"])
 		return out
-	out["x"] = t.grid.run_of(hit["room_id"])[1]
+	out["x"] = t.rooms.run_of(t.grid, hit["room_id"])[1]
 	var checked := t.rooms.check_replace(t.grid, t.floors, t.ledger.balance, kind, floor_number, out["x"])
 	out["cost"] = checked["net"]
 	if CatalogueScript.star(kind) > star_rating:
@@ -207,6 +210,7 @@ static func command_for(tool_id: String, verdict: Dictionary, tick: int, kind: S
 		BULLDOZE: return Cmd.make(due, Cmd.BULLDOZE, [floor_number, x] as Array[int])
 		REPLACE: return Cmd.make(due, Cmd.REPLACE_ROOM, [CatalogueScript.IDS.find(kind), floor_number, x] as Array[int])
 		STAIRS: return Cmd.make(due, Cmd.PLACE_STAIRS, [floor_number, x] as Array[int])
+		ESCALATOR: return Cmd.make(due, Cmd.PLACE_ESCALATOR, [floor_number, x] as Array[int])
 		"lobby": return Cmd.make(due, Cmd.BUILD_LOBBY, [1, x, x + LOBBY_SPAN_WIDTH - 1, 1] as Array[int])
 		"floor": return Cmd.make(due, Cmd.BUILD_FLOOR, [floor_number, x, x + FLOOR_SPAN_WIDTH - 1] as Array[int])
 	if CatalogueScript.has(tool_id):
@@ -221,7 +225,7 @@ static func _evaluate_bulldoze(t: TowerSim, floor_number: int, x: int, out: Dict
 		out["text"] = reason_text("bulldoze", checked["reason"])
 		out["permanent"] = checked["reason"] == RoomsScript.PERMANENT
 		return out
-	var run := t.grid.run_of(checked["room_id"])
+	var run := t.rooms.run_of(t.grid, checked["room_id"])
 	out["x"] = run[1]
 	out["width"] = run[2]
 	out["valid"] = true
@@ -259,6 +263,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_L: set_tool("lobby")
 		KEY_F: set_tool("floor")
 		KEY_S: set_tool(STAIRS)
+		KEY_E: set_tool(ESCALATOR)
 		KEY_O: set_tool("office")
 		KEY_C: set_tool("condo")
 		KEY_B: set_tool(BULLDOZE)

@@ -153,6 +153,7 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.LOBBY_BUILT: return "Lobby built, %d floor%s tall" % [a, "" if a == 1 else "s"]
 		Msg.ROOM_BUILT: return "Built %s on floor %s" % [_kind_name(a), _floor_name(b)]
 		Msg.STAIRS_BUILT: return "Stairs built from floor %s" % _floor_name(a)
+		Msg.ESCALATOR_BUILT: return "Escalator built from floor %s" % _floor_name(a)
 		Msg.ROOM_REMOVED: return "Bulldozed %s on floor %s" % [_kind_name(a), _floor_name(b)]
 		Msg.ROOM_REPLACED: return "Replaced with %s on floor %s" % [_kind_name(a), _floor_name(b)]
 		Msg.CONDO_REFUND: return "Condo sale paid back $%d" % a

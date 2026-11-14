@@ -15,7 +15,7 @@ static func _add(t: TowerSim, id: int, home: int) -> int:
 
 
 static func _shaft_id(t: TowerSim, floor_number: int, x: int) -> int:
-	return t.rooms._shaft_base(t.grid.cell_at(floor_number, x))
+	return t.rooms._shaft_base(t.rooms.link_at(floor_number, x))
 
 
 static func run(check: Callable) -> void:
@@ -54,7 +54,7 @@ static func run(check: Callable) -> void:
 
 	# Shrink dropping the home floor is refused; one keeping it is fine.
 	check.call(TestRooms._send(u, Command.RESIZE_SHAFT, [uid, 5, 8] as Array[int]) == RoomsScript.HOME_DROPPED, "a shrink dropping a home floor is refused")
-	check.call(u.rooms.cars_of(uid) == [[uid, 4, 4, 0, 0, 0, 0, 0, 0]] and u.grid.cell_at(4, 100) != 0, "a refused shrink changes nothing")
+	check.call(u.rooms.cars_of(uid) == [[uid, 4, 4, 0, 0, 0, 0, 0, 0]] and u.rooms.link_at(4, 100) != 0, "a refused shrink changes nothing")
 	check.call(TestRooms._send(u, Command.RESIZE_SHAFT, [uid, 4, 8] as Array[int]) == RoomsScript.OK, "a shrink keeping the home floor is accepted")
 
 	# Shaft id stays stable even when the occupant ids must move.

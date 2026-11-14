@@ -25,10 +25,10 @@ const CATEGORIES: Array = [
 const TOOL_STAR: int = 1  ## Bulldoze and replace are always available.
 const TOOL_NAMES: Dictionary = {Ghost.BULLDOZE: "Bulldoze", Ghost.REPLACE: "Replace"}
 const TOOL_TIPS: Dictionary = {
-	Ghost.BULLDOZE: "Remove a room (B). Permanent rooms cannot be removed.",
+	Ghost.BULLDOZE: "Remove a room (B). Stairs, escalators and shafts go first; click again for the room behind. Permanent rooms cannot be removed.",
 	Ghost.REPLACE: "Replace the room under the cursor with the last room tool you chose (R).",
 }
-const HOTKEYS: Dictionary = {"lobby": "L", "floor": "F", "stairs": "S", "office": "O", "condo": "C",
+const HOTKEYS: Dictionary = {"lobby": "L", "floor": "F", "stairs": "S", "escalator": "E", "office": "O", "condo": "C",
 	Ghost.BULLDOZE: "B", Ghost.REPLACE: "R"}
 
 var ghost: PlacementGhost = null

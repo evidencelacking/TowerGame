@@ -50,12 +50,12 @@ static func shafts(tower: Object) -> Array[Dictionary]:
 		var span: Array[int] = []
 		for index: int in GridScript.FLOOR_COUNT:
 			var floor_number: int = GridScript.index_to_floor(index)
-			if tower.rooms._shaft_base(tower.grid.cell_at(floor_number, x)) == id:
+			if tower.rooms._shaft_base(tower.rooms.link_at(floor_number, x)) == id:
 				span.append(floor_number)
 		if span.is_empty():
 			continue
 		var width := 1
-		while x + width < GridScript.WIDTH_UNITS and tower.rooms._shaft_base(tower.grid.cell_at(span[0], x + width)) == id:
+		while x + width < GridScript.WIDTH_UNITS and tower.rooms._shaft_base(tower.rooms.link_at(span[0], x + width)) == id:
 			width += 1
 		var stops: Array[int] = tower.rooms.stops_of(id)
 		var disabled: Array[int] = []
