@@ -62,6 +62,53 @@ def find_godot():
 
 
 GAME_TEST_SECONDS = 240
+IMPORT_SECONDS = 120
+CLASS_CACHE = Path(".godot") / "global_script_class_cache.cfg"
+
+
+def find_game_exe():
+    """The windowed (non-console) Godot exe if present, else the console one."""
+    pattern = os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\GodotEngine*\*win64.exe")
+    windowed = [m for m in glob.glob(pattern) if "console" not in m.lower()]
+    return windowed[0] if windowed else find_godot()
+
+
+def class_cache_stale(root=ROOT):
+    """True when Godot's class cache is missing or older than any .gd file. A stale cache
+    makes scripts that use class_name fail to compile, and Godot only rebuilds it on import."""
+    cache = root / CLASS_CACHE
+    if not cache.exists():
+        return True
+    built = cache.stat().st_mtime
+    for folder, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        if any(f.endswith(".gd") and os.stat(os.path.join(folder, f)).st_mtime > built for f in files):
+            return True
+    return False
+
+
+def ensure_imported(root=ROOT, godot=None):
+    """Runs a headless import when the class cache is stale. Returns error lines, or []."""
+    if not class_cache_stale(root):
+        return []
+    godot = godot or find_godot()
+    if not godot:
+        return ["Godot not found. Install it or set the GODOT environment variable."]
+    with tempfile.TemporaryFile(mode="w+") as log:
+        process = subprocess.Popen(
+            [godot, "--headless", "--path", str(root), "--import"], stdout=log, stderr=subprocess.STDOUT
+        )
+        try:
+            process.wait(timeout=IMPORT_SECONDS)
+        except subprocess.TimeoutExpired:
+            kill_tree(process)
+            return [f"Godot import timed out after {IMPORT_SECONDS} s."]
+    # Import can leave the cache untouched when no script changed; mark it fresh.
+    cache = root / CLASS_CACHE
+    if not cache.exists():
+        return ["Godot import did not create the class cache."]
+    os.utime(cache)
+    return []
 
 
 def kill_tree(process):
@@ -77,6 +124,9 @@ def run_game_tests():
     godot = find_godot()
     if not godot:
         return ["Godot not found. Install it or set the GODOT environment variable."]
+    problems = ensure_imported(ROOT, godot)
+    if problems:
+        return problems
     # Output goes to a file, not a pipe: on Windows a pipe held open by a leftover Godot
     # process kept the hook waiting for hours. A timeout kills the whole process tree.
     with tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as log:
