@@ -19,7 +19,9 @@ extends RefCounted
 ##   limit          most allowed per tower, or 0 for no limit.
 ##   limit_group    rooms sharing one limit share this group name; "" counts alone.
 ##   people         workers (office) or residents (condo) the room holds; absent elsewhere for now.
-##                  Rent comes later; population is People.in_tower_count().
+##                  Population is People.in_tower_count().
+##   rent           quarterly rent in dollars at each of 4 levels, lowest to highest (office only;
+##                  UNVERIFIED tunables; the third is the $10,000 default, see rent.gd).
 ##   capacity       passengers per car (car rows only; 0 elsewhere).
 ##   limit_scope    "tower", or "shaft" for elevator cars (limit is cars per shaft).
 
@@ -65,7 +67,7 @@ const _ROWS: Dictionary = {
 	"local_car": {"capacity": 17, "width": 4, "height": 1, "cost": 80000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_CAR, "limit": 8,
 		"limit_group": "", "limit_scope": "shaft"},
-	"office": {"people": 6, "width": 9, "height": 1, "cost": 40000, "per_unit": false, "star": 1,
+	"office": {"rent": [3000, 6000, 10000, 15000], "people": 6, "width": 9, "height": 1, "cost": 40000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"condo": {"people": 3, "width": 16, "height": 1, "cost": 80000, "per_unit": false, "star": 1,

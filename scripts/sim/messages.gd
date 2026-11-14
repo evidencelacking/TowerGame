@@ -12,6 +12,7 @@ const ROOM_REFUSED := 13  ## b: catalogue index.
 const BULLDOZE_REFUSED := 14  ## b: floor number.
 const REPLACE_REFUSED := 15  ## b: catalogue index.
 const STAIRS_REFUSED := 16  ## b: floor number.
+const RENT_REFUSED := 17  ## a: Rent result code, b: room id.
 ## Event codes.
 const FLOOR_BUILT := 20  ## a: floor number.
 const LOBBY_BUILT := 21  ## a: height in floors.
@@ -21,6 +22,7 @@ const ROOM_REMOVED := 24  ## a: catalogue index, b: floor number.
 const ROOM_REPLACED := 25  ## a: new catalogue index, b: floor number.
 const CONDO_REFUND := 26  ## a: dollars paid back.
 const STAR_PROMOTED := 27  ## a: the new star rating.
+const RENT_SET := 28  ## a: room id, b: new level.
 
 const CAP := 500  ## Entries kept; the oldest drop first.
 const FIELDS := 4
