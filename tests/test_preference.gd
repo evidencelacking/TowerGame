@@ -19,8 +19,7 @@ static func _options(with_escalator: bool, car_home: int) -> TowerSim:
 	var shaft := TestElevatorRoutes._shaft(t, 3, 4, 104)
 	t.rooms.add_car(t.ledger, 0, 3, shaft, car_home)
 	if with_escalator:
-		t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, 3, 108)
-		t.rooms._kind_of[t.grid.cell_at(3, 108)] = CatalogueScript.IDS.find("escalator")
+		t.rooms.place_escalator(t.grid, t.floors, t.ledger, 0, 3, 108)
 	return t
 
 
@@ -40,15 +39,15 @@ static func run(check: Callable) -> void:
 	t = _options(false, 3)
 	check.call(_first_kind(t) == RoutesScript.ELEVATOR, "with no escalator, a car waiting beats the stairs")
 	t = _options(false, 4)
-	check.call(t.rooms.car_waiting_at(t.rooms._shaft_base(t.grid.cell_at(3, 104)), 3) == false, "a car idle at another floor is not waiting")
+	check.call(t.rooms.car_waiting_at(t.rooms._shaft_base(t.rooms.link_at(3, 104)), 3) == false, "a car idle at another floor is not waiting")
 	check.call(_first_kind(t) == RoutesScript.STAIRS, "with no car waiting, the stairs are chosen")
 
 	# What counts as waiting: idle at the floor, or heading there with room; a full one does not.
 	t = _options(false, 3)
-	var shaft: int = t.rooms._shaft_base(t.grid.cell_at(3, 104))
+	var shaft: int = t.rooms._shaft_base(t.rooms.link_at(3, 104))
 	check.call(t.rooms.car_waiting_at(shaft, 3), "a car idle at the floor is waiting")
 	t = _options(false, 4)
-	shaft = t.rooms._shaft_base(t.grid.cell_at(3, 104))
+	shaft = t.rooms._shaft_base(t.rooms.link_at(3, 104))
 	t.rooms.send_car(0, 3)
 	check.call(t.rooms.car_waiting_at(shaft, 3), "a car heading to the floor with room is waiting")
 	check.call(_first_kind(t) == RoutesScript.ELEVATOR, "a car heading to the floor is preferred over the stairs")
@@ -59,11 +58,10 @@ static func run(check: Callable) -> void:
 	# Escalators carry seven to a trip, stairs four.
 	var e := TestElevatorRoutes._plain(12)
 	for f in range(3, 11):
-		e.rooms.place_stairs(e.grid, e.floors, e.ledger, 0, f, 100 if f % 2 == 1 else 104)
-		e.rooms._kind_of[e.grid.cell_at(f, 100 if f % 2 == 1 else 104)] = CatalogueScript.IDS.find("escalator")
+		e.rooms.place_escalator(e.grid, e.floors, e.ledger, 0, f, 100 if f % 2 == 1 else 108)
 	var r := RoutesScript.find(e.floors, e.rooms, e.grid, 3, 100, 10, 100)
 	check.call(r["reason"] == RoutesScript.OK, "seven escalator segments in a trip are allowed")
-	r = RoutesScript.find(e.floors, e.rooms, e.grid, 3, 100, 11, 104)
+	r = RoutesScript.find(e.floors, e.rooms, e.grid, 3, 100, 11, 108)
 	check.call(r["reason"] == RoutesScript.TOO_MANY_STAIRS, "eight escalator segments in a trip are refused")
 
 	# Waiting for a car builds stress at the stairs rate.

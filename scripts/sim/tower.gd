@@ -42,6 +42,7 @@ class Command:
 	const RESIZE_SHAFT := 14  ## Grows or shrinks a shaft in place: args are shaft id, new bottom, new top. See Rooms.resize_shaft.
 	const ADD_CAR := 16  ## Adds an elevator car: args are shaft id, home floor. See Rooms.add_car.
 	const REMOVE_CAR := 17  ## Removes a shaft's newest car: args are shaft id. See Rooms.remove_car.
+	const PLACE_ESCALATOR := 18  ## Places an escalator between two floors: args are lower floor, x_left. See Rooms.place_escalator.
 	const SET_SHAFT_STOP := 15  ## Turns a shaft's stop on a floor on or off: args are shaft id, floor, on (1 or 0). See Rooms.set_shaft_stop.
 
 	var tick: int = 0  ## The tick this command applies at.
@@ -56,7 +57,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 20
+const SAVE_VERSION := 21
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -188,6 +189,11 @@ func _apply_command(command: Command) -> void:
 				last_refusal = rooms.place_stairs(grid, floors, ledger, tick, command.args[0], command.args[1])
 				if not _note_refusal(MessagesScript.STAIRS_REFUSED, command.args[0]):
 					messages.add(tick, MessagesScript.STAIRS_BUILT, command.args[0])
+		Command.PLACE_ESCALATOR:
+			if command.args.size() == 2:
+				last_refusal = rooms.place_escalator(grid, floors, ledger, tick, command.args[0], command.args[1])
+				if not _note_refusal(MessagesScript.STAIRS_REFUSED, command.args[0]):
+					messages.add(tick, MessagesScript.ESCALATOR_BUILT, command.args[0])
 		Command.PLACE_SHAFT:
 			if command.args.size() == 4:
 				last_refusal = rooms.place_shaft(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2], command.args[3])

@@ -20,7 +20,7 @@ static func _stop(t: TowerSim, id: int, floor_number: int, on: int) -> int:
 
 ## The shaft id at a cell on a floor (its id may change on resize).
 static func _id_at(t: TowerSim, floor_number: int, x: int) -> int:
-	return t.rooms._shaft_base(t.grid.cell_at(floor_number, x))
+	return t.rooms._shaft_base(t.rooms.link_at(floor_number, x))
 
 
 static func run(check: Callable) -> void:
@@ -34,13 +34,13 @@ static func run(check: Callable) -> void:
 	var first := id
 	check.call(_resize(t, id, 3, 12) == RoomsScript.OK, "growing both ways is accepted")
 	check.call(_id_at(t, 3, 100) == first and _id_at(t, 12, 100) == first, "the shaft id is unchanged after a grow")
-	check.call(t.grid.cell_at(3, 100) != 0 and t.grid.cell_at(12, 103) != 0 and t.grid.cell_at(2, 100) == 0 and t.grid.cell_at(13, 100) == 0, "grow fills the new floors")
+	check.call(t.rooms.link_at(3, 100) != 0 and t.rooms.link_at(12, 103) != 0 and t.rooms.link_at(2, 100) == 0 and t.rooms.link_at(13, 100) == 0, "grow fills the new floors")
 	check.call(t.floors.has_shaft(3, 101) and t.floors.has_shaft(12, 100), "grow marks the new floors")
 	check.call(t.ledger.balance == funds and t.rooms.shaft_count() == 1, "resize is free and keeps one shaft")
 	check.call(t.rooms.stops_of(id).size() == 10 and t.rooms.is_stop(id, 3), "new floors are stops")
 	check.call(_resize(t, id, 6, 8) == RoomsScript.OK, "shrinking is accepted")
 	check.call(_id_at(t, 6, 100) == first, "the shaft id is unchanged after a shrink")
-	check.call(t.grid.cell_at(5, 100) == 0 and t.grid.cell_at(9, 100) == 0 and t.grid.cell_at(7, 100) != 0, "shrink frees dropped cells")
+	check.call(t.rooms.link_at(5, 100) == 0 and t.rooms.link_at(9, 100) == 0 and t.rooms.link_at(7, 100) != 0, "shrink frees dropped cells")
 	check.call(not t.floors.has_shaft(5, 100) and not t.floors.has_shaft(12, 103) and t.floors.has_shaft(8, 100), "shrink clears dropped marks")
 	check.call(TestShafts._shaft(t, 3, 5, 100) == RoomsScript.OK, "a dropped floor takes another shaft")
 	check.call(_resize(t, id, 8, 6) == RoomsScript.BAD_SHAFT_SPAN and _resize(t, id, 6, 8) == RoomsScript.OK, "top below bottom refused, shaft unchanged")
@@ -49,15 +49,15 @@ static func run(check: Callable) -> void:
 	# Limits.
 	var base := _id_at(t, 6, 100)
 	check.call(_resize(t, base, 6, 36) == RoomsScript.MAX_SHAFT_FLOORS, "a resize past 30 floors is refused")
-	check.call(t.grid.cell_at(6, 100) != 0 and t.grid.cell_at(8, 100) != 0 and t.floors.has_shaft(8, 100), "a refused resize changes nothing")
+	check.call(t.rooms.link_at(6, 100) != 0 and t.rooms.link_at(8, 100) != 0 and t.floors.has_shaft(8, 100), "a refused resize changes nothing")
 	TestShafts._shaft(t, 1, 3, 120, "express_shaft")
 	var ex := _id_at(t, 1, 120)
 	check.call(_resize(t, ex, 1, 40) == RoomsScript.OK, "express shafts may grow past 30 floors")
 	check.call(_resize(t, ex, 1, 45) == RoomsScript.NO_FLOOR_FOR_SHAFT, "a missing floor refuses a resize")
-	check.call(_resize(t, base, 3, 8) == RoomsScript.OVERLAPS_ROOM, "an overlapping shaft refuses a resize")
+	check.call(_resize(t, base, 3, 8) == RoomsScript.OVER_SHAFT, "an overlapping shaft refuses a resize")
 	TestRooms._send(t, Command.BUILD_FLOOR, [41, 100, 131] as Array[int])
 	TestRooms._room(t, CatalogueScript.IDS.find("office"), 9, 100)
-	check.call(_resize(t, base, 6, 9) == RoomsScript.OVERLAPS_ROOM, "an occupied floor refuses a resize")
+	check.call(_resize(t, base, 6, 9) == RoomsScript.OK and _resize(t, base, 6, 8) == RoomsScript.OK, "a shaft may grow through a room (links sit in front of rooms)")
 
 	# Stops.
 	base = _id_at(t, 6, 100)
