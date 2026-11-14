@@ -303,6 +303,58 @@ class HookReview(unittest.TestCase):
                     self.assertEqual(bool(hook_report.review_status(last)), due, day)
 
 
+class ClassCache(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / ".godot").mkdir()
+        (self.root / "scripts").mkdir()
+        self.script = self.root / "scripts" / "a.gd"
+        self.script.write_text("class_name A\n")
+        self.cache = self.root / check.CLASS_CACHE
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def touch(self, path, when):
+        os.utime(path, (when, when))
+
+    def test_missing_cache_is_stale(self):
+        self.assertTrue(check.class_cache_stale(self.root))
+
+    def test_cache_older_than_script_is_stale(self):
+        self.cache.write_text("")
+        self.touch(self.cache, 1000)
+        self.touch(self.script, 2000)
+        self.assertTrue(check.class_cache_stale(self.root))
+
+    def test_cache_newer_than_scripts_is_fresh(self):
+        self.cache.write_text("")
+        self.touch(self.script, 1000)
+        self.touch(self.cache, 2000)
+        self.assertFalse(check.class_cache_stale(self.root))
+
+    def test_stale_cache_triggers_import_and_fresh_does_not(self):
+        calls = []
+        cache = self.cache
+
+        class FakeProcess:
+            def __init__(self, args, **kwargs):
+                calls.append(args)
+                cache.write_text("")
+
+            def wait(self, timeout=None):
+                return 0
+
+        with mock.patch.object(check.subprocess, "Popen", FakeProcess):
+            self.assertEqual(check.ensure_imported(self.root, "godot"), [])
+            self.assertEqual(len(calls), 1)
+            self.assertIn("--import", calls[0])
+            self.touch(self.script, cache.stat().st_mtime - 100)
+            self.assertEqual(check.ensure_imported(self.root, "godot"), [])
+            self.assertEqual(len(calls), 1)
+
+
 class HooksActive(unittest.TestCase):
     """Uses real throwaway repos. Git exports GIT_DIR into hooks, which would aim these
     commands at this repo, so every GIT_ variable is cleared first."""
