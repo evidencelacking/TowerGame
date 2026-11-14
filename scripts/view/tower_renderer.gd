@@ -2,6 +2,7 @@ class_name TowerRenderer
 extends Node2D
 const VC := preload("res://scripts/view/view_consts.gd")
 const PeopleView := preload("res://scripts/view/people_view.gd")
+const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 ## Draws the tower with native shapes only. Reads the Tower read-only; never mutates sim state.
 ## All geometry is integer pixels from view_consts.gd, so edges stay aligned at any zoom.
 
@@ -37,15 +38,22 @@ const KIND_COLORS: Dictionary = {
 var room_type_of: Callable = func(id: int) -> int: return id % ROOM_COLORS.size()
 var _people_view := PeopleView.new()
 var _seen_tick: int = -1
+var _elevators := ElevatorView.new()
+var _since_tick: float = 0.0  ## Seconds since the sim last ticked.
+var _tick_len: float = 1.0 / 30.0  ## Seconds the last tick took; cars slide over this long.
 
 var _seen_revision: int = -1
 var _seen_occupants: int = -1
 
 
 ## Redraws when the floors or rooms change; the view never polls the whole tower.
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if tower == null:
 		return
+	_since_tick += delta
+	if _elevators.observe(tower):
+		_tick_len = maxf(_since_tick, 0.001)
+		_since_tick = 0.0
 	var occupants := tower.grid.occupant_count()
 	if tower.floors.revision != _seen_revision or occupants != _seen_occupants:
 		_seen_revision = tower.floors.revision
@@ -55,6 +63,8 @@ func _process(_delta: float) -> void:
 	elif tower.tick != _seen_tick:
 		queue_redraw()  # people move
 	_seen_tick = tower.tick
+	if tower.rooms.total_cars() > 0 and _since_tick <= _tick_len * 2.0:
+		queue_redraw()  # cars slide between ticks
 
 
 func set_tower(value: Tower) -> void:
@@ -75,6 +85,9 @@ func _draw() -> void:
 	_draw_lobby()
 	_draw_rooms()
 	_draw_floors()  # last: a room fills its whole row and would hide its own slab
+	_draw_shafts()
+	_draw_queues()
+	_draw_cars()
 	_draw_people()
 
 
@@ -158,3 +171,60 @@ func _draw_people() -> void:
 		draw_circle(Vector2(x + PERSON_W / 2.0, base - 9), 2.0, color)  # head
 		for mark in PeopleView.marks_of(band):  # shape cue: one dot uneasy, two angry
 			draw_rect(Rect2i(x + mark * 3 - 1, base - 14, 2, 2), color)
+
+
+const SHAFT_COLOR := Color(0.12, 0.13, 0.17)
+const DOOR_COLOR := Color(0.75, 0.80, 0.85)
+const DISABLED_COLOR := Color(0.75, 0.25, 0.25)
+const CAR_COLOR := Color(0.95, 0.85, 0.30)
+const FONT_SIZE: int = 8
+
+
+## Each shaft across its span; a floor it stops at has a door mark, a disabled one a red cross.
+func _draw_shafts() -> void:
+	var cell := VC.CELL_PX
+	for shaft: Dictionary in ElevatorView.shafts(tower):
+		var top_row := VC.floor_to_row(shaft["top"])
+		var bottom_row := VC.floor_to_row(shaft["bottom"])
+		var rect := Rect2i((shaft["x"] as int) * cell, top_row * cell, (shaft["width"] as int) * cell, (bottom_row - top_row + 1) * cell)
+		draw_rect(rect, SHAFT_COLOR)
+		draw_rect(rect, SHAFT_COLOR.lightened(0.4), false, 1.0)
+		for floor_number: int in shaft["stops"]:
+			var y := (VC.floor_to_row(floor_number) + 1) * cell - 3
+			draw_rect(Rect2i(rect.position.x + 2, y, rect.size.x - 4, 2), DOOR_COLOR)
+		for floor_number: int in shaft["disabled"]:
+			var top := VC.floor_to_row(floor_number) * cell
+			var inset := Rect2(rect.position.x + 4, top + 3, rect.size.x - 8, cell - 6)
+			draw_line(inset.position, inset.end, DISABLED_COLOR, 1.0)
+			draw_line(Vector2(inset.position.x, inset.end.y), Vector2(inset.end.x, inset.position.y), DISABLED_COLOR, 1.0)
+
+
+## Cars at their interpolated place, each with its load, e.g. 12/17.
+func _draw_cars() -> void:
+	var cell := VC.CELL_PX
+	var t := clampf(_since_tick / _tick_len, 0.0, 1.0)
+	for car: Dictionary in _elevators.cars(tower, t):
+		var rect := Rect2((car["x"] as int) * cell + 1, ElevatorView.level_to_y(car["level"], cell) + 1, (car["width"] as int) * cell - 2, cell - 2)
+		draw_rect(rect, CAR_COLOR)
+		draw_rect(rect, CAR_COLOR.darkened(0.5), false, 1.0)
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(2, cell - 5), car["label"], HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 2, FONT_SIZE, Color.BLACK)
+
+
+## Hall queues: people going up wait left of the shaft, going down right of it; a long queue
+## shows its first figures and a +N count.
+func _draw_queues() -> void:
+	var cell := VC.CELL_PX
+	for queue: Dictionary in ElevatorView.queues(tower):
+		var side: int = queue["side"]
+		var base := (VC.floor_to_row(queue["floor"]) + 1) * cell - 3
+		var edge: int = (queue["x"] as int) * cell if side < 0 else ((queue["x"] as int) + (queue["width"] as int)) * cell
+		var color := Color(0.05, 0.05, 0.05)
+		for n: int in queue["shown"]:
+			var x := edge - (n + 1) * (PERSON_W + 2) if side < 0 else edge + 2 + n * (PERSON_W + 2)
+			draw_rect(Rect2i(x, base - 7, PERSON_W, 7), color)
+			draw_circle(Vector2(x + PERSON_W / 2.0, base - 9), 2.0, color)
+		var label: String = queue["label"]
+		if label != "":
+			var shown_px: int = (queue["shown"] as int) * (PERSON_W + 2)
+			var label_x := edge - shown_px - 18 if side < 0 else edge + shown_px + 4
+			draw_string(ThemeDB.fallback_font, Vector2(label_x, base), label, HORIZONTAL_ALIGNMENT_LEFT, 16, FONT_SIZE, Color.BLACK)
