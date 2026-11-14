@@ -657,15 +657,16 @@ func shaft_x(id: int) -> int:
 
 
 ## True when a car of the shaft is waiting at the floor (#96): idle there, or heading there
-## (target, doors at it included) with room inside. A full car passes without stopping.
+## (target, doors at it included) with room inside. A car returning home (#109) is moving, not waiting. A full car passes without stopping.
 func car_waiting_at(shaft_id: int, floor_number: int) -> bool:
-	for car: Array in _cars:
+	for n in _cars.size():
+		var car: Array = _cars[n]
 		if car[CarsScript.SHAFT] != shaft_id:
 			continue
 		if car[CarsScript.STATE] == CarsScript.IDLE:
 			if car[CarsScript.FLOOR] == floor_number:
 				return true
-		elif car[CarsScript.TARGET] == floor_number and car[CarsScript.LOAD] < car_capacity():
+		elif car[CarsScript.TARGET] == floor_number and car[CarsScript.LOAD] < car_capacity() and not CarsScript.going_home(self, n):
 			return true
 	return false
 

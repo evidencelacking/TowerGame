@@ -24,6 +24,7 @@ const TestCars := preload("res://tests/test_cars.gd")
 const TestCarMotion := preload("res://tests/test_car_motion.gd")
 const TestCarSpeed := preload("res://tests/test_car_speed.gd")
 const TestDispatch := preload("res://tests/test_dispatch.gd")
+const TestCarHome := preload("res://tests/test_car_home.gd")
 const TestBoarding := preload("res://tests/test_boarding.gd")
 const TestGhost := preload("res://tests/test_ghost.gd")
 const TestMessages := preload("res://tests/test_messages.gd")
@@ -41,6 +42,7 @@ const TestPeopleView := preload("res://tests/test_people_view.gd")
 const TestElevatorView := preload("res://tests/test_elevator_view.gd")
 const TestPopulation := preload("res://tests/test_population.gd")
 const TestPeopleRemoval := preload("res://tests/test_people_removal.gd")
+const TestStars := preload("res://tests/test_stars.gd")
 
 var failures := 0
 
@@ -68,6 +70,7 @@ func _initialize() -> void:
 	TestCarMotion.run(check)
 	TestCarSpeed.run(check)
 	TestDispatch.run(check)
+	TestCarHome.run(check)
 	TestBoarding.run(check)
 	TestGhost.run(check)
 	TestMessages.run(check)
@@ -85,6 +88,7 @@ func _initialize() -> void:
 	TestElevatorView.run(check)
 	TestPopulation.run(check)
 	TestPeopleRemoval.run(check)
+	TestStars.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 

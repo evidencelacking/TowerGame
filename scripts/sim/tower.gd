@@ -19,6 +19,7 @@ const TenancyScript := preload("res://scripts/sim/tenancy.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
+const StarRulesScript := preload("res://scripts/sim/star_rules.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
 ## point in that tick (see step). Integers only, so it saves and hashes exactly.
@@ -82,7 +83,7 @@ var grades := GradesScript.new()
 var last_refusal: int = 0
 ## Placeholder state that commands change, so tests can see them. Replaced as real state lands.
 var notes: int = 0
-## The tower's star rating, 1 to 5. Nothing raises it yet (later issue); the HUD, toolbar and ghost read it.
+## The tower's star rating, 1 to 5. Only promote_stars raises it and nothing lowers it. The HUD, toolbar and ghost read it.
 var stars: int = START_STARS
 
 var _queue: Array[Command] = []
@@ -229,6 +230,17 @@ func _run_systems() -> void:
 	CarsScript.tick(rooms)
 	trips.collect_arrivals(floors, rooms, grid, people)
 	people.tick(clock)
+	if StarRulesScript.is_check_tick(clock):
+		promote_stars()
+
+
+## Raises stars to what the population now earns and logs one message per star gained. Never
+## lowers. Runs once a day (StarRules.CHECK_MINUTE); public so tests can call it.
+func promote_stars() -> void:
+	var earned := StarRulesScript.rating_after(stars, population())
+	while stars < earned:
+		stars += 1
+		messages.add(tick, MessagesScript.STAR_PROMOTED, stars)
 
 
 ## Quality score 0 to 300 of a graded room (office, condo, hotel), or -1. Read-only, for the view.
