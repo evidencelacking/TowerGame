@@ -42,6 +42,8 @@ Weigh every decision against these:
 
 ## Commands
 
-- `python tools/setup.py` activates git hooks on a fresh clone.
+- `python tools/setup.py` activates git hooks on a fresh clone and imports the project.
+- `python tools/play.py` launches the game full screen (works from PowerShell). It imports first when
+  the class cache is missing or older than any `.gd` file; tests and hooks do the same.
 - Commit runs the relevant tests, and push and CI run them all. Godot itself: open `project.godot`, F5.
 - Roadmap: [docs/roadmap.md](docs/roadmap.md). Plan: [docs/plan.md](docs/plan.md).
