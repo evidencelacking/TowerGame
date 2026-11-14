@@ -17,6 +17,7 @@ const TripsScript := preload("res://scripts/sim/trips.gd")
 const CarsScript := preload("res://scripts/sim/cars.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
+const WordOfMouthScript := preload("res://scripts/sim/word_of_mouth.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
 const NamesScript := preload("res://scripts/sim/names.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
@@ -83,6 +84,8 @@ var tenancy := TenancyScript.new()
 var trips := TripsScript.new()
 ## Quality score and A/B/C grade of tenant rooms (see Grades). Saved: who has made a first trip.
 var grades := GradesScript.new()
+## Complaints from C rooms lower nearby tenants (see WordOfMouth). Derived from grades, so not saved.
+var word_of_mouth := WordOfMouthScript.new()
 ## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY, PLACE_ROOM, PLACE_STAIRS, BULLDOZE or REPLACE_ROOM command (OK or a refusal reason; see
 ## Ledger and Floors for the codes).
 var last_refusal: int = 0
@@ -98,6 +101,7 @@ func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_START
 	rng.reseed(seed_value)
 	names.name_seed = seed_value
 	ledger = LedgerScript.new(starting_funds)
+	word_of_mouth.attach(grades, rooms, grid, people)
 
 
 ## Queues a command for a future tick. Returns false (and queues nothing) if that tick has
