@@ -11,10 +11,10 @@ const TestShafts := preload("res://tests/test_shafts.gd")
 const TestCars := preload("res://tests/test_cars.gd")
 
 
-## A tower with a local shaft on floors 1 to 10 and one car at home on floor 1.
+## A tower with a local shaft on floors 1 to 30 and one car at home on floor 1.
 static func _setup() -> TowerSim:
 	var t := TestShafts._tall()
-	TestShafts._shaft(t, 1, 10, 100)
+	TestShafts._shaft(t, 1, 30, 100)
 	TestCars._add(t, TestCars._shaft_id(t, 1, 100), 1)
 	return t
 
@@ -33,33 +33,29 @@ static func _until(t: TowerSim, state: int) -> int:
 
 
 static func run(check: Callable) -> void:
-	var tpf := CarsScript.TICKS_PER_FLOOR
+	var upf := CarsScript.LOCAL_UNITS_PER_FLOOR
 	var t := _setup()
 	var id := TestCars._shaft_id(t, 1, 100)
-	check.call(t.rooms.send_car(0, 6) == RoomsScript.OK and _car(t)[CarsScript.STATE] == CarsScript.MOVING, "a car sent up starts moving")
-	var moved := _until(t, CarsScript.DOORS_OPENING)
-	check.call(moved == 5 * tpf and _car(t)[CarsScript.FLOOR] == 6, "a car sent 5 floors arrives after exactly 5 * TICKS_PER_FLOOR ticks")
-	var opening := _until(t, CarsScript.DOORS_OPEN)
-	check.call(opening == CarsScript.DOOR_OPEN_TICKS, "the doors are open DOOR_OPEN_TICKS after arrival")
-	check.call(_until(t, CarsScript.DOORS_CLOSING) == CarsScript.DOOR_HOLD_TICKS, "the doors hold for DOOR_HOLD_TICKS")
-	check.call(_until(t, CarsScript.IDLE) == CarsScript.DOOR_CLOSE_TICKS and _car(t)[CarsScript.FLOOR] == 6, "the doors close, then the car is idle where it stopped")
+	check.call(t.rooms.send_car(0, 6) == RoomsScript.OK and _car(t)[CarsScript.STATE] == CarsScript.MOVING and _car(t)[CarsScript.TICKS] == upf, "a car sent up starts moving, one floor's units to go")
+	# Tick 1 holds 100 units: 5 floors (45), doors opening (20), hold (30), 5 of the 20 closing.
+	t.step()
+	check.call(_car(t)[CarsScript.FLOOR] == 6 and _car(t)[CarsScript.STATE] == CarsScript.DOORS_CLOSING and _car(t)[CarsScript.TICKS] == 15, "a 5-floor ride and its whole door cycle nearly fit in the first tick")
+	t.step()
+	check.call(_car(t)[CarsScript.STATE] == CarsScript.IDLE and _car(t)[CarsScript.FLOOR] == 6, "the doors close in the second tick, then the car is idle where it stopped")
 	var idle := _car(t).duplicate()
 	Harness.step(t, 20)
 	check.call(_car(t) == idle, "an idle car with no target stays put")
 
 	# Moving down, and the send refusals.
-	check.call(t.rooms.send_car(0, 2) == RoomsScript.OK and _until(t, CarsScript.DOORS_OPENING) == 4 * tpf and _car(t)[CarsScript.FLOOR] == 2, "a car sent down arrives after 4 * TICKS_PER_FLOOR ticks")
-	check.call(t.rooms.send_car(0, 5) == RoomsScript.NO_SUCH_CAR and t.rooms.send_car(3, 5) == RoomsScript.NO_SUCH_CAR, "a busy car and an unknown car are refused")
+	check.call(t.rooms.send_car(0, 2) == RoomsScript.OK and _until(t, CarsScript.IDLE) == 2 and _car(t)[CarsScript.FLOOR] == 2, "a 4-floor ride (36 units plus 70 for the doors) is idle after exactly 2 ticks")
+	check.call(t.rooms.send_car(0, 5) == RoomsScript.OK and t.rooms.send_car(0, 7) == RoomsScript.NO_SUCH_CAR and t.rooms.send_car(3, 5) == RoomsScript.NO_SUCH_CAR, "a busy car and an unknown car are refused")
 	_until(t, CarsScript.IDLE)
-	check.call(t.rooms.send_car(0, 11) == RoomsScript.NOT_A_STOP, "a floor outside the shaft is refused")
+	check.call(t.rooms.send_car(0, 31) == RoomsScript.NOT_A_STOP, "a floor outside the shaft is refused")
 
 	# Own floor cycles the doors.
-	var states: Array[int] = []
-	check.call(t.rooms.send_car(0, 2) == RoomsScript.OK, "a car can be sent to its own floor")
-	for n in 20:
-		states.append(_car(t)[CarsScript.STATE])
-		t.step()
-	check.call(states[0] == CarsScript.DOORS_OPENING and CarsScript.DOORS_OPEN in states and CarsScript.DOORS_CLOSING in states and _car(t)[CarsScript.STATE] == CarsScript.IDLE and _car(t)[CarsScript.FLOOR] == 2, "sending a car to its own floor cycles the doors and ends idle")
+	check.call(t.rooms.send_car(0, _car(t)[CarsScript.FLOOR]) == RoomsScript.OK and _car(t)[CarsScript.STATE] == CarsScript.DOORS_OPENING, "a car can be sent to its own floor, and its doors start opening")
+	t.step()
+	check.call(_car(t)[CarsScript.STATE] == CarsScript.IDLE and _car(t)[CarsScript.FLOOR] == 5, "the whole door cycle (70 units) fits in one tick, then the car is idle")
 
 	# A disabled floor is passed without stopping.
 	var u := _setup()
@@ -80,8 +76,8 @@ static func run(check: Callable) -> void:
 
 	# Save mid-motion, continue identically.
 	var v := _setup()
-	v.rooms.send_car(0, 9)
-	Harness.step(v, 3)
+	v.rooms.send_car(0, 30)
+	Harness.step(v, 1)
 	var w := Harness.clone_via_save(v)
 	check.call(w != null and w.state_hash() == v.state_hash() and _car(w) == _car(v) and _car(w)[CarsScript.STATE] == CarsScript.MOVING, "a save mid-motion loads the same")
 	Harness.step(v, 12)
