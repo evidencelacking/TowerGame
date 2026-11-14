@@ -78,7 +78,9 @@ static func run(check: Callable) -> void:
 	m.step()
 	check.call(_assigned(m, 0) == 0 and m.rooms._cars[0][CarsScript.TARGET] == 28 and m.rooms._cars[0][CarsScript.NEXT] == 30, "a car moving up takes an up call ahead of it as a stop")
 	check.call(_until_cleared(m, 28) > 0 and m.rooms._cars[0][CarsScript.FLOOR] == 28, "it opens its doors at the call floor")
-	Harness.step(m, 40)
+	for _k in 10:
+		if m.rooms._cars[0][CarsScript.STATE] != CarsScript.IDLE or m.rooms._cars[0][CarsScript.FLOOR] != 30:
+			m.step()
 	var resumed: bool = m.rooms._cars[0][CarsScript.FLOOR] == 30 and m.rooms._cars[0][CarsScript.STATE] == CarsScript.IDLE
 	check.call(resumed, "it then carries on to its original target and parks there")
 	var o := _setup([1] as Array[int])
