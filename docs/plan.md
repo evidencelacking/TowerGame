@@ -83,6 +83,7 @@ Copy from the strategy game (`D:\Claude\Game Test`), then fit.
 | 4.8 | Preference: escalator, waiting car, then stairs; waiting stress | Tests |
 | 4.9 | Draw shafts, cars, queues (left goes up, right goes down) | Rush-hour queue visible |
 | 4.10 | Performance: 2,000 people at top speed | Target frame rate held |
+| 4.11 | Elevator build controls: drag shafts, resize by end, click for stops, add cars | Lobby, floors, shaft and car built by mouse; people ride |
 
 ## M5 Economy and grades
 
