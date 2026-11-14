@@ -6,6 +6,7 @@ const TowerSim := preload("res://scripts/sim/tower.gd")
 const Grades := preload("res://scripts/sim/grades.gd")
 const TestCondos := preload("res://tests/test_condos.gd")
 const TestTenancy := preload("res://tests/test_tenancy.gd")
+const TestOfficeDay := preload("res://tests/test_office_day.gd")
 
 
 ## A connected tower with one sold condo whose 3 residents have all made a trip (home by 19:00).
@@ -65,6 +66,21 @@ static func run(check: Callable) -> void:
 	check.call(t.quality(condo) == 149 and t.grade(condo) == Grades.GRADE_C, "a +51 stress modifier drops 200 to 149")
 	t.grades.add_modifier(func(_room: int) -> int: return 1000)
 	check.call(t.quality(condo) == 0, "modifiers clamp so quality stays within 0 to 300")
+
+	# A real office: placed, linked by stairs, leased, and its workers make trips across a day.
+	var o := TestOfficeDay._filled()
+	var office := TestTenancy._office(o)
+	check.call(o.rooms.kind_of(office) == "office" and o.people.workers_in(office) > 0, "the office is leased and has workers")
+	check.call(o.quality(office) == Grades.NEUTRAL_QUALITY, "a freshly leased office is a neutral B before any trip")
+	TestOfficeDay._at(o, 12 * 60 + 30)
+	for k in 600:
+		o.step()
+	_set_all(o, 0)
+	check.call(o.quality(office) == 300 and o.grade(office) == Grades.GRADE_A, "office workers who travelled with zero stress give A")
+	_set_all(o, 200)
+	check.call(o.quality(office) == 100 and o.grade(office) == Grades.GRADE_C, "office workers at stress 200 give quality 100 and C")
+	_set_all(o, 125)
+	check.call(o.quality(office) == 175 and o.grade(office) == Grades.GRADE_B, "office workers at stress 125 give B")
 
 	# Save round trip keeps who has travelled.
 	var saved := _travelled()
