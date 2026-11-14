@@ -523,7 +523,7 @@ func send_car(car_index: int, floor_number: int) -> int:
 		return NO_SUCH_CAR
 	if not is_stop(_cars[car_index][CarsScript.SHAFT], floor_number):
 		return NOT_A_STOP
-	CarsScript.start(_cars[car_index], floor_number)
+	CarsScript.start(_cars[car_index], floor_number, CarsScript.units_per_floor(kind_of(_cars[car_index][CarsScript.SHAFT])))
 	return OK
 
 
