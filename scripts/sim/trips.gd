@@ -15,6 +15,8 @@ const RoutesScript := preload("res://scripts/sim/routes.gd")
 const WALK_COLUMNS_PER_MINUTE := 20  ## Guess: columns walked in a sim minute.
 const STAIRS_MINUTES := 2  ## Guess: minutes per stairs segment.
 const STRESS_PER_TRAVEL_MINUTE := 3  ## Guess: stress for each minute in transit.
+const ESCALATOR_MINUTES := 1  ## Guess: minutes per escalator segment (it never waits).
+const STRESS_PER_QUEUE_MINUTE := STRESS_PER_TRAVEL_MINUTE  ## Waiting for a car builds stress at the stairs rate (owner, #96); tune in playtest.
 const STRESS_PER_WAIT_MINUTE := 3  ## Guess: stress for each minute spent requested before moving.
 const STRESS_RECOVERY_PER_MINUTE := 1  ## Guess: stress lost each idle minute.
 const STRESS_NO_ROUTE := 30  ## Guess: stress when a trip has no route and is given up.
@@ -40,6 +42,8 @@ static func route_minutes(legs: Array) -> int:
 			columns += absi((leg["to_x"] as int) - (leg["from_x"] as int))
 		elif leg["kind"] == RoutesScript.STAIRS:
 			minutes += STAIRS_MINUTES
+		elif leg["kind"] == RoutesScript.ESCALATOR:
+			minutes += ESCALATOR_MINUTES
 	minutes += (columns + WALK_COLUMNS_PER_MINUTE - 1) / WALK_COLUMNS_PER_MINUTE
 	return maxi(1, minutes)
 
@@ -63,7 +67,7 @@ func tick(clock: Object, floors: FloorsScript, rooms: RoomsScript, grid: GridScr
 	for id: int in rooms.queued_ids():  # waiting in an elevator hall queue (#94)
 		var queued: int = people.index_of(id)
 		if queued != -1:
-			people.add_stress(queued, STRESS_PER_WAIT_MINUTE)
+			people.add_stress(queued, STRESS_PER_QUEUE_MINUTE)
 	if not floors.has_lobby():
 		return
 	var entry: Array[int] = [GROUND_FLOOR, floors.lobby_span()[0]]  # left-edge entry, outside the tower
@@ -76,6 +80,8 @@ func tick(clock: Object, floors: FloorsScript, rooms: RoomsScript, grid: GridScr
 				people.add_stress(i, STRESS_PER_TRAVEL_MINUTE)
 				if people.spend_trip_minute(i) == 0:
 					people.finish_trip(i)
+			PeopleScript.TRIP_RIDING:
+				pass  # queued for a car (stress above, at STRESS_PER_QUEUE_MINUTE) or riding one
 			_:
 				people.cool_down(i)
 				people.add_stress(i, -STRESS_RECOVERY_PER_MINUTE)
