@@ -59,7 +59,9 @@ func figures(tower: Object) -> Array[Dictionary]:
 	var people: PeopleScript = tower.people
 	for i in people.count():
 		var band := people.stress_band(i)
-		if people.trip_state(i) == PeopleScript.TRIP_MOVING or people.trip_state(i) == PeopleScript.TRIP_RIDING:
+		if people.trip_state(i) == PeopleScript.TRIP_RIDING:
+			continue  # queued at a shaft or riding: elevator_view draws the queue and the car's load
+		if people.trip_state(i) == PeopleScript.TRIP_MOVING:
 			var spot := _moving_spot(tower, i)
 			if not spot.is_empty():
 				out.append({"floor": spot[0], "x": spot[1], "band": band, "moving": true})
