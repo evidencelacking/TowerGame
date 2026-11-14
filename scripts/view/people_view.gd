@@ -39,7 +39,7 @@ static func along(legs: Array, elapsed: int, total: int) -> Array[int]:
 		if at <= w:
 			var x := from_x if w == 0 else from_x + (to_x - from_x) * at / w
 			var floor_number: int = leg["floor"]
-			if leg["kind"] == RoutesScript.STAIRS and at * 2 > w:
+			if (leg["kind"] == RoutesScript.STAIRS or leg["kind"] == RoutesScript.ESCALATOR) and at * 2 > w:
 				floor_number = leg["to_floor"]
 			return [floor_number, x]
 		at -= w

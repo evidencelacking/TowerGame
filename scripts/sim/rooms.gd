@@ -656,6 +656,20 @@ func shaft_x(id: int) -> int:
 	return int(_shafts[id][2]) if _shafts.has(id) else -1
 
 
+## True when a car of the shaft is waiting at the floor (#96): idle there, or heading there
+## (target, doors at it included) with room inside. A full car passes without stopping.
+func car_waiting_at(shaft_id: int, floor_number: int) -> bool:
+	for car: Array in _cars:
+		if car[CarsScript.SHAFT] != shaft_id:
+			continue
+		if car[CarsScript.STATE] == CarsScript.IDLE:
+			if car[CarsScript.FLOOR] == floor_number:
+				return true
+		elif car[CarsScript.TARGET] == floor_number and car[CarsScript.LOAD] < car_capacity():
+			return true
+	return false
+
+
 ## True when the person is queued for a car or riding one.
 func in_elevator(person_id: int) -> bool:
 	return car_floor_of(person_id) != 0 or queued_ids().has(person_id)
@@ -688,7 +702,7 @@ func stops_of(id: int) -> Array[int]:
 func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
 	if not _shafts.has(id):
 		grid.remove(id)
-	if kind_of(id) == "stairs":
+	if is_stair_kind(kind_of(id)):
 		grid.remove(id + 1)
 	if _shafts.has(id):
 		var info: Array = _shafts[id]
@@ -714,7 +728,12 @@ func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
 
 ## True when id is the upper-floor half of a stairs (not a room of its own).
 func is_stairs_upper(id: int) -> bool:
-	return not _kind_of.has(id) and kind_of(id - 1) == "stairs"
+	return not _kind_of.has(id) and is_stair_kind(kind_of(id - 1))
+
+
+## True for the kinds that join a floor to the one above with two grid halves: stairs, escalators.
+static func is_stair_kind(kind: String) -> bool:
+	return kind == "stairs" or kind == "escalator"
 
 
 ## Marks a room sold (or not). Only a condo can be sold; returns false otherwise. Sales
@@ -811,7 +830,7 @@ func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: S
 			after.remove(int(_shafts[id][4]) + i)
 	else:
 		after.remove(id)
-	if kind_of(id) == "stairs":
+	if is_stair_kind(kind_of(id)):
 		after.remove(id + 1)
 	var placed := check_place(after, floors, kind, floor_number, x_left)
 	result["cost"] = placed["cost"]
@@ -982,6 +1001,6 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 			return false
 		if grid != null and not shaft_ids.has(id) and not grid.has_occupant(id):
 			return false
-		if grid != null and kind_index == CatalogueScript.IDS.find("stairs") and not grid.has_occupant(id + 1):
+		if grid != null and is_stair_kind(CatalogueScript.IDS[kind_index]) and not grid.has_occupant(id + 1):
 			return false
 	return true
