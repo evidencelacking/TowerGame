@@ -4,7 +4,8 @@ extends Node2D
 ## valid, its total cost, a plain refusal reason, and a warning for rooms that cannot be removed.
 ## View only. Every verdict comes from the sim's read-only check_* functions; this file only
 ## words them. A left click enqueues the matching command. The toolbar (toolbar.gd) picks the
-## tool too. Keys: L lobby, F floor, S stairs, O office, C condo, B bulldoze, R replace, Esc none.
+## tool too. Keys: L lobby, F floor, S stairs, O office, C condo, E local shaft, A local car, B bulldoze,
+## R replace, Esc none. Shaft tools use a vertical drag (DragGesture): press, drag, release sends.
 
 const VC := preload("res://scripts/view/view_consts.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
@@ -12,10 +13,13 @@ const FloorsScript := preload("res://scripts/sim/floors.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const GridScript := preload("res://scripts/sim/grid.gd")
+const ElevatorTools := preload("res://scripts/view/elevator_tools.gd")
+const DragScript := preload("res://scripts/view/drag_gesture.gd")
 
 const BULLDOZE := "bulldoze"  ## Tools that are not catalogue ids: BULLDOZE and REPLACE.
 const REPLACE := "replace"  ## Bulldoze the room under the cursor and build last_room there.
 const STAIRS := "stairs"
+const ESCALATOR := "escalator"
 const FLOOR_SPAN_WIDTH: int = 10  ## Ghost width for the floor tool (view tunable).
 const LOBBY_SPAN_WIDTH: int = 20  ## Ghost width for the lobby tool (view tunable).
 const PERMANENT_TEXT := "Permanent: cannot be removed once built"
@@ -49,6 +53,8 @@ const ROOM_TEXT: Dictionary = {
 	RoomsScript.NOTHING_BELOW: "Nothing below to rest on",
 	RoomsScript.OVERHANG: "Too wide for the floor below",
 	RoomsScript.NO_FLOOR_FOR_STAIRS: "Needs a floor on both levels",
+	RoomsScript.NO_FLOOR_FOR_ESCALATOR: "Needs a floor on both levels",
+	RoomsScript.OVERLAPS_LINK: "Overlaps stairs, an escalator or a shaft",
 	RoomsScript.STAIRS_LIMIT: "Too many stairs and escalators",
 	RoomsScript.MAX_SHAFT_FLOORS: "A shaft spans at most 30 floors",
 	RoomsScript.MAX_SHAFTS: "The tower has the most shafts (24)",
@@ -70,6 +76,7 @@ var stars: int:  ## Current star rating, read from the sim.
 var last_room: String = "office"  ## The room the replace tool builds: the last room tool chosen.
 var _last_key: Array = []  ## What result was computed for; check_* only reruns when it changes.
 var result: Dictionary = {}  ## Last evaluate() verdict, for the label and the tests.
+var _drag: DragScript = DragScript.new(DragScript.Axis.VERTICAL)  ## Shaft tools: press, drag, release.
 var _panel: PanelContainer
 var _label: Label
 
@@ -93,6 +100,7 @@ func set_tower(value: TowerSim) -> void:
 
 func set_tool(value: String) -> void:
 	tool = value
+	_drag.cancel()
 	if value in RoomsScript.PLACEABLE:
 		last_room = value
 	_last_key = []
@@ -100,7 +108,8 @@ func set_tool(value: String) -> void:
 
 ## True for every tool the sim can build today (the rest show in the toolbar but cannot be picked).
 static func is_buildable(tool_id: String) -> bool:
-	return tool_id in [BULLDOZE, REPLACE, STAIRS, "lobby", "floor"] or tool_id in RoomsScript.PLACEABLE
+	return tool_id in [BULLDOZE, REPLACE, STAIRS, ESCALATOR, "lobby", "floor"] or tool_id in RoomsScript.PLACEABLE \
+		or ElevatorTools.handles(tool_id)
 
 
 ## Wording for a sim refusal code. source is "floors", "rooms" or "bulldoze".
@@ -110,6 +119,7 @@ static func reason_text(source: String, code: int) -> String:
 		"rooms": table = ROOM_TEXT
 		"bulldoze": table = BULLDOZE_TEXT
 		"replace": table = BULLDOZE_TEXT.merged(ROOM_TEXT)
+		"elevator": table = ROOM_TEXT.merged(ElevatorTools.TEXT)
 	return table.get(code, "Cannot build here")
 
 
@@ -130,7 +140,11 @@ static func width_of(tool_id: String) -> int:
 
 ## Judges a tool at (floor_number, x_left) by asking the sim's check_* functions. Returns
 ## {valid, cost, text, permanent, floor, x, width, height}. Reads only; never changes the tower.
-static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: int, star_rating: int, kind: String = "") -> Dictionary:
+## For shaft tools, gesture is {"start_floor", "start_column"} of a drag in progress (else the
+## verdict is for a click at the cell).
+static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: int, star_rating: int, kind: String = "", gesture: Dictionary = {}) -> Dictionary:
+	if ElevatorTools.handles(tool_id):
+		return _evaluate_elevator(t, tool_id, floor_number, x_left, star_rating, gesture)
 	var out := {"valid": false, "cost": 0, "text": "", "permanent": false,
 		"floor": floor_number, "x": x_left, "width": width_of(tool_id), "height": 1}
 	if tool_id == BULLDOZE:
@@ -154,8 +168,8 @@ static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: in
 			var span := t.floors.check_span(floor_number, x_left, x_left + FLOOR_SPAN_WIDTH - 1)
 			code = span["reason"]
 			out["cost"] = span["cost"]
-		STAIRS:
-			var stairs := t.rooms.check_place_stairs(t.grid, t.floors, floor_number, x_left)
+		STAIRS, ESCALATOR:
+			var stairs := t.rooms.check_place_escalator(t.grid, t.floors, floor_number, x_left) if tool_id == ESCALATOR else t.rooms.check_place_stairs(t.grid, t.floors, floor_number, x_left)
 			code = stairs["reason"]
 			out["cost"] = stairs["cost"]
 			out["height"] = 2
@@ -174,6 +188,18 @@ static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: in
 	return out
 
 
+static func _evaluate_elevator(t: TowerSim, tool_id: String, floor_number: int, x_left: int, star_rating: int, gesture: Dictionary) -> Dictionary:
+	var column: int = x_left + width_of(tool_id) / 2
+	var out: Dictionary
+	if ElevatorTools.is_shaft_tool(tool_id):
+		out = ElevatorTools.evaluate_shaft(t, tool_id, floor_number, gesture.get("start_floor", floor_number), gesture.get("start_column", column), star_rating)
+	else:
+		out = ElevatorTools.evaluate_car(t, tool_id, floor_number, column, star_rating)
+	if out["code"] != 0 and out["text"] == "":  ## A star lock was worded already.
+		out["text"] = reason_text("elevator", out["code"])
+	return out
+
+
 ## Replace: the room under column x goes and kind is built from that room's left edge.
 static func _evaluate_replace(t: TowerSim, kind: String, floor_number: int, x: int, star_rating: int, out: Dictionary) -> Dictionary:
 	out["permanent"] = is_permanent(kind)
@@ -182,7 +208,7 @@ static func _evaluate_replace(t: TowerSim, kind: String, floor_number: int, x: i
 	if hit["reason"] != 0:
 		out["text"] = reason_text("replace", hit["reason"])
 		return out
-	out["x"] = t.grid.run_of(hit["room_id"])[1]
+	out["x"] = t.rooms.run_of(t.grid, hit["room_id"])[1]
 	var checked := t.rooms.check_replace(t.grid, t.floors, t.ledger.balance, kind, floor_number, out["x"])
 	out["cost"] = checked["net"]
 	if CatalogueScript.star(kind) > star_rating:
@@ -207,6 +233,9 @@ static func command_for(tool_id: String, verdict: Dictionary, tick: int, kind: S
 		BULLDOZE: return Cmd.make(due, Cmd.BULLDOZE, [floor_number, x] as Array[int])
 		REPLACE: return Cmd.make(due, Cmd.REPLACE_ROOM, [CatalogueScript.IDS.find(kind), floor_number, x] as Array[int])
 		STAIRS: return Cmd.make(due, Cmd.PLACE_STAIRS, [floor_number, x] as Array[int])
+		ESCALATOR: return Cmd.make(due, Cmd.PLACE_ESCALATOR, [floor_number, x] as Array[int])
+		"local_shaft", "service_shaft", "local_car", "service_car":
+			return Cmd.make(due, verdict["command"], verdict["args"])
 		"lobby": return Cmd.make(due, Cmd.BUILD_LOBBY, [1, x, x + LOBBY_SPAN_WIDTH - 1, 1] as Array[int])
 		"floor": return Cmd.make(due, Cmd.BUILD_FLOOR, [floor_number, x, x + FLOOR_SPAN_WIDTH - 1] as Array[int])
 	if CatalogueScript.has(tool_id):
@@ -221,7 +250,7 @@ static func _evaluate_bulldoze(t: TowerSim, floor_number: int, x: int, out: Dict
 		out["text"] = reason_text("bulldoze", checked["reason"])
 		out["permanent"] = checked["reason"] == RoomsScript.PERMANENT
 		return out
-	var run := t.grid.run_of(checked["room_id"])
+	var run := t.rooms.run_of(t.grid, checked["room_id"])
 	out["x"] = run[1]
 	out["width"] = run[2]
 	out["valid"] = true
@@ -244,6 +273,8 @@ static func lines_for(tool_id: String, verdict: Dictionary) -> Array[String]:
 		lines.append("%s: $%d" % [tool_id, verdict["cost"]])
 	else:
 		lines.append(tool_id)
+	if verdict.get("note", "") != "":
+		lines.append(verdict["note"])
 	if not verdict["valid"]:
 		lines.append(verdict["text"])
 	if verdict["permanent"]:
@@ -259,8 +290,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_L: set_tool("lobby")
 		KEY_F: set_tool("floor")
 		KEY_S: set_tool(STAIRS)
+		KEY_X: set_tool(ESCALATOR)
 		KEY_O: set_tool("office")
 		KEY_C: set_tool("condo")
+		KEY_E: set_tool("local_shaft")
+		KEY_A: set_tool("local_car")
 		KEY_B: set_tool(BULLDOZE)
 		KEY_R: set_tool(REPLACE)
 		KEY_ESCAPE: set_tool("")
@@ -268,8 +302,62 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	var click := event as InputEventMouseButton
-	if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
-		commit()
+	if click == null or click.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var cell := _mouse_cell()
+	if click.pressed:
+		press(cell.x, cell.y)
+	else:
+		release(cell.x, cell.y)
+
+
+## The cell under the mouse as Vector2i(floor number, column).
+func _mouse_cell() -> Vector2i:
+	var world := get_global_mouse_position()
+	var row := floori(world.y / VC.CELL_PX)
+	return Vector2i(GridScript.index_to_floor(GridScript.FLOOR_COUNT - 1 - row), floori(world.x / VC.CELL_PX))
+
+
+## Left button down on a cell. Shaft tools start a drag; every other tool builds at once.
+## Returns true if a command was queued (or, for a shaft tool, a drag began).
+func press(floor_number: int, column: int) -> bool:
+	if tower == null or tool == "":
+		return false
+	if ElevatorTools.is_shaft_tool(tool):
+		_drag.begin(floor_number, column)
+		hover(floor_number, column)
+		return true
+	hover(floor_number, column)
+	return commit()
+
+
+## Left button up. Ends a shaft drag and sends its command if the verdict is valid.
+func release(floor_number: int, column: int) -> bool:
+	if not _drag.active or tower == null:
+		return false
+	hover(floor_number, column)
+	_drag.cancel()
+	return commit()
+
+
+## Judges the tool at a cell (the mouse position each frame; tests call it directly). Reruns
+## the sim checks only when something changed. Returns the verdict.
+func hover(floor_number: int, column: int) -> Dictionary:
+	if tower == null or tool == "":
+		return {}
+	_drag.update(floor_number, column)
+	var x_left := column if tool in [BULLDOZE, REPLACE] else column - width_of(tool) / 2
+	var key: Array = [tool, last_room, floor_number, x_left, stars, tower.ledger.balance, _drag.key()]
+	if key != _last_key:  ## check_replace copies the grid, so only judge when something changed.
+		_last_key = key
+		var gesture := {}
+		if _drag.active:
+			gesture = {"start_floor": _drag.start_floor, "start_column": _drag.start_column}
+		result = evaluate(tower, tool, floor_number, x_left, stars, last_room, gesture)
+		if _label != null:
+			_label.text = "\n".join(lines_for(tool, result))
+		queue_redraw()
+	return result
 
 
 ## Sends the current verdict to the sim as a command. Returns true if one was queued.
@@ -289,17 +377,8 @@ func _process(_delta: float) -> void:
 			result = {}
 			queue_redraw()
 		return
-	var world := get_global_mouse_position()
-	var column := floori(world.x / VC.CELL_PX)
-	var row := floori(world.y / VC.CELL_PX)
-	var floor_number := GridScript.index_to_floor(GridScript.FLOOR_COUNT - 1 - row)
-	var x_left := column if tool in [BULLDOZE, REPLACE] else column - width_of(tool) / 2
-	var key: Array = [tool, last_room, floor_number, x_left, stars, tower.ledger.balance]
-	if key != _last_key:  ## check_replace copies the grid, so only judge when something changed.
-		_last_key = key
-		result = evaluate(tower, tool, floor_number, x_left, stars, last_room)
-		_label.text = "\n".join(lines_for(tool, result))
-		queue_redraw()
+	var cell := _mouse_cell()
+	hover(cell.x, cell.y)
 	_panel.visible = true
 	_panel.position = get_viewport().get_mouse_position() + Vector2(18, 18)
 
@@ -308,10 +387,14 @@ func _draw() -> void:
 	if result.is_empty() or not GridScript.is_valid_floor(result["floor"]):
 		return
 	var top: int = result["floor"]
-	if result["height"] > 1:
+	var rows: int = result["height"]
+	if result.has("top"):  ## A shaft: from its top floor down to its bottom.
+		top = result["top"]
+		rows = VC.floor_to_row(result["floor"]) - VC.floor_to_row(top) + 1
+	elif result["height"] > 1:
 		top = RoomsScript.floor_above(top)  ## Stairs span two floors: draw from the upper one.
 	var rect := Rect2i(result["x"] * VC.CELL_PX, VC.floor_to_row(top) * VC.CELL_PX,
-		result["width"] * VC.CELL_PX, result["height"] * VC.CELL_PX)
+		result["width"] * VC.CELL_PX, rows * VC.CELL_PX)
 	var tint := VALID_TINT if result["valid"] else INVALID_TINT
 	draw_rect(rect, tint)
 	draw_rect(rect, Color(tint, 1.0), false, 1.0)
