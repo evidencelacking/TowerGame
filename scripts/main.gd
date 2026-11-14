@@ -18,3 +18,7 @@ func _ready() -> void:
 	($PlacementGhost as PlacementGhost).set_tower(_tower)
 	($MessageLog as MessageLog).set_tower(_tower)
 	($Toolbar as Toolbar).bind($PlacementGhost as PlacementGhost)
+	var person_window := PersonWindow.new()
+	person_window.name = "PersonWindow"
+	add_child(person_window)
+	person_window.bind(_tower, $PlacementGhost as PlacementGhost)
