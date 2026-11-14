@@ -35,6 +35,7 @@ const DEST_AWAY := 4  ## Outside the tower (residents at work elsewhere).
 const TRIP_IDLE := 0  ## At the goal.
 const TRIP_REQUESTED := 1  ## The goal changed; waiting for the router to start moving.
 const TRIP_MOVING := 2  ## Routing has the person in transit.
+const TRIP_RIDING := 3  ## Waiting for or riding an elevator; trips.gd ends it when they alight (#95).
 
 const STRESS_MAX := 300
 ## Stress bands (3.6, docs/gameplay-reference.md): under 80 calm, 80 to 120 uneasy, over 120 angry.
@@ -44,7 +45,7 @@ const BAND_ANGRY := 2
 const UNEASY_FROM := 80  ## Stress at or above this is uneasy.
 const ANGRY_OVER := 120  ## Stress above this is angry.
 
-const FIELDS := 11  ## Per person: id, home, work, offset, goal, trip_state, location, stress, trip_left, trip_total, trip_from.
+const FIELDS := 12  ## Per person: id, home, work, offset, goal, trip_state, location, stress, trip_left, trip_total, trip_from, trip_leg.
 const _ID := 0
 const _HOME := 1
 const _WORK := 2
@@ -56,6 +57,7 @@ const _STRESS := 7
 const _TRIP_LEFT := 8  ## Minutes of travel left while moving; while idle, minutes before a given-up trip is retried.
 const _TRIP_TOTAL := 9  ## Minutes the current trip takes in all (for drawing).
 const _TRIP_FROM := 10  ## Room the current trip started in, or NONE for outside (for drawing).
+const _TRIP_LEG := 11  ## Route leg the person is on: the first leg of the walking stretch, or the elevator leg.
 
 var _next_id: int = 0
 var _last_minute: int = -1  ## The last minute of day the plan was checked at.
@@ -74,7 +76,7 @@ func add_person(home: int, work: int, rng: Object) -> int:
 	var start := home if home != NONE else work
 	var goal := DEST_HOME if home != NONE else DEST_WORK
 	var offset: int = rng.next_below(ARRIVAL_SPREAD + 1)
-	_data.append_array([id, home, work, offset, goal, TRIP_IDLE, start, 0, 0, 0, NONE] as Array[int])
+	_data.append_array([id, home, work, offset, goal, TRIP_IDLE, start, 0, 0, 0, NONE, 0] as Array[int])
 	return id
 
 
@@ -141,7 +143,7 @@ func location_of(i: int) -> int:
 func in_tower_count() -> int:
 	var n := 0
 	for i in count():
-		if location_of(i) != NONE or trip_state(i) == TRIP_MOVING:
+		if location_of(i) != NONE or trip_state(i) != TRIP_IDLE:
 			n += 1
 	return n
 
@@ -252,7 +254,27 @@ func start_trip(i: int, minutes: int = 1) -> void:
 	_data[i * FIELDS + _TRIP] = TRIP_MOVING
 	_data[i * FIELDS + _TRIP_LEFT] = minutes
 	_data[i * FIELDS + _TRIP_TOTAL] = minutes
+	_data[i * FIELDS + _TRIP_LEG] = 0
 	_data[i * FIELDS + _LOCATION] = NONE
+
+
+func trip_leg(i: int) -> int:
+	return _data[i * FIELDS + _TRIP_LEG]
+
+
+## Trips seam: the person walks the stretch of the route starting at leg for minutes.
+func set_segment(i: int, leg: int, minutes: int) -> void:
+	_data[i * FIELDS + _TRIP] = TRIP_MOVING
+	_data[i * FIELDS + _TRIP_LEG] = leg
+	_data[i * FIELDS + _TRIP_LEFT] = minutes
+	_data[i * FIELDS + _TRIP_TOTAL] = minutes
+
+
+## Trips seam: the person waits for or rides the elevator leg.
+func set_riding(i: int, leg: int) -> void:
+	_data[i * FIELDS + _TRIP] = TRIP_RIDING
+	_data[i * FIELDS + _TRIP_LEG] = leg
+	_data[i * FIELDS + _TRIP_LEFT] = 0
 
 
 ## Routing seam: the person arrives at their goal room.
@@ -260,6 +282,7 @@ func finish_trip(i: int) -> void:
 	_data[i * FIELDS + _TRIP] = TRIP_IDLE
 	_data[i * FIELDS + _TRIP_LEFT] = 0
 	_data[i * FIELDS + _TRIP_TOTAL] = 0
+	_data[i * FIELDS + _TRIP_LEG] = 0
 	_data[i * FIELDS + _LOCATION] = goal_room(i)
 
 
@@ -272,9 +295,12 @@ func spend_trip_minute(i: int) -> int:
 ## Trips seam: the person gives up the requested trip and stays where they are; the retry
 ## waits cooldown minutes.
 func give_up_trip(i: int, cooldown: int) -> void:
+	if trip_state(i) != TRIP_REQUESTED:  # mid-trip (elevator lost): back to the room they left
+		_data[i * FIELDS + _LOCATION] = trip_from(i)
 	_data[i * FIELDS + _TRIP] = TRIP_IDLE
 	_data[i * FIELDS + _TRIP_LEFT] = cooldown
 	_data[i * FIELDS + _TRIP_TOTAL] = 0
+	_data[i * FIELDS + _TRIP_LEG] = 0
 
 
 ## Trips seam: counts an idle retry cooldown down.
@@ -303,11 +329,11 @@ static func valid_ints(ints: Array) -> bool:
 		if ints[b + _ID] <= previous_id or ints[b + _ID] >= ints[0]:
 			return false
 		previous_id = ints[b + _ID]
-		if ints[b + _GOAL] < DEST_HOME or ints[b + _GOAL] > DEST_AWAY or ints[b + _TRIP] < TRIP_IDLE or ints[b + _TRIP] > TRIP_MOVING:
+		if ints[b + _GOAL] < DEST_HOME or ints[b + _GOAL] > DEST_AWAY or ints[b + _TRIP] < TRIP_IDLE or ints[b + _TRIP] > TRIP_RIDING:
 			return false
 		if ints[b + _OFFSET] < 0 or ints[b + _OFFSET] > ARRIVAL_SPREAD or ints[b + _STRESS] < 0 or ints[b + _STRESS] > STRESS_MAX:
 			return false
-		if ints[b + _TRIP_LEFT] < 0 or ints[b + _TRIP_TOTAL] < 0:
+		if ints[b + _TRIP_LEFT] < 0 or ints[b + _TRIP_TOTAL] < 0 or ints[b + _TRIP_LEG] < 0:
 			return false
 		for field in [_HOME, _WORK, _LOCATION, _TRIP_FROM]:
 			if ints[b + field] < NONE:

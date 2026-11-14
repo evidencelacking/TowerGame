@@ -59,7 +59,7 @@ func figures(tower: Object) -> Array[Dictionary]:
 	var people: PeopleScript = tower.people
 	for i in people.count():
 		var band := people.stress_band(i)
-		if people.trip_state(i) == PeopleScript.TRIP_MOVING:
+		if people.trip_state(i) == PeopleScript.TRIP_MOVING or people.trip_state(i) == PeopleScript.TRIP_RIDING:
 			var spot := _moving_spot(tower, i)
 			if not spot.is_empty():
 				out.append({"floor": spot[0], "x": spot[1], "band": band, "moving": true})
@@ -85,6 +85,15 @@ func _moving_spot(tower: Object, i: int) -> Array[int]:
 		var route: Dictionary = RoutesScript.find(tower.floors, tower.rooms, tower.grid, from[0], from[1], to[0], to[1])
 		route_cache[key] = route["legs"] if route["reason"] == RoutesScript.OK else []
 	var legs: Array = route_cache[key]
+	if legs.is_empty():
+		return from
+	var leg := people.trip_leg(i)
+	if people.trip_state(i) == PeopleScript.TRIP_RIDING:  # queued at the shaft, or riding with the car
+		if leg >= legs.size():
+			return from
+		var car_floor: int = tower.rooms.car_floor_of(people.id_at(i))
+		return [car_floor if car_floor != 0 else legs[leg]["floor"], legs[leg]["from_x"]]
+	legs = TripsScript.segment(legs, leg)
 	if legs.is_empty():
 		return from
 	var total := people.trip_total(i)

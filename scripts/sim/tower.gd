@@ -54,7 +54,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 17
+const SAVE_VERSION := 18
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -223,6 +223,7 @@ func _run_systems() -> void:
 	tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
 	trips.tick(clock, floors, rooms, grid, people)
 	CarsScript.tick(rooms)
+	trips.collect_arrivals(floors, rooms, grid, people)
 	people.tick(clock)
 
 
@@ -326,4 +327,5 @@ func load_state(data: Dictionary) -> bool:
 	notes = data["notes"]
 	stars = loaded_stars
 	_queue = loaded_queue
+	trips.resume(clock)
 	return true
