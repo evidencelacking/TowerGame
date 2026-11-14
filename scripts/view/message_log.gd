@@ -156,6 +156,7 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.ROOM_REMOVED: return "Bulldozed %s on floor %s" % [_kind_name(a), _floor_name(b)]
 		Msg.ROOM_REPLACED: return "Replaced with %s on floor %s" % [_kind_name(a), _floor_name(b)]
 		Msg.CONDO_REFUND: return "Condo sale paid back $%d" % a
+		Msg.STAR_PROMOTED: return "Your tower has grown to %d stars. New buildings are open to you." % a
 	return "Something happened"
 
 

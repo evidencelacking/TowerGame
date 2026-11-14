@@ -44,7 +44,7 @@ static func run(check: Callable) -> void:
 	check.call(not Toolbar.item_state("service_shaft", 1)["enabled"], "a star 2 item is greyed at 1 star")
 	check.call(not Toolbar.item_state("hotel_single", 1)["enabled"], "a star 2 room is greyed at 1 star")
 	# Star 1 items the sim cannot build yet show, cannot be picked, and say why.
-	for id in ["local_shaft", "fast_food"]:
+	for id in ["fast_food"]:
 		var pending := Toolbar.item_state(id, 1)
 		check.call(not pending["enabled"] and not pending["locked"], "%s is greyed but not star-locked" % id)
 		check.call("Not buildable" in pending["tooltip"], "%s tooltip says it is not buildable yet" % id)

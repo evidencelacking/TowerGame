@@ -16,9 +16,11 @@ const PeopleScript := preload("res://scripts/sim/people.gd")
 const TripsScript := preload("res://scripts/sim/trips.gd")
 const CarsScript := preload("res://scripts/sim/cars.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
+const GradesScript := preload("res://scripts/sim/grades.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
 const NamesScript := preload("res://scripts/sim/names.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
+const StarRulesScript := preload("res://scripts/sim/star_rules.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
 ## point in that tick (see step). Integers only, so it saves and hashes exactly.
@@ -56,7 +58,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 20
+const SAVE_VERSION := 22
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -78,12 +80,14 @@ var names := NamesScript.new()
 var tenancy := TenancyScript.new()
 ## Trip executor: moves people along routes and charges travel stress (see Trips). Not saved.
 var trips := TripsScript.new()
+## Quality score and A/B/C grade of tenant rooms (see Grades). Saved: who has made a first trip.
+var grades := GradesScript.new()
 ## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY, PLACE_ROOM, PLACE_STAIRS, BULLDOZE or REPLACE_ROOM command (OK or a refusal reason; see
 ## Ledger and Floors for the codes).
 var last_refusal: int = 0
 ## Placeholder state that commands change, so tests can see them. Replaced as real state lands.
 var notes: int = 0
-## The tower's star rating, 1 to 5. Nothing raises it yet (later issue); the HUD, toolbar and ghost read it.
+## The tower's star rating, 1 to 5. Only promote_stars raises it and nothing lowers it. The HUD, toolbar and ghost read it.
 var stars: int = START_STARS
 
 var _queue: Array[Command] = []
@@ -230,9 +234,31 @@ func _run_systems() -> void:
 	clock.advance()
 	tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
 	trips.tick(clock, floors, rooms, grid, people)
+	grades.tick(people)
 	CarsScript.tick(rooms)
 	trips.collect_arrivals(floors, rooms, grid, people)
 	people.tick(clock)
+	if StarRulesScript.is_check_tick(clock):
+		promote_stars()
+
+
+## Raises stars to what the population now earns and logs one message per star gained. Never
+## lowers. Runs once a day (StarRules.CHECK_MINUTE); public so tests can call it.
+func promote_stars() -> void:
+	var earned := StarRulesScript.rating_after(stars, population())
+	while stars < earned:
+		stars += 1
+		messages.add(tick, MessagesScript.STAR_PROMOTED, stars)
+
+
+## Quality score 0 to 300 of a graded room (office, condo, hotel), or -1. Read-only, for the view.
+func quality(room: int) -> int:
+	return grades.quality(rooms, people, room)
+
+
+## GradesScript.GRADE_A, GRADE_B or GRADE_C for a graded room, or GRADE_NONE. Read-only.
+func grade(room: int) -> int:
+	return grades.grade(rooms, people, room)
 
 
 ## Deterministic 64-bit hash of the whole simulation state, RNG and queue included.
@@ -253,6 +279,7 @@ func _state_ints() -> Array[int]:
 	ints.append_array(rooms.state_ints())
 	ints.append_array(messages.state_ints())
 	ints.append_array(people.state_ints())
+	ints.append_array(grades.state_ints())
 	ints.append_array(names.state_ints())
 	ints.append(last_refusal)
 	ints.append(_queue.size())
@@ -275,7 +302,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "names": names.state_ints(), "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -298,8 +325,9 @@ func load_state(data: Dictionary) -> bool:
 	var messages_ints: Variant = data.get("messages")
 	var people_ints: Variant = data.get("people")
 	var names_ints: Variant = data.get("names")
+	var grades_ints: Variant = data.get("grades")
 	var queue_data: Variant = data.get("queue")
-	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and names_ints is Array and queue_data is Array):
+	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and queue_data is Array):
 		return false
 	var loaded_grid := Grid.new()
 	if not Clock.valid_ints(clock_ints) or not loaded_grid.load_ints(grid_ints) or not LedgerScript.valid_ints(ledger_ints) or not FloorsScript.valid_ints(floors_ints):
@@ -310,7 +338,7 @@ func load_state(data: Dictionary) -> bool:
 		return false
 	if not PeopleScript.valid_ints(people_ints):
 		return false
-	if not NamesScript.valid_ints(names_ints):
+	if not GradesScript.valid_ints(grades_ints) or not NamesScript.valid_ints(names_ints):
 		return false
 	var loaded_queue: Array[Command] = []
 	for entry in queue_data:
@@ -333,6 +361,7 @@ func load_state(data: Dictionary) -> bool:
 	rooms.load_ints(rooms_ints)
 	messages.load_ints(messages_ints)
 	people.load_ints(people_ints)
+	grades.load_ints(grades_ints)
 	names.load_ints(names_ints)
 	last_refusal = data["last_refusal"]
 	tick = data["tick"]
