@@ -14,14 +14,14 @@ const START_TICK := 580  ## About 8:48 on a weekday: the first arrivals come at 
 
 ## The tower, with the clock at START_TICK, just before the morning arrivals. Each floor holds at most about 40
 ## offices, so 340 need floors 3 to 11; the loops end because x only ever grows and floors are finite.
-static func build(seed_value: int) -> TowerSim:
+static func build(seed_value: int, offices: int = OFFICES, shafts: int = SHAFT_XS.size()) -> TowerSim:
 	var t := TowerSim.new(seed_value, 2000000000)
 	t.stars = 5
 	t.floors.build_lobby(t.ledger, 0, 1, 0, 399, 2)
 	for f in range(3, TOP + 1):
 		t.floors.fill_span(f, 0, 399)
 	var shaft_kind := CatalogueScript.IDS.find("local_shaft")
-	for x in SHAFT_XS:
+	for x in SHAFT_XS.slice(0, shafts):
 		t.rooms.place_shaft(t.grid, t.floors, t.ledger, 0, shaft_kind, 1, TOP, x)
 	for id in t.rooms.shaft_ids():
 		for car in 8:
@@ -31,7 +31,7 @@ static func build(seed_value: int) -> TowerSim:
 	var placed := 0
 	for f in range(3, TOP + 1):
 		var x := 0
-		while x + width <= 400 and placed < OFFICES:
+		while x + width <= 400 and placed < offices:
 			if t.rooms.place_room(t.grid, t.floors, t.ledger, 0, office, f, x) == 0:
 				placed += 1
 				x += width
