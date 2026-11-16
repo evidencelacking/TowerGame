@@ -11,12 +11,14 @@ var _body: Label
 var _edit: LineEdit
 var _button: Button
 var _rename_row: HBoxContainer
+var _column: VBoxContainer
 
 
 func _init() -> void:
 	name = "InfoPanel"
 	custom_minimum_size = Vector2(240, 0)
 	var column := VBoxContainer.new()
+	_column = column
 	add_child(column)
 	_title = Label.new()
 	_title.name = "Title"
@@ -51,6 +53,12 @@ func show_info(title: String, lines: Array[String], rename_text: Variant = null,
 	if rename_text != null and reset_field:
 		_edit.text = rename_text as String
 	visible = true
+
+
+## Adds a control below the rename row, for owners that need more than text (the room window's
+## grade bar and rent buttons).
+func add_control(control: Control) -> void:
+	_column.add_child(control)
 
 
 func title_text() -> String:
