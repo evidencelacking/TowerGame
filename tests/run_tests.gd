@@ -51,6 +51,7 @@ const TestStars := preload("res://tests/test_stars.gd")
 const TestPersonWindow := preload("res://tests/test_person_window.gd")
 const TestRent := preload("res://tests/test_rent.gd")
 const TestRoomWindow := preload("res://tests/test_room_window.gd")
+const TestRunningCosts := preload("res://tests/test_running_costs.gd")
 
 var failures := 0
 
@@ -105,6 +106,7 @@ func _initialize() -> void:
 	TestPersonWindow.run(check)
 	TestRent.run(check)
 	TestRoomWindow.run(check)
+	TestRunningCosts.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 

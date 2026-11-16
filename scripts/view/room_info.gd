@@ -7,6 +7,7 @@ const GradesScript := preload("res://scripts/sim/grades.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
 const ComplaintsScript := preload("res://scripts/sim/complaints.gd")
 const PersonInfo := preload("res://scripts/view/person_info.gd")
+const RunningCosts := preload("res://scripts/sim/running_costs.gd")
 
 const LEVEL_NAMES: Array[String] = ["Lowest", "Low", "Average", "Highest"]
 const QUALITY_MAX := 300  ## The grade bar's full scale (Grades quality runs 0 to 300).
@@ -37,7 +38,7 @@ static func room_at(tower: Object, world: Vector2) -> int:
 
 ## The room's data: {"id", "kind", "label", "floor_label", "width", "occupants" (names),
 ## "capacity", "vacant", "quality" (-1 if none), "grade", "customers_grade" (true if the bar
-## would come from customers), "rentable", "rent_level", "rent", "reasons"}.
+## would come from customers), "rentable", "rent_level", "rent", "upkeep" (dollars a quarter), "reasons"}.
 static func describe(tower: Object, room: int) -> Dictionary:
 	var kind: String = tower.rooms.kind_of(room)
 	var run: Array[int] = tower.grid.run_of(room)
@@ -62,6 +63,7 @@ static func describe(tower: Object, room: int) -> Dictionary:
 		"rentable": rentable,
 		"rent_level": tower.rent_level(room) if rentable else -1,
 		"rent": tower.rent_amount(room),
+		"upkeep": RunningCosts.upkeep_of(kind),
 		"reasons": tower.complaint_reasons(room),
 	}
 
@@ -83,6 +85,8 @@ static func lines_for(info: Dictionary) -> Array[String]:
 		lines.append("Grade: waiting for customer numbers")
 	if info["rentable"]:
 		lines.append("Rent: $%d a quarter (%s)" % [info["rent"], LEVEL_NAMES[info["rent_level"]]])
+	if info["upkeep"] > 0:
+		lines.append("Upkeep: $%d a quarter" % info["upkeep"])
 	var reasons: Array[int] = info["reasons"]
 	if reasons.is_empty():
 		if info["grade"] != GradesScript.GRADE_NONE:

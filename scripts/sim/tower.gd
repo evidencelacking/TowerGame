@@ -22,6 +22,7 @@ const MessagesScript := preload("res://scripts/sim/messages.gd")
 const NamesScript := preload("res://scripts/sim/names.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
+const RunningCostsScript := preload("res://scripts/sim/running_costs.gd")
 const ComplaintsScript := preload("res://scripts/sim/complaints.gd")
 const StarRulesScript := preload("res://scripts/sim/star_rules.gd")
 
@@ -260,7 +261,10 @@ func _run_systems() -> void:
 	clock.advance()
 	tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
 	if clock.quarter_started:
-		rent.collect(rooms, people, ledger, tick)
+		var rent_income := rent.collect(rooms, people, ledger, tick)
+		var running := RunningCostsScript.charge(rooms, floors, ledger, tick)
+		if rent_income > 0 or running > 0:
+			messages.add(tick, MessagesScript.QUARTER_SETTLED, rent_income, running)
 	trips.tick(clock, floors, rooms, grid, people)
 	grades.tick(people)
 	CarsScript.tick(rooms)

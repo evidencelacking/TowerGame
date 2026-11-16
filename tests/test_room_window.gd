@@ -8,6 +8,7 @@ const Rent := preload("res://scripts/sim/rent.gd")
 const Grades := preload("res://scripts/sim/grades.gd")
 const Complaints := preload("res://scripts/sim/complaints.gd")
 const Catalogue := preload("res://scripts/sim/room_catalogue.gd")
+const RunningCosts := preload("res://scripts/sim/running_costs.gd")
 const RoomInfo := preload("res://scripts/view/room_info.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
@@ -67,6 +68,8 @@ static func run(check: Callable) -> void:
 	check.call("Rent: $%d a quarter (Average)" % t.rent_amount(a) in body, "window: shows the rent at the default level")
 	check.call(window.bar.visible and window.bar.value == t.quality(a), "window: the grade bar fills to the quality")
 
+	check.call(RunningCosts.upkeep_of("office") == 0 and "Upkeep" not in body, "window: an office has no upkeep, so no upkeep line")
+
 	# Rent change made in the window applies in the sim, to that room only.
 	check.call(window.set_rent(Rent.LEVEL_HIGH), "rent: the window queues a SET_RENT")
 	check.call(t.rent_level(a) == Rent.DEFAULT_LEVEL, "rent: nothing changes until the tick applies it")
@@ -113,6 +116,16 @@ static func run(check: Callable) -> void:
 	w2.show_room(empty_room, true)
 	check.call(w2.is_open() and "For Rent: no occupants" in w2.panel.body_text(), "window: a vacant office reads For Rent with no occupants")
 	w2.free()
+
+	# Upkeep: only office and condo can be placed and neither has upkeep yet, so the line is
+	# checked on the described data with an upkeep from a kind that has one.
+	var plain := RoomInfo.describe(vacant, empty_room)
+	check.call(plain["upkeep"] == RunningCosts.upkeep_of("office") and "Upkeep" not in "
+".join(RoomInfo.lines_for(plain)), "window: a room with no upkeep has no upkeep line")
+	var costly := plain.duplicate()
+	costly["upkeep"] = RunningCosts.upkeep_of("security")
+	check.call(costly["upkeep"] > 0 and "Upkeep: $%d a quarter" % costly["upkeep"] in "
+".join(RoomInfo.lines_for(costly)), "window: a room with upkeep shows its quarterly upkeep")
 
 	# A condo has a grade bar but no rent buttons (its rent is locked).
 	var condo_tower := TestCondos._tower()
