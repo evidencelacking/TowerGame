@@ -26,3 +26,13 @@ func _ready() -> void:
 	room_window.name = "RoomWindow"
 	add_child(room_window)
 	room_window.bind(_tower, $PlacementGhost as PlacementGhost)
+	var finance_window := FinanceWindow.new()
+	finance_window.name = "FinanceWindow"
+	add_child(finance_window)
+	finance_window.bind(_tower)
+	var money: Label = $Hud.get_node("%MoneyLabel")
+	money.mouse_filter = Control.MOUSE_FILTER_STOP
+	money.gui_input.connect(func(event: InputEvent) -> void:
+		var click := event as InputEventMouseButton
+		if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
+			finance_window.toggle())
