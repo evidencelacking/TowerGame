@@ -26,6 +26,8 @@ const ESCALATOR_BUILT := 28  ## a: lower floor.
 const RENT_SET := 29  ## a: room id, b: new level.
 const QUARTER_SETTLED := 30  ## a: rent collected, b: running costs charged, in dollars; logged at a quarter start when either is above 0.
 
+const GUEST_UNREACHED := 31  ## a: room id. Hotel guests could not reach their room and left.
+
 const CAP := 500  ## Entries kept; the oldest drop first.
 const FIELDS := 4
 

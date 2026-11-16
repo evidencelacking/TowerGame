@@ -80,6 +80,21 @@ func add_person(home: int, work: int, rng: Object) -> int:
 	return id
 
 
+## Hotel seam: set by Tower to a Callable(room: int) -> bool that is true for hotel rooms. A guest
+## stays put in their room, so the resident day plan (out 8:00, back 18:00) does not apply to them.
+var guest_home: Callable = Callable()
+
+
+## Adds a hotel guest of room, arriving from outside the tower: they start outside with their trip
+## to the room already requested. Draws an arrival offset like add_person (to keep one draw per person).
+func add_guest(room: int, rng: Object) -> int:
+	var id := _next_id
+	_next_id += 1
+	var offset: int = rng.next_below(ARRIVAL_SPREAD + 1)
+	_data.append_array([id, room, NONE, offset, DEST_HOME, TRIP_REQUESTED, NONE, 0, 0, 0, NONE, 0] as Array[int])
+	return id
+
+
 ## Removes everyone whose home or work is room (it was bulldozed or replaced), wherever they are,
 ## mid-trip included. Returns how many went. Keeps _data compact and in id order; ids are not
 ## reused. They vanish at once: no walk-out animation (a possible later improvement).
@@ -201,7 +216,7 @@ func goal_room(i: int) -> int:
 func day_plan(i: int, day: int) -> Array[Array]:
 	var plan: Array[Array] = []
 	if work_of(i) == NONE:
-		if home_of(i) != NONE:  # a resident, all week
+		if home_of(i) != NONE and not (guest_home.is_valid() and guest_home.call(home_of(i))):  # a resident, all week
 			plan.append([RESIDENT_OUT, DEST_AWAY] as Array[int])
 			plan.append([RESIDENT_BACK, DEST_HOME] as Array[int])
 		return plan

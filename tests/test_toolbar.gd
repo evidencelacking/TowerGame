@@ -50,7 +50,7 @@ static func run(check: Callable) -> void:
 		check.call("Not buildable" in pending["tooltip"], "%s tooltip says it is not buildable yet" % id)
 		check.call(not bar.select(id) and ghost.tool == "", "%s cannot be selected" % id)
 	check.call(not bar.select("service_shaft") and ghost.tool == "", "a locked item cannot be selected")
-	check.call(Toolbar.item_state("hotel_single", 5)["tooltip"] != "", "an unlocked but unbuilt item still explains itself")
+	check.call(Toolbar.item_state("restaurant", 5)["tooltip"] != "", "an unlocked but unbuilt item still explains itself")
 
 	# Every M2 item can be picked and activates the matching ghost tool.
 	for id in M2_ITEMS:
