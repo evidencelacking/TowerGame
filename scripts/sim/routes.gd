@@ -73,7 +73,7 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 		if upper == 0:
 			continue
 		for column in GridScript.WIDTH_UNITS:
-			var id := grid.cell_at(floor_number, column)
+			var id := rooms.link_at(floor_number, column)
 			if id == GridScript.EMPTY or seen.has(id) or not RoomsScript.is_stair_kind(rooms.kind_of(id)):
 				continue
 			seen[id] = true

@@ -21,8 +21,9 @@ const ROOM_REMOVED := 24  ## a: catalogue index, b: floor number.
 const ROOM_REPLACED := 25  ## a: new catalogue index, b: floor number.
 const CONDO_REFUND := 26  ## a: dollars paid back.
 const STAR_PROMOTED := 27  ## a: the new star rating.
-const FRIEND_ARRIVED := 28  ## a: catalogue index, b: floor number.
-const TENANT_LEFT := 29  ## a: catalogue index, b: floor number.
+const ESCALATOR_BUILT := 28  ## a: lower floor.
+const FRIEND_ARRIVED := 30  ## a: catalogue index, b: floor number.
+const TENANT_LEFT := 31  ## a: catalogue index, b: floor number.
 
 const CAP := 500  ## Entries kept; the oldest drop first.
 const FIELDS := 4

@@ -24,11 +24,18 @@ const CATEGORIES: Array = [
 ]
 const TOOL_STAR: int = 1  ## Bulldoze and replace are always available.
 const TOOL_NAMES: Dictionary = {Ghost.BULLDOZE: "Bulldoze", Ghost.REPLACE: "Replace"}
+const SHAFT_TIP := "Drag up or down over built floors to place a shaft. Drag a shaft's top or bottom end to resize it. Click a floor of a shaft to switch its stop on or off."
+const CAR_TIP := "Click a shaft to add a car, homed at the nearest stop."
 const TOOL_TIPS: Dictionary = {
-	Ghost.BULLDOZE: "Remove a room (B). Permanent rooms cannot be removed.",
+	Ghost.BULLDOZE: "Remove a room (B). Stairs, escalators and shafts go first; click again for the room behind. Permanent rooms cannot be removed.",
 	Ghost.REPLACE: "Replace the room under the cursor with the last room tool you chose (R).",
+	"local_shaft": SHAFT_TIP + " Hotkey E.",
+	"service_shaft": SHAFT_TIP,
+	"local_car": CAR_TIP + " Hotkey A.",
+	"service_car": CAR_TIP,
 }
-const HOTKEYS: Dictionary = {"lobby": "L", "floor": "F", "stairs": "S", "office": "O", "condo": "C",
+const HOTKEYS: Dictionary = {"lobby": "L", "floor": "F", "stairs": "S", "escalator": "X", "office": "O", "condo": "C",
+	"local_shaft": "E", "local_car": "A",
 	Ghost.BULLDOZE: "B", Ghost.REPLACE: "R"}
 
 var ghost: PlacementGhost = null

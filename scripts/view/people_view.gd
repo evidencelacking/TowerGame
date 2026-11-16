@@ -53,7 +53,7 @@ static func _leg_weight(leg: Dictionary) -> int:
 	return _STAIRS_WEIGHT
 
 
-## One entry per person drawn: {"floor", "x", "band", "moving"}.
+## One entry per person drawn: {"id", "floor", "x", "band", "moving"}.
 func figures(tower: Object) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var people: PeopleScript = tower.people
@@ -64,13 +64,13 @@ func figures(tower: Object) -> Array[Dictionary]:
 		if people.trip_state(i) == PeopleScript.TRIP_MOVING:
 			var spot := _moving_spot(tower, i)
 			if not spot.is_empty():
-				out.append({"floor": spot[0], "x": spot[1], "band": band, "moving": true})
+				out.append({"id": people.id_at(i), "floor": spot[0], "x": spot[1], "band": band, "moving": true})
 			continue
 		var room := people.location_of(i)
 		var run: Array[int] = tower.grid.run_of(room)
 		if run.is_empty():
 			continue
-		out.append({"floor": run[0], "x": run[1] + people.id_at(i) % maxi(run[2], 1), "band": band, "moving": false})
+		out.append({"id": people.id_at(i), "floor": run[0], "x": run[1] + people.id_at(i) % maxi(run[2], 1), "band": band, "moving": false})
 	return out
 
 
