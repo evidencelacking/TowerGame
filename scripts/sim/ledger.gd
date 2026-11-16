@@ -10,8 +10,9 @@ const OPENING := 1  ## The starting funds, tick 0.
 const CHARGE := 2  ## A purchase: amount is negative.
 const REFUND := 3  ## Any adjustment that always applies (positive money back, or negative).
 const PAYOUT := 4  ## Money paid out that is never refused (a bulldozed sold condo); amount is negative.
-const INCOME := 5  ## Money earned (a condo sale, quarterly rent); amount is positive.
+const INCOME := 5  ## Money earned (quarterly rent); amount is positive.
 const COST := 6  ## A quarterly running cost; amount is negative. Never refused (see RunningCosts).
+const SALE := 7  ## A condo sold to its buyer; amount is positive. Kept apart from INCOME (rent) for the finance window.
 
 ## Results returned by charge().
 const OK := 0
@@ -52,6 +53,11 @@ func payout(at_tick: int, amount: int, ref: int) -> void:
 ## Earns amount dollars (zero or more), such as a condo sale.
 func income(at_tick: int, amount: int, ref: int) -> void:
 	_add(at_tick, amount, INCOME, ref)
+
+
+## Earns amount dollars (zero or more) from a condo sale; ref is the room id.
+func sale(at_tick: int, amount: int, ref: int) -> void:
+	_add(at_tick, amount, SALE, ref)
 
 
 ## Pays a running cost of amount dollars (zero or more). Never refused: the balance may go negative.
