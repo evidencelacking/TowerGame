@@ -17,10 +17,11 @@ extends RefCounted
 ## stress they took on the way), nothing is paid and the room logs a complaint (unreached(room),
 ## read by Complaints as UNREACHED, cleared by the next successful arrival).
 ##
-## Cleaning hook for #147 (housekeeping): is_dirty / dirty_since(room) read the tick the room turned
+## Dirty rooms (#147): is_dirty / dirty_since(room) read the tick the room turned
 ## dirty (-1 when clean), and mark_clean(room) makes it rentable again. A dirty room never takes
-## guests. TEMPORARY STOPGAP until #147 lands: with AUTO_CLEAN on, dirty rooms are cleaned at
-## AUTO_CLEAN_MINUTE so the loop works; #147 should turn AUTO_CLEAN off and clean through housekeeping.
+## guests and check-out logs ROOM_DIRTY. TEMPORARY STOPGAP until housekeeping (#148) lands: with
+## AUTO_CLEAN on, dirty rooms are cleaned at AUTO_CLEAN_MINUTE so rooms never stay dirty forever;
+## #148 should set AUTO_CLEAN false and clean through staff (mark_clean).
 ##
 ## Suites are flagged in the catalogue ("suite") for the VIP task: see suites() and is_suite().
 ## Every number below is an UNVERIFIED tunable (owner rulings, #146).
@@ -46,7 +47,7 @@ const CHECK_OUT_TO := 600  ## 10:00: check-out minutes are drawn from [CHECK_OUT
 const BOOK_PERCENT := 70  ## Chance a clean vacant room is booked on a night (tunable guess).
 const PATIENCE_MINUTES := 90  ## Sim minutes guests keep trying to reach the room before giving up (tunable guess).
 const GIVE_UP_MINUTES := 240  ## Even guests still in transit give up after this long, so a stay can never hang.
-const AUTO_CLEAN := true  ## TEMPORARY until #147: clean dirty rooms automatically. See the header.
+const AUTO_CLEAN := true  ## TEMPORARY until #148 (housekeeping flips this to false): clean dirty rooms automatically. See the header.
 const AUTO_CLEAN_MINUTE := 660  ## 11:00.
 const PARKING_KIND := "parking_space"
 
@@ -189,7 +190,7 @@ func tick(clock: ClockScript, floors: FloorsScript, people: PeopleScript, rng: O
 			ARRIVING:
 				_arriving(id, r, minute, people, messages, at_tick)
 			STAYING:
-				_staying(id, r, minute, night, people, ledger, at_tick)
+				_staying(id, r, minute, night, people, ledger, messages, at_tick)
 
 
 func _vacant(id: int, r: Array[int], minute: int, night: int, floors: FloorsScript, people: PeopleScript, rng: Object) -> void:
@@ -242,13 +243,14 @@ func _arriving(id: int, r: Array[int], minute: int, people: PeopleScript, messag
 		messages.add(at_tick, MessagesScript.GUEST_UNREACHED, id)
 
 
-func _staying(id: int, r: Array[int], minute: int, night: int, people: PeopleScript, ledger: LedgerScript, at_tick: int) -> void:
+func _staying(id: int, r: Array[int], minute: int, night: int, people: PeopleScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:
 	if night <= r[_CHECKIN_NIGHT] or minute < r[_LEAVE]:
 		return
 	people.remove_room(id)
 	ledger.hotel(at_tick, price(id), id)
 	r[_STATE] = VACANT
 	r[_DIRTY_SINCE] = at_tick
+	messages.add(at_tick, MessagesScript.ROOM_DIRTY, id)
 
 
 ## Flat ints for hashing and saving: count, then (room id, record) ordered by room id.
