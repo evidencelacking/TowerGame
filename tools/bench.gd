@@ -59,8 +59,8 @@ func _initialize() -> void:
 	print("  frame at top speed: %.1f ticks x avg = %.2f ms, x p99 = %.2f ms (limit %.0f)" % [TICKS_PER_FRAME_AT_TOP, TICKS_PER_FRAME_AT_TOP * per_tick, TICKS_PER_FRAME_AT_TOP * p99, FRAME_MS])
 	print("hash: %d" % t.state_hash())
 	_time_gestures(t)
-	if offices < Bench.OFFICES or t.people.count() < MIN_PEOPLE:
-		print("FAIL: tower too small (%d offices, %d people)" % [offices, t.people.count()])
+	if offices < Bench.OFFICES or t.people.count() < MIN_PEOPLE or t.rooms.total_cars() < 64:
+		print("FAIL: tower too small (%d offices, %d people, %d cars)" % [offices, t.people.count(), t.rooms.total_cars()])
 		quit(1)
 		return
 	quit(0)

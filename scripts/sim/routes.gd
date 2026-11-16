@@ -93,28 +93,36 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 	var edges: Array = []
 	for i in count:
 		edges.append([])
+	var on_floor: Dictionary = {}  # floor -> node indices on it, ascending
 	for i in count:
-		for j in count:
-			if i == j or node_floor[i] != node_floor[j]:
-				continue
-			var low := mini(node_x[i], node_x[j])
-			var high := maxi(node_x[i], node_x[j])
-			var counts := floors.span_counts(node_floor[i])
-			var unbuilt: PackedInt32Array = counts[0]
-			var lobbies: PackedInt32Array = counts[1]
-			if unbuilt[high + 1] - unbuilt[low] == 0:
-				edges[i].append([j, high - low, 0, lobbies[high + 1] - lobbies[low] > 0])
+		if not on_floor.has(node_floor[i]):
+			on_floor[node_floor[i]] = [] as Array[int]
+		on_floor[node_floor[i]].append(i)
+	for floor_number: int in on_floor:
+		var nodes: Array[int] = on_floor[floor_number]
+		var counts := floors.span_counts(floor_number)
+		var unbuilt: PackedInt32Array = counts[0]
+		var lobbies: PackedInt32Array = counts[1]
+		for i in nodes:
+			for j in nodes:
+				if i == j:
+					continue
+				var low := mini(node_x[i], node_x[j])
+				var high := maxi(node_x[i], node_x[j])
+				if unbuilt[high + 1] - unbuilt[low] == 0:
+					edges[i].append([j, high - low, 0, lobbies[high + 1] - lobbies[low] > 0])
 	for k in range(2, stair_nodes, 2):
 		var kind := 3 if node_esc[k] else 1
 		var cost := ESCALATOR_COST if node_esc[k] else STAIRS_COST
 		edges[k].append([k + 1, cost, kind, false])
 		edges[k + 1].append([k, cost, kind, false])
 	var lobby_top := _lobby_top(floors)
+	var waiting := rooms.waiting_keys()  # what car_waiting_at would say, from one pass over the cars
 	var group_start := stair_nodes  # a shaft's stop nodes are contiguous, in stop order
 	for i in range(stair_nodes, count):
 		if node_shaft[i] != node_shaft[group_start]:
 			group_start = i
-		var base := ELEVATOR_WAITING_COST if rooms.car_waiting_at(node_shaft[i], node_floor[i]) else ELEVATOR_BASE_COST
+		var base := ELEVATOR_WAITING_COST if waiting.has(node_shaft[i] * 1000 + node_floor[i] + 100) else ELEVATOR_BASE_COST
 		var j := group_start
 		while j < count and node_shaft[j] == node_shaft[i]:
 			if j != i:

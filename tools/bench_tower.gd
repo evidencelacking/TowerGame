@@ -21,11 +21,9 @@ static func build(seed_value: int) -> TowerSim:
 	for f in range(3, TOP + 1):
 		t.floors.fill_span(f, 0, 399)
 	var shaft_kind := CatalogueScript.IDS.find("local_shaft")
-	var shaft_ids: Array[int] = []
 	for x in SHAFT_XS:
 		t.rooms.place_shaft(t.grid, t.floors, t.ledger, 0, shaft_kind, 1, TOP, x)
-		shaft_ids.append(t.rooms._shaft_base(t.grid.cell_at(1, x)))
-	for id in shaft_ids:
+	for id in t.rooms.shaft_ids():
 		for car in 8:
 			t.rooms.add_car(t.ledger, 0, 5, id, 1)
 	var office := CatalogueScript.IDS.find("office")
