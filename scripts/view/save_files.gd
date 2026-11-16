@@ -46,6 +46,19 @@ static func read(path: String) -> Dictionary:
 	return data if data is Dictionary else {}
 
 
+## Why a file cannot be loaded, for the player; "" if it looks loadable.
+static func problem(path: String) -> String:
+	if path == "" or not FileAccess.file_exists(path):
+		return "No save file found"
+	var data := read(path)
+	if data.is_empty():
+		return "Not a tower save file"
+	var version: Variant = data.get("version", 0)
+	if version != TowerSim.SAVE_VERSION:
+		return "Save is from version %s; this game reads version %d" % [str(version), TowerSim.SAVE_VERSION]
+	return ""
+
+
 ## Loads path into the tower. Returns false, leaving the tower unchanged, if it cannot.
 static func load_into(tower: TowerSim, path: String) -> bool:
 	var data := read(path)

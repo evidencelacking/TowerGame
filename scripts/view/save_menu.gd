@@ -54,5 +54,9 @@ func load_autosave() -> bool:
 
 func _load(path: String) -> bool:
 	var ok := path != "" and SaveFiles.load_into(driver.tower, path)
-	status.text = "Loaded" if ok else "Nothing to load"
+	if ok:
+		status.text = "Loaded"
+	else:
+		var why := SaveFiles.problem(path)
+		status.text = "Load failed: " + (why if why != "" else "the save is damaged")
 	return ok

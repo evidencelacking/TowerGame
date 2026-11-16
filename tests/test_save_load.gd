@@ -16,6 +16,7 @@ static func _busy() -> TowerSim:
 	var condo := CatalogueScript.IDS.find("condo")
 	for column in [200, 220, 240]:
 		t.rooms.place_room(t.grid, t.floors, t.ledger, 0, condo, 6, column)
+	t.rooms.place_room(t.grid, t.floors, t.ledger, 0, CatalogueScript.IDS.find("hotel_single"), 6, 260)
 	t.rooms.place_escalator(t.grid, t.floors, t.ledger, 0, 3, 300)
 	t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, 4, 330)
 	var offices: Array[int] = []
@@ -61,6 +62,15 @@ static func run(check: Callable) -> void:
 	junk.close()
 	check.call(not SaveFiles.load_into(untouched, BAD_PATH) and untouched.state_hash() == before, "save: a junk file is refused")
 	check.call(not SaveFiles.load_into(untouched, "user://does_not_exist.sav"), "save: a missing file is refused")
+	var old_data := TowerSim.new(5).save()
+	old_data["version"] = TowerSim.SAVE_VERSION - 1
+	var old := FileAccess.open(BAD_PATH, FileAccess.WRITE)
+	old.store_pascal_string(SaveFiles.MAGIC)
+	old.store_var(old_data)
+	old.close()
+	check.call(not SaveFiles.load_into(untouched, BAD_PATH) and untouched.state_hash() == before, "save: a file from an older version is refused")
+	check.call(SaveFiles.problem(BAD_PATH).contains("version %d" % (TowerSim.SAVE_VERSION - 1)), "save: an old file gets a message naming its version")
+	check.call(SaveFiles.problem(PATH) == "", "save: a good file has no problem")
 
 	# Autosave: off by default; on, it writes one slot per quarter, rotating.
 	var d := Driver.new()

@@ -50,6 +50,20 @@ static func run(check: Callable) -> void:
 	check.call(in_range, "hour is 0 to 23 and minute 0 to 59 all day")
 	check.call(_state(fresh) == [1, 1, Clock.WD2, 1, 5, 0], "one day of ticks returns the time to 5:00")
 
+	# The minute of day only moves forward through a whole day, night period included (it wraps once, at midnight).
+	var walker := Clock.new()
+	var previous := walker.minute_of_day()
+	var wraps := 0
+	var forward := true
+	for _i in _day_ticks():
+		walker.advance()
+		var now := walker.minute_of_day()
+		if now < previous:
+			wraps += 1
+		forward = forward and (now >= previous or previous - now > 1000)
+		previous = now
+	check.call(forward and wraps == 1, "the minute of day never runs backwards, night included, and wraps once at midnight")
+
 	# Days: WD1 to WD2 to WE to the next quarter's WD1.
 	var days := Clock.new()
 	_advance(days, _day_ticks())

@@ -57,6 +57,7 @@ const TestRent := preload("res://tests/test_rent.gd")
 const TestRoomWindow := preload("res://tests/test_room_window.gd")
 const TestRunningCosts := preload("res://tests/test_running_costs.gd")
 const TestFinance := preload("res://tests/test_finance.gd")
+const TestHotel := preload("res://tests/test_hotel.gd")
 
 var failures := 0
 
@@ -117,6 +118,7 @@ func _initialize() -> void:
 	TestRunningCosts.run(check)
 	TestFinance.run(check)
 	TestSaveLoad.run(check)
+	TestHotel.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 

@@ -10,6 +10,7 @@ extends RefCounted
 ##   DISTANCE  its occupants' travel stress (average before modifiers) is at or above DISTANCE_FROM,
 ##             which means long walks, queues or rides to the lobby.
 ##   RENT      its rent level adds stress (Rent.stress_offset > 0).
+##   UNREACHED a hotel room whose latest guests could not reach it and left (Hotel.unreached).
 ## reasons(room) lists every reason that applies, in priority order; reason(room) is the first.
 ## Priority (unverified, tunable): noise, then distance, then rent. Ties are therefore fixed.
 ##
@@ -22,14 +23,16 @@ const GridScript := preload("res://scripts/sim/grid.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
 const NoiseScript := preload("res://scripts/sim/noise.gd")
+const HotelScript := preload("res://scripts/sim/hotel.gd")
 
 const NONE := 0
 const NOISE := 1
 const DISTANCE := 2
 const RENT := 3
+const UNREACHED := 4
 
 ## Priority order of the reasons: first match is the main one.
-const PRIORITY: Array[int] = [NOISE, DISTANCE, RENT]
+const PRIORITY: Array[int] = [NOISE, DISTANCE, RENT, UNREACHED]
 
 const NOISE_FROM := 3  ## Noise level at or above this is a complaint (unverified, tunable).
 const DISTANCE_FROM := PeopleScript.UNEASY_FROM  ## Travel stress at or above this is a complaint (unverified, tunable).
@@ -39,6 +42,7 @@ var _rooms: RoomsScript
 var _grid: GridScript
 var _people: PeopleScript
 var _rent: RentScript
+var hotel: HotelScript  ## Set by Tower; the source of UNREACHED.
 
 
 ## Wires the reasons to the tower's parts and registers noise as a grade modifier. Tower calls
@@ -68,6 +72,8 @@ func has_reason(room: int, reason: int) -> bool:
 			return _grades.average_stress(_rooms, _people, room) >= DISTANCE_FROM
 		RENT:
 			return _rent.stress_offset(_rooms, room) > 0
+		UNREACHED:
+			return hotel != null and hotel.unreached(room)
 	return false
 
 
@@ -95,4 +101,6 @@ static func label(reason: int) -> String:
 			return "Too far from the lobby or lifts"
 		RENT:
 			return "Rent too high"
+		UNREACHED:
+			return "Guests could not reach the room"
 	return ""
