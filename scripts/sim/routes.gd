@@ -51,8 +51,9 @@ const _INF := 1 << 40
 
 ## Finds a route from (from_floor, from_x) to (to_floor, to_x). Returns {"reason", "legs"}:
 ## reason is OK or a refusal code, legs is an Array of Dictionary (empty if refused or if the
-## start is the goal).
-static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, from_floor: int, from_x: int, to_floor: int, to_x: int) -> Dictionary:
+## start is the goal). staff routes ride service shafts only (no standard cars, no escalators);
+## everyone else never rides a service shaft, even when it is the only link (6.1).
+static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, from_floor: int, from_x: int, to_floor: int, to_x: int, staff: bool = false) -> Dictionary:
 	var result := {"reason": OK, "legs": []}
 	if not GridScript.is_valid_floor(from_floor) or not GridScript.is_valid_floor(to_floor):
 		result["reason"] = BAD_FLOOR
@@ -76,6 +77,8 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 			var id := rooms.link_at(floor_number, column)
 			if id == GridScript.EMPTY or seen.has(id) or not RoomsScript.is_stair_kind(rooms.kind_of(id)):
 				continue
+			if staff and rooms.kind_of(id) == "escalator":
+				continue  # staff use stairs and service cars, not escalators (6.1)
 			seen[id] = true
 			var esc := rooms.kind_of(id) == "escalator"
 			node_esc.append(esc)
@@ -88,8 +91,8 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 			node_shaft.append(0)
 	var stair_nodes := node_floor.size()
 	for shaft: int in rooms.shaft_ids():
-		if rooms.kind_of(shaft) == "express_shaft":
-			continue
+		if rooms.kind_of(shaft) == "express_shaft" or (rooms.kind_of(shaft) == "service_shaft") != staff:
+			continue  # service shafts are staff only, and staff ride nothing else (6.1)
 		for stop: int in rooms.stops_of(shaft):
 			node_floor.append(stop)
 			node_x.append(rooms.shaft_x(shaft))
