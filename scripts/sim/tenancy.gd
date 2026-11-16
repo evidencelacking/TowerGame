@@ -35,10 +35,11 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 	var entry_x := floors.lobby_span()[0]  # left-edge entry
 	var leasing := clock.day_of_week() != Clock.WE and minute < LEASE_END
 	var selling := minute >= SALE_RESUME and minute < SALE_STOP
+	var workers := people.worker_counts()  # one pass; only the room being filled changes below
 	for id in rooms.room_ids():
 		var kind := rooms.kind_of(id)
 		if kind == "office" and leasing:
-			var need := rooms.people_in(id) - people.workers_in(id)
+			var need := rooms.people_in(id) - int(workers.get(id, 0))
 			if need > 0 and _reachable(floors, rooms, grid, id, entry_x):
 				for n in need:
 					people.add_person(PeopleScript.NONE, id, rng)

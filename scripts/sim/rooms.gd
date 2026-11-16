@@ -719,6 +719,23 @@ func car_waiting_at(shaft_id: int, floor_number: int) -> bool:
 	return false
 
 
+## Which (shaft, floor) pairs car_waiting_at answers true for, as sorted keys shaft * 1000 + floor + 100.
+## One pass over the cars, so a caller asking about many floors can compare two moments cheaply.
+func waiting_keys() -> Array[int]:
+	var keys: Array[int] = []
+	for n in _cars.size():
+		var car: Array = _cars[n]
+		var floor_number := -1000
+		if car[CarsScript.STATE] == CarsScript.IDLE:
+			floor_number = car[CarsScript.FLOOR]
+		elif car[CarsScript.LOAD] < car_capacity() and not CarsScript.going_home(self, n):
+			floor_number = car[CarsScript.TARGET]
+		if floor_number != -1000:
+			keys.append(int(car[CarsScript.SHAFT]) * 1000 + floor_number + 100)
+	keys.sort()
+	return keys
+
+
 ## True when the person is queued for a car or riding one.
 func in_elevator(person_id: int) -> bool:
 	return car_floor_of(person_id) != 0 or queued_ids().has(person_id)
