@@ -92,7 +92,7 @@ func ticks_in_period() -> int:
 ## In-game minutes since midnight, 0 to 1,439, derived from the tick position in the period.
 func minute_of_day() -> int:
 	var start := period_start(_period)
-	var span := (period_start(_period + 1) - start) % MINUTES_PER_DAY
+	var span := posmod(period_start(_period + 1) - start, MINUTES_PER_DAY)
 	if span == 0:
 		span = MINUTES_PER_DAY
 	return (start + _ticks_in_period * span / period_ticks(_period)) % MINUTES_PER_DAY

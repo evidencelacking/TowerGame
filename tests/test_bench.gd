@@ -10,7 +10,7 @@ const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const Bench := preload("res://tools/bench_tower.gd")
 
 const SMALL_TICKS := 400
-const SMALL_HASH := 2032652333440579341  ## Hash of the small tower after SMALL_TICKS ticks, from main without the #108 speed-ups (after #114).
+const SMALL_HASH := -7869078116447496725  ## Hash of the small tower after SMALL_TICKS ticks. Re-pinned for #150: the state now holds the commerce ints.
 
 
 ## What a scan of the whole grid for stairs and escalators finds, in scan order: [floor, column, escalator].

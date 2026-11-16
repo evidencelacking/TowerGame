@@ -14,6 +14,8 @@ const INCOME := 5  ## Money earned (quarterly rent); amount is positive.
 const COST := 6  ## A quarterly running cost; amount is negative. Never refused (see RunningCosts).
 const SALE := 7  ## A condo sold to its buyer; amount is positive. Kept apart from INCOME (rent) for the finance window.
 
+const SHOP := 8  ## A shop's daily takings (fast food, #150); negative when the day loses money. Own kind for the finance window.
+
 ## Results returned by charge().
 const OK := 0
 const SHORT_OF_FUNDS := 1
@@ -58,6 +60,11 @@ func income(at_tick: int, amount: int, ref: int) -> void:
 ## Earns amount dollars (zero or more) from a condo sale; ref is the room id.
 func sale(at_tick: int, amount: int, ref: int) -> void:
 	_add(at_tick, amount, SALE, ref)
+
+
+## Credits a shop's daily result: positive income or a negative loss; ref is the room id.
+func shop_sales(at_tick: int, amount: int, ref: int) -> void:
+	_add(at_tick, amount, SHOP, ref)
 
 
 ## Pays a running cost of amount dollars (zero or more). Never refused: the balance may go negative.

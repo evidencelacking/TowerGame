@@ -25,6 +25,7 @@ const EvaluationScript := preload("res://scripts/sim/evaluation.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
 const RunningCostsScript := preload("res://scripts/sim/running_costs.gd")
 const ComplaintsScript := preload("res://scripts/sim/complaints.gd")
+const CommerceScript := preload("res://scripts/sim/commerce.gd")
 const StarRulesScript := preload("res://scripts/sim/star_rules.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
@@ -65,7 +66,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 25
+const SAVE_VERSION := 26
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -104,6 +105,9 @@ var last_refusal: int = 0
 var notes: int = 0
 ## The tower's star rating, 1 to 5. Only promote_stars raises it and nothing lowers it. The HUD, toolbar and ghost read it.
 var stars: int = START_STARS
+
+## Shop customers and daily sales (see Commerce). Saved: today's and yesterday's counts.
+var commerce := CommerceScript.new()
 
 var _queue: Array[Command] = []
 
@@ -263,6 +267,7 @@ func _note_refusal(code: int, detail: int) -> bool:
 func _run_systems() -> void:
 	clock.advance()
 	tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
+	commerce.tick(clock, floors, rooms, grid, people, tenancy, rng, ledger, messages, tick)
 	if clock.quarter_started:
 		var rent_income := rent.collect(rooms, people, ledger, tick)
 		var running := RunningCostsScript.charge(rooms, floors, ledger, tick)
@@ -346,6 +351,7 @@ func _state_ints() -> Array[int]:
 	ints.append_array(evaluation.state_ints())
 	ints.append_array(names.state_ints())
 	ints.append_array(rent.state_ints())
+	ints.append_array(commerce.state_ints())
 	ints.append(last_refusal)
 	ints.append(_queue.size())
 	for command in _queue:
@@ -367,7 +373,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "evaluation": evaluation.state_ints(), "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "commerce": commerce.state_ints(), "evaluation": evaluation.state_ints(), "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -393,8 +399,9 @@ func load_state(data: Dictionary) -> bool:
 	var grades_ints: Variant = data.get("grades")
 	var rent_ints: Variant = data.get("rent")
 	var evaluation_ints: Variant = data.get("evaluation")
+	var commerce_ints: Variant = data.get("commerce")
 	var queue_data: Variant = data.get("queue")
-	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and rent_ints is Array and evaluation_ints is Array and queue_data is Array):
+	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and rent_ints is Array and commerce_ints is Array and evaluation_ints is Array and queue_data is Array):
 		return false
 	var loaded_grid := Grid.new()
 	if not Clock.valid_ints(clock_ints) or not loaded_grid.load_ints(grid_ints) or not LedgerScript.valid_ints(ledger_ints) or not FloorsScript.valid_ints(floors_ints):
@@ -407,7 +414,7 @@ func load_state(data: Dictionary) -> bool:
 		return false
 	if not GradesScript.valid_ints(grades_ints) or not NamesScript.valid_ints(names_ints) or not EvaluationScript.valid_ints(evaluation_ints):
 		return false
-	if not RentScript.valid_ints(rent_ints):
+	if not RentScript.valid_ints(rent_ints) or not CommerceScript.valid_ints(commerce_ints):
 		return false
 	var loaded_queue: Array[Command] = []
 	for entry in queue_data:
@@ -434,6 +441,7 @@ func load_state(data: Dictionary) -> bool:
 	evaluation.load_ints(evaluation_ints)
 	names.load_ints(names_ints)
 	rent.load_ints(rent_ints)
+	commerce.load_ints(commerce_ints)
 	last_refusal = data["last_refusal"]
 	tick = data["tick"]
 	rng.state = data["rng_state"]

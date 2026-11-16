@@ -10,13 +10,14 @@ const LedgerScript := preload("res://scripts/sim/ledger.gd")
 
 ## Display order of the line kinds. Covers every Ledger kind once (a test checks).
 const KINDS: Array[int] = [
-	LedgerScript.OPENING, LedgerScript.INCOME, LedgerScript.SALE, LedgerScript.REFUND,
+	LedgerScript.OPENING, LedgerScript.INCOME, LedgerScript.SALE, LedgerScript.SHOP, LedgerScript.REFUND,
 	LedgerScript.CHARGE, LedgerScript.PAYOUT, LedgerScript.COST,
 ]
 const LABELS: Dictionary = {
 	LedgerScript.OPENING: "Opening funds",
 	LedgerScript.INCOME: "Rent",
 	LedgerScript.SALE: "Condo sales",
+	LedgerScript.SHOP: "Shop sales",
 	LedgerScript.REFUND: "Adjustments",
 	LedgerScript.CHARGE: "Construction",
 	LedgerScript.PAYOUT: "Bulldoze payouts",
