@@ -65,6 +65,7 @@ static func describe(tower: Object, room: int) -> Dictionary:
 		"rent": tower.rent_amount(room),
 		"upkeep": RunningCosts.upkeep_of(kind),
 		"reasons": tower.complaint_reasons(room),
+		"dirty": tower.hotel.is_dirty(room),
 	}
 
 
@@ -79,6 +80,8 @@ static func lines_for(info: Dictionary) -> Array[String]:
 		lines.append("Occupants: %d of %d" % [names.size(), info["capacity"]])
 		for n in names:
 			lines.append("  " + n)
+	if info.get("dirty", false):
+		lines.append("Dirty: needs cleaning before it can be rented")
 	if info["grade"] != GradesScript.GRADE_NONE:
 		lines.append("Grade %s (quality %d of %d)" % [GradesScript.letter(info["grade"]), info["quality"], QUALITY_MAX])
 	elif info["customers_grade"]:
