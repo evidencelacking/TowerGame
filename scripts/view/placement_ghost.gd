@@ -71,7 +71,7 @@ var tower: TowerSim = null
 var tool: String = ""  ## "" (off), BULLDOZE, or a catalogue id.
 var stars: int:  ## Current star rating, read from the sim.
 	get:
-		return tower.stars if tower != null else TowerSim.START_STARS
+		return tower.unlocked_stars() if tower != null else TowerSim.START_STARS
 var last_room: String = "office"  ## The room the replace tool builds: the last room tool chosen.
 var _last_key: Array = []  ## What result was computed for; check_* only reruns when it changes.
 var result: Dictionary = {}  ## Last evaluate() verdict, for the label and the tests.
