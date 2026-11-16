@@ -47,6 +47,7 @@ const ELEVATOR_COST_PER_FLOOR := 1  ## Guess: per floor ridden; a ride beats sta
 const MAX_ELEVATORS := 2  ## One transfer a trip (M).
 
 const _INF := 1 << 40
+const HEAP_SHIFT := 1 << 24  ## Search states stay below this, so dist * HEAP_SHIFT + state orders by cost then state.
 
 
 ## Finds a route from (from_floor, from_x) to (to_floor, to_x). Returns {"reason", "legs"}:
@@ -65,27 +66,19 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 	var node_x: Array[int] = [from_x, to_x]
 	var node_shaft: Array[int] = [0, 0]
 	var node_esc: Array[bool] = [false, false]
-	var seen: Dictionary = {}
-	for floor_number in range(GridScript.FLOOR_MIN, GridScript.FLOOR_MAX + 1):
-		if not GridScript.is_valid_floor(floor_number):
-			continue
+	for spot: Array in _stair_spots(rooms, grid):
+		var esc: bool = spot[2]
+		var floor_number: int = spot[0]
+		var column: int = spot[1]
 		var upper := RoomsScript.floor_above(floor_number)
-		if upper == 0:
-			continue
-		for column in GridScript.WIDTH_UNITS:
-			var id := grid.cell_at(floor_number, column)
-			if id == GridScript.EMPTY or seen.has(id) or not RoomsScript.is_stair_kind(rooms.kind_of(id)):
-				continue
-			seen[id] = true
-			var esc := rooms.kind_of(id) == "escalator"
-			node_esc.append(esc)
-			node_esc.append(esc)
-			node_floor.append(floor_number)
-			node_x.append(column)
-			node_floor.append(upper)
-			node_x.append(column)
-			node_shaft.append(0)
-			node_shaft.append(0)
+		node_esc.append(esc)
+		node_esc.append(esc)
+		node_floor.append(floor_number)
+		node_x.append(column)
+		node_floor.append(upper)
+		node_x.append(column)
+		node_shaft.append(0)
+		node_shaft.append(0)
 	var stair_nodes := node_floor.size()
 	for shaft: int in rooms.shaft_ids():
 		if rooms.kind_of(shaft) == "express_shaft":
@@ -106,27 +99,28 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 				continue
 			var low := mini(node_x[i], node_x[j])
 			var high := maxi(node_x[i], node_x[j])
-			var walkable := true
-			var lobby := false
-			for column in range(low, high + 1):
-				if not floors.has_floor(node_floor[i], column):
-					walkable = false
-					break
-				if floors.has_lobby_at(node_floor[i], column):
-					lobby = true
-			if walkable:
-				edges[i].append([j, high - low, 0, lobby])
+			var counts := floors.span_counts(node_floor[i])
+			var unbuilt: PackedInt32Array = counts[0]
+			var lobbies: PackedInt32Array = counts[1]
+			if unbuilt[high + 1] - unbuilt[low] == 0:
+				edges[i].append([j, high - low, 0, lobbies[high + 1] - lobbies[low] > 0])
 	for k in range(2, stair_nodes, 2):
 		var kind := 3 if node_esc[k] else 1
 		var cost := ESCALATOR_COST if node_esc[k] else STAIRS_COST
 		edges[k].append([k + 1, cost, kind, false])
 		edges[k + 1].append([k, cost, kind, false])
+	var lobby_top := _lobby_top(floors)
+	var group_start := stair_nodes  # a shaft's stop nodes are contiguous, in stop order
 	for i in range(stair_nodes, count):
-		for j in range(stair_nodes, count):
-			if i != j and node_shaft[i] == node_shaft[j]:
+		if node_shaft[i] != node_shaft[group_start]:
+			group_start = i
+		var base := ELEVATOR_WAITING_COST if rooms.car_waiting_at(node_shaft[i], node_floor[i]) else ELEVATOR_BASE_COST
+		var j := group_start
+		while j < count and node_shaft[j] == node_shaft[i]:
+			if j != i:
 				var rise := absi(GridScript.floor_to_index(node_floor[i]) - GridScript.floor_to_index(node_floor[j]))
-				var base := ELEVATOR_WAITING_COST if rooms.car_waiting_at(node_shaft[i], node_floor[i]) else ELEVATOR_BASE_COST
-				edges[i].append([j, base + ELEVATOR_COST_PER_FLOOR * rise, 2, is_lobby_floor(floors, node_floor[j])])
+				edges[i].append([j, base + ELEVATOR_COST_PER_FLOOR * rise, 2, node_floor[j] >= 1 and node_floor[j] <= lobby_top])
+			j += 1
 
 	if not _search(node_floor, node_x, node_shaft, node_esc, edges, floors, true, result):
 		# Tell the refusals apart: no way at all, a transfer rule, or the stairs limit.
@@ -142,8 +136,34 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 ## True when floor_number is a lobby floor, where elevator transfers are allowed. Today that is
 ## the ground lobby's floors; sky lobbies join here later.
 static func is_lobby_floor(floors: FloorsScript, floor_number: int) -> bool:
+	return floor_number >= 1 and floor_number <= _lobby_top(floors)
+
+
+## The top floor of the ground lobby, or 0 when there is none. Read once per search.
+static func _lobby_top(floors: FloorsScript) -> int:
 	var span := floors.lobby_span()
-	return not span.is_empty() and floor_number >= 1 and floor_number <= span[2]
+	return 0 if span.is_empty() else span[2]
+
+
+## Every stairs and escalator as [floor, column, is_escalator], bottom floor first and left to
+## right within a floor: the order a scan of the grid from the lowest floor up would find them.
+## A scan visits each cell; this reads the placed rooms instead.
+static func _stair_spots(rooms: RoomsScript, grid: GridScript) -> Array:
+	var keyed: Dictionary = {}
+	for id in rooms.room_ids():
+		var kind := rooms.kind_of(id)
+		if not RoomsScript.is_stair_kind(kind):
+			continue
+		var run := grid.run_of(id)
+		if run.is_empty() or RoomsScript.floor_above(run[0]) == 0:
+			continue
+		keyed[GridScript.floor_to_index(run[0]) * GridScript.WIDTH_UNITS + run[1]] = [run[0], run[1], kind == "escalator"]
+	var keys: Array = keyed.keys()
+	keys.sort()
+	var spots: Array = []
+	for key: int in keys:
+		spots.append(keyed[key])
+	return spots
 
 
 ## Dijkstra over (node, stairs used, elevator state) states. Elevator state: 0 none ridden, 1 one
@@ -152,6 +172,7 @@ static func is_lobby_floor(floors: FloorsScript, floor_number: int) -> bool:
 ## of rides is fine. Fills result.legs and returns true when the goal is reached.
 static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Array[int], node_esc: Array[bool], edges: Array, floors: FloorsScript, limit_transfers: bool, result: Dictionary) -> bool:
 	var step := LEG_LIMIT + 1
+	var lobby_top := _lobby_top(floors)
 	var states := node_floor.size() * step * 4
 	var dist: Array[int] = []
 	var prev: Array[int] = []
@@ -163,19 +184,16 @@ static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Arra
 	prev.fill(-1)
 	done.fill(false)
 	dist[0] = 0
-	var open: Array[int] = [0]
+	# Open states live in a binary heap of dist * HEAP_SHIFT + state, so the cheapest comes out
+	# first and equal costs come out lowest state first, as a linear scan for that pair would.
+	var open := PackedInt64Array([0])
 	var goal_state := -1
 	while not open.is_empty():
-		var best := -1
-		var best_dist := _INF
-		var best_at := 0
-		for k in open.size():
-			var s: int = open[k]
-			if dist[s] < best_dist or (dist[s] == best_dist and s < best):
-				best_dist = dist[s]
-				best = s
-				best_at = k
-		open.remove_at(best_at)
+		var top := _heap_pop(open)
+		var best := top % HEAP_SHIFT
+		var best_dist := top / HEAP_SHIFT
+		if done[best] or best_dist != dist[best]:
+			continue  # a stale entry: the state was reached cheaper since
 		done[best] = true
 		var es := best % 4
 		var node := best / 4 / step
@@ -195,17 +213,16 @@ static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Arra
 			if edge[2] == 2 and limit_transfers:
 				if es == 0:
 					next_es = 2 if edge[3] else 1
-				elif es == 2 and is_lobby_floor(floors, node_floor[node]):
+				elif es == 2 and node_floor[node] >= 1 and node_floor[node] <= lobby_top:
 					next_es = 3
 				else:
 					continue
 			var next_state: int = ((edge[0] as int) * step + next_used) * 4 + next_es
 			var next_dist: int = best_dist + (edge[1] as int)
 			if not done[next_state] and next_dist < dist[next_state]:
-				if dist[next_state] == _INF:
-					open.append(next_state)
 				dist[next_state] = next_dist
 				prev[next_state] = best
+				_heap_push(open, next_dist * HEAP_SHIFT + next_state)
 	if goal_state == -1:
 		return false
 	var path: Array[int] = []
@@ -226,6 +243,39 @@ static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Arra
 			legs.append({"kind": ESCALATOR if node_esc[a] else STAIRS, "floor": node_floor[a], "from_x": node_x[a], "to_x": node_x[b], "to_floor": node_floor[b]})
 	result["legs"] = legs
 	return true
+
+
+static func _heap_push(heap: PackedInt64Array, key: int) -> void:
+	heap.append(key)
+	var at := heap.size() - 1
+	while at > 0:
+		var parent := (at - 1) / 2
+		if heap[parent] <= key:
+			break
+		heap[at] = heap[parent]
+		at = parent
+	heap[at] = key
+
+
+static func _heap_pop(heap: PackedInt64Array) -> int:
+	var top := heap[0]
+	var last := heap[heap.size() - 1]
+	heap.resize(heap.size() - 1)
+	var size := heap.size()
+	if size > 0:
+		var at := 0
+		while true:
+			var child := at * 2 + 1
+			if child >= size:
+				break
+			if child + 1 < size and heap[child + 1] < heap[child]:
+				child += 1
+			if heap[child] >= last:
+				break
+			heap[at] = heap[child]
+			at = child
+		heap[at] = last
+	return top
 
 
 ## True when node 1 can be reached from node 0 with any number of stairs.
