@@ -13,6 +13,9 @@ func _ready() -> void:
 	for i in 20:
 		_tower.grid.place(i + 1, 1 + i % 8, 10 + (i * 7) % 60, 4 + i % 5)
 	_tower.grid.place(100, -2, 20, 12)
+	# Debug switch (#156): `python tools/play.py -- --unlock-all`. Off unless asked for.
+	if "--unlock-all" in OS.get_cmdline_user_args():
+		_tower.enqueue(Tower.Command.make(_tower.tick + 1, Tower.Command.DEBUG_UNLOCK_ALL, [1] as Array[int]))
 	var renderer: TowerRenderer = $TowerRenderer
 	renderer.set_tower(_tower)
 	($PlacementGhost as PlacementGhost).set_tower(_tower)
