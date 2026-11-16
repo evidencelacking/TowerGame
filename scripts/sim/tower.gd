@@ -17,7 +17,9 @@ const TripsScript := preload("res://scripts/sim/trips.gd")
 const CarsScript := preload("res://scripts/sim/cars.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
+const WordOfMouthScript := preload("res://scripts/sim/word_of_mouth.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
+const NamesScript := preload("res://scripts/sim/names.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
 const StarRulesScript := preload("res://scripts/sim/star_rules.gd")
@@ -43,7 +45,9 @@ class Command:
 	const RESIZE_SHAFT := 14  ## Grows or shrinks a shaft in place: args are shaft id, new bottom, new top. See Rooms.resize_shaft.
 	const ADD_CAR := 16  ## Adds an elevator car: args are shaft id, home floor. See Rooms.add_car.
 	const REMOVE_CAR := 17  ## Removes a shaft's newest car: args are shaft id. See Rooms.remove_car.
-	const SET_RENT := 18  ## Sets a room's rent level: args are room id, level (0 lowest to 3 highest). See Rent.set_rent.
+	const SET_RENT := 19  ## Sets a room's rent level: args are room id, level (0 lowest to 3 highest). See Rent.set_rent.
+	const RENAME_PERSON := 40  ## Renames a person: args are person id, then the new name as code points (none restores the generated name). See PersonNames.
+	const PLACE_ESCALATOR := 18  ## Places an escalator between two floors: args are lower floor, x_left. See Rooms.place_escalator.
 	const SET_SHAFT_STOP := 15  ## Turns a shaft's stop on a floor on or off: args are shaft id, floor, on (1 or 0). See Rooms.set_shaft_stop.
 
 	var tick: int = 0  ## The tick this command applies at.
@@ -58,7 +62,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 21
+const SAVE_VERSION := 23
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -74,12 +78,16 @@ var rooms := RoomsScript.new()
 var messages := MessagesScript.new()
 ## The people: home, work, day plan, trip and stress (see People).
 var people := PeopleScript.new()
+## Person names: generated from the seed and id (not saved) plus the player's renames (saved). See PersonNames.
+var names := NamesScript.new()
 ## Office tenancy: moves workers in (see Tenancy). Derived from people, so not saved.
 var tenancy := TenancyScript.new()
 ## Trip executor: moves people along routes and charges travel stress (see Trips). Not saved.
 var trips := TripsScript.new()
 ## Quality score and A/B/C grade of tenant rooms (see Grades). Saved: who has made a first trip.
 var grades := GradesScript.new()
+## Complaints from C rooms lower nearby tenants (see WordOfMouth). Derived from grades, so not saved.
+var word_of_mouth := WordOfMouthScript.new()
 ## Rent level per room and quarterly rent collection (see Rent). Saved: the non-default levels.
 var rent := RentScript.new(rooms)
 ## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY, PLACE_ROOM, PLACE_STAIRS, BULLDOZE or REPLACE_ROOM command (OK or a refusal reason; see
@@ -95,7 +103,9 @@ var _queue: Array[Command] = []
 
 func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_STARTING_FUNDS) -> void:
 	rng.reseed(seed_value)
+	names.name_seed = seed_value
 	ledger = LedgerScript.new(starting_funds)
+	word_of_mouth.attach(grades, rooms, grid, people)
 	grades.add_modifier(rent.grade_modifier)
 
 
@@ -200,6 +210,11 @@ func _apply_command(command: Command) -> void:
 				last_refusal = rooms.place_stairs(grid, floors, ledger, tick, command.args[0], command.args[1])
 				if not _note_refusal(MessagesScript.STAIRS_REFUSED, command.args[0]):
 					messages.add(tick, MessagesScript.STAIRS_BUILT, command.args[0])
+		Command.PLACE_ESCALATOR:
+			if command.args.size() == 2:
+				last_refusal = rooms.place_escalator(grid, floors, ledger, tick, command.args[0], command.args[1])
+				if not _note_refusal(MessagesScript.STAIRS_REFUSED, command.args[0]):
+					messages.add(tick, MessagesScript.ESCALATOR_BUILT, command.args[0])
 		Command.PLACE_SHAFT:
 			if command.args.size() == 4:
 				last_refusal = rooms.place_shaft(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2], command.args[3])
@@ -221,6 +236,9 @@ func _apply_command(command: Command) -> void:
 			if command.args.size() == 1:
 				last_refusal = rooms.remove_car(command.args[0])
 				_note_refusal(MessagesScript.ROOM_REFUSED, command.args[0])
+		Command.RENAME_PERSON:
+			if command.args.size() >= 1 and people.index_of(command.args[0]) != -1:
+				names.apply_args(command.args)
 		_:
 			push_error("Unknown sim command kind %d" % command.kind)
 
@@ -296,6 +314,7 @@ func _state_ints() -> Array[int]:
 	ints.append_array(messages.state_ints())
 	ints.append_array(people.state_ints())
 	ints.append_array(grades.state_ints())
+	ints.append_array(names.state_ints())
 	ints.append_array(rent.state_ints())
 	ints.append(last_refusal)
 	ints.append(_queue.size())
@@ -318,7 +337,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "rent": rent.state_ints(), "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -340,10 +359,11 @@ func load_state(data: Dictionary) -> bool:
 	var rooms_ints: Variant = data.get("rooms")
 	var messages_ints: Variant = data.get("messages")
 	var people_ints: Variant = data.get("people")
+	var names_ints: Variant = data.get("names")
 	var grades_ints: Variant = data.get("grades")
 	var rent_ints: Variant = data.get("rent")
 	var queue_data: Variant = data.get("queue")
-	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and rent_ints is Array and queue_data is Array):
+	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and rent_ints is Array and queue_data is Array):
 		return false
 	var loaded_grid := Grid.new()
 	if not Clock.valid_ints(clock_ints) or not loaded_grid.load_ints(grid_ints) or not LedgerScript.valid_ints(ledger_ints) or not FloorsScript.valid_ints(floors_ints):
@@ -354,7 +374,7 @@ func load_state(data: Dictionary) -> bool:
 		return false
 	if not PeopleScript.valid_ints(people_ints):
 		return false
-	if not GradesScript.valid_ints(grades_ints):
+	if not GradesScript.valid_ints(grades_ints) or not NamesScript.valid_ints(names_ints):
 		return false
 	if not RentScript.valid_ints(rent_ints):
 		return false
@@ -380,6 +400,7 @@ func load_state(data: Dictionary) -> bool:
 	messages.load_ints(messages_ints)
 	people.load_ints(people_ints)
 	grades.load_ints(grades_ints)
+	names.load_ints(names_ints)
 	rent.load_ints(rent_ints)
 	last_refusal = data["last_refusal"]
 	tick = data["tick"]
