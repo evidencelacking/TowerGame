@@ -62,7 +62,7 @@ const CAR_CAPACITY := 17  ## People a local car holds (reference); enforced in c
 const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
-const PLACEABLE: Array[String] = ["office", "condo", "hotel_single", "hotel_twin", "hotel_suite"]
+const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "hotel_single", "hotel_twin", "hotel_suite"]
 const FIRST_ID := 1000  ## Room occupant ids start here, clear of ids given to PLACE commands.
 
 ## The link layer (#126): stairs, escalators and elevator shafts. Links sit in front of rooms and
@@ -121,7 +121,7 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 	if not GridScript.is_valid_floor(floor_number):
 		result["reason"] = BAD_FLOOR
 		return result
-	if floor_number < 0:
+	if floor_number < 0 and CatalogueScript.field(kind, "placement") != CatalogueScript.PLACE_ANYWHERE:
 		result["reason"] = BELOW_GROUND
 		return result
 	if floor_number == 1:
