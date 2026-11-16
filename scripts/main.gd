@@ -22,6 +22,10 @@ func _ready() -> void:
 	person_window.name = "PersonWindow"
 	add_child(person_window)
 	person_window.bind(_tower, $PlacementGhost as PlacementGhost)
+	var room_window := RoomWindow.new()
+	room_window.name = "RoomWindow"
+	add_child(room_window)
+	room_window.bind(_tower, $PlacementGhost as PlacementGhost)
 	var finance_window := FinanceWindow.new()
 	finance_window.name = "FinanceWindow"
 	add_child(finance_window)

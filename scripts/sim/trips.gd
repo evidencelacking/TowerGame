@@ -24,6 +24,8 @@ const NO_ROUTE_RETRY_MINUTES := 30  ## Guess: minutes before a given-up trip is 
 const GROUND_FLOOR := 1
 
 var _last_minute: int = -1  ## Not saved: resume() sets it after a load.
+var _memo: Dictionary = {}  ## [from floor, from x, to floor, to x] -> route found this step; see _find_legs. Not saved.
+var _memo_waiting: Array[int] = []  ## rooms.waiting_keys() when the memo was filled; a change empties it.
 var _routes: Dictionary = {}  ## person id -> legs of the trip under way; a cache, rebuilt from trip_from and the goal.
 
 
@@ -60,6 +62,7 @@ static func segment(legs: Array, first: int) -> Array:
 
 ## Called once per tick. Acts once per sim minute.
 func tick(clock: Object, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript) -> void:
+	_memo.clear()  # the tower can only change between steps, so a memo never outlives one
 	var minute: int = clock.minute_of_day()
 	if minute == _last_minute:
 		return
@@ -113,10 +116,20 @@ func _find_legs(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 		to = grid.run_of(goal_room)
 	if to.is_empty():
 		return null
+	# People leaving one room for the same goal share a search: a route depends only on the two
+	# ends, the tower (fixed within a step) and which cars are waiting (checked below).
+	var waiting := rooms.waiting_keys()
+	if waiting != _memo_waiting:
+		_memo.clear()
+		_memo_waiting = waiting
+	var key := [from[0], from[1], to[0], to[1]]
+	if _memo.has(key):
+		var cached: Variant = _memo[key]
+		return null if cached == null else (cached as Array).duplicate(true)
 	var route: Dictionary = RoutesScript.find(floors, rooms, grid, from[0], from[1], to[0], to[1])
-	if route["reason"] != RoutesScript.OK:
-		return null
-	return route["legs"]
+	var found: Variant = null if route["reason"] != RoutesScript.OK else route["legs"]
+	_memo[key] = found if found == null else (found as Array).duplicate(true)
+	return found
 
 
 ## The person's route: cached, or rebuilt from where the trip started (null if it can't be).

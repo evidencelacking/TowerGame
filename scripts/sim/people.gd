@@ -105,6 +105,15 @@ func workers_in(room: int) -> int:
 	return n
 
 
+## Workers per room, room id -> count, for callers that ask about many rooms at once.
+func worker_counts() -> Dictionary:
+	var counts: Dictionary = {}
+	for i in count():
+		var room: int = _data[i * FIELDS + _WORK]
+		counts[room] = int(counts.get(room, 0)) + 1
+	return counts
+
+
 ## Index of the person with this id, or -1.
 func index_of(id: int) -> int:
 	for i in count():

@@ -42,10 +42,19 @@ static func floor_label(floor_number: int) -> String:
 	return "B%d" % -floor_number if floor_number < 0 else str(floor_number)
 
 
-## A throwaway copy of the tower to try a command on.
-static func _trial(t: TowerSim) -> TowerSim:
+## A throwaway copy of the tower to try a command on. Copies only what shaft and car commands
+## read or write (grid, floors, rooms, money, tick, stars): copying the people too cost about 10 ms
+## a hover at 2,000 people (tools/bench.gd) and no verdict depends on them.
+## with_map false skips grid and floors, for commands that take neither (a stop, a car).
+static func _trial(t: TowerSim, with_map: bool = true) -> TowerSim:
 	var copy := TowerSim.new(0)
-	copy.load_state(t.save())
+	copy.tick = t.tick
+	copy.stars = t.stars
+	copy.ledger.load_ints(t.ledger.state_ints())
+	copy.rooms.load_ints(t.rooms.state_ints())
+	if with_map:
+		copy.grid.load_ints(t.grid.state_ints())
+		copy.floors.load_ints(t.floors.state_ints())
 	return copy
 
 
@@ -121,7 +130,7 @@ static func _evaluate_stop(t: TowerSim, shaft: Dictionary, floor_number: int, ou
 	var on_now: bool = shaft["stops"].has(floor_number)
 	out["mode"] = "stop"
 	out["floor"] = floor_number
-	var trial := _trial(t)
+	var trial := _trial(t, false)
 	out["code"] = trial.rooms.set_shaft_stop(shaft["id"], floor_number, not on_now)
 	if out["code"] == 0:
 		out["valid"] = true
@@ -179,7 +188,7 @@ static func evaluate_car(t: TowerSim, tool_id: String, floor_number: int, column
 	if CatalogueScript.star(tool_id) > star_rating:
 		out["text"] = "Needs %d stars" % CatalogueScript.star(tool_id)
 		return out
-	var trial := _trial(t)
+	var trial := _trial(t, false)
 	out["code"] = trial.rooms.add_car(trial.ledger, trial.tick, star_rating, hit["id"], home)
 	if out["code"] == 0:
 		out["valid"] = true
