@@ -12,6 +12,9 @@ const MAX_TICKS_PER_FRAME := 20  ## Caps catch-up after a stall so a hitch can't
 var tower: Tower = Tower.new()
 var paused: bool = false
 var speed_index: int = 0
+## Off by default so tests never write files; the game scene turns it on. Saves the tower at the
+## start of every quarter (see SaveFiles).
+var autosave_enabled: bool = false
 
 var _accumulator: float = 0.0
 
@@ -29,6 +32,8 @@ func run_frame(delta: float) -> int:
 	_accumulator = 0.0 if ticks == MAX_TICKS_PER_FRAME else _accumulator - ticks
 	for _i in ticks:
 		tower.step()
+		if autosave_enabled and tower.clock.quarter_started:
+			SaveFiles.autosave(tower)
 	return ticks
 
 

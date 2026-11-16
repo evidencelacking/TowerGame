@@ -33,6 +33,11 @@ func _ready() -> void:
 	finance_window.name = "FinanceWindow"
 	add_child(finance_window)
 	finance_window.bind(_tower)
+	$Hud/SimDriver.autosave_enabled = true
+	var save_menu := SaveMenu.new()
+	save_menu.name = "SaveMenu"
+	add_child(save_menu)
+	save_menu.bind($Hud/SimDriver)
 	var money: Label = $Hud.get_node("%MoneyLabel")
 	money.mouse_filter = Control.MOUSE_FILTER_STOP
 	money.gui_input.connect(func(event: InputEvent) -> void:
