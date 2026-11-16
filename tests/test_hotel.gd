@@ -9,6 +9,7 @@ const HotelScript := preload("res://scripts/sim/hotel.gd")
 const LedgerScript := preload("res://scripts/sim/ledger.gd")
 const Complaints := preload("res://scripts/sim/complaints.gd")
 const Messages := preload("res://scripts/sim/messages.gd")
+const RoomInfo := preload("res://scripts/view/room_info.gd")
 const Finance := preload("res://scripts/sim/finance.gd")
 const TestTenancy := preload("res://tests/test_tenancy.gd")
 const TestOfficeDay := preload("res://tests/test_office_day.gd")
@@ -146,6 +147,14 @@ static func run(check: Callable) -> void:
 	check.call(t.people.count() == 0 and t.population() == 0, "the guest has gone")
 	check.call(t.hotel.is_dirty(room) and t.hotel.dirty_since(room) == left_tick, "the room turned dirty at check-out (dirty-since tick)")
 	check.call(int(Finance.totals(t.ledger, Finance.quarter_of(left_tick)).get(LedgerScript.HOTEL, 0)) == 2000, "the finance report shows the hotel income by kind")
+	var dirty_logged := 0
+	for i in t.messages.count():
+		if t.messages.entry(i)[1] == Messages.ROOM_DIRTY and t.messages.entry(i)[2] == room:
+			dirty_logged += 1
+	check.call(dirty_logged == 1, "check-out logs the room as dirty once")
+	var info := RoomInfo.describe(t, room)
+	check.call(info["dirty"] and "
+".join(RoomInfo.lines_for(info)).contains("Dirty"), "the room window shows a dirty room")
 	var balance := t.ledger.balance
 	_step_to(t, 12 * 60, 1)
 	check.call(not t.hotel.is_dirty(room), "the stopgap cleaning clears the room by midday (until housekeeping, #147)")
@@ -161,6 +170,9 @@ static func run(check: Callable) -> void:
 	check.call(d.hotel.state_of(dirty_room) == HotelScript.VACANT and d.people.count() == 0 and d.hotel.is_dirty(dirty_room), "a dirty room takes no guests")
 	d.hotel.mark_clean(dirty_room)
 	check.call(not d.hotel.is_dirty(dirty_room), "mark_clean clears dirty")
+	var info_d := RoomInfo.describe(d, dirty_room)
+	check.call(not info_d["dirty"] and not "
+".join(RoomInfo.lines_for(info_d)).contains("Dirty"), "a cleaned room is no longer shown dirty")
 
 	# Rent level sets the nightly price.
 	var priced := _tower(1, "hotel_single", true)

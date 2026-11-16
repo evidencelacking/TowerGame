@@ -30,6 +30,7 @@ const TENANT_LEFT := 32  ## a: catalogue index, b: floor number.
 const DAILY_SALES := 35  ## a: net dollars across open shops (a loss is negative), b: shops settled; logged each day at settlement.
 
 const GUEST_UNREACHED := 33  ## a: room id. Hotel guests could not reach their room and left.
+const ROOM_DIRTY := 34  ## a: room id. Hotel guests checked out; the room needs cleaning (#147).
 
 const CAP := 500  ## Entries kept; the oldest drop first.
 const FIELDS := 4

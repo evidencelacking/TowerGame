@@ -2,6 +2,7 @@ extends SceneTree
 ## Headless game tests. Prints only failures, then a final summary line that
 ## tools/check.py requires. Exit code is the number of failures.
 
+const TestSaveLoad := preload("res://tests/test_save_load.gd")
 const TestTower := preload("res://tests/test_tower.gd")
 const TestClock := preload("res://tests/test_clock.gd")
 const TestGrid := preload("res://tests/test_grid.gd")
@@ -39,6 +40,7 @@ const TestPreference := preload("res://tests/test_preference.gd")
 const TestTenancy := preload("res://tests/test_tenancy.gd")
 const TestOfficeDay := preload("res://tests/test_office_day.gd")
 const TestCondos := preload("res://tests/test_condos.gd")
+const TestUnlockAll := preload("res://tests/test_unlock_all.gd")
 const TestStress := preload("res://tests/test_stress.gd")
 const TestBench := preload("res://tests/test_bench.gd")
 const TestNoise := preload("res://tests/test_noise.gd")
@@ -100,6 +102,7 @@ func _initialize() -> void:
 	TestTenancy.run(check)
 	TestOfficeDay.run(check)
 	TestCondos.run(check)
+	TestUnlockAll.run(check)
 	TestStress.run(check)
 	TestBench.run(check)
 	TestNoise.run(check)
@@ -118,6 +121,7 @@ func _initialize() -> void:
 	TestRunningCosts.run(check)
 	TestFinance.run(check)
 	TestCommerce.run(check)
+	TestSaveLoad.run(check)
 	TestHotel.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)

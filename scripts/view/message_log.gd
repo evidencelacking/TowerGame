@@ -162,6 +162,7 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.DAILY_SALES: return "Shops settled: %s$%d across %d shop(s)" % ["-" if a < 0 else "", absi(a), b]
 		Msg.QUARTER_SETTLED: return "Quarter closed: rent $%d, running costs $%d" % [a, b]
 		Msg.GUEST_UNREACHED: return "Hotel guests could not reach their room and left"
+		Msg.ROOM_DIRTY: return "A hotel room needs cleaning"
 		Msg.STAR_PROMOTED: return "Your tower has grown to %d stars. New buildings are open to you." % a
 	return "Something happened"
 
