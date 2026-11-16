@@ -18,10 +18,14 @@ extends RefCounted
 ##   placement      a PLACE_* rule, a hint for the building issues to enforce.
 ##   limit          most allowed per tower, or 0 for no limit.
 ##   limit_group    rooms sharing one limit share this group name; "" counts alone.
-##   people         workers (office) or residents (condo) the room holds; absent elsewhere for now.
+##   people         workers (office), residents (condo) or guests (hotel: single 1, twin 2, suite 2) the room holds; absent elsewhere for now.
 ##                  Population is People.in_tower_count().
 ##   rent           quarterly rent in dollars at each of 4 levels, lowest to highest (office only;
 ##                  UNVERIFIED tunables; the third is the $10,000 default, see rent.gd).
+##                  Hotel rows: the rent is dollars per NIGHT at each level (default the third: $2,000 single,
+##                  $4,000 twin, $8,000 suite; UNVERIFIED tunables, owner ruling #146), paid at check-out (hotel.gd).
+##   suite          true for the suite only: the VIP task finds suites through Hotel.suites().
+##   needs_parking  true when a guest needs a free parking space to rent the room (suite only).
 ##   upkeep         quarterly running cost in dollars (see running_costs.gd); absent means free (stairs).
 ##                  Charged per shaft for elevators, per room otherwise, once for the ground lobby.
 ##                  All tunable (owner ruling); the kinds in UPKEEP_UNVERIFIED are guesses.
@@ -90,7 +94,7 @@ const _ROWS: Dictionary = {
 	"service_car": {"capacity": 17, "width": 4, "height": 1, "cost": 50000, "per_unit": false, "star": 2,
 		"removable": true, "placement": PLACE_CAR, "limit": 8,
 		"limit_group": "", "limit_scope": "shaft"},
-	"hotel_single": {"width": 4, "height": 1, "cost": 20000, "per_unit": false, "star": 2,
+	"hotel_single": {"people": 1, "rent": [600, 1200, 2000, 3000], "width": 4, "height": 1, "cost": 20000, "per_unit": false, "star": 2,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"housekeeping": {"upkeep": 5000, "width": 16, "height": 1, "cost": 50000, "per_unit": false, "star": 2,
@@ -109,10 +113,10 @@ const _ROWS: Dictionary = {
 	"express_car": {"capacity": 36, "width": 6, "height": 1, "cost": 150000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_CAR, "limit": 8,
 		"limit_group": "", "limit_scope": "shaft"},
-	"hotel_twin": {"width": 6, "height": 1, "cost": 50000, "per_unit": false, "star": 3,
+	"hotel_twin": {"people": 2, "rent": [1200, 2400, 4000, 6000], "width": 6, "height": 1, "cost": 50000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
-	"hotel_suite": {"width": 10, "height": 1, "cost": 100000, "per_unit": false, "star": 3,
+	"hotel_suite": {"people": 2, "rent": [2400, 4800, 8000, 12000], "suite": true, "needs_parking": true, "width": 10, "height": 1, "cost": 100000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"restaurant": {"width": 24, "height": 1, "cost": 200000, "per_unit": false, "star": 3,

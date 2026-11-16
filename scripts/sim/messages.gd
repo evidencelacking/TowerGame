@@ -28,6 +28,8 @@ const QUARTER_SETTLED := 30  ## a: rent collected, b: running costs charged, in 
 const FRIEND_ARRIVED := 31  ## a: catalogue index, b: floor number.
 const TENANT_LEFT := 32  ## a: catalogue index, b: floor number.
 
+const GUEST_UNREACHED := 33  ## a: room id. Hotel guests could not reach their room and left.
+
 const CAP := 500  ## Entries kept; the oldest drop first.
 const FIELDS := 4
 
