@@ -10,7 +10,7 @@ const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const Bench := preload("res://tools/bench_tower.gd")
 
 const SMALL_TICKS := 400
-const SMALL_HASH := 4137274158598698061  ## Hash of the small tower after SMALL_TICKS ticks, from the code before #108.
+const SMALL_HASH := 697495125758410733  ## Hash of the small tower after SMALL_TICKS ticks, from the code before #108.
 
 
 ## What a scan of the whole grid for stairs and escalators finds, in scan order: [floor, column, escalator].

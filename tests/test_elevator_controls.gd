@@ -22,11 +22,13 @@ const SHAFT_COLUMN := 102  ## Pointer column that puts a 4-wide shaft at columns
 
 ## Picks a tool, presses on a cell, releases on another floor (shaft tools), and steps one tick
 ## so the command lands. Returns true if a command was queued.
-static func _gesture(ghost: Ghost, tool_id: String, from_floor: int, column: int, to_floor: int) -> bool:
+static func _gesture(ghost: Ghost, tool_id: String, from_floor: int, column: int, to_floor: int, end_column: int = -1) -> bool:
 	ghost.set_tool(tool_id)
 	var queued := ghost.press(from_floor, column)
 	if ElevatorTools.is_shaft_tool(tool_id):
 		queued = ghost.release(to_floor, column)
+	elif Ghost.is_span_tool(tool_id):  ## The lobby and floor tools drag sideways to end_column.
+		queued = ghost.release(to_floor, end_column)
 	ghost.tower.step()
 	return queued
 
@@ -36,10 +38,9 @@ static func _gesture(ghost: Ghost, tool_id: String, from_floor: int, column: int
 static func _built(funds: int = 5000000) -> Ghost:
 	var ghost := Ghost.new()
 	ghost.set_tower(TowerSim.new(1, funds))
-	_gesture(ghost, "lobby", 1, 110, 1)
+	_gesture(ghost, "lobby", 1, 100, 1, 119)
 	for floor_number in [2, 3]:
-		_gesture(ghost, "floor", floor_number, 105, floor_number)
-		_gesture(ghost, "floor", floor_number, 115, floor_number)
+		_gesture(ghost, "floor", floor_number, 100, floor_number, 119)
 	return ghost
 
 
@@ -165,7 +166,7 @@ static func _run_resize_and_stops(check: Callable) -> void:
 	check.call(again["valid"] and again["args"] == on_args and "stop on at 2" in again["note"], "a second click turns the stop back on")
 	# Resize: growing over unbuilt floors is refused, then over a built floor it is queued.
 	check.call(not _gesture(ghost, "local_shaft", 3, SHAFT_COLUMN, 5), "growing a shaft over unbuilt floors queues nothing")
-	_gesture(ghost, "floor", 4, 105, 4)
+	_gesture(ghost, "floor", 4, 100, 4, 109)
 	ghost.set_tool("local_shaft")
 	ghost.press(3, SHAFT_COLUMN)
 	var grow := ghost.hover(4, SHAFT_COLUMN)
