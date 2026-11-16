@@ -52,6 +52,8 @@ const HOME_STOP := 50  ## Shaft stop: the floor is a car's home floor, which mus
 const NOT_A_STOP := 51  ## Send car: the target is not a stop of the car's shaft.
 const NO_SUCH_CAR := 52  ## Send car: there is no such car.
 const BAD_CALL := 53  ## Place call: the direction is not UP or DOWN, or no car can go that way from the floor.
+const OVERLAPS_LINK := 54  ## Stairs, escalator or shaft: another link (stairs, escalator or shaft) is in the way.
+const NO_FLOOR_FOR_ESCALATOR := 55  ## Escalator: one of the two floors is not built under the escalator.
 
 const CAR_INTS := 9  ## Ints in one saved car (SHAFT to NEXT in cars.gd).
 const MAX_CARS_PER_SHAFT := 8  ## Cars in one shaft (reference).
@@ -63,6 +65,10 @@ const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this man
 const PLACEABLE: Array[String] = ["office", "condo"]
 const FIRST_ID := 1000  ## Room occupant ids start here, clear of ids given to PLACE commands.
 
+## The link layer (#126): stairs, escalators and elevator shafts. Links sit in front of rooms and
+## coexist with them, so they hold their occupant cells here and not in the room grid. Ids come
+## from the same counter as rooms, so an id is unique across both grids.
+var links := GridScript.new()
 var _kind_of: Dictionary = {}  # occupant id -> index in RoomCatalogue.IDS
 var _sold: Dictionary = {}  # condo occupant id -> true once sold (sales come in M3; tests set it)
 var _next_id: int = FIRST_ID
@@ -164,12 +170,35 @@ func place_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at
 		return SHORT_OF_FUNDS
 	var width: int = CatalogueScript.field(kind, "width")
 	floors.fill_span(floor_number, x_left, x_left + width - 1)
-	while grid.has_occupant(_next_id):
+	while _id_taken(grid, _next_id):
 		_next_id += 1
 	grid.place(_next_id, floor_number, x_left, width)
 	_kind_of[_next_id] = kind_index
 	_next_id += 1
 	return OK
+
+
+## True when id is placed in the room grid or in the link layer.
+func _id_taken(grid: GridScript, id: int) -> bool:
+	return grid.has_occupant(id) or links.has_occupant(id)
+
+
+## True for the kinds that live in the link layer: stairs, escalators and shafts.
+static func is_link_kind(kind: String) -> bool:
+	if not CatalogueScript.IDS.has(kind):
+		return false
+	var placement: int = CatalogueScript.field(kind, "placement")
+	return placement == CatalogueScript.PLACE_BETWEEN_FLOORS or placement == CatalogueScript.PLACE_SHAFT or placement == CatalogueScript.PLACE_ESCALATOR
+
+
+## The link id at a cell (stairs and escalators have a lower and an upper half), or EMPTY.
+func link_at(floor_number: int, column: int) -> int:
+	return links.cell_at(floor_number, column)
+
+
+## [floor, column, length] of a placed room or link occupant, or an empty array.
+func run_of(grid: GridScript, id: int) -> Array[int]:
+	return links.run_of(id) if links.has_occupant(id) else grid.run_of(id)
 
 
 ## The floor above floor_number, or 0 when there is none (floor 100; there is no floor 0).
@@ -192,51 +221,70 @@ func _stairs_and_escalators() -> int:
 
 ## Checks stairs linking floor_number and the floor above, x_left being the left column. Returns
 ## {"reason", "cost"}. Needs a built floor (a lobby counts) under all columns on both floors, no
-## shaft on either, nothing else in the way (a lobby is fine), and room under the 64 stairs and
-## escalators limit. The placement ghost (#13) uses this.
-func check_place_stairs(grid: GridScript, floors: FloorsScript, floor_number: int, x_left: int) -> Dictionary:
+## other link (stairs, escalator or shaft) on either, and room under the 64 stairs and escalators
+## limit. Rooms behind the stairs are fine: links sit in front of them (#126). The placement ghost
+## (#13) uses this. The grid is not read; it stays so callers keep one signature.
+func check_place_stairs(_grid: GridScript, floors: FloorsScript, floor_number: int, x_left: int) -> Dictionary:
+	return _check_place_link(floors, "stairs", floor_number, x_left)
+
+
+## The same check for an escalator (#125): 8 wide, otherwise the rules of stairs.
+func check_place_escalator(_grid: GridScript, floors: FloorsScript, floor_number: int, x_left: int) -> Dictionary:
+	return _check_place_link(floors, "escalator", floor_number, x_left)
+
+
+func _check_place_link(floors: FloorsScript, kind: String, floor_number: int, x_left: int) -> Dictionary:
 	var result := {"reason": OK, "cost": 0}
 	var upper := floor_above(floor_number)
 	if not GridScript.is_valid_floor(floor_number) or upper == 0:
 		result["reason"] = BAD_FLOOR
 		return result
-	var width: int = CatalogueScript.field("stairs", "width")
+	var width: int = CatalogueScript.field(kind, "width")
 	if x_left < 0 or x_left + width > GridScript.WIDTH_UNITS:
 		result["reason"] = OFF_TOWER
 		return result
 	for column in range(x_left, x_left + width):
 		for level: int in [floor_number, upper]:
-			if grid.cell_at(level, column) != GridScript.EMPTY:
-				result["reason"] = OVERLAPS_ROOM
-				return result
 			if floors.has_shaft(level, column):
 				result["reason"] = OVER_SHAFT
 				return result
+			if links.cell_at(level, column) != GridScript.EMPTY:
+				result["reason"] = OVERLAPS_LINK
+				return result
 	for column in range(x_left, x_left + width):
 		if not floors.has_floor(floor_number, column) or not floors.has_floor(upper, column):
-			result["reason"] = NO_FLOOR_FOR_STAIRS
+			result["reason"] = NO_FLOOR_FOR_ESCALATOR if kind == "escalator" else NO_FLOOR_FOR_STAIRS
 			return result
-	if _stairs_and_escalators() >= int(CatalogueScript.field("stairs", "limit")):
+	if _stairs_and_escalators() >= int(CatalogueScript.field(kind, "limit")):
 		result["reason"] = STAIRS_LIMIT
 		return result
-	result["cost"] = CatalogueScript.cost("stairs")
+	result["cost"] = CatalogueScript.cost(kind)
 	return result
 
 
 ## Places stairs (the PLACE_STAIRS command): args are the lower floor and the left column. One
 ## ledger charge, ref = the catalogue index of "stairs". Returns OK or a reason code.
 func place_stairs(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, floor_number: int, x_left: int) -> int:
-	var checked := check_place_stairs(grid, floors, floor_number, x_left)
+	return _place_link(grid, floors, ledger, at_tick, "stairs", floor_number, x_left)
+
+
+## Places an escalator (the PLACE_ESCALATOR command): the lower floor and the left column.
+func place_escalator(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, floor_number: int, x_left: int) -> int:
+	return _place_link(grid, floors, ledger, at_tick, "escalator", floor_number, x_left)
+
+
+func _place_link(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, kind: String, floor_number: int, x_left: int) -> int:
+	var checked := _check_place_link(floors, kind, floor_number, x_left)
 	if checked["reason"] != OK:
 		return checked["reason"]
-	var kind_index: int = CatalogueScript.IDS.find("stairs")
+	var kind_index: int = CatalogueScript.IDS.find(kind)
 	if ledger.charge(at_tick, checked["cost"], kind_index) != LedgerScript.OK:
 		return SHORT_OF_FUNDS
-	var width: int = CatalogueScript.field("stairs", "width")
-	while grid.has_occupant(_next_id) or grid.has_occupant(_next_id + 1):
+	var width: int = CatalogueScript.field(kind, "width")
+	while _id_taken(grid, _next_id) or _id_taken(grid, _next_id + 1):
 		_next_id += 1
-	grid.place(_next_id, floor_number, x_left, width)
-	grid.place(_next_id + 1, floor_above(floor_number), x_left, width)
+	links.place(_next_id, floor_number, x_left, width)
+	links.place(_next_id + 1, floor_above(floor_number), x_left, width)
 	_kind_of[_next_id] = kind_index
 	_next_id += 2
 	return OK
@@ -270,8 +318,8 @@ func _shaft_base(id: int) -> int:
 ## Checks a shaft: kind is a catalogue id with the shaft placement, bottom and top are floor
 ## numbers (inclusive). Returns {"reason", "cost", "span"}. Needs 1 to 30 floors (express: any
 ## height), fewer than 24 shafts, a built floor under every column on every floor, and nothing
-## else in the way (a lobby is fine, as for stairs).
-func check_place_shaft(grid: GridScript, floors: FloorsScript, kind: String, bottom: int, top: int, x_left: int) -> Dictionary:
+## other link in the way (rooms are fine, as for stairs).
+func check_place_shaft(_grid: GridScript, floors: FloorsScript, kind: String, bottom: int, top: int, x_left: int) -> Dictionary:
 	var result := {"reason": OK, "cost": 0, "span": 0}
 	if not CatalogueScript.IDS.has(kind) or CatalogueScript.field(kind, "placement") != CatalogueScript.PLACE_SHAFT:
 		result["reason"] = UNKNOWN_KIND
@@ -297,11 +345,11 @@ func check_place_shaft(grid: GridScript, floors: FloorsScript, kind: String, bot
 	var level := bottom
 	for i in span:
 		for column in range(x_left, x_left + width):
-			if grid.cell_at(level, column) != GridScript.EMPTY:
-				result["reason"] = OVERLAPS_ROOM
-				return result
 			if floors.has_shaft(level, column):
 				result["reason"] = OVER_SHAFT
+				return result
+			if links.cell_at(level, column) != GridScript.EMPTY:
+				result["reason"] = OVERLAPS_LINK
 				return result
 		level = floor_above(level)
 	level = bottom
@@ -332,13 +380,13 @@ func place_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, a
 	while not clear:  # _next_id only grows, so this ends once a free run of span ids is found
 		clear = true
 		for i in span:
-			if grid.has_occupant(_next_id + i):
+			if _id_taken(grid, _next_id + i):
 				_next_id += i + 1
 				clear = false
 				break
 	var level := bottom
 	for i in span:
-		grid.place(_next_id + i, level, x_left, width)
+		links.place(_next_id + i, level, x_left, width)
 		for column in range(x_left, x_left + width):
 			floors.mark_shaft(level, column)
 		level = floor_above(level)
@@ -351,7 +399,7 @@ func place_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, a
 func _put_shaft_cells(grid: GridScript, floors: FloorsScript, base: int, bottom: int, span: int, x_left: int, width: int) -> void:
 	var level := bottom
 	for i in span:
-		grid.place(base + i, level, x_left, width)
+		links.place(base + i, level, x_left, width)
 		for column in range(x_left, x_left + width):
 			floors.mark_shaft(level, column)
 		level = floor_above(level)
@@ -360,7 +408,7 @@ func _put_shaft_cells(grid: GridScript, floors: FloorsScript, base: int, bottom:
 func _clear_shaft_cells(grid: GridScript, floors: FloorsScript, base: int, bottom: int, span: int, x_left: int, width: int) -> void:
 	var level := bottom
 	for i in span:
-		grid.remove(base + i)
+		links.remove(base + i)
 		for column in range(x_left, x_left + width):
 			floors.mark_shaft(level, column, false)
 		level = floor_above(level)
@@ -406,7 +454,7 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, 
 	while not clear:
 		clear = true
 		for i in span:
-			if grid.has_occupant(base + i):
+			if _id_taken(grid, base + i):
 				base = _next_id
 				_next_id += span
 				clear = false
@@ -701,16 +749,17 @@ func stops_of(id: int) -> Array[int]:
 
 ## Removes a room's grid occupants (stairs have two, a shaft one per floor) and clears shaft marks.
 func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
-	if not _shafts.has(id):
+	if not is_link_kind(kind_of(id)):
 		grid.remove(id)
 	if is_stair_kind(kind_of(id)):
-		grid.remove(id + 1)
+		links.remove(id)
+		links.remove(id + 1)
 	if _shafts.has(id):
 		var info: Array = _shafts[id]
 		var width: int = CatalogueScript.field(kind_of(id), "width")
 		var level: int = info[1]
 		for i in int(info[0]):
-			grid.remove(int(info[4]) + i)
+			links.remove(int(info[4]) + i)
 		for n in range(_cars.size() - 1, -1, -1):
 			if _cars[n][CarsScript.SHAFT] == id:
 				_drop_car(n)
@@ -727,9 +776,9 @@ func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
 		_shafts.erase(id)
 
 
-## True when id is the upper-floor half of a stairs (not a room of its own).
+## True when id is the upper-floor half of a stairs or escalator (not a link of its own).
 func is_stairs_upper(id: int) -> bool:
-	return not _kind_of.has(id) and is_stair_kind(kind_of(id - 1))
+	return links.has_occupant(id) and not _kind_of.has(id) and is_stair_kind(kind_of(id - 1))
 
 
 ## True for the kinds that join a floor to the one above with two grid halves: stairs, escalators.
@@ -765,13 +814,24 @@ func people_in(id: int) -> int:
 ## "occupants"}: refund is what a sold condo pays back to its buyer (0 otherwise). The ghost (#13)
 ## uses this.
 func check_bulldoze(grid: GridScript, floors: FloorsScript, floor_number: int, x: int) -> Dictionary:
+	return _check_remove(grid, floors, floor_number, x, true)
+
+
+## Which thing a click at a cell picks (#126). A link sits in front of the room behind it, so for
+## bulldoze the link wins: bulldoze it first, then click again for the room behind. Replace
+## (links_first false) swaps rooms, so it picks the room if there is one and a link only where
+## no room is. Returns the same as check_bulldoze.
+func _check_remove(grid: GridScript, floors: FloorsScript, floor_number: int, x: int, links_first: bool) -> Dictionary:
 	var result := {"reason": OK, "refund": 0, "room_id": 0, "occupants": 0}
 	if not GridScript.is_valid_floor(floor_number):
 		result["reason"] = BAD_FLOOR
 		return result
+	var link_id := links.cell_at(floor_number, x)
 	var id := grid.cell_at(floor_number, x)
+	if link_id != GridScript.EMPTY and (links_first or id == GridScript.EMPTY):
+		id = link_id
 	if id == GridScript.EMPTY:
-		# Stairs can stand inside a lobby, so only an empty lobby cell is the lobby itself.
+		# Links can stand inside a lobby, so only an empty lobby cell is the lobby itself.
 		result["reason"] = PERMANENT if floors.has_lobby_at(floor_number, x) else NOTHING_THERE
 		return result
 	if is_stairs_upper(id):
@@ -817,7 +877,7 @@ func bulldoze(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_t
 ## the replace charges. The new placement is judged on a copy of the grid with the old room gone.
 func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: String, floor_number: int, x_left: int) -> Dictionary:
 	var result := {"reason": OK, "cost": 0, "refund": 0, "net": 0, "room_id": 0, "floor_units": 0}
-	var removal := check_bulldoze(grid, floors, floor_number, x_left)
+	var removal := _check_remove(grid, floors, floor_number, x_left, false)
 	if removal["reason"] != OK:
 		result["reason"] = removal["reason"]
 		return result
@@ -826,13 +886,8 @@ func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: S
 	result["refund"] = removal["refund"]
 	var after: GridScript = GridScript.new()
 	after.load_ints(grid.state_ints())
-	if _shafts.has(id):
-		for i in int(_shafts[id][0]):
-			after.remove(int(_shafts[id][4]) + i)
-	else:
+	if not is_link_kind(kind_of(id)):
 		after.remove(id)
-	if is_stair_kind(kind_of(id)):
-		after.remove(id + 1)
 	var placed := check_place(after, floors, kind, floor_number, x_left)
 	result["cost"] = placed["cost"]
 	result["floor_units"] = placed["floor_units"]
@@ -863,7 +918,7 @@ func replace_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, 
 	_sold.erase(id)
 	var width: int = CatalogueScript.field(kind, "width")
 	floors.fill_span(floor_number, x_left, x_left + width - 1)
-	while grid.has_occupant(_next_id):
+	while _id_taken(grid, _next_id):
 		_next_id += 1
 	grid.place(_next_id, floor_number, x_left, width)
 	_kind_of[_next_id] = kind_index
@@ -901,6 +956,9 @@ func state_ints() -> Array[int]:
 		ints.append(_riders[n].size())
 		for rider: Array in _riders[n]:
 			ints.append_array(rider as Array[int])
+	var link_ints := links.state_ints()
+	ints.append(link_ints.size())
+	ints.append_array(link_ints)
 	return ints
 
 
@@ -947,6 +1005,7 @@ func load_ints(ints: Array) -> bool:
 			riders.append(ints.slice(at + 1 + 2 * i, at + 3 + 2 * i))
 		_riders.append(riders)
 		at += 1 + 2 * riders.size()
+	links.load_ints(ints.slice(at + 1, at + 1 + ints[at]))
 	alighted = []
 	_next_id = ints[0]
 	return true
@@ -964,6 +1023,7 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 		return false
 	var at: int = 4 + 3 * ints[1]
 	var shaft_ids: Dictionary = {}
+	var shaft_tops: Array[int] = []
 	for i in range(shaft_total):
 		if at + 6 > ints.size() or ints[at + 5] < 0 or at + 6 + ints[at + 5] > ints.size():
 			return false
@@ -971,8 +1031,7 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 		var span: int = ints[at + 1]
 		if ints[at] < 1 or base < 1 or span < 1 or span > GridScript.FLOOR_COUNT or not GridScript.is_valid_floor(ints[at + 2]):
 			return false
-		if grid != null and not grid.has_occupant(base + span - 1):
-			return false
+		shaft_tops.append(base + span - 1)
 		shaft_ids[ints[at]] = true
 		at += 6 + ints[at + 5]
 	if at >= ints.size() or ints[at] < 0 or at + 1 + CAR_INTS * ints[at] >= ints.size():
@@ -992,16 +1051,24 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 		if ints[at] < 0 or at + 1 + 2 * ints[at] > ints.size():
 			return false
 		at += 1 + 2 * ints[at]
-	if at != ints.size():
+	if at >= ints.size() or ints[at] < 0 or at + 1 + ints[at] != ints.size():
 		return false
+	var link_grid := GridScript.new()
+	if not link_grid.load_ints(ints.slice(at + 1)):
+		return false
+	if grid != null:
+		for top in shaft_tops:
+			if not link_grid.has_occupant(top):
+				return false
 	for i in range(ints[1]):
 		var id: int = ints[2 + 3 * i]
 		var kind_index: int = ints[3 + 3 * i]
 		var sold: int = ints[4 + 3 * i]
 		if id < 1 or kind_index < 0 or kind_index >= CatalogueScript.IDS.size() or (sold != 0 and sold != 1):
 			return false
-		if grid != null and not shaft_ids.has(id) and not grid.has_occupant(id):
+		var is_link := is_link_kind(CatalogueScript.IDS[kind_index])
+		if grid != null and not shaft_ids.has(id) and not (link_grid.has_occupant(id) if is_link else grid.has_occupant(id)):
 			return false
-		if grid != null and is_stair_kind(CatalogueScript.IDS[kind_index]) and not grid.has_occupant(id + 1):
+		if grid != null and is_stair_kind(CatalogueScript.IDS[kind_index]) and not link_grid.has_occupant(id + 1):
 			return false
 	return true

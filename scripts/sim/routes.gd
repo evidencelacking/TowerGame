@@ -154,7 +154,7 @@ static func _stair_spots(rooms: RoomsScript, grid: GridScript) -> Array:
 		var kind := rooms.kind_of(id)
 		if not RoomsScript.is_stair_kind(kind):
 			continue
-		var run := grid.run_of(id)
+		var run := rooms.run_of(grid, id)
 		if run.is_empty() or RoomsScript.floor_above(run[0]) == 0:
 			continue
 		keyed[GridScript.floor_to_index(run[0]) * GridScript.WIDTH_UNITS + run[1]] = [run[0], run[1], kind == "escalator"]

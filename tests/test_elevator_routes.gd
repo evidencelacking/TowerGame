@@ -15,7 +15,7 @@ const RoomsScript := preload("res://scripts/sim/rooms.gd")
 
 static func _shaft(t: TowerSim, bottom: int, top: int, x: int) -> int:
 	t.rooms.place_shaft(t.grid, t.floors, t.ledger, 0, CatalogueScript.IDS.find("local_shaft"), bottom, top, x)
-	return t.rooms._shaft_base(t.grid.cell_at(bottom, x))
+	return t.rooms._shaft_base(t.rooms.link_at(bottom, x))
 
 
 ## Lobby on floors 1 and 2 (columns 100-131), floors 3 to top built, no stairs.
