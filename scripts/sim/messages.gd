@@ -25,6 +25,8 @@ const STAR_PROMOTED := 27  ## a: the new star rating.
 const ESCALATOR_BUILT := 28  ## a: lower floor.
 const RENT_SET := 29  ## a: room id, b: new level.
 const QUARTER_SETTLED := 30  ## a: rent collected, b: running costs charged, in dollars; logged at a quarter start when either is above 0.
+const FRIEND_ARRIVED := 31  ## a: catalogue index, b: floor number.
+const TENANT_LEFT := 32  ## a: catalogue index, b: floor number.
 
 const CAP := 500  ## Entries kept; the oldest drop first.
 const FIELDS := 4

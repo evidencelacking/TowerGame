@@ -45,9 +45,14 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 					people.add_person(PeopleScript.NONE, id, rng)
 		elif kind == "condo" and selling and not rooms.is_sold(id) and _reachable(floors, rooms, grid, id, entry_x):
 			rooms.set_sold(id, true)
-			ledger.income(at_tick, CatalogueScript.cost(kind), id)
+			ledger.sale(at_tick, CatalogueScript.cost(kind), id)
 			for n in rooms.people_in(id):
 				people.add_person(id, PeopleScript.NONE, rng)
+
+
+## True if the lobby's route reaches the room (used by Evaluation for friends).
+func reachable(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, id: int, entry_x: int) -> bool:
+	return _reachable(floors, rooms, grid, id, entry_x)
 
 
 func _reachable(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, id: int, entry_x: int) -> bool:

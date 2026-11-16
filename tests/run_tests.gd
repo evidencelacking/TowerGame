@@ -42,6 +42,7 @@ const TestStress := preload("res://tests/test_stress.gd")
 const TestBench := preload("res://tests/test_bench.gd")
 const TestNoise := preload("res://tests/test_noise.gd")
 const TestGrades := preload("res://tests/test_grades.gd")
+const TestEvaluation := preload("res://tests/test_evaluation.gd")
 const TestWordOfMouth := preload("res://tests/test_word_of_mouth.gd")
 const TestComplaints := preload("res://tests/test_complaints.gd")
 const TestPeopleView := preload("res://tests/test_people_view.gd")
@@ -52,6 +53,7 @@ const TestStars := preload("res://tests/test_stars.gd")
 const TestPersonWindow := preload("res://tests/test_person_window.gd")
 const TestRent := preload("res://tests/test_rent.gd")
 const TestRunningCosts := preload("res://tests/test_running_costs.gd")
+const TestFinance := preload("res://tests/test_finance.gd")
 
 var failures := 0
 
@@ -97,6 +99,7 @@ func _initialize() -> void:
 	TestBench.run(check)
 	TestNoise.run(check)
 	TestGrades.run(check)
+	TestEvaluation.run(check)
 	TestWordOfMouth.run(check)
 	TestComplaints.run(check)
 	TestPeopleView.run(check)
@@ -107,6 +110,7 @@ func _initialize() -> void:
 	TestPersonWindow.run(check)
 	TestRent.run(check)
 	TestRunningCosts.run(check)
+	TestFinance.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 
