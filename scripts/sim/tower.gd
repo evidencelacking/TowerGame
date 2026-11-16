@@ -22,6 +22,7 @@ const MessagesScript := preload("res://scripts/sim/messages.gd")
 const NamesScript := preload("res://scripts/sim/names.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
+const ComplaintsScript := preload("res://scripts/sim/complaints.gd")
 const StarRulesScript := preload("res://scripts/sim/star_rules.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
@@ -90,6 +91,8 @@ var grades := GradesScript.new()
 var word_of_mouth := WordOfMouthScript.new()
 ## Rent level per room and quarterly rent collection (see Rent). Saved: the non-default levels.
 var rent := RentScript.new(rooms)
+## Why a tenant room is unhappy: noise, distance or rent (see Complaints). Derived, so not saved.
+var complaints := ComplaintsScript.new()
 ## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY, PLACE_ROOM, PLACE_STAIRS, BULLDOZE or REPLACE_ROOM command (OK or a refusal reason; see
 ## Ledger and Floors for the codes).
 var last_refusal: int = 0
@@ -107,6 +110,7 @@ func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_START
 	ledger = LedgerScript.new(starting_funds)
 	word_of_mouth.attach(grades, rooms, grid, people)
 	grades.add_modifier(rent.grade_modifier)
+	complaints.attach(grades, rooms, grid, people, rent)
 
 
 ## Queues a command for a future tick. Returns false (and queues nothing) if that tick has
@@ -283,6 +287,16 @@ func quality(room: int) -> int:
 ## GradesScript.GRADE_A, GRADE_B or GRADE_C for a graded room, or GRADE_NONE. Read-only.
 func grade(room: int) -> int:
 	return grades.grade(rooms, people, room)
+
+
+## Main complaint reason of a room (ComplaintsScript.NONE, NOISE, DISTANCE or RENT). Read-only.
+func complaint_reason(room: int) -> int:
+	return complaints.reason(room)
+
+
+## Every complaint reason that applies to the room, most important first. Read-only.
+func complaint_reasons(room: int) -> Array[int]:
+	return complaints.reasons(room)
 
 
 ## Rent level 0 to 3 of a room (see Rent). Read-only, for the view.

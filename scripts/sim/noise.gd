@@ -12,7 +12,7 @@ extends RefCounted
 ##
 ## Read it with noise_at(grid, rooms, room_id) for one room or levels(grid, rooms) for all.
 ## #119 (complaint reasons) and the grade (#113) read these; the stress effect is behind
-## STRESS_PER_NOISE_LEVEL, which is 0 (off) until the owner wants it.
+## STRESS_PER_NOISE_LEVEL; Complaints (#119) registers it as a Grades modifier.
 
 const GridScript := preload("res://scripts/sim/grid.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
@@ -31,7 +31,7 @@ const RANGE_FLOORS := 1  ## Sources and buffers reach this many floors above and
 const RANGE_UNITS := 2  ## ...and this many empty units sideways (0 = touching or overlapping).
 const FALLOFF_PER_STEP := 1  ## A source loses this much per floor and per sideways unit of distance.
 const MAX_LEVEL := 10  ## Noise level never exceeds this.
-const STRESS_PER_NOISE_LEVEL := 0  ## Stress added per level per evaluation; 0 keeps stress unchanged.
+const STRESS_PER_NOISE_LEVEL := 5  ## Stress added to a room's grade average per noise level (tunable, unverified; 0 turns it off).
 
 
 static func is_source(kind: String) -> bool:
@@ -91,7 +91,7 @@ static func levels(grid: GridScript, rooms: RoomsScript) -> Dictionary:
 	return result
 
 
-## Stress a noise level adds (0 while STRESS_PER_NOISE_LEVEL is 0).
+## Stress a noise level adds.
 static func stress_for(level: int) -> int:
 	return level * STRESS_PER_NOISE_LEVEL
 
