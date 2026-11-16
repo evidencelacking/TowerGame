@@ -52,7 +52,7 @@ static func run(check: Callable) -> void:
 	check.call(rents.size() == Rent.LEVELS and Rent.LEVELS == 4, "an office has four rent levels in the catalogue")
 	check.call(rents[Rent.DEFAULT_LEVEL] == 10000, "the default office rent is $10,000")
 	check.call(rents[0] < rents[1] and rents[1] < rents[2] and rents[2] < rents[3], "rent rises with the level")
-	check.call(Rent.is_rentable("office") and not Rent.is_rentable("condo") and not Rent.is_rentable("stairs"), "only offices have rent levels so far")
+	check.call(Rent.is_rentable("office") and Rent.is_rentable("hotel_suite") and not Rent.is_rentable("condo") and not Rent.is_rentable("stairs"), "only offices and hotel rooms have rent levels")
 
 	var t := _two_offices()
 	var ids := t.rooms.room_ids()

@@ -4,8 +4,9 @@ extends RefCounted
 ## command. Each level has a rent in the catalogue row ("rent": four dollar amounts, lowest to
 ## highest) and a stress offset below. A higher rent adds stress to the room's average, so the same
 ## real stress gives a worse grade (docs/gameplay-reference.md: higher rent, harsher evaluation).
-## Rent is collected once a quarter from each rentable room that has tenants. Condos cannot have
-## their rent changed (the reference); hotels and shops are not rented by level here.
+## Rent is collected once a quarter from each rentable room that has workers (offices). Condos cannot
+## have their rent changed (the reference). Hotel rooms also have the four levels, but their amount is
+## the nightly price, paid at check-out by Hotel (never by collect); shops are not rented by level.
 ##
 ## The levels run lowest (blue), green, yellow (default, "average"), highest (red). The lowest
 ## level is meant to make tenants effectively never leave (never_leaves); nothing moves tenants out
