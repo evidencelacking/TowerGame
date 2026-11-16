@@ -40,6 +40,8 @@ const LOBBY_MAX_HEIGHT := 3
 ## Bumps on every change, so the view knows when to redraw. Not saved or hashed.
 var revision: int = 0
 var _flags := PackedByteArray()  # FLOOR_COUNT * WIDTH_UNITS flag bytes
+var _counts: Dictionary = {}  # floor -> span_counts, valid while _counts_revision == revision
+var _counts_revision: int = -1
 
 
 func _init() -> void:
@@ -140,6 +142,25 @@ func fill_span(floor_number: int, x_start: int, x_end: int) -> void:
 ## True when the ground lobby occupies this cell.
 func has_lobby_at(floor_number: int, column: int) -> bool:
 	return _has(floor_number, column, LOBBY)
+
+
+## Running counts along a floor: [unbuilt, lobby], each WIDTH_UNITS + 1 long, entry c counting the
+## cells before column c. "Is every cell from a to b built" and "is any a lobby" are then two
+## subtractions (route finding asks this for many pairs). Cached until the floors next change.
+func span_counts(floor_number: int) -> Array:
+	if _counts_revision != revision:
+		_counts.clear()
+		_counts_revision = revision
+	if not _counts.has(floor_number):
+		var unbuilt := PackedInt32Array()
+		var lobbies := PackedInt32Array()
+		unbuilt.resize(GridScript.WIDTH_UNITS + 1)
+		lobbies.resize(GridScript.WIDTH_UNITS + 1)
+		for column in GridScript.WIDTH_UNITS:
+			unbuilt[column + 1] = unbuilt[column] + (0 if has_floor(floor_number, column) else 1)
+			lobbies[column + 1] = lobbies[column] + (1 if has_lobby_at(floor_number, column) else 0)
+		_counts[floor_number] = [unbuilt, lobbies]
+	return _counts[floor_number]
 
 
 ## True once the ground lobby is built.
