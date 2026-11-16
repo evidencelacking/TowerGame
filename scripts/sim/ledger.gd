@@ -1,7 +1,7 @@
 class_name Ledger
 extends RefCounted
 ## The money ledger. Whole dollars, integers only. Every change to the balance is one line,
-## so the balance always equals the sum of the lines. Rent and running costs come later (M3+).
+## so the balance always equals the sum of the lines.
 
 const DEFAULT_STARTING_FUNDS := 2000000  ## Dollars; a setting, overridable per new game.
 
@@ -10,7 +10,8 @@ const OPENING := 1  ## The starting funds, tick 0.
 const CHARGE := 2  ## A purchase: amount is negative.
 const REFUND := 3  ## Any adjustment that always applies (positive money back, or negative).
 const PAYOUT := 4  ## Money paid out that is never refused (a bulldozed sold condo); amount is negative.
-const INCOME := 5  ## Money earned (a condo sale); amount is positive.
+const INCOME := 5  ## Money earned (a condo sale, quarterly rent); amount is positive.
+const COST := 6  ## A quarterly running cost; amount is negative. Never refused (see RunningCosts).
 
 ## Results returned by charge().
 const OK := 0
@@ -51,6 +52,11 @@ func payout(at_tick: int, amount: int, ref: int) -> void:
 ## Earns amount dollars (zero or more), such as a condo sale.
 func income(at_tick: int, amount: int, ref: int) -> void:
 	_add(at_tick, amount, INCOME, ref)
+
+
+## Pays a running cost of amount dollars (zero or more). Never refused: the balance may go negative.
+func running_cost(at_tick: int, amount: int, ref: int) -> void:
+	_add(at_tick, -amount, COST, ref)
 
 
 func line_sum() -> int:

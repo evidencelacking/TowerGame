@@ -19,12 +19,22 @@ extends RefCounted
 ##   limit          most allowed per tower, or 0 for no limit.
 ##   limit_group    rooms sharing one limit share this group name; "" counts alone.
 ##   people         workers (office) or residents (condo) the room holds; absent elsewhere for now.
-##                  Rent comes later; population is People.in_tower_count().
+##                  Population is People.in_tower_count().
+##   rent           quarterly rent in dollars at each of 4 levels, lowest to highest (office only;
+##                  UNVERIFIED tunables; the third is the $10,000 default, see rent.gd).
+##   upkeep         quarterly running cost in dollars (see running_costs.gd); absent means free (stairs).
+##                  Charged per shaft for elevators, per room otherwise, once for the ground lobby.
+##                  All tunable (owner ruling); the kinds in UPKEEP_UNVERIFIED are guesses.
 ##   capacity       passengers per car (car rows only; 0 elsewhere).
 ##   limit_scope    "tower", or "shaft" for elevator cars (limit is cars per shaft).
 
 const FLOOR_COST_PER_UNIT := 500  ## Dollars per unit for the floor under any room.
 const RESCUE_COST := 500000  ## Fire rescue, dollars (decided 2026-11-10).
+
+## Kinds whose upkeep is a guess: only the $10,000 per elevator (local shaft) is in the reference.
+const UPKEEP_UNVERIFIED: Array[String] = [
+	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp",
+]
 
 const PLACE_ANYWHERE := 0  ## Above or below ground.
 const PLACE_ABOVE_GROUND := 1
@@ -50,7 +60,7 @@ const IDS: Array[String] = [
 ]
 
 const _ROWS: Dictionary = {
-	"lobby": {"width": 1, "height": 1, "cost": 5000, "per_unit": true, "star": 1,
+	"lobby": {"upkeep": 2000, "width": 1, "height": 1, "cost": 5000, "per_unit": true, "star": 1,
 		"removable": false, "placement": PLACE_LOBBY_FLOORS, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"floor": {"width": 1, "height": 1, "cost": 500, "per_unit": true, "star": 1,
@@ -59,13 +69,13 @@ const _ROWS: Dictionary = {
 	"stairs": {"width": 4, "height": 2, "cost": 5000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_BETWEEN_FLOORS, "limit": 64,
 		"limit_group": "stairs_escalators", "limit_scope": "tower"},
-	"local_shaft": {"width": 4, "height": 1, "cost": 200000, "per_unit": false, "star": 1,
+	"local_shaft": {"upkeep": 10000, "width": 4, "height": 1, "cost": 200000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_SHAFT, "limit": 24,  # unverified: reference doesn't scope 24 shafts
 		"limit_group": "shafts", "limit_scope": "tower"},
 	"local_car": {"capacity": 17, "width": 4, "height": 1, "cost": 80000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_CAR, "limit": 8,
 		"limit_group": "", "limit_scope": "shaft"},
-	"office": {"people": 6, "width": 9, "height": 1, "cost": 40000, "per_unit": false, "star": 1,
+	"office": {"rent": [3000, 6000, 10000, 15000], "people": 6, "width": 9, "height": 1, "cost": 40000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"condo": {"people": 3, "width": 16, "height": 1, "cost": 80000, "per_unit": false, "star": 1,
@@ -74,7 +84,7 @@ const _ROWS: Dictionary = {
 	"fast_food": {"width": 16, "height": 1, "cost": 100000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
-	"service_shaft": {"width": 4, "height": 1, "cost": 100000, "per_unit": false, "star": 2,
+	"service_shaft": {"upkeep": 10000, "width": 4, "height": 1, "cost": 100000, "per_unit": false, "star": 2,
 		"removable": true, "placement": PLACE_SHAFT, "limit": 24,  # unverified: reference doesn't scope 24 shafts
 		"limit_group": "shafts", "limit_scope": "tower"},
 	"service_car": {"capacity": 17, "width": 4, "height": 1, "cost": 50000, "per_unit": false, "star": 2,
@@ -83,17 +93,17 @@ const _ROWS: Dictionary = {
 	"hotel_single": {"width": 4, "height": 1, "cost": 20000, "per_unit": false, "star": 2,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
-	"housekeeping": {"width": 16, "height": 1, "cost": 50000, "per_unit": false, "star": 2,
+	"housekeeping": {"upkeep": 5000, "width": 16, "height": 1, "cost": 50000, "per_unit": false, "star": 2,
 		"removable": false, "placement": PLACE_ANYWHERE, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	# tune later (#9: 10 vs 8). The reference gives 10 (I) for medical and security together; S says 8.
-	"security": {"width": 16, "height": 1, "cost": 100000, "per_unit": false, "star": 2,
+	"security": {"upkeep": 5000, "width": 16, "height": 1, "cost": 100000, "per_unit": false, "star": 2,
 		"removable": false, "placement": PLACE_ANYWHERE, "limit": 10,
 		"limit_group": "medical_security", "limit_scope": "tower"},
-	"escalator": {"width": 8, "height": 2, "cost": 20000, "per_unit": false, "star": 3,
+	"escalator": {"upkeep": 2000, "width": 8, "height": 2, "cost": 20000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ESCALATOR, "limit": 64,
 		"limit_group": "stairs_escalators", "limit_scope": "tower"},
-	"express_shaft": {"width": 6, "height": 1, "cost": 400000, "per_unit": false, "star": 3,
+	"express_shaft": {"upkeep": 10000, "width": 6, "height": 1, "cost": 400000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_SHAFT, "limit": 24,  # unverified: reference doesn't scope 24 shafts
 		"limit_group": "shafts", "limit_scope": "tower"},
 	"express_car": {"capacity": 36, "width": 6, "height": 1, "cost": 150000, "per_unit": false, "star": 3,
@@ -120,10 +130,10 @@ const _ROWS: Dictionary = {
 	"medical": {"width": 16, "height": 1, "cost": 500000, "per_unit": false, "star": 3,
 		"removable": false, "placement": PLACE_ABOVE_GROUND, "limit": 10,
 		"limit_group": "medical_security", "limit_scope": "tower"},
-	"recycling": {"width": 16, "height": 2, "cost": 500000, "per_unit": false, "star": 3,
+	"recycling": {"upkeep": 10000, "width": 16, "height": 2, "cost": 500000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_UNDERGROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
-	"parking_ramp": {"width": 4, "height": 1, "cost": 50000, "per_unit": false, "star": 3,
+	"parking_ramp": {"upkeep": 1000, "width": 4, "height": 1, "cost": 50000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_RAMP, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"parking_space": {"width": 4, "height": 1, "cost": 3000, "per_unit": false, "star": 3,

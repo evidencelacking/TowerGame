@@ -77,9 +77,10 @@ static func letter(grade: int) -> String:
 	return LETTERS[grade]
 
 
-## Quality of the room 0 to STRESS_MAX, or -1 if the room is not graded. Neutral until an
-## occupant has made a trip.
-func quality(rooms: RoomsScript, people: PeopleScript, room: int) -> int:
+## Average current stress of the occupants who have made a trip, before any modifier (rent,
+## noise, word of mouth): the part of the grade that travel causes. -1 if the room is not
+## graded or no occupant has travelled yet.
+func average_stress(rooms: RoomsScript, people: PeopleScript, room: int) -> int:
 	var kind := rooms.kind_of(room)
 	if not is_graded(kind):
 		return -1
@@ -92,8 +93,18 @@ func quality(rooms: RoomsScript, people: PeopleScript, room: int) -> int:
 			total += people.stress_of(i)
 			n += 1
 	if n == 0:
+		return -1
+	return total / n
+
+
+## Quality of the room 0 to STRESS_MAX, or -1 if the room is not graded. Neutral until an
+## occupant has made a trip.
+func quality(rooms: RoomsScript, people: PeopleScript, room: int) -> int:
+	if not is_graded(rooms.kind_of(room)):
+		return -1
+	var average := average_stress(rooms, people, room)
+	if average < 0:
 		return NEUTRAL_QUALITY
-	var average := total / n
 	for modifier in _modifiers:
 		average += modifier.call(room)
 	return PeopleScript.STRESS_MAX - clampi(average, 0, PeopleScript.STRESS_MAX)
