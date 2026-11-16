@@ -147,17 +147,25 @@ grades follow fast food because the room info window (#120) needs them.
 
 ## M7 Stars and services
 
+**Status:** Filed 2026-11-16; in backlog for gameplay review.
+
+Reordered 2026-11-16: the old 7.2 (unlocks, limits, costs) is already in the room catalogue and
+toolbar, so it joins the promotion moment; demand messages move up because the 3-star demands
+arrive at once; a simple VIP comes forward from 9.4 so star 4 can be reached before M9. Hotel
+guests always count toward population (owner, #37).
+
 | ID | Task | Done when | Issue |
 |---|---|---|---|
-| 7.1 | Star rules as data: 3 = 1,000 + security; 4 = 5,000 + medical, recycling, more than one suite, good VIP; 5 = 10,000 + metro | Promotion tests per rank |  |
-| 7.2 | Unlocks, limits and costs per star | Toolbar changes on promotion |  |
-| 7.3 | Promotion moment: banner, message, sound hook | Shows once |  |
-| 7.4 | Security office: staff, outside emergency stairs only; coverage by distance | Coverage test |  |
-| 7.5 | Medical centre: demand from office workers | Demand message clears |  |
-| 7.6 | Recycling: 2 floors, underground, must touch others, fills daily, truck empties at morning, full = idle, served by service elevator | Tests |  |
-| 7.7 | Parking: ramp column under the ground lobby, spaces chain to it, broken chain marked; demand from offices (3 stars) and one per suite | Tests |  |
-| 7.8 | Demand messages ("needs recycling", "needs parking") | Shown and cleared |  |
-| 7.9 | Decide hotel guests in population after 3 stars (*unverified*) | Owner decision recorded | #37 |
+| 7.1 | Star rules 3-5 as data: 3 = 1,000 + security; 4 = 5,000 + medical, recycling, more than one suite, good VIP; 5 = 10,000 + metro (rule only; metro in 11.3) | Promotion tests per rank | #166 |
+| 7.2 | Promotion moment: banner, message, sound hook; toolbar shows new unlocks | Shows once; new rooms appear | #167 |
+| 7.3 | Demand messages ("needs security", "needs recycling", "needs parking" ...) | Shown and cleared | #168 |
+| 7.4 | Security office: staff, outside emergency stairs only; coverage by distance | Coverage test | #169 |
+| 7.5 | Medical centre: demand from office workers | Demand message clears | #170 |
+| 7.6 | Recycling: 2 floors, underground, must touch others, fills daily, truck empties at morning, full = idle; service elevator reach rule (#162) | Tests | #171 |
+| 7.7 | Parking: ramp column under the ground lobby, spaces chain to it, broken chain marked; demand from offices (3 stars) and one per suite | Tests | #172 |
+| 7.8 | Simple VIP visit: stays in a suite, verdict gates star 4, retries later; no dialogs (pulled forward from 9.4) | Test | #173 |
+| 7.9 | Native-shape look for each M7 room kind | Distinct at every zoom | #174 |
+| 7.10 | Owner playtest: stars and services | Owner reports results | #175 |
 
 ## M8 Big-tower transport
 
@@ -180,7 +188,7 @@ grades follow fast food because the room info window (#120) needs them.
 | 9.1 | Event system: seeded, scheduled and random, dialogs with choices | Reproducible |  |
 | 9.2 | Fire: only with security; spreads sideways and up; security travel time; paid rescue | Both outcomes |  |
 | 9.3 | Threat event (our own version): pay, or search floor by floor before the deadline; a miss destroys about 5 floors | Both outcomes |  |
-| 9.4 | VIP stays in a suite; verdict gates star 4; retries later | Test |  |
+| 9.4 | VIP as a full event: dialog and choices (simple VIP in 7.8) | Test |  |
 | 9.5 | Treasure found while building underground | Seeded probability test |  |
 | 9.6 | Rain: fewer visitors, food hit hardest | Test |  |
 | 9.7 | Seasonal fly-past in Q4 at night (our own character) | Visible |  |
@@ -240,7 +248,7 @@ Obvious or required changes found in the player guides. They are folded into the
 | 15 | feature | Rain and seasonal fly-past events | Missing from the first plan | 9.6, 9.7 | #34 |
 | 16 | design | Don't replicate bugs: double funds, office escalators; starting funds becomes a setting | Faithful to intent, not to bugs | 2.8, 8.4 | #35 |
 | 17 | design | Lowest-rent exploit and rent-toggle reset: replicate, then review in M12 | Known balance holes | 5.3 | #36 |
-| 18 | design | Hotel guests in population after 3 stars | Unverified claim | 7.9 | #37 |
+| 18 | design | Hotel guests in population after 3 stars | Unverified claim; owner: always count | 7.1 | #37 |
 | 19 | test | Balance runs replay the guides' strategies (offices-only, condos-first) | Checks the climb feels like the original | 11.7 | #38 |
 | 20 | process | `gameplay-expert` reviews each gameplay issue before `ready` | Faithful replication | 0.7 | process, no issue |
 | 21 | feature | Our own cheats (debug money, unlock all, instant build), kept apart from normal play | Owner wants them; the original's bug cheats are not replicated | M12+ | #39 |
