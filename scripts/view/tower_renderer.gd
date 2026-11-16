@@ -26,12 +26,17 @@ const ROOM_COLORS: Dictionary = {
 	4: Color(0.60, 0.85, 0.55),  # shop
 }
 
+## Back to front. Links (stairs, escalators) and shafts sit in front of the rooms behind them (#126);
+## floors come after rooms because a room fills its whole row and would hide its own slab.
+const DRAW_ORDER: Array[String] = ["_draw_lobby", "_draw_rooms", "_draw_links", "_draw_floors", "_draw_shafts", "_draw_queues", "_draw_cars", "_draw_people"]
+
 var tower: Tower = null
 ## Colour of each placed room kind (catalogue id). Rooms placed by PLACE_ROOM use these.
 const KIND_COLORS: Dictionary = {
 	"office": Color(0.55, 0.70, 0.90),
 	"condo": Color(0.85, 0.65, 0.85),
 	"stairs": Color(0.80, 0.72, 0.45),
+	"escalator": Color(0.35, 0.75, 0.80),
 }
 
 ## Maps an occupant id to a ROOM_COLORS key. Replace once the sim stores room types.
@@ -54,7 +59,7 @@ func _process(delta: float) -> void:
 	if _elevators.observe(tower):
 		_tick_len = maxf(_since_tick, 0.001)
 		_since_tick = 0.0
-	var occupants := tower.grid.occupant_count()
+	var occupants := tower.grid.occupant_count() + tower.rooms.links.occupant_count()
 	if tower.floors.revision != _seen_revision or occupants != _seen_occupants:
 		_seen_revision = tower.floors.revision
 		_seen_occupants = occupants
@@ -82,13 +87,8 @@ func _draw() -> void:
 	if tower == null:
 		return
 	_draw_grid(world)
-	_draw_lobby()
-	_draw_rooms()
-	_draw_floors()  # last: a room fills its whole row and would hide its own slab
-	_draw_shafts()
-	_draw_queues()
-	_draw_cars()
-	_draw_people()
+	for layer: String in DRAW_ORDER:
+		call(layer)
 
 
 ## Hairline lines (1 screen pixel at any zoom) every floor and every 10 columns.
@@ -139,17 +139,7 @@ func _draw_rooms() -> void:
 				column += 1
 				continue
 			seen[id] = true
-			if tower.rooms.is_stairs_upper(id):
-				column += grid.run_of(id)[2]
-				continue
 			var run := grid.run_of(id)
-			if tower.rooms.kind_of(id) == "stairs":
-				# Stairs span their own floor and the one above.
-				var span := Rect2i(run[1] * VC.CELL_PX, VC.floor_to_row(Tower.RoomsScript.floor_above(floor_number)) * VC.CELL_PX, run[2] * VC.CELL_PX, 2 * VC.CELL_PX)
-				draw_rect(span, KIND_COLORS["stairs"])
-				draw_rect(span, KIND_COLORS["stairs"].darkened(0.5), false, 1.0)
-				column += run[2]
-				continue
 			var rect := Rect2i(run[1] * VC.CELL_PX, VC.floor_to_row(floor_number) * VC.CELL_PX, run[2] * VC.CELL_PX, VC.CELL_PX)
 			var color: Color = EMPTY_ROOM_COLOR
 			if tower.rooms.has_room(id):
@@ -158,6 +148,36 @@ func _draw_rooms() -> void:
 				color = ROOM_COLORS.get(room_type_of.call(id), EMPTY_ROOM_COLOR)
 			draw_rect(rect, color)
 			draw_rect(rect, color.darkened(0.5), false, 1.0)
+			column += run[2]
+
+
+## Stairs and escalators (the link layer) in front of the rooms: each spans its own floor and the
+## one above. Stairs are drawn with steps, escalators in teal with diagonal strips.
+func _draw_links() -> void:
+	var links := tower.rooms.links
+	var seen: Dictionary = {}
+	for index: int in Tower.Grid.FLOOR_COUNT:
+		var floor_number := Tower.Grid.index_to_floor(index)
+		var column := 0
+		while column < Tower.Grid.WIDTH_UNITS:
+			var id := links.cell_at(floor_number, column)
+			if id == Tower.Grid.EMPTY or seen.has(id) or not Tower.RoomsScript.is_stair_kind(tower.rooms.kind_of(id)):
+				column += 1
+				continue
+			seen[id] = true
+			var run := links.run_of(id)
+			var kind := tower.rooms.kind_of(id)
+			var span := Rect2i(run[1] * VC.CELL_PX, VC.floor_to_row(Tower.RoomsScript.floor_above(floor_number)) * VC.CELL_PX, run[2] * VC.CELL_PX, 2 * VC.CELL_PX)
+			var color: Color = KIND_COLORS[kind]
+			draw_rect(span, color)
+			draw_rect(span, color.darkened(0.5), false, 1.0)
+			var strips := 4 if kind == "stairs" else 8
+			for n in range(1, strips):  # steps (stairs) or slanted strips (escalator)
+				var x := span.position.x + span.size.x * n / strips
+				if kind == "escalator":
+					draw_line(Vector2(x - VC.CELL_PX, span.end.y), Vector2(x, span.position.y), color.darkened(0.5), 1.0)
+				else:
+					draw_line(Vector2(x, span.end.y), Vector2(x, span.position.y + span.size.y * (strips - n) / strips), color.darkened(0.5), 1.0)
 			column += run[2]
 
 
