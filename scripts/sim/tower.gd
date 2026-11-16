@@ -51,6 +51,7 @@ class Command:
 	const SET_RENT := 19  ## Sets a room's rent level: args are room id, level (0 lowest to 3 highest). See Rent.set_rent.
 	const RENAME_PERSON := 40  ## Renames a person: args are person id, then the new name as code points (none restores the generated name). See PersonNames.
 	const PLACE_ESCALATOR := 18  ## Places an escalator between two floors: args are lower floor, x_left. See Rooms.place_escalator.
+	const DEBUG_UNLOCK_ALL := 90  ## Debug only: args[0] 1 unlocks every room kind, 0 restores star gating. See Tower.unlock_all.
 	const SET_SHAFT_STOP := 15  ## Turns a shaft's stop on a floor on or off: args are shaft id, floor, on (1 or 0). See Rooms.set_shaft_stop.
 
 	var tick: int = 0  ## The tick this command applies at.
@@ -104,6 +105,9 @@ var last_refusal: int = 0
 var notes: int = 0
 ## The tower's star rating, 1 to 5. Only promote_stars raises it and nothing lowers it. The HUD, toolbar and ghost read it.
 var stars: int = START_STARS
+## Debug switch (#156): treat every star-gated kind as unlocked. Off in a normal game, set only by
+## the DEBUG_UNLOCK_ALL command, hashed while on, and never saved (a loaded tower starts it off).
+var unlock_all: bool = false
 
 var _queue: Array[Command] = []
 
@@ -236,9 +240,12 @@ func _apply_command(command: Command) -> void:
 			if command.args.size() == 3:
 				last_refusal = rooms.set_shaft_stop(command.args[0], command.args[1], command.args[2] != 0)
 				_note_refusal(MessagesScript.ROOM_REFUSED, command.args[0])
+		Command.DEBUG_UNLOCK_ALL:
+			if command.args.size() == 1:
+				unlock_all = command.args[0] != 0
 		Command.ADD_CAR:
 			if command.args.size() == 2:
-				last_refusal = rooms.add_car(ledger, tick, stars, command.args[0], command.args[1])
+				last_refusal = rooms.add_car(ledger, tick, unlocked_stars(), command.args[0], command.args[1])
 				_note_refusal(MessagesScript.ROOM_REFUSED, command.args[0])
 		Command.REMOVE_CAR:
 			if command.args.size() == 1:
@@ -277,6 +284,12 @@ func _run_systems() -> void:
 		evaluate_tenants()
 	if StarRulesScript.is_check_tick(clock):
 		promote_stars()
+
+
+## The star rating the build gates use: the real rating, or the top rating while unlock_all is on.
+## Views must gate on this, never on stars directly.
+func unlocked_stars() -> int:
+	return 5 if unlock_all else stars
 
 
 ## Raises stars to what the population now earns and logs one message per star gained. Never
@@ -347,6 +360,8 @@ func _state_ints() -> Array[int]:
 	ints.append_array(names.state_ints())
 	ints.append_array(rent.state_ints())
 	ints.append(last_refusal)
+	if unlock_all:
+		ints.append(1)  # Only while on, so a normal game hashes exactly as before.
 	ints.append(_queue.size())
 	for command in _queue:
 		ints.append(command.tick)
