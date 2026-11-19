@@ -171,15 +171,17 @@ guests always count toward population (owner, #37).
 
 | ID | Task | Done when | Issue |
 |---|---|---|---|
-| 8.1 | Sky lobby: only floors 15, 30 ... 90 | Test |  |
-| 8.2 | Express: any height, lobbies and all basements, 36 per car, faster (speed constants exist from #103) | Tests |  |
-| 8.3 | Routes across a 100-floor tower: express to sky lobby, one change | Tests |  |
-| 8.4 | Escalator rules (placement done in #125, #126): commercial, lobby or empty floors; at most 7 a trip; shared customers | Tests |  |
-| 8.5 | Shared stair and escalator limit (64) | Test |  |
-| 8.6 | Elevator panel: car columns, home floors, floor on/off | Edits apply |  |
-| 8.7 | Schedules by WD/WE and period: express to top/bottom, response distance, departure wait 0-90 s | Test each |  |
-| 8.8 | Panel preview of one shaft, explained in plain words | Shows cars and riders |  |
-| 8.9 | Performance: 15,000 people | Target frame rate held |  |
+| 8.1 | Sky lobby: only floors 15, 30 ... 90 | Test | #182 |
+| 8.2 | Express: any height, lobbies and all basements, 36 per car, faster (speed constants exist from #103) | Tests | #183 |
+| 8.3 | Routes across a 100-floor tower: express to sky lobby, one change | Tests | #184 |
+| 8.4 | Escalator rules (placement done in #125, #126): commercial, lobby or empty floors; at most 7 a trip; shared customers | Tests | #185 |
+| 8.5 | Shared stair and escalator limit (64) | Test | #186 |
+| 8.6 | Elevator panel: car columns, home floors, floor on/off | Edits apply | #187 |
+| 8.7 | Schedules by WD/WE and period: express to top/bottom, response distance, departure wait 0-90 s | Test each | #188 |
+| 8.8 | Panel preview of one shaft, explained in plain words | Shows cars and riders | #189 |
+| 8.9 | Performance: 15,000 people | Target frame rate held | #190 |
+| 8.10 | Tenant direction bias and rush-hour waiting stress (optional) | Tests | #191 |
+| 8.11 | M8 owner playtest | Owner reports results | #192 |
 
 ## M9 Events
 
