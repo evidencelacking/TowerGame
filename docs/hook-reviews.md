@@ -3,6 +3,23 @@
 Newest first. The latest date here sets when the next review is due. Firings logged on that
 date count as reviewed.
 
+## 2026-11-19
+
+Firings since 2026-11-12: script-logic 8, history-rewrite 6, unbounded-script 5, raw-api 1,
+owner-move 1. The log records rule and tool only, so most firings can't be traced to a command.
+
+- **Working as designed:** script-logic (deny-once nudge per new script); history-rewrite, most
+  likely builders resetting reused worktree branches to origin/main, which a fresh branch avoids;
+  raw-api.
+- **Fix (proposed, needs owner approval):** owner-move fired on a heredoc that wrote HANDOFF.md
+  and only mentioned the owner's close command in its text. Match owner moves only when
+  `issue.py` is the command being run, not text inside a heredoc body.
+- **Fix (still waiting):** the unbounded-script tightening from 2026-11-11.
+- **Add (proposed):** log the first 120 characters of the command with each firing, so reviews
+  can tell a real catch from a false positive. Protected file, so it waits for the owner.
+- **Retire:** none. The never-fired rules guard rare but costly mistakes.
+- **Trim:** CLAUDE.md is under 60 lines.
+
 ## 2026-11-12
 
 No firings logged after 2026-11-11 (`hook_report.py`); the start-of-session count included
