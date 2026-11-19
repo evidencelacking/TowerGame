@@ -8,7 +8,8 @@ extends RefCounted
 ##   SECURITY   from 2 stars (star 3 asks for a security office), no security office.
 ##   SUITE      from 3 stars (star 4 asks for 2 suites), fewer than SUITES_FOR_STAR_4 suites.
 ##   MEDICAL    from 3 stars, fewer medical centres than one per OFFICES_PER_MEDICAL offices (rounded up).
-##   RECYCLING  from 3 stars, at least one office, no recycling centre.
+##   RECYCLING  from 3 stars, at least one office, and no recycling centre, or rubbish overflowing
+##              (kind_counts "recycling_short", set from Recycling.short()).
 ##   PARKING    from 3 stars, at least one office, no parking space.
 ## A demand only opens once its remedy can be built (its room kind is in Rooms.PLACEABLE), so
 ## the demands for rooms that do not exist yet stay quiet instead of blocking star 4 for ever
@@ -65,6 +66,8 @@ static func compute(stars: int, kind_counts: Dictionary, buildable: Array[String
 		else:
 			var remedy: String = _REMEDY[id]
 			wanted = buildable.has(remedy) and int(kind_counts.get(remedy, 0)) == 0
+			if id == RECYCLING:
+				wanted = buildable.has(remedy) and (int(kind_counts.get(remedy, 0)) == 0 or int(kind_counts.get("recycling_short", 0)) > 0)
 			if id != SECURITY:
 				wanted = wanted and offices > 0
 		if wanted:
@@ -73,8 +76,8 @@ static func compute(stars: int, kind_counts: Dictionary, buildable: Array[String
 
 
 ## Recomputes the open set and logs one message for each demand raised or cleared.
-func update(rooms: Rooms, stars: int, messages: Messages, at_tick: int, buildable: Array[String] = Rooms.PLACEABLE) -> void:
-	var counts: Dictionary = {}
+func update(rooms: Rooms, stars: int, messages: Messages, at_tick: int, buildable: Array[String] = Rooms.PLACEABLE, extra: Dictionary = {}) -> void:
+	var counts: Dictionary = extra.duplicate()
 	for room in rooms.room_ids():
 		var kind := rooms.kind_of(room)
 		counts[kind] = int(counts.get(kind, 0)) + 1
