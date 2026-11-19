@@ -186,6 +186,8 @@ Performance and the optional waiting stress moved to Later (owner, 2026-11-19).
 
 ## M9 Events
 
+Rows 9.4 to 9.8 (#219 to #223) are held until after M10 (owner, 2026-11-19): more events once the graphics are better.
+
 Values in brackets on each issue are the gameplay expert's recommendations, chosen by the coordinator.
 
 | ID | Task | Done when | Issue |
@@ -213,18 +215,18 @@ something, the view shows it. Animation reads sim state only and adds no saved s
 
 | ID | Task | Done when | Issue |
 |---|---|---|---|
-| 10.1 | Feel rules in our own words (cutaway boxes, readable walls, colour per kind, lit rooms in use, sky carries the time) and 3 code-drawn mock-ups of one floor slice; owner picks; name the game | Decision recorded |  |
+| 10.1 | Feel rules in our own words (cutaway boxes, readable walls, colour per kind, lit rooms in use, sky carries the time) and 3 code-drawn mock-ups of one floor slice; owner picks; name the game | Decision recorded | #240 |
 | 10.2 | Renderer: low-res canvas at integer scale, palette, recipe system (frame, furniture, spots, empty and in-use looks), batched drawing; replaces the native-shape look (absorbs #143) | Sharp at 1080p and 4K; test: every room kind has a recipe | #143 |
-| 10.3 | Recipes, batch 1: lobby, offices, condos, hotel rooms, housekeeping | Owner approves by eye; tests: in-use and empty looks differ |  |
-| 10.4 | Recipes, batch 2: food, shops, services, parking, recycling, transport (stairs and escalator slopes, shafts, cars) | Owner approves by eye |  |
-| 10.5 | People: figures about 3x7 native px with a colour per type and stress marks, a 2-frame walk, a standing pose on escalators, a stepping cycle on stairs, smooth diagonal movement on stairs and escalator legs, smoothing between ticks | Test: height moves smoothly floor to floor |  |
-| 10.6 | Activities in rooms: occupants on recipe spots chosen by id (desks, tables, beds, sofas), shown doing what the sim says (working, at lunch, eating, sleeping with lights off, cleaning, queueing, shopping); small idle motion from id and period | Tests: spots stay inside the room; same moment draws the same |  |
-| 10.7 | Event and service visuals: fire and smoke, guards moving, rescue craft, threat search, VIP, treasure, rain, fly-past, elevator doors | Each M9 event has a visual |  |
-| 10.8 | Sky and light: day/night by period, lit windows, rain | Smooth over a day |  |
+| 10.3 | Recipes, batch 1: lobby, offices, condos, hotel rooms, housekeeping | Owner approves by eye; tests: in-use and empty looks differ | #241 |
+| 10.4 | Recipes, batch 2: food, shops, services, parking, recycling, transport (stairs and escalator slopes, shafts, cars) | Owner approves by eye | #242 |
+| 10.5 | People: figures about 3x7 native px with a colour per type and stress marks, a 2-frame walk, a standing pose on escalators, a stepping cycle on stairs, smooth diagonal movement on stairs and escalator legs, smoothing between ticks | Test: height moves smoothly floor to floor | #243 |
+| 10.6 | Activities in rooms: occupants on recipe spots chosen by id (desks, tables, beds, sofas), shown doing what the sim says (working, at lunch, eating, sleeping with lights off, cleaning, queueing, shopping); small idle motion from id and period | Tests: spots stay inside the room; same moment draws the same | #244 |
+| 10.7 | Event and service visuals: fire and smoke, guards moving, rescue craft, threat search, VIP, treasure, rain, fly-past, elevator doors | Each M9 event has a visual | #245 |
+| 10.8 | Sky and light: day/night by period, lit windows, rain | Smooth over a day | #246 |
 | 10.9 | Overview map with Eval, Rent, Hotel and Problems filters; click jumps the camera; the Eval filter is #142 | Works | #142 |
 | 10.10 | Bulk rent: set rent for a selection, a floor or a room type | One action changes many | #28 |
-| 10.11 | Sound: ambience, UI, elevator, crowd, events (original or licensed) | Licence per file |  |
-| 10.12 | Settings: resolution, full screen, UI scale, volume, keys, starting funds | Persist |  |
+| 10.11 | Sound: ambience, UI, elevator, crowd, events (original or licensed) | Licence per file | #247 |
+| 10.12 | Settings: resolution, full screen, UI scale, volume, keys, starting funds | Persist | #248 |
 
 ## M11 Full game
 

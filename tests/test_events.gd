@@ -37,6 +37,7 @@ static func _mixed() -> Array[Dictionary]:
 static func run(check: Callable) -> void:
 	# No kinds, no events, and the scheduler never touches the tower's own random stream.
 	var quiet := TowerSim.new(5)
+	quiet.events.kinds = [] as Array[Dictionary]  # a tower registers the fire kind itself
 	var busy := _tower(5, [_kind(1, 500), _kind(2, 500)] as Array[Dictionary])
 	_run(quiet, 3000)
 	_run(busy, 3000)

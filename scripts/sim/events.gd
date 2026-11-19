@@ -24,6 +24,13 @@ extends RefCounted
 ## per period, "min_stars": 1 to 5, "choices": count including decline (at least 1), "timeout":
 ## ticks until the default (at least 1), "floor": the floor it names, 0 for none}. `kinds` is
 ## configuration, not saved: a system registers its kinds when the tower is built.
+##
+## A kind may also carry (all optional, #217 and #218): "chance_den", the draw's size (default 1000,
+## so "chance" is per mille; 100000 gives finer odds); "chance_of", a Callable returning the chance
+## now, which replaces "chance" (0 means cannot happen); "periods", the 1-based clock periods whose
+## start may fire it (default all); "deadline_minute", a minute of the day the event must end by, which
+## replaces "timeout" (the deadline is the next time the clock reaches it); and "costs", the dollars
+## each choice charges (0 for decline), which the CHOOSE_EVENT command takes. A draw is always made.
 
 const SEED_SALT := 0x45564E54  ## "EVNT".
 const MAX_OPEN := 3
@@ -81,6 +88,15 @@ func resolved() -> Array[Array]:
 	return copy
 
 
+## Dollars the choice charges, 0 when the event is not open or the choice is free.
+func cost_of(id: int, choice: int) -> int:
+	for event in _events:
+		if event[0] == id:
+			var costs: Array = kind_def(event[1]).get("costs", [])
+			return int(costs[choice]) if choice >= 0 and choice < costs.size() else 0
+	return 0
+
+
 func kind_def(kind: int) -> Dictionary:
 	for def in kinds:
 		if def["id"] == kind:
@@ -115,21 +131,25 @@ func tick(clock: Object, stars: int, at_tick: int) -> void:
 		else:
 			n += 1
 	if clock.ticks_in_period() == 0:
-		_roll(stars, at_tick)
+		_roll(clock, stars, at_tick)
 
 
-func _roll(stars: int, at_tick: int) -> void:
+func _roll(clock: Object, stars: int, at_tick: int) -> void:
 	for def in kinds:
 		rolls += 1
-		var draw := _rng.next_below(1000)
-		if draw >= int(def["chance"]) or stars < int(def["min_stars"]) or _events.size() >= MAX_OPEN:
+		var draw := _rng.next_below(int(def.get("chance_den", 1000)))
+		var chance: int = def["chance_of"].call() if def.has("chance_of") else int(def["chance"])
+		if draw >= chance or stars < int(def["min_stars"]) or _events.size() >= MAX_OPEN:
+			continue
+		if def.has("periods") and not (def["periods"] as Array).has(clock.period()):
 			continue
 		var cls: int = def["class"]
 		if cls == THREAT and _last_fire != 0 and at_tick - (_last_fire - 1) < DAY_TICKS:
 			continue
 		if cls == FIRE and _last_threat != 0 and at_tick - (_last_threat - 1) < DAY_TICKS:
 			continue
-		_events.append([_next_id, def["id"], def["floor"], OPEN, at_tick, at_tick + int(def["timeout"]), def["choices"]])
+		var timeout: int = clock.ticks_until_minute(int(def["deadline_minute"])) if def.has("deadline_minute") else int(def["timeout"])
+		_events.append([_next_id, def["id"], def["floor"], OPEN, at_tick, at_tick + timeout, def["choices"]])
 		_next_id += 1
 		if cls == FIRE:
 			_last_fire = at_tick + 1

@@ -1271,6 +1271,43 @@ func bulldoze(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_t
 	return OK
 
 
+## Destroys a room by disaster (fire, #217; a threat, #218): like a bulldoze but free, whatever the
+## kind (security and the like included), and with no refund. A stairs, escalator or shaft goes whole.
+## The floor under it stays. The caller clears what other systems hold for the room (Tower.destroy_room).
+## Returns false when id is not a room.
+func destroy(grid: GridScript, floors: FloorsScript, id: int) -> bool:
+	if not _kind_of.has(id):
+		return false
+	occupants_removed += people_in(id)
+	_remove_occupants(grid, floors, id)
+	_kind_of.erase(id)
+	_sold.erase(id)
+	return true
+
+
+## The floors a room occupies, lowest first: one, two for a stairs, escalator or tall room, every stop
+## floor for a shaft. Empty for an id that is not a room.
+func floors_of(grid: GridScript, id: int) -> Array[int]:
+	var out: Array[int] = []
+	if not _kind_of.has(id):
+		return out
+	if _shafts.has(id):
+		var level: int = _shafts[id][1]
+		for _i in int(_shafts[id][0]):
+			out.append(level)
+			level = floor_above(level)
+		return out
+	var run := run_of(grid, id)
+	if run.is_empty():
+		return out
+	out.append(run[0])
+	if is_stair_kind(kind_of(id)) or TALL_KINDS.has(kind_of(id)):
+		var above := floor_above(run[0])
+		if above != 0:
+			out.append(above)
+	return out
+
+
 ## Checks a replace without changing anything: the room covering (floor_number, x_left) goes and
 ## a new room of kind (a catalogue id) takes its place with its left edge at x_left. Returns
 ## {"reason", "cost", "refund", "net", "room_id", "floor_units"}: cost is the new room's price plus

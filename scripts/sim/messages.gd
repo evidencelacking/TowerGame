@@ -38,6 +38,14 @@ const VIP_ARRIVED := 40  ## a: suite room id. A VIP checked in (#173).
 const VIP_GOOD := 41  ## a: suite room id. The VIP left happy: star 4 can follow.
 const VIP_BAD := 42  ## a: suite room id. The VIP left unhappy; another comes in a few days.
 const TRIP_UNREACHABLE := 43  ## a: people whose trip needed a second transfer this minute (#184). Logged at most once a day.
+const FIRE_STARTED := 44  ## a: catalogue index, b: floor number. A fire broke out in a room (#217).
+const FIRE_OUT := 45  ## a: catalogue index, b: floor number. Guards put the fire in a room out.
+const ROOM_BURNED := 46  ## a: catalogue index, b: floor number. A burning room was destroyed.
+const RESCUE_ARRIVED := 47  ## a: fires put out, b: rooms lost. The paid rescue craft came.
+const THREAT_NOTICE := 48  ## An anonymous notice: a device is hidden in the tower (#218).
+const THREAT_PAID := 49  ## The owner paid and it ended.
+const THREAT_FOUND := 50  ## a: floor. Guards found the device in time.
+const THREAT_EXPLODED := 51  ## a: lowest floor, b: highest floor destroyed.
 const ROOM_DIRTY := 34  ## a: room id. Hotel guests checked out; the room needs cleaning (#147).
 
 const CAP := 500  ## Entries kept; the oldest drop first.
