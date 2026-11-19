@@ -62,10 +62,12 @@ const RAMP_COLUMN := 64  ## Parking ramp: later ramps share the column of the fi
 const RAMP_NOT_UNDER_LOBBY := 65  ## Parking ramp: the first goes on B1 under the ground lobby.
 const RAMP_NOT_BELOW_RAMP := 66  ## Parking ramp: a later ramp goes directly below a ramp.
 const NOT_BASEMENT := 67  ## Parking ramps and spaces go below ground.
+const EXPRESS_NO_STOP := 68  ## Express stop: only lobbies and basements can be stops.
 
 const CAR_INTS := 9  ## Ints in one saved car (SHAFT to NEXT in cars.gd).
 const MAX_CARS_PER_SHAFT := 8  ## Cars in one shaft (reference).
-const CAR_CAPACITY := 17  ## People a local car holds (reference); enforced in cars.gd (#94).
+const CAR_CAPACITY := 17  ## People a local (or service) car holds (reference); enforced in cars.gd (#94).
+const EXPRESS_CAR_CAPACITY := 36  ## People an express car holds (owner ruling 2026-11-10).
 ## Cars allowed per shaft by star rating, index = stars - 1 (a guess, tunable).
 const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
@@ -95,6 +97,8 @@ var _stops: Array = []  # per car: floors it still has to stop at for its riders
 var _heading: Array[int] = []  # per car: the direction it is serving (UP, DOWN or 0)
 var _queue: Array = []  # people waiting for a car: [person id, shaft id, floor, destination], arrival order
 var alighted: Array = []  # [person id, floor] of recent alighters until #95 takes them with take_alighted()
+## Set by Tower so an express shaft can tell which floors are lobbies (its only stops above ground).
+var floors: FloorsScript = null
 var _calls: Array = []  # hall calls [shaft id, floor, dir, car index or -1] in arrival order (see cars.gd)
 
 
@@ -627,8 +631,9 @@ func car_count(shaft_id: int) -> int:
 
 
 ## People a car holds; the 18th boarder waits for the next car.
-func car_capacity() -> int:
-	return CAR_CAPACITY
+## Pass a shaft id for an express shaft's 36.
+func car_capacity(shaft_id: int = 0) -> int:
+	return EXPRESS_CAR_CAPACITY if _shafts.has(shaft_id) and kind_of(shaft_id) == "express_shaft" else CAR_CAPACITY
 
 
 ## Cars of a shaft, oldest first: each an array indexed by the CarsScript constants (SHAFT to NEXT).
@@ -646,7 +651,7 @@ func add_car(ledger: LedgerScript, at_tick: int, stars: int, shaft_id: int, home
 	if not _shafts.has(shaft_id):
 		return NOTHING_THERE
 	var shaft_kind: String = kind_of(shaft_id)
-	if shaft_kind != "local_shaft" and shaft_kind != "service_shaft":
+	if not shaft_kind.ends_with("_shaft"):
 		return NO_CARS_HERE
 	var count := car_count(shaft_id)
 	if count >= MAX_CARS_PER_SHAFT:
@@ -679,6 +684,8 @@ func remove_car(shaft_id: int) -> int:
 func set_shaft_stop(id: int, floor_number: int, on: bool) -> int:
 	if not _shafts.has(id) or not _in_shaft_span(_shafts[id], floor_number):
 		return NOT_IN_SHAFT
+	if on and not _express_ok(id, floor_number):
+		return EXPRESS_NO_STOP
 	var off: Array[int] = _shafts[id][3]
 	if not on:
 		for car: Array in _cars:
@@ -820,7 +827,15 @@ func is_stop(id: int, floor_number: int) -> bool:
 	if not _shafts.has(id) or not _in_shaft_span(_shafts[id], floor_number):
 		return false
 	var off: Array[int] = _shafts[id][3]
-	return not off.has(floor_number)
+	return not off.has(floor_number) and _express_ok(id, floor_number)
+
+
+## False for a floor an express shaft never stops at: only lobbies (ground and sky) and basements
+## are stops (8.2). Every other shaft kind accepts any floor.
+func _express_ok(id: int, floor_number: int) -> bool:
+	if kind_of(id) != "express_shaft":
+		return true
+	return floor_number < 0 or (floors != null and floors.is_lobby_floor(floor_number))
 
 
 ## Ids of every shaft, ascending (routing reads them).
@@ -847,7 +862,7 @@ func car_waiting_at(shaft_id: int, floor_number: int) -> bool:
 		if car[CarsScript.STATE] == CarsScript.IDLE:
 			if car[CarsScript.FLOOR] == floor_number:
 				return true
-		elif car[CarsScript.TARGET] == floor_number and car[CarsScript.LOAD] < car_capacity() and not CarsScript.going_home(self, n):
+		elif car[CarsScript.TARGET] == floor_number and car[CarsScript.LOAD] < car_capacity(car[CarsScript.SHAFT]) and not CarsScript.going_home(self, n):
 			return true
 	return false
 
@@ -861,7 +876,7 @@ func waiting_keys() -> Array[int]:
 		var floor_number := -1000
 		if car[CarsScript.STATE] == CarsScript.IDLE:
 			floor_number = car[CarsScript.FLOOR]
-		elif car[CarsScript.LOAD] < car_capacity() and not CarsScript.going_home(self, n):
+		elif car[CarsScript.LOAD] < car_capacity(car[CarsScript.SHAFT]) and not CarsScript.going_home(self, n):
 			floor_number = car[CarsScript.TARGET]
 		if floor_number != -1000:
 			keys.append(int(car[CarsScript.SHAFT]) * 1000 + floor_number + 100)
@@ -891,7 +906,7 @@ func stops_of(id: int) -> Array[int]:
 	var off: Array[int] = _shafts[id][3]
 	var level: int = _shafts[id][1]
 	for i in int(_shafts[id][0]):
-		if not off.has(level):
+		if not off.has(level) and _express_ok(id, level):
 			stops.append(level)
 		level = floor_above(level)
 	return stops

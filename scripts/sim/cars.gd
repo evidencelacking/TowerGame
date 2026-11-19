@@ -19,7 +19,7 @@ extends RefCounted
 ## 10 ticks (4 sim minutes). A tick is TICK_UNITS time units. Motion and doors cost units, and a
 ## car spends a tick's units across phases, so leftover units carry from one phase into the next
 ## within the tick. A floor costs LOCAL_UNITS_PER_FLOOR (local and service cars) or
-## EXPRESS_UNITS_PER_FLOOR (express shafts, 1.5x faster) and a stop costs the doors, 0.7 tick.
+## EXPRESS_UNITS_PER_FLOOR (express shafts, about 2x faster) and a stop costs the doors, 0.7 tick.
 ##
 ## Home (#109): a car with no calls, no stops and no riders that is away from its home floor counts
 ## idle time (its TICKS, which an idle car does not otherwise use). After IDLE_DWELL units it heads
@@ -35,7 +35,7 @@ const DOORS_CLOSING := 4
 # Timing in time units (TICK_UNITS per tick). All unverified, tune by play.
 const TICK_UNITS := 100
 const LOCAL_UNITS_PER_FLOOR := 9  ## 100 floors in 9 ticks.
-const EXPRESS_UNITS_PER_FLOOR := 6  ## 100 floors in 6 ticks.
+const EXPRESS_UNITS_PER_FLOOR := 5  ## 100 floors in 5 ticks: about 2x local (8.2).
 const DOOR_OPEN_UNITS := 20
 const DOOR_HOLD_UNITS := 30
 const DOOR_CLOSE_UNITS := 20
@@ -122,7 +122,7 @@ static func _finish_phase(rooms: RefCounted, n: int) -> void:
 			elif not rooms.is_stop(car[SHAFT], car[FLOOR]):
 				_alight_all_here(rooms, n)
 				_resume(rooms, n)
-			elif car[LOAD] >= rooms.car_capacity() and not rooms._stops[n].has(car[FLOOR]):
+			elif car[LOAD] >= rooms.car_capacity(car[SHAFT]) and not rooms._stops[n].has(car[FLOOR]):
 				for call: Array in rooms._calls:
 					if call[CALL_CAR] == n and call[CALL_FLOOR] == car[FLOOR]:
 						call[CALL_CAR] = -1
@@ -152,7 +152,7 @@ static func _dispatch(rooms: RefCounted) -> void:
 		var best_distance := 0
 		for n in rooms._cars.size():
 			var car: Array = rooms._cars[n]
-			if car[SHAFT] != call[CALL_SHAFT] or car[LOAD] >= rooms.car_capacity():
+			if car[SHAFT] != call[CALL_SHAFT] or car[LOAD] >= rooms.car_capacity(car[SHAFT]):
 				continue
 			var homing := going_home(rooms, n)
 			var ahead: int = (at - _level(car[FLOOR])) * call[CALL_DIR]
@@ -251,7 +251,7 @@ static func _exchange(rooms: RefCounted, n: int) -> void:
 			dir = dir_to(floor_number, entry[3])
 	rooms._heading[n] = dir
 	var q := 0
-	while q < rooms._queue.size() and riders.size() < rooms.car_capacity():
+	while q < rooms._queue.size() and riders.size() < rooms.car_capacity(car[SHAFT]):
 		var entry: Array = rooms._queue[q]
 		if entry[1] == car[SHAFT] and entry[2] == floor_number and dir_to(floor_number, entry[3]) == dir:
 			riders.append([entry[0], entry[3]])

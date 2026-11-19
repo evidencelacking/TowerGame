@@ -139,6 +139,7 @@ func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_START
 	rng.reseed(seed_value)
 	names.name_seed = seed_value
 	ledger = LedgerScript.new(starting_funds)
+	rooms.floors = floors
 	word_of_mouth.attach(grades, rooms, grid, people)
 	grades.add_modifier(rent.grade_modifier)
 	complaints.attach(grades, rooms, grid, people, rent)

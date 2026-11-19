@@ -83,7 +83,7 @@ static func run(check: Callable) -> void:
 	_stop(t, base, 7, 0)
 	var u := Harness.clone_via_save(t)
 	check.call(u != null and u.state_hash() == t.state_hash() and not u.rooms.is_stop(base, 7) and u.rooms.is_stop(base, 6), "stop flags save and load exactly")
-	check.call(u != null and u.rooms.stops_of(ex).size() == 40, "a loaded shaft keeps its span")
+	check.call(u != null and u.rooms._in_shaft_span(u.rooms._shafts[ex], 40) and not u.rooms._in_shaft_span(u.rooms._shafts[ex], 41), "a loaded shaft keeps its span")
 
 	# Determinism.
 	var local := CatalogueScript.IDS.find("local_shaft")
