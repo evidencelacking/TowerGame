@@ -33,6 +33,7 @@ const RecyclingScript := preload("res://scripts/sim/recycling.gd")
 const VipScript := preload("res://scripts/sim/vip.gd")
 const DemandsScript := preload("res://scripts/sim/demands.gd")
 const StarRulesScript := preload("res://scripts/sim/star_rules.gd")
+const EventsScript := preload("res://scripts/sim/events.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
 ## point in that tick (see step). Integers only, so it saves and hashes exactly.
@@ -61,6 +62,7 @@ class Command:
 	const DEBUG_UNLOCK_ALL := 90  ## Debug only: args[0] 1 unlocks every room kind, 0 restores star gating. See Tower.unlock_all.
 	const SET_CAR_HOME := 20  ## Moves a car's home floor: args are shaft id, the car's place among the shaft's cars (0 oldest), floor. See Rooms.set_car_home.
 	const SET_SCHEDULE := 21  ## Sets one shaft schedule slot: args are shaft id, slot (0 to 5: weekday then weekend, 3 periods each), mode (0 normal, 1 express to top, 2 to bottom), response distance, departure wait in seconds. See Rooms.set_schedule.
+	const CHOOSE_EVENT := 50  ## Answers an open event: args are event id, choice (0 declines). See Events.choose.
 	const SET_SHAFT_STOP := 15  ## Turns a shaft's stop on a floor on or off: args are shaft id, floor, on (1 or 0). See Rooms.set_shaft_stop.
 
 	var tick: int = 0  ## The tick this command applies at.
@@ -75,7 +77,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 37
+const SAVE_VERSION := 38
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -116,6 +118,7 @@ var recycling := RecyclingScript.new(rooms)
 ## The VIP visit that gates star 4: one reserved suite, a verdict, a retry after a bad one (see Vip). Saved.
 var vip := VipScript.new(rooms, hotel)
 var demands := DemandsScript.new()
+var events := EventsScript.new()  ## The event scheduler (#214): its own seeded stream, saved with the tower.
 ## Why a tenant room is unhappy: noise, distance or rent (see Complaints). Derived, so not saved.
 var complaints := ComplaintsScript.new()
 ## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY, PLACE_ROOM, PLACE_STAIRS, BULLDOZE or REPLACE_ROOM command (OK or a refusal reason; see
@@ -140,6 +143,7 @@ var _parking_at: int = -1  ## The tick _parking_working was found at.
 func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_STARTING_FUNDS) -> void:
 	rng.reseed(seed_value)
 	names.name_seed = seed_value
+	events.reseed(seed_value)
 	ledger = LedgerScript.new(starting_funds)
 	rooms.floors = floors
 	word_of_mouth.attach(grades, rooms, grid, people)
@@ -304,6 +308,9 @@ func _apply_command(command: Command) -> void:
 			if command.args.size() == 1:
 				last_refusal = rooms.remove_car(command.args[0])
 				_note_refusal(MessagesScript.ROOM_REFUSED, command.args[0])
+		Command.CHOOSE_EVENT:
+			if command.args.size() == 2:
+				events.choose(command.args[0], command.args[1], tick)
 		Command.RENAME_PERSON:
 			if command.args.size() >= 1 and people.index_of(command.args[0]) != -1:
 				names.apply_args(command.args)
@@ -344,6 +351,7 @@ func _run_systems() -> void:
 	CarsScript.tick(rooms)
 	trips.collect_arrivals(floors, rooms, grid, people)
 	people.tick(clock)
+	events.tick(clock, stars, tick)
 	if EvaluationScript.is_due(clock):
 		evaluate_tenants()
 	if StarRulesScript.is_check_tick(tick):
@@ -455,6 +463,7 @@ func _state_ints() -> Array[int]:
 	ints.append_array(recycling.state_ints())
 	ints.append_array(vip.state_ints())
 	ints.append_array(demands.state_ints())
+	ints.append_array(events.state_ints())
 	ints.append(last_refusal)
 	if unlock_all:
 		ints.append(1)  # Only while on, so a normal game hashes exactly as before.
@@ -478,7 +487,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "recycling": recycling.state_ints(), "vip": vip.state_ints(), "demands": demands.state_ints(), "evaluation": evaluation.state_ints(), "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "recycling": recycling.state_ints(), "vip": vip.state_ints(), "demands": demands.state_ints(), "events": events.state_ints(), "evaluation": evaluation.state_ints(), "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -511,8 +520,9 @@ func load_state(data: Dictionary) -> bool:
 	var evaluation_ints: Variant = data.get("evaluation")
 	var demands_ints: Variant = data.get("demands")
 	var commerce_ints: Variant = data.get("commerce")
+	var events_ints: Variant = data.get("events")
 	var queue_data: Variant = data.get("queue")
-	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and rent_ints is Array and hotel_ints is Array and commerce_ints is Array and housekeeping_ints is Array and recycling_ints is Array and vip_ints is Array and pests_ints is Array and evaluation_ints is Array and demands_ints is Array and queue_data is Array):
+	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and rent_ints is Array and hotel_ints is Array and commerce_ints is Array and housekeeping_ints is Array and recycling_ints is Array and vip_ints is Array and pests_ints is Array and evaluation_ints is Array and demands_ints is Array and events_ints is Array and queue_data is Array):
 		return false
 	var loaded_grid := Grid.new()
 	if not Clock.valid_ints(clock_ints) or not loaded_grid.load_ints(grid_ints) or not LedgerScript.valid_ints(ledger_ints) or not FloorsScript.valid_ints(floors_ints):
@@ -525,7 +535,7 @@ func load_state(data: Dictionary) -> bool:
 		return false
 	if not GradesScript.valid_ints(grades_ints) or not NamesScript.valid_ints(names_ints) or not EvaluationScript.valid_ints(evaluation_ints):
 		return false
-	if not RentScript.valid_ints(rent_ints) or not HotelScript.valid_ints(hotel_ints) or not CommerceScript.valid_ints(commerce_ints) or not HousekeepingScript.valid_ints(housekeeping_ints) or not RecyclingScript.valid_ints(recycling_ints) or not VipScript.valid_ints(vip_ints) or not PestsScript.valid_ints(pests_ints) or not DemandsScript.valid_ints(demands_ints):
+	if not RentScript.valid_ints(rent_ints) or not HotelScript.valid_ints(hotel_ints) or not CommerceScript.valid_ints(commerce_ints) or not HousekeepingScript.valid_ints(housekeeping_ints) or not RecyclingScript.valid_ints(recycling_ints) or not VipScript.valid_ints(vip_ints) or not PestsScript.valid_ints(pests_ints) or not DemandsScript.valid_ints(demands_ints) or not EventsScript.valid_ints(events_ints):
 		return false
 	var loaded_queue: Array[Command] = []
 	for entry in queue_data:
@@ -559,6 +569,7 @@ func load_state(data: Dictionary) -> bool:
 	recycling.load_ints(recycling_ints)
 	vip.load_ints(vip_ints)
 	demands.load_ints(demands_ints)
+	events.load_ints(events_ints)
 	last_refusal = data["last_refusal"]
 	tick = data["tick"]
 	rng.state = data["rng_state"]
