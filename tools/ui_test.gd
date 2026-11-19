@@ -243,6 +243,7 @@ func _window_cases() -> void:
 	if figures.is_empty():
 		_record("window.person", "windows", "Click a person: the person window opens", "-", false, "no person walked in within %d ticks" % waited, "SKIP")
 		return
+	_driver.set_paused(true)  # people walk in real time: hold the sim so the figure stays under the pointer
 	var figure: Dictionary = figures[0]
 	var centre := root.get_visible_rect().size / 2.0
 	_camera.pan_by_screen(_figure_screen(figure) - centre)
@@ -254,6 +255,7 @@ func _window_cases() -> void:
 	await _frames(1)
 	_finish_case("window.person", "windows", "Click a person: the person window opens (after %d ticks)" % waited, {},
 		person_window.person_id == figure["id"], "PersonWindow.person_id is %d, clicked %d" % [person_window.person_id, figure["id"]])
+	_driver.set_paused(false)
 
 
 # ---------------------------------------------------------------- case runners
