@@ -89,7 +89,7 @@ func _process(delta: float) -> void:
 	if _elevators.observe(tower):
 		_tick_len = maxf(_since_tick, 0.001)
 		_since_tick = 0.0
-	var occupants := tower.grid.occupant_count() + tower.rooms.links.occupant_count()
+	var occupants := tower.grid.occupant_count() + tower.rooms.links.occupant_count() + tower.rooms.links_over.occupant_count()
 	var layout_changed := tower.floors.revision != _seen_revision or occupants != _seen_occupants
 	if layout_changed:
 		_seen_revision = tower.floors.revision
@@ -184,17 +184,18 @@ func _rebuild_runs() -> void:
 			if owner_room != 0:
 				_room_runs.append([id, owner_room, Rect2i(run[1] * VC.CELL_W, row_y, run[2] * VC.CELL_W, VC.CELL_H)])
 			column += maxi(run[2], 1)
-		column = 0
-		while column < Tower.Grid.WIDTH_UNITS:
-			var link := tower.rooms.links.cell_at(floor_number, column)
-			if link == Tower.Grid.EMPTY or links_seen.has(link) or not Tower.RoomsScript.is_stair_kind(tower.rooms.kind_of(link)):
-				column += 1
-				continue
-			links_seen[link] = true
-			var link_run := tower.rooms.links.run_of(link)
-			var top := VC.floor_to_row(Tower.RoomsScript.floor_above(floor_number)) * VC.CELL_H
-			_link_runs.append([tower.rooms.kind_of(link), Rect2i(link_run[1] * VC.CELL_W, top, link_run[2] * VC.CELL_W, 2 * VC.CELL_H)])
-			column += maxi(link_run[2], 1)
+		for layer: Tower.Grid in [tower.rooms.links, tower.rooms.links_over]:  # a stacked flight's lower half sits in the second layer (#259)
+			column = 0
+			while column < Tower.Grid.WIDTH_UNITS:
+				var link := layer.cell_at(floor_number, column)
+				if link == Tower.Grid.EMPTY or links_seen.has(link) or not Tower.RoomsScript.is_stair_kind(tower.rooms.kind_of(link)):
+					column += 1
+					continue
+				links_seen[link] = true
+				var link_run := layer.run_of(link)
+				var top := VC.floor_to_row(Tower.RoomsScript.floor_above(floor_number)) * VC.CELL_H
+				_link_runs.append([tower.rooms.kind_of(link), Rect2i(link_run[1] * VC.CELL_W, top, link_run[2] * VC.CELL_W, 2 * VC.CELL_H)])
+				column += maxi(link_run[2], 1)
 
 
 func _paint_static(canvas: CanvasItem) -> void:
