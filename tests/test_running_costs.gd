@@ -60,9 +60,9 @@ static func run(check: Callable) -> void:
 	check.call(RunningCosts.quarterly_total(t.rooms, t.floors) == expected_costs, "the quarterly total is lobby plus elevator (stairs free)")
 	var opening := t.ledger.balance
 	var start := t.tick
-	t.step()
+	TestRent.settle_quarter(t)
 	check.call(t.clock.quarter_started, "the test stepped onto a quarter start")
-	check.call(_sum(t, Ledger.INCOME, start + 1) == 20000, "rent of $20,000 is credited at the quarter start")
+	check.call(_sum(t, Ledger.INCOME, start + 1) == 20000, "rent of $20,000 is credited over the quarter's three days")
 	check.call(_sum(t, Ledger.COST, start + 1) == -expected_costs, "running costs of $%d are charged at the quarter start" % expected_costs)
 	check.call(t.ledger.balance == opening + 20000 - expected_costs, "balance is opening plus rent minus costs, exactly")
 	var settled := t.messages.entry(t.messages.count() - 1)
@@ -76,20 +76,24 @@ static func run(check: Callable) -> void:
 	var income_ticks := _ticks(t, Ledger.INCOME, year_start + 1)
 	var cost_ticks := _ticks(t, Ledger.COST, year_start + 1)
 	var on_quarter_starts := true
-	for tick_key: int in income_ticks.keys() + cost_ticks.keys():
+	var rent_on_day_starts := true
+	for tick_key: int in income_ticks.keys():
+		if (tick_key - year_start) % (QUARTER_TICKS / 3) != 0:
+			rent_on_day_starts = false
+	check.call(rent_on_day_starts, "rent lands only on day starts")
+	for tick_key: int in cost_ticks.keys():
 		if (tick_key - year_start) % QUARTER_TICKS != 0:
 			on_quarter_starts = false
-	check.call(on_quarter_starts, "rent and costs land only on quarter starts")
-	check.call(income_ticks.size() == 4 and cost_ticks.size() == 4, "a full year settles four times")
+	check.call(on_quarter_starts, "running costs land only on quarter starts")
+	check.call(income_ticks.size() == 12 and cost_ticks.size() == 4, "a full year pays rent 12 days and settles costs four times")
 	check.call(_sum(t, Ledger.INCOME, year_start + 1) == 4 * 20000, "a year of rent is four quarters of $20,000")
 	check.call(_sum(t, Ledger.COST, year_start + 1) == -4 * expected_costs, "a year of running costs is four quarters")
 	check.call(t.ledger.balance == opening + 5 * (20000 - expected_costs) and t.ledger.balance == t.ledger.line_sum(), "over a year the balance equals income minus costs")
 
 	# A vacant office pays no rent, but the tower still pays running costs.
 	var vacant := TestTenancy._tower()  # an office no one can reach, so it stays vacant
-	vacant.clock.set_to_tick(QUARTER_TICKS - 1)
 	var vacant_start := vacant.tick
-	vacant.step()
+	TestRent.settle_quarter(vacant)
 	check.call(_sum(vacant, Ledger.INCOME, vacant_start + 1) == 0, "a vacant office pays no rent")
 	check.call(_sum(vacant, Ledger.COST, vacant_start + 1) == -lobby_cost, "a vacant tower still pays for its lobby")
 

@@ -18,6 +18,7 @@ extends RefCounted
 ## Saved state: the rooms whose level was changed from the default, as (room id, level) pairs.
 
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
+const ClockScript := preload("res://scripts/sim/clock.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const LedgerScript := preload("res://scripts/sim/ledger.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
@@ -106,12 +107,21 @@ func remove_room(room: int) -> void:
 	_levels.erase(room)
 
 
-## Credits one quarter's rent for every rentable room that has tenants. Returns the total.
-func collect(rooms: RoomsScript, people: PeopleScript, ledger: LedgerScript, at_tick: int) -> int:
+## One day's share of a quarterly rent (#261): a third each day, and the last day of the quarter
+## takes the rest, so a tenant who stays all quarter pays exactly the quarterly figure.
+static func day_share(quarterly: int, last_day: bool) -> int:
+	var third := quarterly / ClockScript.DAYS_PER_QUARTER
+	return quarterly - third * (ClockScript.DAYS_PER_QUARTER - 1) if last_day else third
+
+
+## Credits one day's rent for every rentable room that has tenants (last_day: the quarter's
+## closing day, which pays the remainder). A tenant who has left pays nothing from then on.
+## Returns the total.
+func collect(rooms: RoomsScript, people: PeopleScript, ledger: LedgerScript, at_tick: int, last_day: bool = true) -> int:
 	var total := 0
 	for id in rooms.room_ids():
 		if is_rentable(rooms.kind_of(id)) and people.workers_in(id) > 0:
-			var amount := rent_of(rooms, id)
+			var amount := day_share(rent_of(rooms, id), last_day)
 			ledger.income(at_tick, amount, id)
 			total += amount
 	return total

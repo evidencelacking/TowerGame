@@ -3,6 +3,8 @@ extends RefCounted
 ## $3,000 a day, daily takings reach the ledger under their own kind and the finance window, an
 ## unreachable shop trades nothing, the 30 cap feeds the grade only, five kinds, save and load.
 
+const TestRent := preload("res://tests/test_rent.gd")
+const Rent := preload("res://scripts/sim/rent.gd")
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Commerce := preload("res://scripts/sim/commerce.gd")
 const Catalogue := preload("res://scripts/sim/room_catalogue.gd")
@@ -272,19 +274,18 @@ static func run_retail(check: Callable) -> void:
 		ok = ok and Commerce.grade_of_customers("retail", customers) == cases[customers]
 	check.call(ok, "retail grade: 14 is C, 15 and 20 are B, 21 (over 20) is A")
 
-	# Rent arrives at the quarter start, at the level's amount, once.
+	# Rent arrives daily, a third a day, at the level's amount.
 	var t := _retail_tower(true)
 	var store := _store(t)
-	t.clock.set_to_tick(7650 - 1)
-	t.step()
+	TestRent.settle_quarter(t)
 	var rent_lines := 0
 	var paid := 0
 	for line: Array in t.ledger.lines:
 		if line[2] == Ledger.INCOME and line[3] == store:
 			rent_lines += 1
 			paid += line[1]
-	check.call(rent_lines == 1 and paid == rents[2], "a leased shop pays its default rent at the quarter start (%d)" % paid)
-	check.call(t.commerce.collect_rent(t.rooms, t.rent, t.ledger, t.tick) == rents[2], "collect_rent reports the quarter's rent")
+	check.call(rent_lines == 3 and paid == rents[2], "a leased shop pays its default rent over a quarter's three days (%d)" % paid)
+	check.call(t.commerce.collect_rent(t.rooms, t.rent, t.ledger, t.tick) == Rent.day_share(rents[2], true), "collect_rent reports the last day's share")
 
 	# Shop sales never reach the ledger as a shop line for retail.
 	var day := _retail_tower(true)

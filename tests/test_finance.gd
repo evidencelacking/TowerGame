@@ -12,6 +12,7 @@ const TestPersonWindow := preload("res://tests/test_person_window.gd")
 const RunningCosts := preload("res://scripts/sim/running_costs.gd")
 
 const QUARTER_TICKS := 7650
+const LAST_DAY_RENT := 2 * 3334  ## two default offices: $10,000 a quarter each, a third a day, the remainder on the last.
 
 
 ## Sum of ledger lines of one kind in one quarter, worked out here from the raw lines.
@@ -39,13 +40,15 @@ static func run(check: Callable) -> void:
 
 	# A scripted quarter: build in quarter 0, then the quarter start credits rent and charges costs.
 	var t := TestRunningCosts._tower()
-	t.tick = QUARTER_TICKS - 1  # the clock was set to the same point, so tick and clock agree
-	t.step()
+	for day in 3:  # rent is credited at each day start; tick and clock agree
+		t.tick = (day + 1) * (QUARTER_TICKS / 3) - 1
+		t.clock.set_to_tick(t.tick)
+		t.step()
 	check.call(t.clock.quarter_started and Finance.quarter_of(t.tick) == 1, "the scripted tick starts quarter 1")
 	var costs := RunningCosts.quarterly_total(t.rooms, t.floors)
 	var q0 := Finance.totals(t.ledger, 0)
 	var q1 := Finance.totals(t.ledger, 1)
-	check.call(q1.get(Ledger.INCOME, 0) == 20000 and q1.get(Ledger.COST, 0) == -costs, "quarter 1 shows rent $20,000 and running costs")
+	check.call(q1.get(Ledger.INCOME, 0) == LAST_DAY_RENT and q1.get(Ledger.COST, 0) == -costs, "quarter 1 shows the last day's rent and running costs")
 	check.call(q1.size() == 2, "quarter 1 has only rent and running costs")
 	check.call(q0.has(Ledger.OPENING) and q0.has(Ledger.CHARGE) and not q0.has(Ledger.COST), "quarter 0 shows the opening funds and construction, no running costs")
 	var grouped_ok := true
@@ -54,12 +57,12 @@ static func run(check: Callable) -> void:
 			grouped_ok = grouped_ok and int(Finance.totals(t.ledger, quarter).get(kind, 0)) == _sum(t, kind, quarter)
 	check.call(grouped_ok, "every kind's total equals the sum of its ledger lines in that quarter")
 	check.call(Finance.net(t.ledger, 0) + Finance.net(t.ledger, 1) == t.ledger.balance, "the quarters' nets add up to the balance")
-	check.call(Finance.net(t.ledger, 1) == 20000 - costs, "quarter 1's net is rent minus running costs")
+	check.call(Finance.net(t.ledger, 1) == LAST_DAY_RENT - costs, "quarter 1's net is rent minus running costs")
 	var rent_refs := Finance.by_ref(t.ledger, 1, Ledger.INCOME)
 	var ref_total := 0
 	for amount: int in rent_refs.values():
 		ref_total += amount
-	check.call(rent_refs.size() == 2 and ref_total == 20000, "rent groups by room: two offices, $20,000 together")
+	check.call(rent_refs.size() == 2 and ref_total == LAST_DAY_RENT, "rent groups by room: two offices, the last day's rent together")
 	check.call(Finance.by_ref(t.ledger, 1, Ledger.SALE).is_empty(), "no sales in quarter 1")
 
 	# The window shows those same numbers and leaves the sim alone.
@@ -74,7 +77,7 @@ static func run(check: Callable) -> void:
 	check.call("  Rent: %s" % Hud.format_money(_sum(t, Ledger.INCOME, 1)) in body, "window: rent equals the ledger sum")
 	check.call("  Running costs: %s" % Hud.format_money(_sum(t, Ledger.COST, 1)) in body, "window: running costs equal the ledger sum")
 	check.call("  Construction: %s" % Hud.format_money(_sum(t, Ledger.CHARGE, 0)) in body, "window: construction equals the ledger sum")
-	check.call("  Net: %s" % Hud.format_money(20000 - costs) in body, "window: the quarter's net is shown")
+	check.call("  Net: %s" % Hud.format_money(LAST_DAY_RENT - costs) in body, "window: the quarter's net is shown")
 	check.call("Balance: %s" % Hud.format_money(t.ledger.balance) in body, "window: the balance matches the ledger")
 	check.call(t.state_hash() == hash_before, "window: opening it leaves the sim hash unchanged")
 	window.toggle()

@@ -307,12 +307,13 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 		messages.add(at_tick, MessagesScript.DAILY_SALES, net, sellers)
 
 
-## One quarter's rent from every leased retail shop (income, like office rent). Returns the total.
-func collect_rent(rooms: RoomsScript, rent: RentScript, ledger: LedgerScript, at_tick: int) -> int:
+## One day's rent from every leased retail shop (income, like office rent; see Rent.day_share).
+## Returns the total.
+func collect_rent(rooms: RoomsScript, rent: RentScript, ledger: LedgerScript, at_tick: int, last_day: bool = true) -> int:
 	var total := 0
 	for id in rooms.room_ids():
 		if rooms.kind_of(id) == "retail" and not is_vacant(id):
-			var amount := rent.rent_of(rooms, id)
+			var amount := RentScript.day_share(rent.rent_of(rooms, id), last_day)
 			ledger.income(at_tick, amount, id)
 			total += amount
 	return total
