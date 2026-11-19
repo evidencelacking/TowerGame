@@ -152,6 +152,18 @@ const _ROWS: Dictionary = {
 }
 
 
+## Words for ids that read badly when capitalised; the shafts and cars are elevators to the player.
+const DISPLAY_NAMES: Dictionary = {
+	"local_shaft": "Local elevator", "service_shaft": "Service elevator", "express_shaft": "Express elevator",
+	"local_car": "Local car", "service_car": "Service car", "express_car": "Express car",
+}
+
+
+## The player-facing name of a room or tool id, e.g. "Local elevator" for "local_shaft".
+static func display_name(room_id: String) -> String:
+	return DISPLAY_NAMES.get(room_id, room_id.replace("_", " ").capitalize())
+
+
 static func has(room_id: String) -> bool:
 	return _ROWS.has(room_id)
 

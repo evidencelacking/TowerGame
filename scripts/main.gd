@@ -9,10 +9,19 @@ const SKY := Color(0.53, 0.78, 0.95)
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(SKY)
-	# Demo content until building commands exist (refs #6).
-	for i in 20:
-		_tower.grid.place(i + 1, 1 + i % 8, 10 + (i * 7) % 60, 4 + i % 5)
-	_tower.grid.place(100, -2, 20, 12)
+	var demo := DemoMode.active()
+	if demo:
+		# Demo mode (#262): a fresh tower with a huge balance, the top rating, everything unlocked.
+		# The driver and HUD read the driver's tower, so swap it in before anything binds to it.
+		$Hud/SimDriver.tower = Tower.new(0, DemoMode.FUNDS)
+		_tower = $Hud/SimDriver.tower
+		_tower.enqueue(Tower.Command.make(_tower.tick + 1, Tower.Command.DEBUG_UNLOCK_ALL, [1] as Array[int]))
+		_tower.enqueue(Tower.Command.make(_tower.tick + 1, Tower.Command.DEBUG_SET_STARS, [DemoMode.STARS] as Array[int]))
+	else:
+		# Demo content until building commands exist (refs #6).
+		for i in 20:
+			_tower.grid.place(i + 1, 1 + i % 8, 10 + (i * 7) % 60, 4 + i % 5)
+		_tower.grid.place(100, -2, 20, 12)
 	# Debug switch (#156): `python tools/play.py -- --unlock-all`. Off unless asked for.
 	if "--unlock-all" in OS.get_cmdline_user_args():
 		_tower.enqueue(Tower.Command.make(_tower.tick + 1, Tower.Command.DEBUG_UNLOCK_ALL, [1] as Array[int]))
@@ -47,11 +56,12 @@ func _ready() -> void:
 	finance_window.name = "FinanceWindow"
 	add_child(finance_window)
 	finance_window.bind(_tower)
-	$Hud/SimDriver.autosave_enabled = true
-	var save_menu := SaveMenu.new()
-	save_menu.name = "SaveMenu"
-	add_child(save_menu)
-	save_menu.bind($Hud/SimDriver)
+	if not demo:  # Demo towers never write or read the normal save slots.
+		$Hud/SimDriver.autosave_enabled = true
+		var save_menu := SaveMenu.new()
+		save_menu.name = "SaveMenu"
+		add_child(save_menu)
+		save_menu.bind($Hud/SimDriver)
 	var money: Label = $Hud.get_node("%MoneyLabel")
 	money.mouse_filter = Control.MOUSE_FILTER_STOP
 	money.gui_input.connect(func(event: InputEvent) -> void:

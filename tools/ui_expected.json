@@ -1,0 +1,3 @@
+{
+  "_help": "Known UI test failures: case id -> the open issue that explains it. Listed cases show as XFAIL and do not fail CI. When one starts passing it shows as XPASS: delete its line here."
+}

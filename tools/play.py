@@ -1,6 +1,8 @@
 """Launches the game: imports first when Godot's class cache is stale, then runs it full screen.
 
-  python tools/play.py [--scene res://path.tscn] [extra Godot arguments]
+  python tools/play.py [--demo] [--scene res://path.tscn] [extra Godot arguments]
+
+--demo starts a new tower with a huge balance, the top star rating and everything unlocked (#262).
 """
 import subprocess
 import sys
@@ -23,9 +25,12 @@ def main(extra):
         return 1
     # "--scene res://x.tscn" runs that scene instead of the main one (Godot takes it positionally).
     args = []
-    it = iter(extra)
+    demo = "--demo" in extra
+    it = iter([a for a in extra if a != "--demo"])
     for a in it:
         args.append(next(it, "") if a == "--scene" else a)
+    if demo:  # Godot hands everything after "--" to the game (OS.get_cmdline_user_args).
+        args += ["--demo"] if "--" in args else ["--", "--demo"]
     return subprocess.call([exe, "--path", str(ROOT), "--fullscreen", *args])
 
 
