@@ -98,6 +98,26 @@ func minute_of_day() -> int:
 	return (start + _ticks_in_period * span / period_ticks(_period)) % MINUTES_PER_DAY
 
 
+## Ticks until the clock next reaches a minute of the day (at least 1; a full day when it is the
+## minute now). Works on a copy, so the clock is untouched.
+func ticks_until_minute(target: int) -> int:
+	var copy: Object = get_script().new()
+	copy.load_ints(state_ints())
+	var need := posmod(target - minute_of_day(), MINUTES_PER_DAY)
+	if need == 0:
+		need = MINUTES_PER_DAY
+	var seen := 0
+	var last := minute_of_day()
+	var ticks := 0
+	while seen < need and ticks < 4 * MINUTES_PER_DAY:  # a day is 2,550 ticks, so this always ends first
+		copy.advance()
+		ticks += 1
+		var now: int = copy.minute_of_day()
+		seen += posmod(now - last, MINUTES_PER_DAY)
+		last = now
+	return ticks
+
+
 ## The in-game hour, 0 to 23.
 func hour() -> int:
 	return minute_of_day() / 60
