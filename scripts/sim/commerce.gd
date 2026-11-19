@@ -26,6 +26,7 @@ const PeopleScript := preload("res://scripts/sim/people.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
 const LedgerScript := preload("res://scripts/sim/ledger.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
+const HotelScript := preload("res://scripts/sim/hotel.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
 
 ## Meal times (minute of day), windows (minutes a meal lasts) and the percent of people inside
@@ -37,6 +38,22 @@ const SNACK_WINDOW := 15
 const LUNCH_WINDOW := 60
 const SNACK_PERCENT := 20
 const LUNCH_PERCENT := 60
+
+## Restaurants (#152) serve dinner only: two seatings in the window, and every hotel guest in the
+## tower dines (GUEST_PERCENT). Unverified tunables.
+const DINNER := 1140  ## 19:00.
+const DINNER_WINDOW := 120
+const DINNER_PERCENT := 30
+const GUEST_PERCENT := 100
+
+## The meals: [minute of day, window, percent of people inside who buy, shop kind that serves it],
+## in the order they are checked each minute (fast food's order is part of the determinism pin).
+const MEALS: Array = [
+	[SNACK_MORNING, SNACK_WINDOW, SNACK_PERCENT, "fast_food"],
+	[LUNCH, LUNCH_WINDOW, LUNCH_PERCENT, "fast_food"],
+	[SNACK_AFTERNOON, SNACK_WINDOW, SNACK_PERCENT, "fast_food"],
+	[DINNER, DINNER_WINDOW, DINNER_PERCENT, "restaurant"],
+]
 
 const SETTLE_MINUTE := 1380  ## 23:00: the day's takings are credited.
 
@@ -50,6 +67,12 @@ const PROFILES: Dictionary = {
 		"seats": 24, "linger_minutes": 30, "grade_cap": 30, "grade_a": 25, "grade_b": 20,
 		"tiers": [[0, -3000], [20, 2000], [25, 3000], [50, 5000]],
 		"food": ["Burgers", "Pizza", "Noodles", "Sandwiches", "Ice cream"],
+	},
+	# Restaurant (#152): cap 40 is a grade input only (owner ruling). Seats and linger are guesses.
+	"restaurant": {
+		"seats": 30, "linger_minutes": 60, "grade_cap": 40, "grade_a": 26, "grade_b": 18,
+		"tiers": [[0, -6000], [20, 4000], [25, 6000], [50, 10000]],
+		"food": ["French", "Italian", "Steak", "Seafood", "Chinese"],
 	},
 }
 
@@ -132,12 +155,9 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 	_last_minute = minute
 	if not floors.has_lobby():
 		return
-	if _crossed(prev, minute, SNACK_MORNING):
-		_serve(SNACK_WINDOW, SNACK_PERCENT, floors, rooms, grid, people, tenancy, rng)
-	if _crossed(prev, minute, LUNCH):
-		_serve(LUNCH_WINDOW, LUNCH_PERCENT, floors, rooms, grid, people, tenancy, rng)
-	if _crossed(prev, minute, SNACK_AFTERNOON):
-		_serve(SNACK_WINDOW, SNACK_PERCENT, floors, rooms, grid, people, tenancy, rng)
+	for meal: Array in MEALS:
+		if _crossed(prev, minute, meal[0]):
+			_serve(meal[3], meal[1], meal[2], floors, rooms, grid, people, tenancy, rng)
 	if _crossed(prev, minute, SETTLE_MINUTE):
 		_settle(floors, rooms, grid, tenancy, ledger, messages, at_tick)
 
@@ -155,15 +175,20 @@ func _open_shops(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, ten
 	return shops
 
 
-func _serve(window: int, percent: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, tenancy: TenancyScript, rng: Object) -> void:
-	var shops := _open_shops(floors, rooms, grid, tenancy)
+func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, tenancy: TenancyScript, rng: Object) -> void:
+	var shops: Array[int] = []
+	for id in _open_shops(floors, rooms, grid, tenancy):
+		if rooms.kind_of(id) == kind:
+			shops.append(id)
 	if shops.is_empty():
 		return
 	var served: Dictionary = {}  # this meal, per shop
 	for i in people.count():
 		if people.location_of(i) == PeopleScript.NONE and people.trip_state(i) == PeopleScript.TRIP_IDLE:
 			continue  # outside the tower
-		if rng.next_below(100) >= percent:
+		var home := people.home_of(i)
+		var guest := kind == "restaurant" and home != PeopleScript.NONE and rooms.has_room(home) and HotelScript.is_hotel_kind(rooms.kind_of(home))
+		if rng.next_below(100) >= (GUEST_PERCENT if guest else percent):
 			continue
 		var shop: int = shops[rng.next_below(shops.size())]
 		if int(served.get(shop, 0)) < seats_per_meal(rooms.kind_of(shop), window):

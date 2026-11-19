@@ -49,7 +49,7 @@ static func run(check: Callable) -> void:
 	check.call(bar.select("fast_food") and ghost.tool == "fast_food", "fast_food can be selected")
 	check.call(bar.select("fast_food") and ghost.tool == "", "picking fast_food again turns the tool off")
 	check.call(not bar.select("service_shaft") and ghost.tool == "", "a locked item cannot be selected")
-	check.call(Toolbar.item_state("restaurant", 5)["tooltip"] != "", "an unlocked but unbuilt item still explains itself")
+	check.call(Toolbar.item_state("movie_theatre", 5)["tooltip"] != "", "an unlocked but unbuilt item still explains itself")
 
 	# Every M2 item can be picked and activates the matching ghost tool.
 	for id in M2_ITEMS:

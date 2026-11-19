@@ -123,6 +123,7 @@ func _initialize() -> void:
 	TestRunningCosts.run(check)
 	TestFinance.run(check)
 	TestCommerce.run(check)
+	TestCommerce.run_restaurant(check)
 	TestSaveLoad.run(check)
 	TestHotel.run(check)
 	TestPests.run(check)

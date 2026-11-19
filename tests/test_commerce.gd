@@ -160,3 +160,75 @@ static func run(check: Callable) -> void:
 	var expect_bar := mini(day_customers, 30) * RoomInfo.QUALITY_MAX / 30
 	check.call(RoomInfo.bar_value(info) == expect_bar and info["grade"] == full.commerce.grade(full.rooms, fshop), "the room info bar fills from last day's customers")
 	check.call(RoomInfo.bar_value(RoomInfo.describe(g, gshop)) == 0 and RoomInfo.bar_color(RoomInfo.describe(g, gshop)) == RoomInfo.GRADE_COLORS[2], "an empty shop's bar is empty and red")
+
+
+## First tick of the day at or after the minute of day.
+static func _tick_at(t: TowerSim, minute: int) -> int:
+	for k in DAY_TICKS:
+		t.clock.set_to_tick(k)
+		if t.clock.minute_of_day() >= minute:
+			return k
+	return -1
+
+
+static func run_restaurant(check: Callable) -> void:
+	var prof: Dictionary = Commerce.PROFILES["restaurant"]
+	check.call(prof["grade_cap"] == 40 and Commerce.food_of("restaurant", 0) != Commerce.food_of("restaurant", 1), "restaurant: cap 40 and several kinds")
+	var foods := {}
+	for room in 10:
+		foods[Commerce.food_of("restaurant", room)] = true
+	check.call(foods.size() == 5, "a restaurant is one of 5 kinds")
+	var tiers := {0: -6000, 19: -6000, 20: 4000, 24: 4000, 25: 6000, 49: 6000, 50: 10000}
+	var tiers_ok := true
+	for customers: int in tiers:
+		tiers_ok = tiers_ok and Commerce.income_for("restaurant", customers) == tiers[customers]
+	check.call(tiers_ok, "restaurant income tiers: under 20 loses $6,000, 20 earns 4,000, 25 earns 6,000, 50 earns 10,000")
+	var cases := {0: 2, 17: 2, 18: 1, 25: 1, 26: 0, 40: 0}
+	var ok := true
+	for customers: int in cases:
+		ok = ok and Commerce.grade_of_customers("restaurant", customers) == cases[customers]
+	check.call(ok, "restaurant grade: 17 is C, 18 and 25 are B, 26 (over 25) is A")
+	check.call(Commerce.seats_per_meal("restaurant", Commerce.DINNER_WINDOW) == 60, "diners linger an hour, so a dinner has two seatings")
+
+	var t := TowerSim.new(42, 100000000)
+	t.floors.build_lobby(t.ledger, 0, 1, 100, 163, 2)
+	t.floors.fill_span(3, 100, 163)
+	t.rooms.place_room(t.grid, t.floors, t.ledger, 0, Catalogue.IDS.find("office"), 3, 100)
+	var placed := t.rooms.place_room(t.grid, t.floors, t.ledger, 0, Catalogue.IDS.find("restaurant"), 3, 112)
+	check.call(placed == 0, "a restaurant can be placed (refusal %d)" % placed)
+	var hotel_room_placed := t.rooms.place_room(t.grid, t.floors, t.ledger, 0, Catalogue.IDS.find("hotel_single"), 3, 140)
+	check.call(hotel_room_placed == 0, "the test hotel room places (refusal %d)" % hotel_room_placed)
+	t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, 1, 100)
+	t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, 2, 104)
+	var diner := -1
+	var hotel_room := -1
+	for id in t.rooms.room_ids():
+		if t.rooms.kind_of(id) == "restaurant":
+			diner = id
+		elif t.rooms.kind_of(id) == "hotel_single":
+			hotel_room = id
+
+	# Lunchtime workers do not eat at a restaurant: dinner only.
+	_staff(t)
+	_run(t, LUNCH_PERIOD_TICK, 500)
+	check.call(t.commerce.customers_today(diner) == 0, "a restaurant serves nobody at lunch")
+
+	# Hotel guests dine in the evening, and lingering limits the seats.
+	var d := t
+	for n in 100:
+		d.people.add_guest(hotel_room, d.rng)
+	var dinner_tick := _tick_at(d, Commerce.DINNER)
+	_run(d, dinner_tick - 5, 60)
+	var dined := d.commerce.customers_today(diner)
+	check.call(dined > 0, "hotel guests dine at the restaurant in the evening (%d)" % dined)
+	check.call(dined == 60, "100 guests fill the 60 dinner seats and no more (%d)" % dined)
+	check.call(d.commerce.grade_input(d.rooms, diner) == 0, "the grade input is 0 before the day settles")
+
+	# Settling: one SHOP line under the restaurant, the tier income, then a grade.
+	_run(d, _tick_at(d, Commerce.SETTLE_MINUTE - 10), 40)
+	var lines := _shop_lines(d)
+	check.call(lines.size() == 1 and lines[0][3] == diner and lines[0][1] == Commerce.income_for("restaurant", 60), "restaurant sales reach the ledger as a shop line (%s)" % str(lines))
+	check.call(d.commerce.grade(d.rooms, diner) == 0, "60 diners make the restaurant an A, from the next day")
+	check.call(Finance.totals(d.ledger, 0).get(Ledger.SHOP, 0) == lines[0][1], "the finance window shows restaurant sales")
+	var loaded := TowerSim.new(1, 1)
+	check.call(loaded.load_state(d.save()) and loaded.state_hash() == d.state_hash(), "restaurant state survives save and load")
