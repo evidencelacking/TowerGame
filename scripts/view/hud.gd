@@ -4,6 +4,8 @@ extends CanvasLayer
 
 const Clock := preload("res://scripts/sim/clock.gd")
 const Driver := preload("res://scripts/view/sim_driver.gd")
+const DemandsScript := preload("res://scripts/sim/demands.gd")
+const DEMAND_NAMES: Dictionary = {1: "security", 2: "suite", 3: "medical", 4: "recycling", 5: "parking"}
 const DAY_NAMES: Array[String] = ["WD1", "WD2", "WE"]
 
 @onready var _driver: Driver = $SimDriver
@@ -12,6 +14,7 @@ const DAY_NAMES: Array[String] = ["WD1", "WD2", "WE"]
 @onready var _money: Label = %MoneyLabel
 @onready var _population: Label = %PopulationLabel
 @onready var _stars: Label = %StarsLabel
+@onready var _demands: Label = %DemandsLabel
 @onready var _pause: Button = %PauseButton
 @onready var _speed_buttons: Array[Button] = [%Speed1Button, %Speed2Button, %Speed3Button]
 
@@ -52,6 +55,17 @@ static func format_money(dollars: int) -> String:
 	return ("-" if dollars < 0 else "") + "$" + digits + grouped
 
 
+## The open demands for the top bar: "" when none, else "Needs: security, parking".
+static func format_demands(demands: DemandsScript) -> String:
+	if demands.open_count() == 0:
+		return ""
+	var names: Array[String] = []
+	for id: int in DemandsScript.IDS:
+		if demands.is_open(id):
+			names.append(DEMAND_NAMES[id])
+	return "Needs: " + ", ".join(names)
+
+
 static func format_population(count: int) -> String:
 	return "Pop %d" % count
 
@@ -64,6 +78,9 @@ func _refresh() -> void:
 	_money.text = format_money(_driver.tower.ledger.balance)
 	_stars.text = "Stars %d" % _driver.tower.stars
 	_population.text = format_population(_driver.tower.population())
+	var needs := format_demands(_driver.tower.demands)
+	_demands.text = needs
+	_demands.visible = needs != ""
 	_pause.text = "Resume" if _driver.paused else "Pause"
 	for i in _speed_buttons.size():
 		_speed_buttons[i].disabled = i == _driver.speed_index
