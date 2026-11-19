@@ -62,6 +62,7 @@ class Command:
 	const RENAME_PERSON := 40  ## Renames a person: args are person id, then the new name as code points (none restores the generated name). See PersonNames.
 	const PLACE_ESCALATOR := 18  ## Places an escalator between two floors: args are lower floor, x_left. See Rooms.place_escalator.
 	const DEBUG_UNLOCK_ALL := 90  ## Debug only: args[0] 1 unlocks every room kind, 0 restores star gating. See Tower.unlock_all.
+	const DEBUG_SET_STARS := 91  ## Debug only (demo mode, #262): args[0] raises the star rating to 1..5. Never lowers it.
 	const SET_CAR_HOME := 20  ## Moves a car's home floor: args are shaft id, the car's place among the shaft's cars (0 oldest), floor. See Rooms.set_car_home.
 	const SET_SCHEDULE := 21  ## Sets one shaft schedule slot: args are shaft id, slot (0 to 5: weekday then weekend, 3 periods each), mode (0 normal, 1 express to top, 2 to bottom), response distance, departure wait in seconds. See Rooms.set_schedule.
 	const CHOOSE_EVENT := 50  ## Answers an open event: args are event id, choice (0 declines). See Events.choose.
@@ -309,6 +310,9 @@ func _apply_command(command: Command) -> void:
 		Command.DEBUG_UNLOCK_ALL:
 			if command.args.size() == 1:
 				unlock_all = command.args[0] != 0
+		Command.DEBUG_SET_STARS:
+			if command.args.size() == 1:
+				stars = maxi(stars, clampi(command.args[0], 1, 5))
 		Command.ADD_CAR:
 			if command.args.size() == 2:
 				last_refusal = rooms.add_car(ledger, tick, unlocked_stars(), command.args[0], command.args[1])

@@ -4,6 +4,7 @@ const VC := preload("res://scripts/view/view_consts.gd")
 const PeopleView := preload("res://scripts/view/people_view.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const RoomLook := preload("res://scripts/view/room_look.gd")
+const TransportLook := preload("res://scripts/view/transport_look.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const PixelLayer := preload("res://scripts/view/pixel_layer.gd")
 ## Draws the tower on a low-resolution canvas (10.2). World space is native pixels (8 px per column,
@@ -266,29 +267,9 @@ func _draw_links(canvas: CanvasItem) -> void:
 		_draw_link(canvas, p, run[0], run[1])
 
 
-## One link in its two-floor rect. The tread climbs one floor over the width: filled steps for
-## stairs, a slanted belt with handrail and slats for an escalator.
-func _draw_link(canvas: CanvasItem, p: Dictionary, kind: String, span: Rect2i) -> void:
-	var hue := Palette.hue(kind)
-	var base_y := span.end.y - VC.SLAB_H  # the lower floor's surface
-	var rise := VC.CELL_H
-	canvas.draw_rect(Rect2i(span.position.x, span.position.y, span.size.x, span.size.y - VC.SLAB_H), (p["wall"] as Color).lightened(0.05))
-	var outline: Color = p["outline"]
-	if kind == "stairs":
-		var steps := maxi(span.size.x / 4, 1)
-		for i in steps:
-			var top := base_y - (i + 1) * rise / steps
-			var x := span.position.x + i * span.size.x / steps
-			var w := span.position.x + (i + 1) * span.size.x / steps - x
-			canvas.draw_rect(Rect2i(x, top, w, base_y - top), hue)
-			canvas.draw_rect(Rect2i(x, top, w, 1), hue.lightened(0.35))
-			canvas.draw_rect(Rect2i(x, top - 7, 1, 1), outline)  # rail posts
-	else:
-		for x in range(0, span.size.x, 2):
-			var y := base_y - (x + 1) * rise / span.size.x
-			canvas.draw_rect(Rect2i(span.position.x + x, y - 3, 2, 4), hue if (x / 2) % 2 == 0 else hue.darkened(0.25))
-			canvas.draw_rect(Rect2i(span.position.x + x, y - 9, 2, 1), outline)
-	canvas.draw_rect(Rect2i(span.position.x, span.position.y, 1, span.size.y - VC.SLAB_H), p["wall"])
+## One link in its two-floor rect, drawn without a background (transport_look.gd) so the room behind shows.
+func _draw_link(canvas: CanvasItem, _p: Dictionary, kind: String, span: Rect2i) -> void:
+	TransportLook.draw_link(canvas, kind, span)
 
 
 ## Remembers where the moving figures were, so the next tick's positions can be glided to.
@@ -355,26 +336,19 @@ func _draw_people(canvas: CanvasItem) -> void:
 		_draw_figure(canvas, x, feet, shirt, band, skin, pose, phase)
 
 
-## Each shaft across its span; a floor it stops at has door slits, a disabled one a red cross.
+## Each shaft across its span; a floor it stops at has doors and an indicator, a disabled one a red cross.
 func _draw_shafts(canvas: CanvasItem) -> void:
 	var p := Palette.get_palette()
 	var shaft_color := Palette.hue("shaft")
-	var edge: Color = shaft_color.lightened(0.4)
-	var door: Color = shaft_color.lightened(0.5)
 	for shaft: Dictionary in ElevatorView.shafts(tower):
 		var top_row := VC.floor_to_row(shaft["top"])
 		var bottom_row := VC.floor_to_row(shaft["bottom"])
 		var rect := Rect2i((shaft["x"] as int) * VC.CELL_W, top_row * VC.CELL_H, (shaft["width"] as int) * VC.CELL_W, (bottom_row - top_row + 1) * VC.CELL_H)
-		canvas.draw_rect(rect, shaft_color)
-		canvas.draw_rect(Rect2i(rect.position.x + rect.size.x / 2, rect.position.y, 1, rect.size.y), edge.darkened(0.3))
-		canvas.draw_rect(Rect2i(rect.position.x, rect.position.y, 1, rect.size.y), edge)
-		canvas.draw_rect(Rect2i(rect.end.x - 1, rect.position.y, 1, rect.size.y), edge)
+		TransportLook.draw_shaft_body(canvas, rect, shaft_color)
 		for machine: int in Tower.RoomsScript.machine_floors(shaft["bottom"], shaft["top"]):  # the machine-room caps (#228)
 			canvas.draw_rect(Rect2i(rect.position.x, VC.floor_to_row(machine) * VC.CELL_H, rect.size.x, VC.CELL_H - VC.SLAB_H), shaft_color.lightened(0.15))
 		for floor_number: int in shaft["stops"]:
-			var yb := (VC.floor_to_row(floor_number) + 1) * VC.CELL_H - VC.SLAB_H
-			canvas.draw_rect(Rect2i(rect.position.x + 2, yb - 16, 1, 16), door)
-			canvas.draw_rect(Rect2i(rect.end.x - 3, yb - 16, 1, 16), door)
+			TransportLook.draw_doors(canvas, rect, _floor_bottom(floor_number), shaft_color)
 		for floor_number: int in shaft["disabled"]:
 			var top := VC.floor_to_row(floor_number) * VC.CELL_H
 			var red: Color = p["red"]
@@ -383,21 +357,29 @@ func _draw_shafts(canvas: CanvasItem) -> void:
 				canvas.draw_rect(Rect2i(rect.position.x + 13 - n, top + 6 + n, 1, 1), red)
 
 
-## Cars at their interpolated place, each showing its load as pips (one per person up to ten).
+## The pixel row of a floor's surface (the top of its slab).
+func _floor_bottom(floor_number: int) -> int:
+	return (VC.floor_to_row(floor_number) + 1) * VC.CELL_H - VC.SLAB_H
+
+
+## The pixel row of the surface of the floor at a car level (see ElevatorView.level_to_y).
+func _level_bottom(level: int) -> int:
+	return roundi(ElevatorView.level_to_y(float(level), VC.CELL_H)) + VC.CELL_H - VC.SLAB_H
+
+
+## Cars at their interpolated place, each showing its riders as figures and lighting the indicator at the floor it is at.
 func _draw_cars(canvas: CanvasItem) -> void:
 	var p := Palette.get_palette()
 	var car_color := Palette.hue("car")
 	var t := clampf(_since_tick / _tick_len, 0.0, 1.0)
 	for car: Dictionary in _elevators.cars(tower, t):
+		var shaft_rect := Rect2i((car["x"] as int) * VC.CELL_W, 0, (car["width"] as int) * VC.CELL_W, VC.CELL_H)
+		TransportLook.draw_arrival(canvas, shaft_rect, car["level"], _level_bottom)
 		var x: int = (car["x"] as int) * VC.CELL_W + 3
 		var y := roundi(ElevatorView.level_to_y(car["level"], VC.CELL_H)) + 3
 		var w: int = (car["width"] as int) * VC.CELL_W - 6
 		var h := VC.CELL_H - VC.SLAB_H - 3
-		canvas.draw_rect(Rect2i(x - 1, y - 1, w + 2, h + 2), (p["outline"] as Color))
-		canvas.draw_rect(Rect2i(x, y, w, h), car_color)
-		canvas.draw_rect(Rect2i(x + w / 2, y, 1, h), car_color.darkened(0.3))
-		for n in mini(car["load"] as int, 10):
-			canvas.draw_rect(Rect2i(x + 2 + (n % 5) * 4, y + 3 + (n / 5) * 5, 2, 4), p["ink"])
+		TransportLook.draw_car(canvas, Rect2i(x, y, w, h), car_color, car["load"], p["people"])
 
 
 ## Hall queues: people going up wait left of the shaft, going down right of it; a long queue shows
