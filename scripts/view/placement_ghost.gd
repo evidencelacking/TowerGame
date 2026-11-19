@@ -65,6 +65,7 @@ const ROOM_TEXT: Dictionary = {
 	RoomsScript.OVERHANG: "Too wide for the floor below",
 	RoomsScript.NO_FLOOR_FOR_STAIRS: "Needs a floor on both levels",
 	RoomsScript.NO_FLOOR_FOR_ESCALATOR: "Needs a floor on both levels",
+	RoomsScript.ESCALATOR_FLOOR: "Escalators need commercial, lobby or empty floors",
 	RoomsScript.OVERLAPS_LINK: "Overlaps stairs, an escalator or a shaft",
 	RoomsScript.STAIRS_LIMIT: "Too many stairs and escalators",
 	RoomsScript.MAX_SHAFT_FLOORS: "A shaft spans at most 30 floors",
