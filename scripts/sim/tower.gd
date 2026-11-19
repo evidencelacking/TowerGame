@@ -59,6 +59,7 @@ class Command:
 	const RENAME_PERSON := 40  ## Renames a person: args are person id, then the new name as code points (none restores the generated name). See PersonNames.
 	const PLACE_ESCALATOR := 18  ## Places an escalator between two floors: args are lower floor, x_left. See Rooms.place_escalator.
 	const DEBUG_UNLOCK_ALL := 90  ## Debug only: args[0] 1 unlocks every room kind, 0 restores star gating. See Tower.unlock_all.
+	const SET_CAR_HOME := 20  ## Moves a car's home floor: args are shaft id, the car's place among the shaft's cars (0 oldest), floor. See Rooms.set_car_home.
 	const SET_SHAFT_STOP := 15  ## Turns a shaft's stop on a floor on or off: args are shaft id, floor, on (1 or 0). See Rooms.set_shaft_stop.
 
 	var tick: int = 0  ## The tick this command applies at.
@@ -289,6 +290,10 @@ func _apply_command(command: Command) -> void:
 		Command.ADD_CAR:
 			if command.args.size() == 2:
 				last_refusal = rooms.add_car(ledger, tick, unlocked_stars(), command.args[0], command.args[1])
+				_note_refusal(MessagesScript.ROOM_REFUSED, command.args[0])
+		Command.SET_CAR_HOME:
+			if command.args.size() == 3:
+				last_refusal = rooms.set_car_home(command.args[0], command.args[1], command.args[2])
 				_note_refusal(MessagesScript.ROOM_REFUSED, command.args[0])
 		Command.REMOVE_CAR:
 			if command.args.size() == 1:

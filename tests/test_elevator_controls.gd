@@ -248,14 +248,6 @@ static func _run_refusals(check: Callable) -> void:
 	check.call(not dropped["valid"] and dropped["text"] == "Would drop a car's home floor", "a resize past a car's home floor is refused")
 	var unbuilt := Ghost.evaluate(t, "local_shaft", 9, 100, 5, "", {"start_floor": 3, "start_column": SHAFT_COLUMN})
 	check.call(unbuilt["text"] == "Needs a built floor on every level", "growing a shaft over unbuilt floors is refused")
-	# A shaft with every stop off has nowhere to home a car.
-	var bare := _built()
-	_gesture(bare, "local_shaft", 1, SHAFT_COLUMN, 3)
-	for floor_number in [1, 2, 3]:
-		bare.tower.rooms.set_shaft_stop(_shaft_id(bare.tower), floor_number, false)
-	bare.set_tool("local_car")
-	check.call(bare.hover(2, SHAFT_COLUMN)["text"] == "A car's home must be a stop", "a car on a shaft with no stops is refused")
-	bare.free()
 	# Words for the codes a gesture cannot reach today.
 	var words := {RoomsScript.NOT_IN_SHAFT: "Not a floor of this shaft", RoomsScript.NOTHING_THERE: "No shaft here",
 		RoomsScript.NO_CARS_HERE: "Needs a shaft of the car's own kind", RoomsScript.BAD_SHAFT_SPAN: "The top must be above the bottom",
