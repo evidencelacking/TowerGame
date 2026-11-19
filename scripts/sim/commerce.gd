@@ -11,10 +11,12 @@ extends RefCounted
 ## (a negative one is a loss, kept on purpose: an empty shop costs money) credited to the ledger
 ## as its own SHOP kind. An unreachable shop trades nothing and settles at zero.
 ##
-## The grade cap (30 for fast food) is only an input for customer grades (#151): see grade_input().
+## Customer grades (#151): a shop is graded A, B or C by its customers in the last settled day, so
+## the grade changes at the day's settlement (the next day). Before its first settled day a shop is
+## a B, like a new office. The grade cap (30 for fast food) is the grade bar's full scale.
 ## All numbers here are UNVERIFIED tunables except where marked (docs/gameplay-reference.md).
 ##
-## Saved: the last minute seen, and per shop the customers today and yesterday.
+## Saved: the last minute seen, and per shop the customers today and yesterday (-1: no settled day yet).
 
 const Clock := preload("res://scripts/sim/clock.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
@@ -24,6 +26,7 @@ const PeopleScript := preload("res://scripts/sim/people.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
 const LedgerScript := preload("res://scripts/sim/ledger.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
+const GradesScript := preload("res://scripts/sim/grades.gd")
 
 ## Meal times (minute of day), windows (minutes a meal lasts) and the percent of people inside
 ## the tower who buy. All tunable.
@@ -39,10 +42,12 @@ const SETTLE_MINUTE := 1380  ## 23:00: the day's takings are credited.
 
 ## Per shop kind. seats and linger_minutes are tunable guesses; tiers are [customers from, daily
 ## income] in ascending order and are the review's tuning start (unverified); grade_cap is the
-## issue's "cap 30" (a grade input only, owner ruling on #150); food is the five kinds of shop.
+## issue's "cap 30" (the grade bar's full scale, owner ruling on #150); grade_a and grade_b are the
+## fewest customers in a day for an A and a B (#151; fast food's are unverified, owner ruling);
+## food is the five kinds of shop.
 const PROFILES: Dictionary = {
 	"fast_food": {
-		"seats": 24, "linger_minutes": 30, "grade_cap": 30,
+		"seats": 24, "linger_minutes": 30, "grade_cap": 30, "grade_a": 25, "grade_b": 20,
 		"tiers": [[0, -3000], [20, 2000], [25, 3000], [50, 5000]],
 		"food": ["Burgers", "Pizza", "Noodles", "Sandwiches", "Ice cream"],
 	},
@@ -50,7 +55,7 @@ const PROFILES: Dictionary = {
 
 var _last_minute: int = -1
 var _today: Dictionary = {}  ## Room id -> customers served so far today.
-var _last_day: Dictionary = {}  ## Room id -> customers served in the last settled day.
+var _last_day: Dictionary = {}  ## Room id -> customers served in the last settled day (0 counts; absent: none settled yet).
 
 
 static func is_shop(kind: String) -> bool:
@@ -84,6 +89,30 @@ func customers_today(room: int) -> int:
 ## Customers in the last settled day (0 before the first).
 func customers_last_day(room: int) -> int:
 	return int(_last_day.get(room, 0))
+
+
+## True once the shop has been through a settled day (its grade is then earned, not the new-shop B).
+func has_settled(room: int) -> bool:
+	return _last_day.has(room)
+
+
+## GRADE_A, GRADE_B or GRADE_C by last day's customers (B before the first settled day), or
+## Grades.GRADE_NONE for a room that is not a shop.
+func grade(rooms: RoomsScript, room: int) -> int:
+	if not rooms.has_room(room) or not is_shop(rooms.kind_of(room)):
+		return GradesScript.GRADE_NONE
+	if not has_settled(room):
+		return GradesScript.GRADE_B
+	return grade_of_customers(rooms.kind_of(room), customers_last_day(room))
+
+
+static func grade_of_customers(kind: String, customers: int) -> int:
+	var profile: Dictionary = PROFILES[kind]
+	if customers >= int(profile["grade_a"]):
+		return GradesScript.GRADE_A
+	if customers >= int(profile["grade_b"]):
+		return GradesScript.GRADE_B
+	return GradesScript.GRADE_C
 
 
 ## The hook for customer grades (#151): last day's customers capped at the profile's grade_cap.
@@ -151,7 +180,7 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 		net += amount
 	var counts: Dictionary = {}
 	for id in rooms.room_ids():
-		if is_shop(rooms.kind_of(id)) and customers_today(id) > 0:
+		if is_shop(rooms.kind_of(id)):
 			counts[id] = customers_today(id)
 	_last_day = counts
 	_today.clear()
@@ -167,7 +196,7 @@ func state_ints() -> Array[int]:
 	ids.sort()
 	var ints: Array[int] = [_last_minute, ids.size()]
 	for id: int in ids:
-		ints.append_array([id, customers_today(id), customers_last_day(id)] as Array[int])
+		ints.append_array([id, customers_today(id), int(_last_day.get(id, -1))] as Array[int])
 	return ints
 
 
@@ -178,7 +207,7 @@ static func valid_ints(ints: Array) -> bool:
 		if typeof(value) != TYPE_INT:
 			return false
 	for k in range(2, ints.size(), 3):
-		if ints[k] < 0 or ints[k + 1] < 0 or ints[k + 2] < 0:
+		if ints[k] < 0 or ints[k + 1] < 0 or ints[k + 2] < -1:
 			return false
 	return ints[0] >= -1 and ints[0] < Clock.MINUTES_PER_DAY
 
@@ -190,5 +219,5 @@ func load_ints(ints: Array) -> void:
 	for k in range(2, ints.size(), 3):
 		if ints[k + 1] > 0:
 			_today[ints[k]] = ints[k + 1]
-		if ints[k + 2] > 0:
+		if ints[k + 2] >= 0:
 			_last_day[ints[k]] = ints[k + 2]

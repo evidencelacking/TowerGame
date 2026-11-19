@@ -138,3 +138,25 @@ static func run(check: Callable) -> void:
 	check.call(not TowerSim.new(1, 1).load_state(bad), "a negative count is refused")
 	bad.erase("commerce")
 	check.call(not TowerSim.new(1, 1).load_state(bad), "a save without commerce is refused")
+
+	# Customer grades (#151): A 25+, B 20-24, C under 20 for fast food; boundaries pinned.
+	var grade_cases := {0: 2, 19: 2, 20: 1, 24: 1, 25: 0, 30: 0, 100: 0}
+	var grades_ok := true
+	for customers: int in grade_cases:
+		grades_ok = grades_ok and Commerce.grade_of_customers("fast_food", customers) == grade_cases[customers]
+	check.call(grades_ok, "fast food grade: 19 is C, 20 and 24 are B, 25 is A")
+	var g := _tower(false)
+	var gshop := _shop(g)
+	check.call(g.commerce.grade(g.rooms, gshop) == 1 and not g.commerce.has_settled(gshop), "a new shop is a B before its first full day")
+	_run(g, 0, 1000)
+	check.call(g.commerce.grade(g.rooms, gshop) == 1, "the grade does not change during the day")
+	_run(g, 1000, DAY_TICKS - 1000)
+	check.call(g.commerce.has_settled(gshop) and g.commerce.customers_last_day(gshop) == 0 and g.commerce.grade(g.rooms, gshop) == 2, "a settled day with no customers (day 1, unreachable shop) is a C")
+	check.call(g.commerce.grade(g.rooms, g.rooms.room_ids()[0]) == -1, "an office is not graded by customers")
+	var gloaded := TowerSim.new(1, 1)
+	check.call(gloaded.load_state(g.save()) and gloaded.commerce.has_settled(gshop) and gloaded.commerce.grade(gloaded.rooms, gshop) == 2 and gloaded.state_hash() == g.state_hash(), "a settled zero day survives save and load")
+	var RoomInfo := preload("res://scripts/view/room_info.gd")
+	var info := RoomInfo.describe(full, fshop)
+	var expect_bar := mini(day_customers, 30) * RoomInfo.QUALITY_MAX / 30
+	check.call(RoomInfo.bar_value(info) == expect_bar and info["grade"] == full.commerce.grade(full.rooms, fshop), "the room info bar fills from last day's customers")
+	check.call(RoomInfo.bar_value(RoomInfo.describe(g, gshop)) == 0 and RoomInfo.bar_color(RoomInfo.describe(g, gshop)) == RoomInfo.GRADE_COLORS[2], "an empty shop's bar is empty and red")
