@@ -44,7 +44,7 @@ static func _has_message(t: TowerSim, code: int) -> bool:
 
 
 static func run(check: Callable) -> void:
-	check.call(VipScript.GOOD_OVER == 150 and VipScript.RETRY_DAYS == 3 and VipScript.VISIT_STARS == 3, "the VIP verdict line is the B line and the retry is 3 days")
+	check.call(VipScript.GOOD_FROM == 150 and VipScript.RETRY_DAYS == 3 and VipScript.VISIT_STARS == 3, "the VIP verdict line is the B line and the retry is 3 days")
 
 	# No visit before a suite, 3 stars, or a parking space exists.
 	var bare := TowerSim.new(1, 100000000)
@@ -78,6 +78,18 @@ static func run(check: Callable) -> void:
 	TestHotel._jump(t, 17 * 60 + 30, 4)
 	TestHotel._step_to(t, 19 * 60, 4)
 	check.call(not t.vip.is_visiting() and t.vip.visits() == 1, "a good verdict is final: no more visits")
+
+	# The B line itself passes: quality 150 is good, 149 is the neighbour that is not (#212).
+	var edge := _tower({"stress": 150})
+	_run_to(edge, 18 * 60 + 30, 0)
+	TestHotel._jump(edge, 9 * 60 + 30, 1)
+	TestHotel._step_to(edge, 10 * 60 + 10, 1)
+	check.call(VipScript.tower_quality(edge.rooms, edge.people, edge.grades) == 150 and edge.vip.is_good(), "a tower at quality exactly 150 gets a good verdict")
+	var below := _tower({"stress": 151})
+	_run_to(below, 18 * 60 + 30, 0)
+	TestHotel._jump(below, 9 * 60 + 30, 1)
+	TestHotel._step_to(below, 10 * 60 + 10, 1)
+	check.call(VipScript.tower_quality(below.rooms, below.people, below.grades) == 149 and not below.vip.is_good(), "quality 149 gets a bad verdict")
 
 	# A bad visit: a retry three days after the verdict, and a later good visit unlocks star 4.
 	var mood2 := {"stress": 200}

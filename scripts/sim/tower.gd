@@ -318,7 +318,7 @@ func _run_systems() -> void:
 	hotel.tick(clock, floors, people, rng, ledger, messages, tick)
 	pests.tick(hotel, grid, rng, messages, tick)
 	housekeeping.tick(clock, floors, grid)
-	recycling.tick(clock, people.in_tower_count())
+	recycling.tick(clock, population())
 	if clock.quarter_started:
 		var rent_income := rent.collect(rooms, people, ledger, tick) + commerce.collect_rent(rooms, rent, ledger, tick)
 		var running := RunningCostsScript.charge(rooms, floors, ledger, tick)
@@ -347,9 +347,6 @@ func unlocked_stars() -> int:
 
 ## What the star rules ask about the tower now (keys as in StarRules.REQUIREMENTS). Read-only.
 ## Demands and the VIP verdict are real systems now (Demands, Vip).
-## Metro and the like are not buildable yet, so tests set
-## star_fixture (not saved) to stand in for them; its keys override the queried facts.
-var star_fixture: Dictionary = {}
 
 
 func star_facts() -> Dictionary:
@@ -364,7 +361,6 @@ func star_facts() -> Dictionary:
 		"demands_met": demands.all_met(),  # no open demand (transport demands will join them)
 		"vip_good": vip.is_good(),
 	}
-	facts.merge(star_fixture, true)
 	return facts
 
 

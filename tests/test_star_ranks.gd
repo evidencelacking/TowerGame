@@ -4,6 +4,7 @@ extends RefCounted
 ## star 4 needs 2 suites, a star once earned is kept, and hotel guests count toward population.
 
 const TowerSim := preload("res://scripts/sim/tower.gd")
+const FixtureTower := preload("res://tests/star_fixture_tower.gd")
 const Rules := preload("res://scripts/sim/star_rules.gd")
 const Catalogue := preload("res://scripts/sim/room_catalogue.gd")
 
@@ -20,8 +21,8 @@ static func _crowd(tower: TowerSim, n: int) -> void:
 		tower.people.add_person(0, People.NONE, tower.rng)
 
 
-static func _tower_with(kind: String, count: int) -> TowerSim:
-	var t := TowerSim.new(5, 1000000000)
+static func _tower_with(kind: String, count: int, fixture: bool = false) -> TowerSim:
+	var t: TowerSim = FixtureTower.new(5, 1000000000) if fixture else TowerSim.new(5, 1000000000)
 	t.floors.build_lobby(t.ledger, 0, 1, 100, 163, 2)
 	t.floors.fill_span(3, 100, 163)
 	for i in count:
@@ -72,7 +73,7 @@ static func run(check: Callable) -> void:
 	check.call(Rules.rating_after(3, {}) == 3, "rating_after never lowers")
 
 	# In a real tower: a security office and 1,000 people promote to 3; one short does not.
-	var guarded := TowerSim.new(5)
+	var guarded := FixtureTower.new(5)
 	guarded.star_fixture = {"security": 1}
 	guarded.stars = 2
 	_crowd(guarded, 999)
@@ -96,7 +97,7 @@ static func run(check: Callable) -> void:
 	check.call(suites.stars == 3, "star 4 waits on the demand and VIP checks")
 
 	# Star 4 with every fact stood in for: promoted, then star 5 needs the metro and 10,000.
-	var top := _tower_with("hotel_suite", 2)
+	var top: FixtureTower = _tower_with("hotel_suite", 2, true) as FixtureTower
 	top.stars = 3
 	top.star_fixture = {"demands_met": true, "vip_good": true}
 	_crowd(top, 5000)

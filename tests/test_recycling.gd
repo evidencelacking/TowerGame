@@ -78,6 +78,18 @@ static func run(check: Callable) -> void:
 	_to_hour(clock, rec, 6, 1000)
 	check.call(rec.fill_of(centre) == 1000, "the truck empties it in the morning (then the new day's first hour fills it)")
 
+	# The tower hands the centre its population, outside visitors included (#212).
+	var pop := _tower()
+	_put(pop, -3, 100)
+	var pop_centre := pop.grid.cell_at(-3, 100)
+	pop.commerce._visitors_in = 500
+	pop.commerce._visitors_until = 1440
+	var guard := 0
+	while pop.recycling.fill_of(pop_centre) == 0 and guard < 5000:
+		pop.step()
+		guard += 1
+	check.call(pop.people.in_tower_count() == 0 and pop.recycling.fill_of(pop_centre) == 500, "an hour's rubbish counts the outside visitors in the tower, not only residents")
+
 	# A busy tower fills the only centre: idle, overflow, demand stays open.
 	var busy := Rec.new(s.rooms)
 	var c2 := ClockScript.new()
