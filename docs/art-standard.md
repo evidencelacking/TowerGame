@@ -71,5 +71,5 @@ Line style:
 
 In the renderer (`scripts/view/palette.gd`, `room_recipes.gd`): D is palette index 3 and the default;
 A, B and C stay selectable by `Palette.DEFAULT_INDEX`. The renderer draws at 8 px per column and
-32 px per floor (`VC.CELL_W`, `VC.CELL_H`; the mock-ups stay at 24). `docs/mockups/renderer_d.png` is the real
+32 px per floor (`VC.CELL_W`, `VC.CELL_H`), matching `art_d32.tscn`. `docs/mockups/renderer_d.png` is the real
 renderer drawing a small tower.
