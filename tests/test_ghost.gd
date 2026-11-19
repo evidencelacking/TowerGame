@@ -41,7 +41,7 @@ static func run(check: Callable) -> void:
 	var ok := Ghost.evaluate(t, "office", 2, 100, 1)
 	check.call(ok["valid"] and ok["text"] == "", "an office on the lobby is a valid ghost")
 	check.call(ok["cost"] == 40000 + 9 * 500, "the ghost cost includes the floor under the room")
-	check.call(Ghost.lines_for("office", ok)[0] == "office: $44500", "the label shows the total cost")
+	check.call(Ghost.lines_for("office", ok)[0] == "Office: $44500", "the label shows the total cost")
 	check.call(ok["width"] == 9 and ok["x"] == 100, "the ghost footprint is the catalogue width at the snapped column")
 
 	# One refusal reason each, worded by us.
@@ -106,7 +106,7 @@ static func _run_spans(check: Callable) -> void:
 	check.call(ghost.press(1, 50) and ghost._drag.active, "pressing with the lobby tool starts a drag")
 	var live := ghost.hover(1, 76)
 	check.call(live["valid"] and live["x"] == 50 and live["width"] == 27 and live["cost"] == 27 * lobby_unit, "the lobby ghost spans the drag at the catalogue cost per unit")
-	check.call("27 units" in Ghost.lines_for("lobby", live) and "lobby: $%d" % (27 * lobby_unit) in Ghost.lines_for("lobby", live), "the label shows the span and the total")
+	check.call("27 units" in Ghost.lines_for("lobby", live) and "Lobby: $%d" % (27 * lobby_unit) in Ghost.lines_for("lobby", live), "the label shows the span and the total")
 	check.call(ghost.hover(3, 76)["floor"] == 1, "a sideways drag stays on its floor")
 	check.call(ghost.release(1, 76), "releasing queues the lobby")
 	check.call(t._queue.size() == 1 and t._queue[0].kind == Command.BUILD_LOBBY and t._queue[0].args == _ints([1, 50, 76, 1]), "one command carries x_start and x_end")

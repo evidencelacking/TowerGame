@@ -21,6 +21,7 @@ const BULLDOZE := "bulldoze"  ## Tools that are not catalogue ids: BULLDOZE and 
 const REPLACE := "replace"  ## Bulldoze the room under the cursor and build last_room there.
 const STAIRS := "stairs"
 const ESCALATOR := "escalator"
+const HANDLE_TINT := Color(1.0, 0.9, 0.3)  ## A hovered shaft's resize handles.
 const PERMANENT_TEXT := "Permanent: cannot be removed once built"
 const VALID_TINT := Color(0.2, 0.9, 0.3, 0.45)
 const INVALID_TINT := Color(0.95, 0.2, 0.2, 0.45)
@@ -296,14 +297,17 @@ static func lines_for(tool_id: String, verdict: Dictionary) -> Array[String]:
 	if tool_id == BULLDOZE or tool_id == REPLACE:
 		lines.append(verdict["text"])
 		return lines
+	var tool_name := CatalogueScript.display_name(tool_id)
 	if verdict["cost"] > 0:
-		lines.append("%s: $%d" % [tool_id, verdict["cost"]])
+		lines.append("%s: $%d" % [tool_name, verdict["cost"]])
 	else:
-		lines.append(tool_id)
+		lines.append(tool_name)
 	if verdict.get("note", "") != "":
 		lines.append(verdict["note"])
 	if not verdict["valid"]:
 		lines.append(verdict["text"])
+	if verdict.get("hint", "") != "":
+		lines.append(verdict["hint"])
 	if verdict["permanent"]:
 		lines.append(PERMANENT_TEXT)
 	return lines
@@ -417,6 +421,8 @@ func _process(_delta: float) -> void:
 func _draw() -> void:
 	if result.is_empty() or not GridScript.is_valid_floor(result["floor"]):
 		return
+	if result.has("shaft") and not _drag.active:
+		_draw_handles(result["shaft"])
 	var top: int = result["floor"]
 	var rows: int = result["height"]
 	if result.has("machines"):  ## A shaft's machine rooms: a cap above the top and below the bottom stop.
@@ -435,3 +441,13 @@ func _draw() -> void:
 	var tint := VALID_TINT if result["valid"] else INVALID_TINT
 	draw_rect(rect, tint)
 	draw_rect(rect, Color(tint, 1.0), false, 1.0)
+
+
+## A hovered shaft's two ends as resize handles: its top and bottom floor, with the machine rooms.
+func _draw_handles(shaft: Dictionary) -> void:
+	var x: int = shaft["x"] * VC.CELL_W
+	var w: int = shaft["width"] * VC.CELL_W
+	for floor_number: int in [shaft["top"], shaft["bottom"]]:
+		var rect := Rect2i(x, VC.floor_to_row(floor_number) * VC.CELL_H, w, VC.CELL_H)
+		draw_rect(rect, Color(HANDLE_TINT, 0.3))
+		draw_rect(rect, HANDLE_TINT, false, 1.0)

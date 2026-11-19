@@ -102,13 +102,46 @@ static func evaluate_shaft(t: TowerSim, tool_id: String, floor_number: int, star
 	var width: int = CatalogueScript.field(tool_id, "width")
 	var out := _blank(start_floor, start_column - width / 2, width)
 	var hit := shaft_at(t, start_floor, start_column)
-	if hit.is_empty():
-		return _evaluate_place(t, tool_id, floor_number, start_floor, out, star_rating)
+	var cap := ""
+	if hit.is_empty():  ## A machine room is part of the drawn shaft: its far side is a resize handle too.
+		var capped := shaft_cap_at(t, start_floor, start_column)
+		if capped.is_empty():
+			return _evaluate_place(t, tool_id, floor_number, start_floor, out, star_rating)
+		hit = capped["shaft"]
+		cap = capped["end"]
 	out["x"] = hit["x"]
 	out["width"] = hit["width"]
+	out["shaft"] = hit
+	out["hint"] = shaft_hint(hit)
+	if cap != "":
+		out["mode"] = "resize"
+		if floor_number == start_floor:
+			out["text"] = "Drag the machine room up or down to resize"
+			return out
+		return _evaluate_resize(t, hit, floor_number, start_floor, out, cap)
 	if floor_number == start_floor:
 		return _evaluate_stop(t, hit, start_floor, out)
 	return _evaluate_resize(t, hit, floor_number, start_floor, out)
+
+
+## The hint a shaft tool shows over a shaft: how to resize and how to switch a stop.
+static func shaft_hint(shaft: Dictionary) -> String:
+	var hint := "Drag the top or bottom to resize; click a floor to toggle its stop"
+	if (shaft["stops"] as Array).size() < 2:
+		hint = "Only one stop, so nothing can ride it. " + hint
+	return hint
+
+
+## The shaft whose machine room stands on a cell, as {"shaft", "end"} ("top" or "bottom"), or {}.
+static func shaft_cap_at(t: TowerSim, floor_number: int, column: int) -> Dictionary:
+	for shaft: Dictionary in ElevatorView.shafts(t):
+		if column < shaft["x"] or column >= shaft["x"] + shaft["width"]:
+			continue
+		if floor_number == RoomsScript.floor_above(shaft["top"]):
+			return {"shaft": shaft, "end": "top"}
+		if shaft["bottom"] != 1 and floor_number == RoomsScript.floor_below(shaft["bottom"]):
+			return {"shaft": shaft, "end": "bottom"}
+	return {}
 
 
 static func _evaluate_place(t: TowerSim, tool_id: String, floor_number: int, start_floor: int, out: Dictionary, star_rating: int) -> Dictionary:
@@ -149,14 +182,18 @@ static func _evaluate_stop(t: TowerSim, shaft: Dictionary, floor_number: int, ou
 	return out
 
 
-static func _evaluate_resize(t: TowerSim, shaft: Dictionary, floor_number: int, start_floor: int, out: Dictionary) -> Dictionary:
+static func _evaluate_resize(t: TowerSim, shaft: Dictionary, floor_number: int, start_floor: int, out: Dictionary, cap: String = "") -> Dictionary:
 	var bottom: int = shaft["bottom"]
 	var top: int = shaft["top"]
 	out["mode"] = "resize"
 	out["floor"] = bottom
 	out["top"] = top
 	var above := GridScript.floor_to_index(floor_number) > GridScript.floor_to_index(start_floor)
-	if start_floor == top and (above or start_floor != bottom):
+	if cap == "top":  ## The machine room rides one floor above the top stop.
+		top = RoomsScript.floor_below(floor_number)
+	elif cap == "bottom":
+		bottom = RoomsScript.floor_above(floor_number)
+	elif start_floor == top and (above or start_floor != bottom):
 		top = floor_number
 	elif start_floor == bottom:
 		bottom = floor_number
@@ -192,7 +229,7 @@ static func evaluate_car(t: TowerSim, tool_id: String, floor_number: int, column
 	out["width"] = hit["width"]
 	var shaft_kind := tool_id.replace("_car", "_shaft")
 	if t.rooms.kind_of(hit["id"]) != shaft_kind:
-		out["text"] = "Needs a %s shaft" % shaft_kind.replace("_shaft", "")
+		out["text"] = "Needs a %s" % CatalogueScript.display_name(shaft_kind).to_lower()
 		return out
 	var home := nearest_stop(hit["stops"], floor_number)
 	out["floor"] = home

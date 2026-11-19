@@ -15,6 +15,7 @@ const ElevatorTools := preload("res://scripts/view/elevator_tools.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
 var tower: TowerSim = null
@@ -117,7 +118,7 @@ static func describe(t: Object, id: int) -> Dictionary:
 		for stop: int in t.rooms.stops_of(id):
 			waiting += t.rooms.queue_at(id, stop).size()
 		return {"live": live, "waiting": waiting, "capacity": t.rooms.car_capacity(id), "express": kind == "express_shaft",
-			"id": id, "label": "%s, %s to %s" % [kind.replace("_", " "), ElevatorTools.floor_label(shaft["bottom"]), ElevatorTools.floor_label(shaft["top"])],
+			"id": id, "label": "%s, %s to %s" % [CatalogueScript.display_name(kind).to_lower(), ElevatorTools.floor_label(shaft["bottom"]), ElevatorTools.floor_label(shaft["top"])],
 			"schedule": t.rooms.schedule_of(id), "bottom": shaft["bottom"], "top": shaft["top"], "cars": homes.size(), "homes": homes, "stop_count": shaft["stops"].size(), "rows": rows}
 	return {}
 

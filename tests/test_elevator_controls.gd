@@ -62,6 +62,8 @@ static func run(check: Callable) -> void:
 	_run_toolbar(check)
 	_run_place(check)
 	_run_resize_and_stops(check)
+	_run_resize_from_floor_one(check)
+	_run_click_sends_ghost_command(check)
 	_run_cars(check)
 	_run_refusals(check)
 	_run_end_to_end(check)
@@ -126,7 +128,7 @@ static func _run_place(check: Callable) -> void:
 	var live := ghost.hover(3, SHAFT_COLUMN)
 	check.call(live["valid"] and live["mode"] == "place" and live["floor"] == 1 and live["top"] == 3 and live["x"] == 100 and live["width"] == 4, "the drag ghost spans the dragged floors")
 	# The machine room above floor 3 sits on floor 4, which does not exist yet: 4 units at the floor price (#228).
-	check.call(live["cost"] == 202000 and Ghost.lines_for("local_shaft", live)[0] == "local_shaft: $202000", "the ghost shows the shaft price and the floor under the machine room")
+	check.call(live["cost"] == 202000 and Ghost.lines_for("local_shaft", live)[0] == "Local elevator: $202000", "the ghost shows the shaft price and the floor under the machine room")
 	check.call(live["machines"] == ([4] as Array[int]) and "Floors 1 to 3 (3), builds 4 floor units" in Ghost.lines_for("local_shaft", live), "the ghost label shows the span, the machine room and the floors it builds")
 	var shorter := ghost.hover(2, SHAFT_COLUMN)
 	check.call(shorter["floor"] == 1 and shorter["top"] == 2, "the ghost follows the pointer")
@@ -189,6 +191,67 @@ static func _run_resize_and_stops(check: Callable) -> void:
 	ghost.free()
 
 
+## #258: a one-floor shaft on floor 1, pressed and dragged up with the mouse path, resizes.
+static func _run_resize_from_floor_one(check: Callable) -> void:
+	var ghost := _built()
+	var t := ghost.tower
+	check.call(_gesture(ghost, "local_shaft", 1, SHAFT_COLUMN, 1), "fixture: a one-floor shaft on floor 1")
+	var id := _shaft_id(t)
+	for column: int in [100, 101, 102, 103]:
+		check.call(not ElevatorTools.shaft_at(t, 1, column).is_empty(), "the floor 1 shaft is found at column %d" % column)
+		ghost.set_tool("local_shaft")
+		ghost.press(1, column)
+		var verdict := ghost.hover(3, column)
+		ghost._drag.cancel()
+		ghost._last_key = []
+		check.call(verdict["mode"] == "resize" and verdict["valid"] and verdict["floor"] == 1 and verdict["top"] == 3 and verdict["args"] == ([id, 1, 3] as Array[int]), "dragging up from column %d resizes the shaft" % column)
+	# The drawn shaft includes its machine rooms: pressing the top one and dragging up resizes too.
+	ghost.set_tool("local_shaft")
+	ghost.press(2, 101)  ## Floor 2 holds the machine room above the one-floor shaft.
+	var from_cap := ghost.hover(4, 101)
+	check.call(from_cap["mode"] == "resize" and from_cap["valid"] and from_cap["top"] == 3 and from_cap["args"] == ([id, 1, 3] as Array[int]), "dragging the machine room up two floors lifts the top stop to the floor below it")
+	check.call(ghost.release(4, 101), "releasing a machine-room drag queues the resize")
+	t.step()
+	check.call(ElevatorTools.shaft_at(t, 3, 101).get("top", 0) == 3, "the shaft now reaches floor 3")
+	# Hover: the hint and the handles.
+	ghost.set_tool("local_shaft")
+	var over := ghost.hover(2, 101)
+	check.call("Drag the top or bottom to resize; click a floor to toggle its stop" in over["hint"] and over["shaft"]["top"] == 3, "hovering a shaft shows the resize hint and its ends")
+	check.call("Local elevator" in Ghost.lines_for("local_shaft", over)[0] and over["hint"] in Ghost.lines_for("local_shaft", over), "the ghost names the tool in words and shows the hint")
+	check.call(CatalogueScript.display_name("local_shaft") == "Local elevator" and Toolbar.display_name("express_car") == "Express car", "tools have display names")
+	var single := _built()
+	_gesture(single, "local_shaft", 1, SHAFT_COLUMN, 1)
+	var lone := single.hover(1, SHAFT_COLUMN)
+	check.call(lone["hint"].begins_with("Only one stop"), "a one-stop shaft says nothing can ride it")
+	single.free()
+	ghost.free()
+
+
+## A click (press and release on one cell) where the ghost is valid queues exactly the ghost's command.
+static func _run_click_sends_ghost_command(check: Callable) -> void:
+	var ghost := _built()
+	var t := ghost.tower
+	for tool_id: String in ["lobby", "floor", "office", "stairs", "local_shaft", "bulldoze"]:
+		ghost.set_tool(tool_id)
+		var floor_number := 1 if tool_id in ["lobby", "local_shaft"] else (4 if tool_id == "floor" else 2)
+		var column := 120 if tool_id == "lobby" else (100 if tool_id == "local_shaft" else 110)
+		if tool_id == "bulldoze":
+			_gesture(ghost, "office", 2, 110, 2)
+			column = 110
+			ghost.set_tool("bulldoze")
+		ghost._last_key = []
+		var shown := ghost.hover(floor_number, column)
+		var queued := ghost.press(floor_number, column)
+		var released := ghost.release(floor_number, column)
+		var expected := Ghost.command_for(tool_id, shown, t.tick) if tool_id != "bulldoze" else null
+		check.call(shown["valid"] and (released or queued and tool_id != "local_shaft"), "a click where the %s ghost is valid queues a command" % tool_id)
+		if expected != null and not t._queue.is_empty():
+			var sent: TowerSim.Command = t._queue[t._queue.size() - 1]
+			check.call(sent.kind == expected.kind and sent.args == expected.args, "the %s click sends the ghost's command" % tool_id)
+		t.step()
+	ghost.free()
+
+
 static func _run_cars(check: Callable) -> void:
 	var ghost := _built()
 	var t := ghost.tower
@@ -243,7 +306,7 @@ static func _run_refusals(check: Callable) -> void:
 	ghost.set_tool("local_car")
 	check.call(ghost.hover(2, SHAFT_COLUMN)["text"] == "A shaft holds at most 8 cars", "a ninth car is refused")
 	ghost.set_tool("service_car")
-	check.call(ghost.hover(2, SHAFT_COLUMN)["text"] == "Needs a service shaft", "a service car on a local shaft says it needs a service shaft")
+	check.call(ghost.hover(2, SHAFT_COLUMN)["text"] == "Needs a service elevator", "a service car on a local shaft says it needs a service shaft")
 	# A car's home floor must stay a stop and stay in the shaft.
 	var gesture := {"start_floor": 1, "start_column": SHAFT_COLUMN}
 	check.call(Ghost.evaluate(t, "local_shaft", 1, 100, 5, "", gesture)["text"] == "A car's home floor must stay a stop", "turning off a car's home stop is refused")
