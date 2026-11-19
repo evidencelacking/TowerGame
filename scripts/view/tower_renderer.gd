@@ -19,6 +19,7 @@ const IN_USE_CHECK_TICKS: int = 6  ## How often the set of rooms in use is compa
 const STATIC_REFRESH_TICKS: int = 60  ## Redraw even when nothing moved, so sim state (dirty, vacant) shows within this.
 const FIGURE_W: int = VC.FIGURE_W
 const FIGURE_H: int = VC.FIGURE_H
+const GLIDE_MAX_COLUMNS := 12.0  ## A move longer than this between two ticks is a new trip, not a glide.
 
 ## Back to front; every name is a method taking the canvas item to paint on. Links (stairs,
 ## escalators) and shafts sit in front of the rooms behind them (#126); the floor slabs come after
@@ -37,6 +38,8 @@ var _tick_len: float = 1.0 / 30.0  ## Seconds the last tick took; cars slide ove
 var _seen_revision: int = -1
 var _seen_occupants: int = -1
 var _figures: Array[Dictionary] = []
+var _from: Dictionary = {}  ## Person id -> Vector2(column, row) at the previous tick, to glide from.
+var _has_moving: bool = false
 var _in_use: Dictionary = {}  ## Room id -> true for rooms with someone resting in them.
 var _checked_tick: int = -1000000
 var _floor_rects: Array[Rect2i] = []  ## Runs of built floor units, one row tall; rebuilt when the layout changes.
@@ -93,7 +96,13 @@ func _process(delta: float) -> void:
 		_people_view.route_cache.clear()
 		_rebuild_runs()
 	if new_tick or layout_changed:
+		_remember_positions()
 		_figures = _people_view.figures(tower)
+		_has_moving = false
+		for figure: Dictionary in _figures:
+			if figure["moving"]:
+				_has_moving = true
+				break
 	var dirty := layout_changed or tower.tick - _static_tick >= STATIC_REFRESH_TICKS or tower.tick < _static_tick
 	if not dirty and (tower.tick - _checked_tick >= IN_USE_CHECK_TICKS or tower.tick < _checked_tick):
 		_checked_tick = tower.tick
@@ -107,7 +116,7 @@ func _process(delta: float) -> void:
 		_static_tick = tower.tick
 		_static_layer.queue_redraw()
 		_static_view.render_target_update_mode = SubViewport.UPDATE_ONCE
-	var sliding := tower.rooms.total_cars() > 0 and _since_tick <= _tick_len * 2.0
+	var sliding := (tower.rooms.total_cars() > 0 and _since_tick <= _tick_len * 2.0) or (_has_moving and _since_tick <= _tick_len)
 	if new_tick or layout_changed or sliding:
 		_dynamic_layer.queue_redraw()
 		_dynamic_view.render_target_update_mode = SubViewport.UPDATE_ONCE
@@ -281,22 +290,68 @@ func _draw_link(canvas: CanvasItem, p: Dictionary, kind: String, span: Rect2i) -
 	canvas.draw_rect(Rect2i(span.position.x, span.position.y, 1, span.size.y - VC.SLAB_H), p["wall"])
 
 
-func _draw_figure(canvas: CanvasItem, x: int, feet: int, shirt: Color, band: int, skin: Color) -> void:
-	canvas.draw_rect(Rect2i(x, feet - 7, 3, 2), skin)  # head
-	canvas.draw_rect(Rect2i(x, feet - 5, 3, 4), shirt)  # body
-	canvas.draw_rect(Rect2i(x, feet - 1, 1, 1), shirt.darkened(0.4))  # legs
-	canvas.draw_rect(Rect2i(x + 2, feet - 1, 1, 1), shirt.darkened(0.4))
+## Remembers where the moving figures were, so the next tick's positions can be glided to.
+func _remember_positions() -> void:
+	_from.clear()
+	for figure: Dictionary in _figures:
+		if figure["moving"]:
+			_from[figure["id"]] = Vector2(figure["fx"], figure["frow"])
+
+
+## Where a figure is drawn now, as a fractional column and row: a moving one glides from its last
+## tick's spot, but a jump of more than a few columns or a floor (a new trip) snaps instead.
+func _shown_at(figure: Dictionary) -> Vector2:
+	var now := Vector2(figure["fx"], figure["frow"])
+	if not figure["moving"] or not _from.has(figure["id"]):
+		return now
+	var before: Vector2 = _from[figure["id"]]
+	if absf(now.x - before.x) > GLIDE_MAX_COLUMNS or absf(now.y - before.y) > 1.5:
+		return now
+	return before.lerp(now, clampf(_since_tick / _tick_len, 0.0, 1.0))
+
+
+## One figure, FIGURE_W x FIGURE_H, feet at `feet`: head, body, legs, then the stress marks above.
+## Everything is sized from the figure constants so a bigger figure needs no change here. pose and
+## phase choose the frame: walking alternates legs apart and together every half column, stairs
+## lift one leg and bob, an escalator rider stands with legs together.
+func _draw_figure(canvas: CanvasItem, x: int, feet: int, shirt: Color, band: int, skin: Color, pose: int = 0, phase: int = 0) -> void:
+	var head_h := maxi(FIGURE_H * 2 / 7, 2)
+	var leg_h := maxi(FIGURE_H / 7, 1)
+	var bob := 1 if pose == PeopleView.POSE_STAIRS and phase % 2 == 1 else 0
+	var top := feet - FIGURE_H - bob
+	var legs := shirt.darkened(0.4)
+	canvas.draw_rect(Rect2i(x, top, FIGURE_W, head_h), skin)  # head
+	canvas.draw_rect(Rect2i(x, top + head_h, FIGURE_W, FIGURE_H - head_h - leg_h), shirt)  # body
+	var leg_y := feet - leg_h - bob
+	var apart := (pose == PeopleView.POSE_WALK and phase % 2 == 0) or pose == PeopleView.POSE_STAIRS
+	var raised_left := pose == PeopleView.POSE_STAIRS and phase < 2
+	var raised_right := pose == PeopleView.POSE_STAIRS and phase >= 2
+	if apart:
+		canvas.draw_rect(Rect2i(x, leg_y - (1 if raised_left else 0), 1, leg_h), legs)
+		canvas.draw_rect(Rect2i(x + FIGURE_W - 1, leg_y - (1 if raised_right else 0), 1, leg_h), legs)
+	else:  # together, under the middle
+		canvas.draw_rect(Rect2i(x + FIGURE_W / 2, leg_y, 1, leg_h), legs)
+		canvas.draw_rect(Rect2i(x + (FIGURE_W - 1) / 2, leg_y, 1, leg_h), legs)
 	for mark in PeopleView.marks_of(band):  # shape cue: one dot uneasy, two angry
-		canvas.draw_rect(Rect2i(x + mark * 2 - 2, feet - 9, 1, 1), shirt)
+		canvas.draw_rect(Rect2i(x + mark * 2 - 2, top - 2, 1, 1), shirt)
 
 
 func _draw_people(canvas: CanvasItem) -> void:
 	var skin: Color = Palette.get_palette()["skin"]
+	var types: Array = Palette.get_palette()["people"]
 	for figure: Dictionary in _figures:
 		var band: int = figure["band"]
-		var x: int = (figure["x"] as int) * VC.CELL_W + (VC.CELL_W - FIGURE_W) / 2
-		var feet: int = (VC.floor_to_row(figure["floor"]) + 1) * VC.CELL_H - 3
-		_draw_figure(canvas, x, feet, PeopleView.color_of(band), band, skin)
+		var at := _shown_at(figure)
+		var x := roundi(at.x * VC.CELL_W) + (VC.CELL_W - FIGURE_W) / 2
+		var feet := roundi((at.y + 1.0) * VC.CELL_H) - 3
+		var pose: int = figure["pose"]
+		var phase := int(at.x * 2.0) & 1
+		if pose == PeopleView.POSE_STAIRS:
+			phase = int(at.x * 4.0) & 3
+		# A colour per type (a stand-in until the sim has types: the person's id); a stressed
+		# person wears the band colour instead, so the mood still reads at a glance.
+		var shirt: Color = types[(figure["id"] as int) % types.size()] if band == 0 else PeopleView.color_of(band)
+		_draw_figure(canvas, x, feet, shirt, band, skin, pose, phase)
 
 
 ## Each shaft across its span; a floor it stops at has door slits, a disabled one a red cross.
