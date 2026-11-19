@@ -210,8 +210,10 @@ func _zoom2_cases() -> void:
 func _bulldoze_cases() -> void:
 	await _click_case("bulldoze.room", "bulldoze", GhostScript.BULLDOZE, 2, 144,
 		func() -> bool: return _kind_at(2, 144) == "", "Bulldoze the office")
+	var links_before := _link_count()  # floor 2 holds two escalators (#259): one goes, one stays
 	await _click_case("bulldoze.escalator", "bulldoze", GhostScript.BULLDOZE, 2, 112,
-		func() -> bool: return _link_kind(2, 108) == "", "Bulldoze the stacked escalator")
+		func() -> bool: return _link_count() == links_before - 2 and _link_kind(2, 108) == "escalator",
+		"Bulldoze one of the two escalators sharing floor 2")
 	await _click_case("bulldoze.stairs", "bulldoze", GhostScript.BULLDOZE, 1, 102,
 		func() -> bool: return _link_kind(1, 100) == "", "Bulldoze the lowest stairs")
 
@@ -452,6 +454,11 @@ func _lobby_edges() -> Array:
 func _kind_at(floor_number: int, column: int) -> String:
 	var id := _tower.grid.cell_at(floor_number, column)
 	return "" if id == GridScript.EMPTY else _tower.rooms.kind_of(id)
+
+
+## Stairs and escalator halves standing (two per flight), counting both link layers.
+func _link_count() -> int:
+	return _tower.rooms.links.occupant_count() + _tower.rooms.links_over.occupant_count()
 
 
 func _link_kind(floor_number: int, column: int) -> String:
