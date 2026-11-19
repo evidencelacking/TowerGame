@@ -162,7 +162,7 @@ static func draw_recipe(canvas: CanvasItem, kind: String, rect: Rect2i, base: Co
 		canvas.draw_rect(Rect2i(rect.position.x + 1, rect.position.y, rect.size.x - 1, body_rect.size.y), (p["outline"] as Color).darkened(0.3), false, 1.0)
 	var colors := _role_colors(p, base, lit, id)
 	var top := body_rect.end.y - interior_h
-	for shape: Array in RoomRecipes.layout(kind, rect.size.x, upper)["shapes"]:
+	for shape: Array in RoomRecipes.layout(kind, rect.size.x, upper, RoomRecipes.variant_for(kind, id))["shapes"]:
 		var gate: String = shape[5]
 		if gate != "" and (gate == "use") != lit:  # "use" shapes show only while in use, "idle" ones only while empty
 			continue

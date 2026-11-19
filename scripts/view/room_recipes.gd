@@ -17,12 +17,14 @@ extends RefCounted
 ## A repeat may set "reserve" (px kept free at the right edge) and "avoid" (half-width of a zone around the
 ## centre that no tile may touch). Shapes that would fall outside a narrow room are dropped.
 ## Spots are [x, feet_y] and the optional anchor; a figure stands feet_y rows down with its 4x9 body above.
+## "variants" (set from recipes_variants.gd) lists further looks for a kind; variant 0 is the recipe itself.
 ## "upper" replaces the layout of the upper half of a tall room that is drawn in halves.
 ## Kinds with "drawn_by" are drawn by another layer (slab, links, shafts, cars); their recipe is
 ## only the hue.
 
 const VC := preload("res://scripts/view/view_consts.gd")
 const Batch2 := preload("res://scripts/view/recipes_batch_2.gd")
+const Variants := preload("res://scripts/view/recipes_variants.gd")
 
 const INTERIOR_H: int = VC.CELL_H - VC.SLAB_H  ## Usable rows above the floor slab.
 const DESIGN_H: int = 22  ## The interior height the placeholder recipes were drawn for; they shift down by the extra.
@@ -55,22 +57,43 @@ static func hue_key(kind: String) -> String:
 	return recipe.get("hue", "")
 
 
-static func _recipe(kind: String) -> Dictionary:
+static func _recipe(kind: String, variant: int = 0) -> Dictionary:
 	var real: Dictionary = _table()
 	if real.has(kind):
-		return real[kind]
+		var recipe: Dictionary = real[kind]
+		var extra: Array = recipe.get("variants", [])
+		if variant > 0 and variant <= extra.size():
+			var chosen: Dictionary = (extra[variant - 1] as Dictionary).duplicate()
+			chosen["hue"] = recipe["hue"]
+			return chosen
+		return recipe
 	return PLACEHOLDERS.get(kind, {})
+
+
+## How many looks a kind has: its base recipe plus the variants (#275). Most kinds have one.
+static func variant_count(kind: String) -> int:
+	var recipe: Dictionary = _recipe(kind)
+	return 1 + (recipe.get("variants", []) as Array).size()
+
+
+## The look a room uses: a fixed function of its id, so a room never changes look and nothing is saved.
+## A multiplicative hash, so neighbouring ids often land on different looks.
+static func variant_for(kind: String, room_id: int) -> int:
+	var count := variant_count(kind)
+	if count <= 1:
+		return 0
+	return (((room_id + 1) * 2654435761) >> 11) % count
 
 
 ## The shapes ([x, y, w, h, role, gate] in room pixels) and spots (Vector2i: x and feet_y) of a kind drawn
 ## width_px wide. upper picks the upper-half layout where a recipe has one. Cached: one table per
 ## kind and width, so drawing a tower of repeated rooms resolves each recipe once.
-static func layout(kind: String, width_px: int, upper: bool = false) -> Dictionary:
-	var key := "%s:%d:%d" % [kind, width_px, 1 if upper else 0]
+static func layout(kind: String, width_px: int, upper: bool = false, variant: int = 0) -> Dictionary:
+	var key := "%s:%d:%d:%d" % [kind, width_px, 1 if upper else 0, variant]
 	if _cache.has(key):
 		var cached: Dictionary = _cache[key]
 		return cached
-	var recipe: Dictionary = _recipe(kind)
+	var recipe: Dictionary = _recipe(kind, variant)
 	var dy: int = FLOOR_DY if is_placeholder(kind) else 0
 	if upper and recipe.has("upper"):
 		recipe = recipe["upper"]
@@ -104,9 +127,9 @@ static func layout(kind: String, width_px: int, upper: bool = false) -> Dictiona
 
 
 ## The spots of a kind in a room width_px wide (room pixels: x and feet row).
-static func spots(kind: String, width_px: int) -> Array[Vector2i]:
+static func spots(kind: String, width_px: int, variant: int = 0) -> Array[Vector2i]:
 	var found: Array[Vector2i] = []
-	found.assign(layout(kind, width_px)["spots"])
+	found.assign(layout(kind, width_px, false, variant)["spots"])
 	return found
 
 
@@ -272,4 +295,7 @@ static func _build() -> Dictionary:
 			[4, 2, 14, 1, "lamp"]], "spots": [[18, 30], [36, 30]]}],
 	}
 	out.merge(Batch2.build())
+	var extra: Dictionary = Variants.build()
+	for kind: String in extra:
+		(out[kind] as Dictionary)["variants"] = extra[kind]
 	return out

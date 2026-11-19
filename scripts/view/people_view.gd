@@ -11,6 +11,7 @@ const HotelScript := preload("res://scripts/sim/hotel.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 const ActivityLook := preload("res://scripts/view/activity_look.gd")
+const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 
 ## Colour per stress band: calm black, uneasy pink, angry red.
 const BAND_COLORS: Array[Color] = [Color(0.05, 0.05, 0.05), Color(1.0, 0.45, 0.70), Color(0.85, 0.08, 0.08)]
@@ -120,15 +121,15 @@ func figures(tower: Object) -> Array[Dictionary]:
 		var act := ActivityLook.classify(kind, people.work_of(i) == room, people.goal_of(i), staying, minute, people.trip_state(i) == PeopleScript.TRIP_REQUESTED)
 		var turn: int = turns.get(room, 0)
 		turns[room] = turn + 1
-		out.append(_resting(run, people.id_at(i), kind, act, turn, band, column))
+		out.append(_resting(run, people.id_at(i), kind, act, turn, band, column, room))
 	out.append_array(_cleaners(tower))
 	return out
 
 
 ## A resting figure of a run [floor, column, width, ...] doing `act`, placed on a spot of its room.
-static func _resting(run: Array[int], id: int, kind: String, act: int, turn: int, band: int, column: int) -> Dictionary:
+static func _resting(run: Array[int], id: int, kind: String, act: int, turn: int, band: int, column: int, room: int = 0) -> Dictionary:
 	var width_px := run[2] * VC.CELL_W
-	var at := ActivityLook.place(act, ActivityLook.spot_for(kind, width_px, id, turn, act), width_px)
+	var at := ActivityLook.place(act, ActivityLook.spot_for(kind, width_px, id, turn, act, RoomRecipes.variant_for(kind, room)), width_px)
 	var row_top := VC.floor_to_row(run[0]) * VC.CELL_H
 	return {"id": id, "floor": run[0], "x": column, "fx": float(column), "frow": float(VC.floor_to_row(run[0])),
 		"pose": POSE_WALK, "band": band, "moving": false, "act": act, "px": run[1] * VC.CELL_W + at.x, "pfeet": row_top + at.y}
@@ -144,7 +145,7 @@ func _cleaners(tower: Object) -> Array[Dictionary]:
 		var run: Array[int] = tower.grid.run_of(room)
 		if run.is_empty():
 			continue
-		var cleaner := _resting(run, room, tower.rooms.kind_of(room), ActivityLook.CLEANING, 1, 0, run[1])
+		var cleaner := _resting(run, room, tower.rooms.kind_of(room), ActivityLook.CLEANING, 1, 0, run[1], room)
 		cleaner["staff"] = true  # not a person: the id is the room's, so a click must not open a person window
 		out.append(cleaner)
 	return out
