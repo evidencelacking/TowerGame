@@ -24,6 +24,7 @@ var panel: PanelContainer
 var title: Label
 var grid: GridContainer
 var schedule_grid: GridContainer
+var preview: Label  ## Plain-words summary of the shaft, its cars and its riders.
 var _signature: String = ""
 
 
@@ -58,6 +59,11 @@ func _init() -> void:
 	remove.focus_mode = Control.FOCUS_NONE
 	remove.pressed.connect(remove_car)
 	buttons.add_child(remove)
+	preview = Label.new()
+	preview.name = "Preview"
+	preview.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	preview.custom_minimum_size = Vector2(300, 0)
+	column.add_child(preview)
 	var scroll := ScrollContainer.new()
 	scroll.name = "Floors"
 	scroll.custom_minimum_size = Vector2(300, 320)
@@ -103,9 +109,48 @@ static func describe(t: Object, id: int) -> Dictionary:
 				marks.append(home == floor_number)
 			rows.append({"floor": floor_number, "label": ElevatorTools.floor_label(floor_number), "stop": t.rooms.is_stop(id, floor_number), "homes": marks})
 		var kind: String = t.rooms.kind_of(id)
-		return {"id": id, "label": "%s, %s to %s" % [kind.replace("_", " "), ElevatorTools.floor_label(shaft["bottom"]), ElevatorTools.floor_label(shaft["top"])],
+		var live: Array[Dictionary] = []
+		var indexes: Array[int] = t.rooms.car_indexes_of(id)
+		for car: Array in t.rooms.cars_of(id):
+			live.append({"floor": car[CarsScript.FLOOR], "state": car[CarsScript.STATE], "riders": t.rooms.riders_of(indexes[live.size()]).size()})
+		var waiting := 0
+		for stop: int in t.rooms.stops_of(id):
+			waiting += t.rooms.queue_at(id, stop).size()
+		return {"live": live, "waiting": waiting, "capacity": t.rooms.car_capacity(id), "express": kind == "express_shaft",
+			"id": id, "label": "%s, %s to %s" % [kind.replace("_", " "), ElevatorTools.floor_label(shaft["bottom"]), ElevatorTools.floor_label(shaft["top"])],
 			"schedule": t.rooms.schedule_of(id), "bottom": shaft["bottom"], "top": shaft["top"], "cars": homes.size(), "homes": homes, "stop_count": shaft["stops"].size(), "rows": rows}
 	return {}
+
+
+## Whole sim ticks for one car to make a full round trip: the travel up and down plus the doors at
+## every stop it serves, assuming nobody holds it up.
+static func round_trip_ticks(floors_spanned: int, stop_count: int, express: bool) -> int:
+	var per_floor: int = CarsScript.EXPRESS_UNITS_PER_FLOOR if express else CarsScript.LOCAL_UNITS_PER_FLOOR
+	var doors: int = CarsScript.DOOR_OPEN_UNITS + CarsScript.DOOR_HOLD_UNITS + CarsScript.DOOR_CLOSE_UNITS
+	var units: int = 2 * floors_spanned * per_floor + 2 * maxi(stop_count - 1, 0) * doors
+	return (units + CarsScript.TICK_UNITS - 1) / CarsScript.TICK_UNITS
+
+
+## The preview text for a describe() result, in plain words.
+static func preview_text(info: Dictionary) -> String:
+	if info.is_empty():
+		return ""
+	var spanned: int = GridScript.floor_to_index(info["top"]) - GridScript.floor_to_index(info["bottom"])
+	var ticks := round_trip_ticks(spanned, info["stop_count"], info["express"])
+	var minutes: int = ticks * CarsScript.SECONDS_PER_TICK / 60
+	var states: Array[String] = ["waiting", "moving", "opening its doors", "loading", "closing its doors"]
+	var lines: Array[String] = []
+	var cars: int = info["cars"]
+	if cars == 0:
+		lines.append("This shaft has no cars yet, so nobody can ride it. Add a car.")
+	else:
+		lines.append("%d %s serve %d stops. A full trip up and down takes about %d game minutes if nothing delays it." % [cars, "car" if cars == 1 else "cars", info["stop_count"], maxi(minutes, 1)])
+	var n := 0
+	for car: Dictionary in info["live"]:
+		n += 1
+		lines.append("Car %d: at %s, %s, carrying %d of %d." % [n, ElevatorTools.floor_label(car["floor"]), states[car["state"]], car["riders"], info["capacity"]])
+	lines.append("%d %s waiting at its stops." % [info["waiting"], "person is" if info["waiting"] == 1 else "people are"])
+	return "\n".join(lines)
 
 
 func show_shaft(id: int) -> void:
@@ -193,6 +238,7 @@ func _refresh() -> void:
 	if signature == _signature:
 		return
 	_signature = signature
+	preview.text = preview_text(info)
 	title.text = "%s (%d stops, %d cars)" % [info["label"], info["stop_count"], info["cars"]]
 	for child in grid.get_children():
 		grid.remove_child(child)

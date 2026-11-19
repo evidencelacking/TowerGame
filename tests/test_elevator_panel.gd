@@ -9,6 +9,8 @@ const ElevatorWindow := preload("res://scripts/view/elevator_window.gd")
 const TestRooms := preload("res://tests/test_rooms.gd")
 const TestShafts := preload("res://tests/test_shafts.gd")
 const TestCars := preload("res://tests/test_cars.gd")
+const TestBoarding := preload("res://tests/test_boarding.gd")
+const TestDispatch := preload("res://tests/test_dispatch.gd")
 
 
 static func run(check: Callable) -> void:
@@ -70,6 +72,25 @@ static func run(check: Callable) -> void:
 	w.close()
 	check.call(not w.is_open() and not w.set_stop(4, true), "a closed panel is shut")
 	w.free()
+
+	# The preview (#189) matches the sim: cars, riders and people waiting, and follows a change.
+	var b := TestBoarding._setup([1] as Array[int], 3)
+	var bid := TestDispatch._id(b)
+	var before := ElevatorWindow.describe(b, bid)
+	check.call(before["cars"] == 1 and before["waiting"] == 0 and before["live"][0]["riders"] == 0, "the preview starts with an empty car and nobody waiting")
+	TestBoarding._queue(b, 0, 3, 1, 10)
+	check.call(ElevatorWindow.describe(b, bid)["waiting"] == 3, "the preview counts people waiting at stops")
+	TestBoarding._until_boarded(b)
+	var riding := ElevatorWindow.describe(b, bid)
+	check.call(riding["live"][0]["riders"] == b.rooms.riders_of(0).size() and riding["live"][0]["riders"] > 0, "the preview shows the riders in each car")
+	var text := ElevatorWindow.preview_text(riding)
+	check.call(text.contains("Car 1:") and text.contains("carrying %d of %d" % [riding["live"][0]["riders"], riding["capacity"]]), "the preview text names the car and its load")
+	check.call(text.contains("full trip up and down takes about"), "the preview estimates a round trip")
+	var one_car := ElevatorWindow.preview_text(before)
+	TestRooms._send(b, Command.ADD_CAR, [bid, 1] as Array[int])
+	var two_cars := ElevatorWindow.preview_text(ElevatorWindow.describe(b, bid))
+	check.call(two_cars.contains("Car 2:") and not one_car.contains("Car 2:"), "the preview gains a car when one is added")
+	check.call(ElevatorWindow.round_trip_ticks(10, 2, true) < ElevatorWindow.round_trip_ticks(10, 2, false) and ElevatorWindow.round_trip_ticks(20, 2, false) > ElevatorWindow.round_trip_ticks(10, 2, false), "a longer or slower shaft has a longer round trip")
 
 	# Saves keep the homes.
 	var u := TowerSim.new(0)

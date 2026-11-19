@@ -806,6 +806,15 @@ func cars_of(shaft_id: int) -> Array:
 	return result
 
 
+## Indexes (as for riders_of) of a shaft's cars, oldest first.
+func car_indexes_of(shaft_id: int) -> Array[int]:
+	var result: Array[int] = []
+	for n in _cars.size():
+		if _cars[n][CarsScript.SHAFT] == shaft_id:
+			result.append(n)
+	return result
+
+
 ## Adds a car (the ADD_CAR command): shaft id, home floor. Local and service shafts only; at most
 ## MAX_CARS_PER_SHAFT and the star cap; home must be a stop. Charges the catalogue car price.
 func add_car(ledger: LedgerScript, at_tick: int, stars: int, shaft_id: int, home: int) -> int:
