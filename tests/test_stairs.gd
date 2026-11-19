@@ -72,6 +72,19 @@ static func run(check: Callable) -> void:
 	check.call(TestRooms._send(big, Command.BULLDOZE, [2, 300] as Array[int]) == RoomsScript.OK, "stairs are bulldozed from the lower floor of the pair")
 	check.call(TestRooms._send(big, Command.BULLDOZE, [1, 396] as Array[int]) == RoomsScript.PERMANENT, "the lobby under removed stairs is still permanent")
 
+	# The limit counts each piece, escalators and stairs alike (#186).
+	var mix := TowerSim.new(1, 100000000)
+	TestRooms._send(mix, Command.BUILD_LOBBY, [1, 0, 399, 3] as Array[int])
+	for i in 32:
+		TestRooms._send(mix, Command.PLACE_ESCALATOR, [1, i * 8] as Array[int])
+		_stairs(mix, 1, 256 + i * 4)
+	check.call(mix.rooms.room_count() == 64, "fixture: 32 stairs and 32 escalators fill the limit")
+	var mix_funds := mix.ledger.balance
+	check.call(TestRooms._send(mix, Command.PLACE_ESCALATOR, [1, 384] as Array[int]) == RoomsScript.STAIRS_LIMIT, "the 65th piece is refused when it is an escalator")
+	check.call(_stairs(mix, 1, 392) == RoomsScript.STAIRS_LIMIT and mix.ledger.balance == mix_funds, "the 65th piece is refused when it is stairs, free")
+	check.call(TestRooms._send(mix, Command.BULLDOZE, [1, 0] as Array[int]) == RoomsScript.OK and mix.rooms.room_count() == 63, "bulldozing an escalator removes a piece")
+	check.call(TestRooms._send(mix, Command.PLACE_ESCALATOR, [1, 0] as Array[int]) == RoomsScript.OK and TestRooms._send(mix, Command.PLACE_ESCALATOR, [1, 384] as Array[int]) == RoomsScript.STAIRS_LIMIT, "the freed slot takes one piece and the limit holds again")
+
 	# Save and load, deterministic hash.
 	var copy := TowerSim.new(9)
 	check.call(copy.load_state(t.save()) and copy.state_hash() == t.state_hash(), "a tower with stairs saves and loads")
