@@ -9,6 +9,9 @@ const Drawer: GDScript = preload("res://mockups/art_drawer.gd")
 @export var style_id: int = 0
 @export var title_text: String = ""
 @export var file_stem: String = "art_a"
+## Pixels per floor (24 for the first mock-ups) and drawing detail (1 uses the extra height).
+@export var floor_h: int = 24
+@export var detail: int = 0
 
 var _views: Array[SubViewport] = []
 var _rects: Array[TextureRect] = []
@@ -23,12 +26,12 @@ func _ready() -> void:
 	add_child(bg)
 	for is_night: bool in [false, true]:
 		var vp: SubViewport = SubViewport.new()
-		vp.size = Vector2i(Drawer.NATIVE_W, Drawer.NATIVE_H)
+		vp.size = Vector2i(Drawer.NATIVE_W, Drawer.native_h(floor_h))
 		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 		add_child(vp)
 		var drawer: Node2D = Drawer.new()
 		vp.add_child(drawer)
-		drawer.call("setup", style_id, is_night)
+		drawer.call("setup", style_id, is_night, floor_h, detail)
 		_views.append(vp)
 		var tr: TextureRect = TextureRect.new()
 		tr.texture = vp.get_texture()
@@ -49,9 +52,9 @@ func _ready() -> void:
 
 func _layout() -> void:
 	var avail: Vector2 = size - Vector2(0, 40)
-	var sc: int = maxi(1, mini(int(avail.x) / Drawer.NATIVE_W, int(avail.y) / (Drawer.NATIVE_H * 2)))
+	var sc: int = maxi(1, mini(int(avail.x) / Drawer.NATIVE_W, int(avail.y) / (Drawer.native_h(floor_h) * 2)))
 	var w: int = Drawer.NATIVE_W * sc
-	var h: int = Drawer.NATIVE_H * sc
+	var h: int = Drawer.native_h(floor_h) * sc
 	var x: int = (int(size.x) - w) / 2
 	var y: int = 40 + (int(avail.y) - 2 * h) / 2
 	_label.position = Vector2(x, 8)
