@@ -165,8 +165,20 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.ROOM_DIRTY: return "A hotel room needs cleaning"
 		Msg.PESTS_WARNING: return "A dirty hotel room will get pests soon"
 		Msg.PESTS_FOUND: return "Pests in a hotel room: demolish it to clear them"
+		Msg.DEMAND_RAISED: return "Your tower needs %s" % _demand_name(a)
+		Msg.DEMAND_CLEARED: return "Your tower no longer needs %s" % _demand_name(a)
 		Msg.STAR_PROMOTED: return "Your tower has grown to %d stars. New buildings are open to you." % a
 	return "Something happened"
+
+
+static func _demand_name(id: int) -> String:
+	match id:
+		1: return "security"
+		2: return "a suite"
+		3: return "medical care"
+		4: return "recycling"
+		5: return "parking"
+	return "something"
 
 
 ## Room placement and replace can also pass on bulldoze refusals; use the table that knows the code.
