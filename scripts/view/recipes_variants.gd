@@ -156,3 +156,50 @@ static func _retail() -> Array:
 		],
 	}
 	return [clothes, electronics, florist]
+
+
+## Suite recipes (#276): what neighbouring rooms of one kind become when they join. They span any width of
+## two rooms or more, so every part repeats along the room or hangs from the centre or an edge.
+static func build_suites() -> Dictionary:
+	var out: Dictionary = {}
+	out["office"] = {  # a boardroom: one long table the whole way across, chairs along it, a wall of whiteboard
+		"fixed": [[24, 5, 0, 12, "white"], [24, 5, 0, 12, "furn"], [30, 8, 24, 1, "red"], [30, 11, 40, 1, "accent"],
+			[30, 21, 0, 2, "furn"], [8, 2, 0, 1, "lamp"],
+			[-14, 24, 8, 6, "furn", "r"], [-11, 17, 1, 7, "green", "r"], [-13, 15, 6, 1, "green", "r"], [-12, 12, 4, 1, "green", "r"]],
+		"repeats": [
+			{"pad": 34, "every": 18, "lo": 0, "hi": 5, "reserve": 34, "shapes": [[0, 17, 1, 8, "furn"], [0, 24, 5, 1, "furn"], [0, 25, 1, 5, "furn"], [4, 25, 1, 5, "furn"]], "spots": [[0, 30]]},
+			{"pad": 36, "every": 44, "lo": 0, "hi": 2, "reserve": 34, "shapes": [[0, 23, 2, 7, "furn"]]},
+		],
+		"spots": [[10, 30]],
+	}
+	out["restaurant"] = {  # a grand dining room: a band of lamps and tables laid across the whole floor
+		"fixed": [[4, 3, 0, 2, "accent"], [4, 1, 0, 1, "lamp"], [8, 19, 28, 11, "furn", "r"], [7, 18, 30, 1, "furn", "r"], [10, 7, 24, 9, "furn", "r"],
+			[12, 9, 2, 5, "red", "r"], [16, 9, 2, 5, "gold", "r"], [20, 9, 2, 5, "green", "r"], [24, 9, 2, 5, "red", "r"], [28, 9, 2, 5, "gold", "r"]],
+		"repeats": [{"pad": 16, "every": 34, "lo": -6, "hi": 20, "reserve": 46, "shapes": [
+			[0, 20, 14, 1, "furn"], [1, 21, 12, 3, "white"], [6, 24, 2, 5, "furn"], [3, 29, 8, 1, "furn"],
+			[7, 18, 1, 2, "white"], [7, 17, 1, 1, "lamp"], [7, 6, 1, 4, "furn"], [3, 10, 9, 3, "lamp"], [3, 10, 9, 3, "furn"],
+			[-6, 16, 1, 8, "furn"], [-6, 24, 4, 1, "furn"], [-6, 25, 1, 5, "furn"], [-3, 25, 1, 5, "furn"],
+			[19, 16, 1, 8, "furn"], [16, 24, 4, 1, "furn"], [16, 25, 1, 5, "furn"], [19, 25, 1, 5, "furn"]],
+			"spots": [[-5, 30], [16, 30]]}],
+		"spots": [[-18, 30, "r"]],
+	}
+	out["fast_food"] = {  # a food court: ordering counters at both ends, booths between
+		"fixed": [[4, 19, 24, 11, "furn"], [3, 18, 26, 1, "furn"], [5, 26, 22, 1, "red"], [6, 5, 20, 10, "accent"], [6, 5, 20, 10, "furn"], [9, 8, 10, 1, "furn"], [9, 10, 14, 1, "furn"],
+			[-28, 19, 24, 11, "furn", "r"], [-29, 18, 26, 1, "furn", "r"], [-27, 26, 22, 1, "gold", "r"], [-26, 5, 20, 10, "accent", "r"], [-26, 5, 20, 10, "furn", "r"],
+			[-23, 8, 10, 1, "furn", "r"], [-23, 10, 14, 1, "furn", "r"], [32, 1, 0, 1, "lamp"]],
+		"repeats": [{"pad": 38, "every": 36, "lo": 0, "hi": 32, "reserve": 38, "shapes": [
+			[0, 17, 3, 13, "furn"], [0, 26, 10, 4, "furn"], [10, 22, 12, 1, "furn"], [15, 23, 2, 7, "furn"],
+			[29, 17, 3, 13, "furn"], [22, 26, 10, 4, "furn"], [3, 2, 26, 1, "lamp"]], "spots": [[2, 30], [24, 30]]}],
+		"spots": [[-34, 30, "c"], [28, 30, "c"]],
+	}
+	out["retail"] = {  # a department store: aisles of shelving and rails under a banner
+		"fixed": [[6, 2, 0, 3, "gold"], [8, 2, 0, 1, "lamp"], [-14, 8, 10, 22, "window", "r"], [-14, 8, 10, 22, "furn", "r"], [-9, 12, 1, 14, "furn", "r"]],
+		"repeats": [
+			{"pad": 4, "every": 30, "lo": 0, "hi": 22, "reserve": 20, "shapes": [
+				[0, 10, 22, 20, "furn"], [0, 17, 22, 1, "furn"], [0, 24, 22, 1, "furn"],
+				[2, 11, 4, 5, "red"], [8, 12, 4, 4, "gold"], [14, 11, 5, 5, "accent"], [2, 18, 4, 5, "white"], [9, 19, 5, 4, "red"], [15, 18, 4, 5, "gold"],
+				[2, 25, 5, 4, "accent"], [9, 26, 4, 3, "white"]], "spots": [[23, 30]]},
+		],
+		"spots": [[-26, 30, "r"]],
+	}
+	return out

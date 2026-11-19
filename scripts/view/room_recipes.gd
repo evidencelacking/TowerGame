@@ -29,6 +29,7 @@ const Variants := preload("res://scripts/view/recipes_variants.gd")
 const INTERIOR_H: int = VC.CELL_H - VC.SLAB_H  ## Usable rows above the floor slab.
 const DESIGN_H: int = 22  ## The interior height the placeholder recipes were drawn for; they shift down by the extra.
 const FLOOR_DY: int = INTERIOR_H - DESIGN_H
+const SUITE: int = -1  ## The variant number of a joined suite's recipe (#276): kinds with one list it under "suite".
 const FIGURE_W: int = VC.FIGURE_W  ## A standing figure's size, used to keep spots inside the room.
 const FIGURE_H: int = VC.FIGURE_H
 
@@ -61,6 +62,10 @@ static func _recipe(kind: String, variant: int = 0) -> Dictionary:
 	var real: Dictionary = _table()
 	if real.has(kind):
 		var recipe: Dictionary = real[kind]
+		if variant == SUITE and recipe.has("suite"):
+			var suite: Dictionary = (recipe["suite"] as Dictionary).duplicate()
+			suite["hue"] = recipe["hue"]
+			return suite
 		var extra: Array = recipe.get("variants", [])
 		if variant > 0 and variant <= extra.size():
 			var chosen: Dictionary = (extra[variant - 1] as Dictionary).duplicate()
@@ -74,6 +79,11 @@ static func _recipe(kind: String, variant: int = 0) -> Dictionary:
 static func variant_count(kind: String) -> int:
 	var recipe: Dictionary = _recipe(kind)
 	return 1 + (recipe.get("variants", []) as Array).size()
+
+
+## Whether a kind has a joined-suite recipe (#276).
+static func has_suite(kind: String) -> bool:
+	return _recipe(kind).has("suite")
 
 
 ## The look a room uses: a fixed function of its id, so a room never changes look and nothing is saved.
@@ -298,4 +308,7 @@ static func _build() -> Dictionary:
 	var extra: Dictionary = Variants.build()
 	for kind: String in extra:
 		(out[kind] as Dictionary)["variants"] = extra[kind]
+	var suites: Dictionary = Variants.build_suites()
+	for kind: String in suites:
+		(out[kind] as Dictionary)["suite"] = suites[kind]
 	return out
