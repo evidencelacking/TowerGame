@@ -47,6 +47,7 @@ var _item_buttons: Dictionary = {}  ## item id -> Button
 var _open_category: int = -1
 var _shown_stars: int = -1
 var _shown_tool: String = "?"
+var _new_items: Array[String] = []  ## Items a promotion just opened; marked until picked (#167).
 
 
 func _ready() -> void:
@@ -128,12 +129,25 @@ static func item_state(id: String, star_rating: int) -> Dictionary:
 	return out
 
 
+## Marks items as new after a promotion (#167). A mark goes when the item is picked.
+func mark_new(ids: Array) -> void:
+	for id: String in ids:
+		if not _new_items.has(id):
+			_new_items.append(id)
+	_refresh()
+
+
+func is_new(id: String) -> bool:
+	return _new_items.has(id)
+
+
 ## Picks an item (the same as pressing its hotkey). Returns false, changing nothing, when it
 ## is locked or not buildable. Picking the active item again turns the tool off.
 func select(id: String) -> bool:
 	if ghost == null or not item_state(id, ghost.stars)["enabled"]:
 		_refresh()
 		return false
+	_new_items.erase(id)
 	ghost.set_tool("" if ghost.tool == id else id)
 	_refresh()
 	return true
@@ -157,11 +171,15 @@ func _refresh() -> void:
 	_shown_tool = ghost.tool if ghost != null else ""
 	for c in CATEGORIES.size():
 		_category_buttons[c].set_pressed_no_signal(c == _open_category)
+		var has_new := false
+		for id: String in CATEGORIES[c][1]:
+			has_new = has_new or _new_items.has(id)
+		_category_buttons[c].text = CATEGORIES[c][0] + (" *" if has_new else "")
 		_category_lists[c].visible = c == _open_category
 		for id: String in CATEGORIES[c][1]:
 			var item: Button = _item_buttons[id]
 			var state := item_state(id, star_rating)
-			item.text = state["text"]
+			item.text = state["text"] + ("  NEW" if _new_items.has(id) else "")
 			item.disabled = not state["enabled"]
 			item.tooltip_text = state["tooltip"]
 			item.toggle_mode = true
