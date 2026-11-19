@@ -319,25 +319,14 @@ func _shown_at(figure: Dictionary) -> Vector2:
 ## phase choose the frame: walking alternates legs apart and together every half column, stairs
 ## lift one leg and bob, an escalator rider stands with legs together.
 func _draw_figure(canvas: CanvasItem, x: int, feet: int, shirt: Color, band: int, skin: Color, pose: int = 0, phase: int = 0) -> void:
-	var head_h := maxi(FIGURE_H / 3, 2)
-	var leg_h := maxi(FIGURE_H / 4, 1)
 	var bob := 1 if pose == PeopleView.POSE_STAIRS and phase % 2 == 1 else 0
 	var top := feet - FIGURE_H - bob
-	var legs := shirt.darkened(0.4)
-	canvas.draw_rect(Rect2i(x, top, FIGURE_W, head_h), skin)  # head
-	canvas.draw_rect(Rect2i(x, top + head_h, FIGURE_W, FIGURE_H - head_h - leg_h), shirt)  # body
-	var leg_y := feet - leg_h - bob
 	var apart := (pose == PeopleView.POSE_WALK and phase % 2 == 0) or pose == PeopleView.POSE_STAIRS
-	var raised_left := pose == PeopleView.POSE_STAIRS and phase < 2
-	var raised_right := pose == PeopleView.POSE_STAIRS and phase >= 2
-	if apart:
-		canvas.draw_rect(Rect2i(x, leg_y - (1 if raised_left else 0), 1, leg_h), legs)
-		canvas.draw_rect(Rect2i(x + FIGURE_W - 1, leg_y - (1 if raised_right else 0), 1, leg_h), legs)
-	else:  # together, under the middle
-		canvas.draw_rect(Rect2i(x + FIGURE_W / 2, leg_y, 1, leg_h), legs)
-		canvas.draw_rect(Rect2i(x + (FIGURE_W - 1) / 2, leg_y, 1, leg_h), legs)
+	var raised_left := 1 if pose == PeopleView.POSE_STAIRS and phase < 2 else 0
+	var raised_right := 1 if pose == PeopleView.POSE_STAIRS and phase >= 2 else 0
+	ActivityLook.draw_person(canvas, x, feet - bob, shirt, skin, apart, raised_left, raised_right)
 	for mark in PeopleView.marks_of(band):  # shape cue: one dot uneasy, two angry
-		canvas.draw_rect(Rect2i(x + mark * 2 - 2, top - 2, 1, 1), shirt)
+		canvas.draw_rect(Rect2i(x + mark * 2 - 1, top - 2, 1, 1), shirt)
 
 
 ## Fire and smoke, guards on their way, the rescue craft and the threat search (event_look.gd); each draws
