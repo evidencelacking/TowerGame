@@ -34,6 +34,13 @@ static func _before_check(n: int) -> TowerSim:
 	return t
 
 
+static func _last_promotion(tower: TowerSim) -> int:
+	for i in range(tower.messages.count() - 1, -1, -1):
+		if tower.messages.entry(i)[1] == Msg.STAR_PROMOTED:
+			return tower.messages.entry(i)[2]
+	return 0
+
+
 static func run(check: Callable) -> void:
 	check.call(StarRulesScript.REQUIREMENTS[2]["population"] == 300, "star 2 needs population 300 in the data table")
 
@@ -45,7 +52,7 @@ static func run(check: Callable) -> void:
 	_crowd(t, 1)
 	t.promote_stars()
 	check.call(t.stars == 2, "300 people promotes to 2 stars")
-	check.call(_promotions(t) == 1 and t.messages.entry(t.messages.count() - 1)[2] == 2, "promotion logs one message naming star 2")
+	check.call(_promotions(t) == 1 and _last_promotion(t) == 2, "promotion logs one message naming star 2")
 	t.promote_stars()
 	check.call(_promotions(t) == 1, "promotion happens once")
 	check.call(Log.describe(Msg.STAR_PROMOTED, 2, 0) == "Your tower has grown to 2 stars. New buildings are open to you.", "the promotion message is worded")
