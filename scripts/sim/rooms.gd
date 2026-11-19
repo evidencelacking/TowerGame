@@ -99,6 +99,9 @@ const FIRST_ID := 1000  ## Room occupant ids start here, clear of ids given to P
 ## coexist with them, so they hold their occupant cells here and not in the room grid. Ids come
 ## from the same counter as rooms, so an id is unique across both grids.
 var links := GridScript.new()
+## Stacked flights (#259): a cell holds one id, so when two flights of one kind share a floor (one's
+## top is the other's bottom) the half that finds the cell taken sits here instead. Mostly empty.
+var links_over := GridScript.new()
 var _kind_of: Dictionary = {}  # occupant id -> index in RoomCatalogue.IDS
 var _sold: Dictionary = {}  # condo occupant id -> true once sold (sales come in M3; tests set it)
 var _next_id: int = FIRST_ID
@@ -339,7 +342,12 @@ func is_tall_upper(id: int) -> bool:
 
 ## True when id is placed in the room grid or in the link layer.
 func _id_taken(grid: GridScript, id: int) -> bool:
-	return grid.has_occupant(id) or links.has_occupant(id)
+	return grid.has_occupant(id) or _has_link(id)
+
+
+## True when id is placed in either link layer.
+func _has_link(id: int) -> bool:
+	return links.has_occupant(id) or links_over.has_occupant(id)
 
 
 ## True for the kinds that live in the link layer: stairs, escalators and shafts.
@@ -357,7 +365,9 @@ func link_at(floor_number: int, column: int) -> int:
 
 ## [floor, column, length] of a placed room or link occupant, or an empty array.
 func run_of(grid: GridScript, id: int) -> Array[int]:
-	return links.run_of(id) if links.has_occupant(id) else grid.run_of(id)
+	if links.has_occupant(id):
+		return links.run_of(id)
+	return links_over.run_of(id) if links_over.has_occupant(id) else grid.run_of(id)
 
 
 ## The floor above floor_number, or 0 when there is none (floor 100; there is no floor 0).
@@ -429,6 +439,25 @@ func _blocked_by_escalator(kind: String, level: int, x_left: int, width: int) ->
 	return false
 
 
+## True when a flight of kind with its lower floor at floor_number and left column x_left may share
+## the cell at (level, column) with the flight already there (#259): the same kind, in the same
+## columns, meeting at exactly one floor (the new flight's bottom is the other's top, or its top is
+## the other's bottom), and that cell holds only the one flight so far.
+func _stacks_on(kind: String, level: int, floor_number: int, x_left: int, column: int) -> bool:
+	if links_over.cell_at(level, column) != GridScript.EMPTY:
+		return false
+	var id := links.cell_at(level, column)
+	var base := _room_base(id)
+	if not _kind_of.has(base) or kind_of(base) != kind:
+		return false
+	var run := links.run_of(id)
+	if run[1] != x_left:
+		return false
+	if id == base:  ## The other flight's bottom: the new one must end on this floor.
+		return level != floor_number
+	return level == floor_number  ## The other flight's top: the new one must start here.
+
+
 func _check_place_link(grid: GridScript, floors: FloorsScript, kind: String, floor_number: int, x_left: int) -> Dictionary:
 	var result := {"reason": OK, "cost": 0}
 	var upper := floor_above(floor_number)
@@ -444,7 +473,7 @@ func _check_place_link(grid: GridScript, floors: FloorsScript, kind: String, flo
 			if floors.has_shaft(level, column):
 				result["reason"] = OVER_SHAFT
 				return result
-			if links.cell_at(level, column) != GridScript.EMPTY or machine_room_at(level, column):
+			if machine_room_at(level, column) or (links.cell_at(level, column) != GridScript.EMPTY and not _stacks_on(kind, level, floor_number, x_left, column)):
 				result["reason"] = OVERLAPS_LINK
 				return result
 	for column in range(x_left, x_left + width):
@@ -486,11 +515,29 @@ func _place_link(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, a
 	var width: int = CatalogueScript.field(kind, "width")
 	while _id_taken(grid, _next_id) or _id_taken(grid, _next_id + 1):
 		_next_id += 1
-	links.place(_next_id, floor_number, x_left, width)
-	links.place(_next_id + 1, floor_above(floor_number), x_left, width)
+	_put_link(_next_id, floor_number, x_left, width)
+	_put_link(_next_id + 1, floor_above(floor_number), x_left, width)
 	_kind_of[_next_id] = kind_index
 	_next_id += 2
 	return OK
+
+
+## Places a link half in the front layer, or in the stacked layer when another flight has the cells.
+func _put_link(id: int, floor_number: int, x_left: int, width: int) -> void:
+	if not links.place(id, floor_number, x_left, width):
+		links_over.place(id, floor_number, x_left, width)
+
+
+## Removes a stairs or escalator half from whichever layer holds it, then lets a stacked half take
+## the front layer if the cells are free now.
+func _unlink(id: int) -> void:
+	if not links.remove(id):
+		links_over.remove(id)
+	var held := links_over.state_ints()
+	for i in range(0, held.size(), 4):
+		var run: Array[int] = [held[i + 1], held[i + 2], held[i + 3]]
+		if links.place(held[i], run[0], run[1], run[2]):
+			links_over.remove(held[i])
 
 
 ## Index of a floor counting upward with no floor 0, so spans count basements: B1 is -1, 1 is 0.
@@ -1152,8 +1199,8 @@ func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
 	if TALL_KINDS.has(kind_of(id)):
 		grid.remove(id + 1)
 	if is_stair_kind(kind_of(id)):
-		links.remove(id)
-		links.remove(id + 1)
+		_unlink(id)
+		_unlink(id + 1)
 	if _shafts.has(id):
 		var info: Array = _shafts[id]
 		var width: int = CatalogueScript.field(kind_of(id), "width")
@@ -1179,7 +1226,7 @@ func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
 
 ## True when id is the upper-floor half of a stairs or escalator (not a link of its own).
 func is_stairs_upper(id: int) -> bool:
-	return links.has_occupant(id) and not _kind_of.has(id) and is_stair_kind(kind_of(id - 1))
+	return _has_link(id) and not _kind_of.has(id) and is_stair_kind(kind_of(id - 1))
 
 
 ## True for the kinds that join a floor to the one above with two grid halves: stairs, escalators.
@@ -1408,6 +1455,9 @@ func state_ints() -> Array[int]:
 	var link_ints := links.state_ints()
 	ints.append(link_ints.size())
 	ints.append_array(link_ints)
+	var over_ints := links_over.state_ints()
+	ints.append(over_ints.size())
+	ints.append_array(over_ints)
 	return ints
 
 
@@ -1460,6 +1510,8 @@ func load_ints(ints: Array) -> bool:
 		at += 1 + SCHEDULE_INTS
 	at += 1
 	links.load_ints(ints.slice(at + 1, at + 1 + ints[at]))
+	at += 1 + ints[at]
+	links_over.load_ints(ints.slice(at + 1, at + 1 + ints[at]))
 	alighted = []
 	_next_id = ints[0]
 	return true
@@ -1517,10 +1569,16 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 			if value < 0 or (field == 0 and value > MODE_BOTTOM) or (field == 1 and value > MAX_RESPONSE) or (field == 2 and value > MAX_WAIT):
 				return false
 	at += 1 + (1 + SCHEDULE_INTS) * schedule_total
-	if at >= ints.size() or ints[at] < 0 or at + 1 + ints[at] != ints.size():
+	if at >= ints.size() or ints[at] < 0 or at + 1 + ints[at] >= ints.size():
+		return false
+	var link_end: int = at + 1 + ints[at]
+	if ints[link_end] < 0 or link_end + 1 + ints[link_end] != ints.size():
 		return false
 	var link_grid := GridScript.new()
-	if not link_grid.load_ints(ints.slice(at + 1)):
+	if not link_grid.load_ints(ints.slice(at + 1, link_end)):
+		return false
+	var over_grid := GridScript.new()
+	if not over_grid.load_ints(ints.slice(link_end + 1)):
 		return false
 	if grid != null:
 		for top in shaft_tops:
@@ -1533,9 +1591,9 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 		if id < 1 or kind_index < 0 or kind_index >= CatalogueScript.IDS.size() or (sold != 0 and sold != 1):
 			return false
 		var is_link := is_link_kind(CatalogueScript.IDS[kind_index])
-		if grid != null and not shaft_ids.has(id) and not (link_grid.has_occupant(id) if is_link else grid.has_occupant(id)):
+		if grid != null and not shaft_ids.has(id) and not ((link_grid.has_occupant(id) or over_grid.has_occupant(id)) if is_link else grid.has_occupant(id)):
 			return false
-		if grid != null and is_stair_kind(CatalogueScript.IDS[kind_index]) and not link_grid.has_occupant(id + 1):
+		if grid != null and is_stair_kind(CatalogueScript.IDS[kind_index]) and not (link_grid.has_occupant(id + 1) or over_grid.has_occupant(id + 1)):
 			return false
 		if grid != null and TALL_KINDS.has(CatalogueScript.IDS[kind_index]) and not grid.has_occupant(id + 1):
 			return false

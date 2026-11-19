@@ -34,6 +34,9 @@ const PERIOD_6_START := 1260  # 21:00, unverified, tune by play
 ## Set on the single tick a quarter begins (WD1 starts), cleared on the next advance().
 ## Rent and WD1-only systems read it. It is not set in the start state.
 var quarter_started: bool = false
+## Set on the single tick a day begins (a new WD1, WD2 or WE; the tick a quarter begins is also one),
+## cleared on the next advance(). Derived each tick, so it is not saved or hashed.
+var day_started: bool = false
 
 var _period: int = 0  # 0-based internally; period() is 1-based
 var _ticks_in_period: int = 0
@@ -45,6 +48,7 @@ var _year: int = 1
 ## Advances one tick, rolling period, day, quarter and year over as needed.
 func advance() -> void:
 	quarter_started = false
+	day_started = false
 	_ticks_in_period += 1
 	if _ticks_in_period < period_ticks(_period):
 		return
@@ -54,6 +58,7 @@ func advance() -> void:
 		return
 	_period = 0
 	_day += 1
+	day_started = true
 	if _day < DAYS_PER_QUARTER:
 		return
 	_day = WD1

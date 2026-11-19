@@ -10,6 +10,7 @@ const Rng := preload("res://scripts/sim/sim_rng.gd")
 const Clock := preload("res://scripts/sim/clock.gd")
 const Grid := preload("res://scripts/sim/grid.gd")
 const LedgerScript := preload("res://scripts/sim/ledger.gd")
+const FinanceScript := preload("res://scripts/sim/finance.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
@@ -80,7 +81,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 40
+const SAVE_VERSION := 41
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -362,8 +363,11 @@ func _run_systems() -> void:
 	pests.tick(hotel, grid, rng, messages, tick)
 	housekeeping.tick(clock, floors, grid)
 	recycling.tick(clock, population())
+	if clock.day_started:  # rent comes in daily (#261); the quarter's last day pays the remainder
+		rent.collect(rooms, people, ledger, tick, clock.quarter_started)
+		commerce.collect_rent(rooms, rent, ledger, tick, clock.quarter_started)
 	if clock.quarter_started:
-		var rent_income := rent.collect(rooms, people, ledger, tick) + commerce.collect_rent(rooms, rent, ledger, tick)
+		var rent_income := _quarter_rent()
 		var running := RunningCostsScript.charge(rooms, floors, ledger, tick)
 		if rent_income > 0 or running > 0:
 			messages.add(tick, MessagesScript.QUARTER_SETTLED, rent_income, running)
@@ -387,6 +391,18 @@ func _run_systems() -> void:
 		evaluate_tenants()
 	if StarRulesScript.is_check_tick(tick):
 		promote_stars()
+
+
+## Rent credited in the quarter that just closed: the ledger's rent lines of the last quarter's ticks.
+func _quarter_rent() -> int:
+	var from := tick - FinanceScript.ticks_per_quarter()
+	var total := 0
+	var n := ledger.lines.size() - 1
+	while n >= 0 and ledger.lines[n][0] > from:
+		if ledger.lines[n][2] == LedgerScript.INCOME:
+			total += ledger.lines[n][1]
+		n -= 1
+	return total
 
 
 ## The star rating the build gates use: the real rating, or the top rating while unlock_all is on.

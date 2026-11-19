@@ -37,6 +37,14 @@ static func _command(t: TowerSim, room: int, level: int) -> void:
 	t.step()
 
 
+## Steps through the quarter's three day starts (the clock is set to one tick before each), so the
+## rent a quarter pays is all credited. Leaves the clock on the new quarter's first tick.
+static func settle_quarter(t: TowerSim) -> void:
+	for day in 3:
+		t.clock.set_to_tick((day + 1) * (QUARTER_TICKS / 3) - 1)
+		t.step()
+
+
 ## Income credited at the given tick.
 static func _income_at(t: TowerSim, at_tick: int) -> int:
 	var total := 0
@@ -107,20 +115,56 @@ static func run(check: Callable) -> void:
 		_command(high, room, Rent.LEVEL_HIGH)
 	var gained: Array[int] = []
 	for tower: TowerSim in [low, mid, high]:
-		tower.clock.set_to_tick(QUARTER_TICKS - 1)
-		tower.step()
-		gained.append(_income_at(tower, tower.tick))
-	check.call(gained[1] == 2 * 10000, "two default offices pay $20,000 at the quarter start (got %d)" % gained[1])
+		var from := tower.ledger.lines.size()
+		settle_quarter(tower)
+		var sum := 0
+		for line: Array in tower.ledger.lines.slice(from):
+			if line[2] == tower.ledger.INCOME:
+				sum += line[1]
+		gained.append(sum)
+	check.call(gained[1] == 2 * 10000, "two default offices pay $20,000 over a quarter's three days (got %d)" % gained[1])
 	check.call(gained[0] == 2 * rents[0] and gained[2] == 2 * rents[3], "rent income follows each office's level")
 	check.call(gained[0] < gained[1] and gained[1] < gained[2], "income rises with the rent level")
 	mid.step()
-	check.call(_income_at(mid, mid.tick) == 0, "rent is credited once a quarter, not every tick")
+	check.call(_income_at(mid, mid.tick) == 0, "rent is credited once a day, not every tick")
 
 	# An empty office pays no rent.
 	var empty := TestTenancy._tower()
-	empty.clock.set_to_tick(QUARTER_TICKS - 1)
-	empty.step()
+	settle_quarter(empty)
 	check.call(empty.clock.quarter_started and _income_at(empty, empty.tick) == 0, "an unleased office pays no rent")
+
+	# Daily rent (#261): a third a day, the remainder on the quarter's last day; a leaver stops paying.
+	var daily := _two_offices()
+	var d_from := daily.ledger.lines.size()
+	daily.clock.set_to_tick(QUARTER_TICKS / 3 - 1)
+	daily.step()
+	check.call(daily.clock.day_started and not daily.clock.quarter_started and _income_at(daily, daily.tick) == 2 * 3333, "day 1 pays a third of the quarterly rent")
+	daily.clock.set_to_tick(2 * (QUARTER_TICKS / 3) - 1)
+	daily.step()
+	daily.clock.set_to_tick(QUARTER_TICKS - 1)
+	daily.step()
+	check.call(_income_at(daily, daily.tick) == 2 * 3334, "the last day pays the remainder")
+	var d_total := 0
+	for line: Array in daily.ledger.lines.slice(d_from):
+		if line[2] == daily.ledger.INCOME:
+			d_total += line[1]
+	check.call(d_total == 2 * 10000, "three days pay exactly one quarter's rent")
+	check.call(Rent.day_share(10000, false) == 3333 and Rent.day_share(10000, true) == 3334, "day_share: a third, then the remainder")
+	var leaver := _two_offices()
+	var l_from := leaver.ledger.lines.size()
+	leaver.clock.set_to_tick(QUARTER_TICKS / 3 - 1)
+	leaver.step()
+	for x in [110, 120]:
+		leaver.rooms.bulldoze(leaver.grid, leaver.floors, leaver.ledger, leaver.tick, 3, x)
+	leaver.clock.set_to_tick(2 * (QUARTER_TICKS / 3) - 1)
+	leaver.step()
+	leaver.clock.set_to_tick(QUARTER_TICKS - 1)
+	leaver.step()
+	var l_total := 0
+	for line: Array in leaver.ledger.lines.slice(l_from):
+		if line[2] == leaver.ledger.INCOME:
+			l_total += line[1]
+	check.call(l_total == 2 * 3333, "a tenant who leaves after day 1 pays one day")
 
 	# Saves: levels survive, a bad list is refused, bulldozing forgets the level.
 	var other := TowerSim.new(7, 100000000)
