@@ -130,15 +130,21 @@ func unreached(room: int) -> bool:
 	return _records[room][_UNREACHED] == 1 if _records.has(room) else false
 
 
-## Parking spaces not held by a suite stay, tower-wide.
-## HOOK: no parking system exists yet (ramp chains, cars). Until it does, every placed
-## parking_space room counts and each suite stay holds one from check-in to check-out. A later
-## parking task replaces this with real, reachable spaces.
+## Set by Tower (#172): the number of working parking spaces (chained to the ramp column). Left
+## unset, every placed parking_space room counts.
+var working_spaces: Callable = Callable()
+
+
+## Working parking spaces not held by a suite stay, tower-wide. Each suite stay holds one from
+## check-in to check-out. Spaces cut off from the ramp column (Parking) do not count.
 func parking_free() -> int:
 	var spaces := 0
-	for id in _rooms.room_ids():
-		if _rooms.kind_of(id) == PARKING_KIND:
-			spaces += 1
+	if working_spaces.is_valid():
+		spaces = int(working_spaces.call())
+	else:
+		for id in _rooms.room_ids():
+			if _rooms.kind_of(id) == PARKING_KIND:
+				spaces += 1
 	var held := 0
 	for id: int in _records:
 		if _rooms.has_room(id) and is_suite(id) and _records[id][_STATE] != VACANT:

@@ -33,12 +33,15 @@ const DRAW_ORDER: Array[String] = ["_draw_lobby", "_draw_rooms", "_draw_links", 
 
 var tower: Tower = null
 ## Colour of each placed room kind (catalogue id). Rooms placed by PLACE_ROOM use these.
+const BROKEN_COLOR := Color(0.85, 0.15, 0.15)  ## The cross over parking cut off from its ramp.
 const KIND_COLORS: Dictionary = {
 	"office": Color(0.55, 0.70, 0.90),
 	"condo": Color(0.85, 0.65, 0.85),
 	"stairs": Color(0.80, 0.72, 0.45),
 	"escalator": Color(0.35, 0.75, 0.80),
 	"recycling": Color(0.45, 0.65, 0.40),
+	"parking_ramp": Color(0.50, 0.50, 0.55),
+	"parking_space": Color(0.62, 0.62, 0.68),
 }
 
 ## Maps an occupant id to a ROOM_COLORS key. Replace once the sim stores room types.
@@ -132,6 +135,7 @@ func _draw_lobby() -> void:
 func _draw_rooms() -> void:
 	var grid := tower.grid
 	var seen: Dictionary = {}
+	var broken: Array[int] = Parking.broken_ids(tower.rooms, grid)  # cut-off parking is crossed out
 	for index: int in Tower.Grid.FLOOR_COUNT:
 		var floor_number := Tower.Grid.index_to_floor(index)
 		var column := 0
@@ -155,6 +159,9 @@ func _draw_rooms() -> void:
 				color = ROOM_COLORS.get(room_type_of.call(id), EMPTY_ROOM_COLOR)
 			draw_rect(rect, color)
 			draw_rect(rect, color.darkened(0.5), false, 1.0)
+			if broken.has(id):
+				draw_line(Vector2(rect.position), Vector2(rect.end), BROKEN_COLOR, 2.0)
+				draw_line(Vector2(rect.position.x, rect.end.y), Vector2(rect.end.x, rect.position.y), BROKEN_COLOR, 2.0)
 			column += run[2]
 
 

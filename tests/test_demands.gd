@@ -20,7 +20,7 @@ static func _tower() -> TowerSim:
 
 
 static func _add(t: TowerSim, kind: String, x: int) -> int:
-	if Rooms.PLACEABLE.has(kind) and kind != "recycling":  # recycling goes underground, not on floor 3
+	if Rooms.PLACEABLE.has(kind) and kind != "parking_space" and kind != "recycling":  # parking and recycling go underground, not on floor 3
 		return t.rooms.place_room(t.grid, t.floors, t.ledger, 0, Catalogue.IDS.find(kind), 3, x)
 	# A kind the player cannot place yet: put it in directly, as a later issue's build will.
 	var id := 900 + x
@@ -48,7 +48,7 @@ static func run(check: Callable) -> void:
 	var three := D.compute(3, office, ALL)
 	check.call(three == 31, "3 stars with an office: all five demands open")
 	check.call(D.compute(3, {}, ALL) == (1 << (D.SECURITY - 1)) | (1 << (D.SUITE - 1)), "without offices the office-driven demands stay quiet")
-	check.call(D.compute(3, {"office": 1, "security": 1, "hotel_suite": 2, "medical": 1, "recycling": 1, "parking_space": 1}, ALL) == 0, "each remedy clears its demand")
+	check.call(D.compute(3, {"office": 1, "security": 1, "hotel_suite": 2, "medical": 1, "recycling": 1, "parking_space": 2}, ALL) == 0, "each remedy clears its demand (parking: a space per suite, the peak)")
 	check.call(D.compute(3, office, ["office", "hotel_suite"] as Array[String]) == 1 << (D.SUITE - 1), "only demands whose remedy is buildable open")
 
 	# On a tower: raised once, cleared once, re-raised after loss.

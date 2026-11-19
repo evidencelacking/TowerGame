@@ -57,6 +57,11 @@ const NO_FLOOR_FOR_ESCALATOR := 55  ## Escalator: one of the two floors is not b
 const NOT_UNDERGROUND := 60  ## A basement-only room (recycling) needs every one of its floors below ground.
 const NOT_TOUCHING := 61  ## Recycling: a new centre must touch an existing centre.
 const TALL_REPLACE := 62  ## Replace cannot put a two-floor room (recycling) in; bulldoze and place it.
+const NOT_CHAINED := 63  ## Parking space: it must touch the ramp or a working space.
+const RAMP_COLUMN := 64  ## Parking ramp: later ramps share the column of the first.
+const RAMP_NOT_UNDER_LOBBY := 65  ## Parking ramp: the first goes on B1 under the ground lobby.
+const RAMP_NOT_BELOW_RAMP := 66  ## Parking ramp: a later ramp goes directly below a ramp.
+const NOT_BASEMENT := 67  ## Parking ramps and spaces go below ground.
 
 const CAR_INTS := 9  ## Ints in one saved car (SHAFT to NEXT in cars.gd).
 const MAX_CARS_PER_SHAFT := 8  ## Cars in one shaft (reference).
@@ -65,7 +70,7 @@ const CAR_CAPACITY := 17  ## People a local car holds (reference); enforced in c
 const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
-const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "hotel_single", "hotel_twin", "hotel_suite"]
+const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite"]
 ## Rooms two floors tall. Their grid run is on the lower (deeper) floor under the room's id, and the
 ## upper floor is a second grid occupant under id + 1 that is not a room of its own (see room_of).
 const TALL_KINDS: Array[String] = ["recycling"]
@@ -127,9 +132,13 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 	if not GridScript.is_valid_floor(floor_number):
 		result["reason"] = BAD_FLOOR
 		return result
+	var parking := Parking.is_parking(kind)
+	if parking and floor_number > 0:
+		result["reason"] = NOT_BASEMENT
+		return result
 	if TALL_KINDS.has(kind):
 		return _check_place_tall(grid, floors, kind, floor_number, x_left)
-	if floor_number < 0 and CatalogueScript.field(kind, "placement") != CatalogueScript.PLACE_ANYWHERE:
+	if floor_number < 0 and not parking and CatalogueScript.field(kind, "placement") != CatalogueScript.PLACE_ANYWHERE:
 		result["reason"] = BELOW_GROUND
 		return result
 	if floor_number == 1:
@@ -138,6 +147,12 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 	var width: int = CatalogueScript.field(kind, "width")
 	if x_left < 0 or x_left + width > GridScript.WIDTH_UNITS:
 		result["reason"] = OFF_TOWER
+		return result
+	if kind == Parking.RAMP_KIND:
+		result["reason"] = Parking.check_ramp(self, grid, floors, floor_number, x_left, width)
+	elif kind == Parking.SPACE_KIND:
+		result["reason"] = Parking.check_space(self, grid, floor_number, x_left, width)
+	if result["reason"] != OK:
 		return result
 	var new_units := 0
 	var supported := 0
@@ -154,7 +169,7 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 		if floors.has_floor(floor_number, column):
 			continue
 		new_units += 1
-		if floors.has_floor(floor_number - 1, column):
+		if floors.has_floor(floor_above(floor_number) if parking else floor_number - 1, column):  # basements rest on the floor above
 			supported += 1
 	if new_units > 0 and supported == 0:
 		result["reason"] = NOTHING_BELOW
@@ -317,6 +332,15 @@ static func floor_above(floor_number: int) -> int:
 	if floor_number == GridScript.FLOOR_MAX:
 		return 0
 	return floor_number + 1
+
+
+## The floor below floor_number, or 0 when there is none (B10). B1 is under floor 1; basements run down.
+static func floor_below(floor_number: int) -> int:
+	if floor_number == 1:
+		return -1
+	if floor_number == GridScript.FLOOR_MIN:
+		return 0
+	return floor_number - 1
 
 
 ## How many stairs and escalators the tower holds (they share one limit).

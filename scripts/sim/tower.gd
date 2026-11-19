@@ -131,6 +131,8 @@ var unlock_all: bool = false
 var commerce := CommerceScript.new()
 
 var _queue: Array[Command] = []
+var _parking_working: int = 0  ## Working parking spaces, found at most once a tick (derived, not saved).
+var _parking_at: int = -1  ## The tick _parking_working was found at.
 
 
 func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_STARTING_FUNDS) -> void:
@@ -143,6 +145,7 @@ func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_START
 	complaints.hotel = hotel
 	hotel.pests = pests
 	hotel.reserved_room = vip.reserved_suite
+	hotel.working_spaces = _parking_spaces
 	people.guest_home = hotel.is_hotel
 
 
@@ -162,6 +165,14 @@ func enqueue(command: Command) -> bool:
 ## People in the tower right now (derived from people, not saved).
 func population() -> int:
 	return people.in_tower_count() + commerce.visitors_inside(clock.minute_of_day())
+
+
+## Working parking spaces now, searched once per tick however many suites ask.
+func _parking_spaces() -> int:
+	if _parking_at != tick:
+		_parking_working = Parking.working_spaces(rooms, grid)
+		_parking_at = tick
+	return _parking_working
 
 
 func step() -> void:
@@ -356,14 +367,14 @@ func star_facts() -> Dictionary:
 ## Runs every StarRules.CHECK_EVERY ticks; public so tests can call it at any tick. The cheap
 ## population test goes first so the room scan only runs when the next star is within reach.
 func promote_stars() -> void:
-	demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"recycling_short": 1 if recycling.short() else 0})
+	demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid), "recycling_short": 1 if recycling.short() else 0})
 	var people_now := population()
 	while stars < 5 and people_now >= StarRulesScript.population_for(stars + 1):
 		if not StarRulesScript.meets(stars + 1, star_facts()):
 			break
 		stars += 1
 		messages.add(tick, MessagesScript.STAR_PROMOTED, stars)
-		demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"recycling_short": 1 if recycling.short() else 0})
+		demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid), "recycling_short": 1 if recycling.short() else 0})
 
 
 ## Grades every tenanted office and condo: A brings a friend, C leaves (see Evaluation). Runs once
