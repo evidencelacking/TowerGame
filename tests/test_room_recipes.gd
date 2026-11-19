@@ -53,6 +53,6 @@ static func run(check: Callable) -> void:
 	for palette: Dictionary in Palette.PALETTES:
 		keys_match = keys_match and palette.keys() == first.keys() and (palette["hues"] as Dictionary).keys() == (first["hues"] as Dictionary).keys()
 	check.call(keys_match and Palette.PALETTES.size() == Palette.NAMES.size(), "palette: A, B and C carry the same keys")
-	check.call(Palette.DEFAULT_INDEX == 0, "palette: A is the default")
+	check.call(Palette.DEFAULT_INDEX == 3, "palette: D (A colours, B lines) is the default")
 	# Native pixel space: 8 px per column, 24 px per floor, whole numbers.
-	check.call(VC.CELL_W == 8 and VC.CELL_H == 24, "renderer: native space is 8 px per column and 24 px per floor")
+	check.call(VC.CELL_W == 8 and VC.CELL_H == 32, "renderer: native space is 8 px per column and 32 px per floor")

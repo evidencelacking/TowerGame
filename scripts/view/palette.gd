@@ -5,8 +5,8 @@ extends RefCounted
 ## Drawing code asks for colours by role, e.g. Palette.get_palette()["wall"]; room hues are looked up
 ## by the recipe's hue key in "hues". Pure data: reads nothing from the sim.
 
-const DEFAULT_INDEX := 0  ## 0 = A, 1 = B, 2 = C.
-const NAMES: Array[String] = ["A", "B", "C"]
+const DEFAULT_INDEX := 3  ## 0 = A, 1 = B, 2 = C, 3 = D (the owner's pick: A's colours, B's lines).
+const NAMES: Array[String] = ["A", "B", "C", "D"]
 
 ## Outline styles for furniture boxes (the "mode" field).
 const MODE_OUTLINED := 0  ## A: a dark outline around each box.
@@ -19,7 +19,7 @@ static var index: int = DEFAULT_INDEX
 const PALETTES: Array[Dictionary] = [
 	{  # A: warm, saturated, chunky dark outlines
 		"sky_day": Color("5cb8f0"), "sky_horizon": Color("f8e4a8"), "sky_night": Color("1a1440"),
-		"wall": Color("3a2216"), "slab": Color("22120c"), "outline": Color("160a06"),
+		"wall": Color("3a2216"), "slab": Color("22120c"), "outline": Color("160a06"), "slab_hi": Color("5a3a28"),
 		"hues": {
 			"lobby": Color("e8b458"), "office": Color("58a0e0"), "condo": Color("c880d8"), "hotel": Color("e0648c"),
 			"food": Color("f08030"), "shop": Color("88cc58"), "service": Color("48b8b0"), "medical": Color("e8f0f0"),
@@ -35,7 +35,7 @@ const PALETTES: Array[Dictionary] = [
 	},
 	{  # B: muted architectural, thin lines, cool tones
 		"sky_day": Color("b4c6d4"), "sky_horizon": Color("e0e6ea"), "sky_night": Color("0a1222"),
-		"wall": Color("1e242c"), "slab": Color("303a46"), "outline": Color("7a8c9e"),
+		"wall": Color("1e242c"), "slab": Color("303a46"), "outline": Color("7a8c9e"), "slab_hi": Color("46525f"),
 		"hues": {
 			"lobby": Color("b4a88e"), "office": Color("86a0b2"), "condo": Color("a898a8"), "hotel": Color("c09e76"),
 			"food": Color("c8a078"), "shop": Color("9ab096"), "service": Color("88aeb0"), "medical": Color("dce4e6"),
@@ -51,7 +51,7 @@ const PALETTES: Array[Dictionary] = [
 	},
 	{  # C: bold flat colour, black walls, high contrast
 		"sky_day": Color("38a0ff"), "sky_horizon": Color("38a0ff"), "sky_night": Color("0c0c2c"),
-		"wall": Color("000000"), "slab": Color("000000"), "outline": Color("000000"),
+		"wall": Color("000000"), "slab": Color("000000"), "outline": Color("000000"), "slab_hi": Color("000000"),
 		"hues": {
 			"lobby": Color("ffd000"), "office": Color("2850ff"), "condo": Color("a040ff"), "hotel": Color("ff2a88"),
 			"food": Color("ff5a00"), "shop": Color("00d060"), "service": Color("00c8d0"), "medical": Color("ffffff"),
@@ -64,6 +64,22 @@ const PALETTES: Array[Dictionary] = [
 		"gold": Color("ffe000"), "green": Color("00c060"), "wood": Color("804020"),
 		"grid": Color(0, 0, 0, 0.0),
 		"people": [Color("ffffff"), Color("000000"), Color("ffe000"), Color("ff2a88"), Color("00e0ff")],
+	},
+	{  # D: A's warm colours with B's thin lines (owner pick)
+		"sky_day": Color("5cb8f0"), "sky_horizon": Color("f8e4a8"), "sky_night": Color("1a1440"),
+		"wall": Color("3a2216"), "slab": Color("22120c"), "outline": Color("3a2216"), "slab_hi": Color("a8743c"),
+		"hues": {
+			"lobby": Color("e8b458"), "office": Color("58a0e0"), "condo": Color("c880d8"), "hotel": Color("e0648c"),
+			"food": Color("f08030"), "shop": Color("88cc58"), "service": Color("48b8b0"), "medical": Color("e8f0f0"),
+			"recycling": Color("78a850"), "parking": Color("8c8c98"), "civic": Color("d8a8e8"), "stairs": Color("c8b070"),
+			"escalator": Color("58c0c8"), "shaft": Color("2a1a12"), "car": Color("e4c43c"), "floor": Color("22120c"),
+		},
+		"dim": 0.45, "furn": 0.38, "mode": 1, "wall_w": 1,
+		"ground": Color("4a8a30"), "earth": Color("5a3a22"), "lamp": Color("fff0a0"), "lamp_off": Color("30303a"),
+		"skin": Color("f0c090"), "ink": Color("160a06"), "white": Color("f4f0e8"), "red": Color("d83030"),
+		"gold": Color("f8d030"), "green": Color("3c9a48"), "wood": Color("6a4428"),
+		"grid": Color(0, 0, 0, 0.10),
+		"people": [Color("d03030"), Color("3050c8"), Color("30a040"), Color("f0f0f0"), Color("8a38a8")],
 	},
 ]
 

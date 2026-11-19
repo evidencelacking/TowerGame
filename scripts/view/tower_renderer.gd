@@ -17,8 +17,8 @@ const PixelLayer := preload("res://scripts/view/pixel_layer.gd")
 const MARGIN: int = 4000  ## Sky and ground extend this far past the tower, in pixels.
 const IN_USE_CHECK_TICKS: int = 6  ## How often the set of rooms in use is compared; a change redraws the static layer.
 const STATIC_REFRESH_TICKS: int = 60  ## Redraw even when nothing moved, so sim state (dirty, vacant) shows within this.
-const FIGURE_W: int = 3
-const FIGURE_H: int = 7
+const FIGURE_W: int = VC.FIGURE_W
+const FIGURE_H: int = VC.FIGURE_H
 
 ## Back to front; every name is a method taking the canvas item to paint on. Links (stairs,
 ## escalators) and shafts sit in front of the rooms behind them (#126); the floor slabs come after
@@ -227,8 +227,10 @@ func _draw_backdrop(canvas: CanvasItem) -> void:
 ## Built floor units: a thin slab along the bottom of each floor's row.
 func _draw_floors(canvas: CanvasItem) -> void:
 	var slab: Color = Palette.get_palette()["slab"]
+	var highlight: Color = Palette.get_palette()["slab_hi"]
 	for rect: Rect2i in _floor_rects:
 		canvas.draw_rect(Rect2i(rect.position.x, rect.end.y - VC.SLAB_H, rect.size.x, VC.SLAB_H), slab)
+		canvas.draw_rect(Rect2i(rect.position.x, rect.end.y - VC.SLAB_H, rect.size.x, 1), highlight)  # 1 px lit edge
 
 
 ## The ground lobby over floors 1 to its height, with the lobby recipe on its bottom floor.

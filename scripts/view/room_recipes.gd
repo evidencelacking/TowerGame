@@ -19,8 +19,10 @@ extends RefCounted
 const VC := preload("res://scripts/view/view_consts.gd")
 
 const INTERIOR_H: int = VC.CELL_H - VC.SLAB_H  ## Usable rows above the floor slab.
-const FIGURE_W: int = 3  ## A standing figure's size, used to keep spots inside the room.
-const FIGURE_H: int = 7
+const DESIGN_H: int = 22  ## The interior height the recipes were drawn for; they stand on the floor, so they shift down by the extra.
+const FLOOR_DY: int = INTERIOR_H - DESIGN_H
+const FIGURE_W: int = VC.FIGURE_W  ## A standing figure's size, used to keep spots inside the room.
+const FIGURE_H: int = VC.FIGURE_H
 
 const RECIPES: Dictionary = {
 	"lobby": {
@@ -233,7 +235,7 @@ static func _place(shape: Array, width_px: int, origin: int = 0) -> Array:
 		x += width_px / 2
 	else:
 		x += origin
-	return [x, shape[1], w, shape[3], shape[4]]
+	return [x, (shape[1] as int) + FLOOR_DY, w, shape[3], shape[4]]
 
 
 static func _spot(spot: Array, origin: int, width_px: int) -> Vector2i:
@@ -245,7 +247,7 @@ static func _spot(spot: Array, origin: int, width_px: int) -> Vector2i:
 		x += width_px / 2
 	else:
 		x += origin
-	return Vector2i(x, spot[1])
+	return Vector2i(x, (spot[1] as int) + FLOOR_DY)
 
 
 ## Whether a figure standing at a spot lies inside a room width_px wide (one floor).
