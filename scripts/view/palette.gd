@@ -67,7 +67,7 @@ const PALETTES: Array[Dictionary] = [
 	},
 	{  # D: A's warm colours with B's thin lines (owner pick)
 		"sky_day": Color("5cb8f0"), "sky_horizon": Color("f8e4a8"), "sky_night": Color("1a1440"),
-		"wall": Color("3a2216"), "slab": Color("22120c"), "outline": Color("3a2216"), "slab_hi": Color("a8743c"),
+		"wall": Color("3a2216"), "slab": Color("22120c"), "outline": Color("160a06"), "slab_hi": Color("75645c"),
 		"hues": {
 			"lobby": Color("e8b458"), "office": Color("58a0e0"), "condo": Color("c880d8"), "hotel": Color("e0648c"),
 			"food": Color("f08030"), "shop": Color("88cc58"), "service": Color("48b8b0"), "medical": Color("e8f0f0"),
