@@ -20,7 +20,7 @@ static func _tower() -> TowerSim:
 
 
 static func _add(t: TowerSim, kind: String, x: int) -> int:
-	if Rooms.PLACEABLE.has(kind):
+	if Rooms.PLACEABLE.has(kind) and kind != "recycling":  # recycling goes underground, not on floor 3
 		return t.rooms.place_room(t.grid, t.floors, t.ledger, 0, Catalogue.IDS.find(kind), 3, x)
 	# A kind the player cannot place yet: put it in directly, as a later issue's build will.
 	var id := 900 + x

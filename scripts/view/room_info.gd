@@ -32,9 +32,10 @@ static func room_at(tower: Object, world: Vector2) -> int:
 	if floor_number == 0 or world.x < 0.0:
 		return -1
 	var id: int = tower.grid.cell_at(floor_number, floori(world.x / VC.CELL_PX))
-	if id <= GridScript.EMPTY or tower.rooms.kind_of(id) == "":
+	var room: int = tower.rooms.room_of(id)
+	if id <= GridScript.EMPTY or room == 0:
 		return -1
-	return id
+	return room
 
 
 ## The room's data: {"id", "kind", "label", "floor_label", "width", "occupants" (names),
