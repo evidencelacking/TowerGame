@@ -122,7 +122,7 @@ func figures(tower: Object) -> Array[Dictionary]:
 		var act := ActivityLook.classify(kind, people.work_of(i) == room, people.goal_of(i), staying, minute, people.trip_state(i) == PeopleScript.TRIP_REQUESTED)
 		pending.append([out.size(), run, people.id_at(i), kind, act, band, column, room])
 		out.append({})  # filled in below, once the suites are known
-	_place_resting(out, pending)
+	_place_resting(out, pending, Suites.tenanted_rooms(tower))
 	out.append_array(_cleaners(tower))
 	return out
 
@@ -130,13 +130,13 @@ func figures(tower: Object) -> Array[Dictionary]:
 ## Places the resting figures: each takes the next spot of its room, or of its suite when neighbouring
 ## rooms of one kind are all in use and draw as one (#276). pending holds [index in out, run, id, kind, act,
 ## band, column, room] per resting person; the suites come from the same rule the renderer draws by.
-static func _place_resting(out: Array[Dictionary], pending: Array[Array]) -> void:
+static func _place_resting(out: Array[Dictionary], pending: Array[Array], tenanted: Dictionary) -> void:
 	var rooms: Dictionary = {}  # room id -> its entry for Suites.groups
 	for item: Array in pending:
 		var run: Array[int] = item[1]
 		var room: int = item[7]
 		var entry: Dictionary = rooms.get(room, {"key": VC.floor_to_row(run[0]), "x": run[1] * VC.CELL_W, "w": run[2] * VC.CELL_W, "kind": item[3], "in_use": false, "room": room})
-		entry["in_use"] = entry["in_use"] or item[4] != ActivityLook.SLEEPING
+		entry["in_use"] = tenanted.has(room)
 		rooms[room] = entry
 	var entries: Array = rooms.values()
 	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["key"] < b["key"] or (a["key"] == b["key"] and a["x"] < b["x"]))

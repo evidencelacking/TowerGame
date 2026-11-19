@@ -92,9 +92,7 @@ static func run(check: Callable) -> void:
 			continue
 		runs.append([id, id, Rect2i(run[1] * VC.CELL_W, VC.floor_to_row(run[0]) * VC.CELL_H, run[2] * VC.CELL_W, VC.CELL_H)])
 	runs.sort_custom(func(a: Array, b: Array) -> bool: return (a[2] as Rect2i).position.x < (b[2] as Rect2i).position.x)
-	for f: Dictionary in figures:
-		if not f["moving"]:
-			in_use[t.rooms.room_of(t.grid.cell_at(f["floor"], f["x"]))] = true
+	in_use = Suites.tenanted_rooms(t)
 	var found := Suites.groups(Suites.entries_for(t, runs, in_use))
 	check.call(runs.size() == 3 and str(found) == "[[0, 1, 2]]", "suites: three neighbouring offices at work draw as one suite (%d rooms, %s)" % [runs.size(), str(found)])
 	var union := Rect2i(0, 0, 3 * 9 * VC.CELL_W, RoomRecipes.INTERIOR_H)  # the suite in its own coordinates

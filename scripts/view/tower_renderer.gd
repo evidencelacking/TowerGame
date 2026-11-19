@@ -278,7 +278,7 @@ func _draw_lobby(canvas: CanvasItem) -> void:
 
 func _draw_rooms(canvas: CanvasItem) -> void:
 	var broken: Array[int] = Parking.broken_ids(tower.rooms, tower.grid)  # cut-off parking is crossed out
-	var entries := Suites.entries_for(tower, _room_runs, _in_use)  # neighbours of one kind, both in use, draw as one suite (#276)
+	var entries := Suites.entries_for(tower, _room_runs, Suites.tenanted_rooms(tower))  # neighbours of one kind, both in use, draw as one suite (#276)
 	var joined: Dictionary = {}  # run index -> true for rooms drawn inside a suite
 	for group: Array[int] in Suites.groups(entries):
 		var first: Array = _room_runs[group[0]]

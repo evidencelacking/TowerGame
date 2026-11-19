@@ -47,6 +47,20 @@ static func span(entries: Array, group: Array[int]) -> Array[int]:
 	return [first["x"] as int, (last["x"] as int) + (last["w"] as int) - (first["x"] as int)]
 
 
+## Room ids that count as in use for joining: rooms with a tenant (staff on the books; for a shop, a renter),
+## not who happens to be inside now, so a suite stays joined overnight and on weekends instead of
+## splitting whenever its rooms empty.
+static func tenanted_rooms(tower: Object) -> Dictionary:
+	var out: Dictionary = {}
+	for id: int in tower.rooms.room_ids():
+		var kind: String = tower.rooms.kind_of(id)
+		if not joins(kind):
+			continue
+		if (kind == "retail" and not tower.commerce.is_vacant(id)) or tower.people.workers_in(id) > 0:
+			out[id] = true
+	return out
+
+
 ## The entries groups() takes, from the renderer's room runs ([id, owning room, rect]) in floor-then-column
 ## order and the set of room ids in use.
 static func entries_for(tower: Tower, runs: Array[Array], in_use: Dictionary) -> Array[Dictionary]:
