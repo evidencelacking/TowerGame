@@ -49,6 +49,8 @@ static func lines_for(info: Dictionary) -> Array[String]:
 
 ## Centre of a figure in world pixels (matches TowerRenderer._draw_people, floor top row plus the feet offset).
 static func figure_center(figure: Dictionary) -> Vector2:
+	if figure.has("px"):  # resting on a recipe spot (activity_look.gd)
+		return Vector2(figure["px"] + VC.FIGURE_W / 2.0, figure["pfeet"] - CENTER_UP_PX)
 	var column: float = figure.get("fx", float(figure["x"]))  # moving figures carry fractional positions
 	var row: float = figure.get("frow", float(VC.floor_to_row(figure["floor"])))
 	var feet := (row + 1.0) * VC.CELL_H - FEET_UP_PX

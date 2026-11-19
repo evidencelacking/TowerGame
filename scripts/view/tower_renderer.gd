@@ -5,6 +5,7 @@ const PeopleView := preload("res://scripts/view/people_view.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const RoomLook := preload("res://scripts/view/room_look.gd")
 const TransportLook := preload("res://scripts/view/transport_look.gd")
+const ActivityLook := preload("res://scripts/view/activity_look.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const PixelLayer := preload("res://scripts/view/pixel_layer.gd")
 ## Draws the tower on a low-resolution canvas (10.2). World space is native pixels (8 px per column,
@@ -42,6 +43,7 @@ var _figures: Array[Dictionary] = []
 var _from: Dictionary = {}  ## Person id -> Vector2(column, row) at the previous tick, to glide from.
 var _has_moving: bool = false
 var _in_use: Dictionary = {}  ## Room id -> true for rooms with someone resting in them.
+var _asleep: Dictionary = {}  ## Room id -> true for rooms where everyone present is asleep: lights off.
 var _checked_tick: int = -1000000
 var _floor_rects: Array[Rect2i] = []  ## Runs of built floor units, one row tall; rebuilt when the layout changes.
 var _room_runs: Array[Array] = []  ## [id, owning room id, rect] per placed room run.
@@ -143,12 +145,18 @@ func refresh_palette() -> void:
 ## Rooms with someone resting in them, from the figures drawn this tick.
 func _rooms_in_use() -> Dictionary:
 	var used: Dictionary = {}
+	var sleeping: Dictionary = {}
 	for figure: Dictionary in _figures:
 		if figure["moving"]:
 			continue
 		var id: int = tower.grid.cell_at(figure["floor"], figure["x"])
-		if id != Tower.Grid.EMPTY:
+		if id == Tower.Grid.EMPTY:
+			continue
+		if figure["act"] == ActivityLook.SLEEPING:
+			sleeping[tower.rooms.room_of(id)] = true
+		else:
 			used[tower.rooms.room_of(id)] = true
+	_asleep = sleeping
 	return used
 
 
@@ -255,7 +263,7 @@ func _draw_lobby(canvas: CanvasItem) -> void:
 func _draw_rooms(canvas: CanvasItem) -> void:
 	var broken: Array[int] = Parking.broken_ids(tower.rooms, tower.grid)  # cut-off parking is crossed out
 	for run: Array in _room_runs:
-		RoomLook.draw(canvas, tower, run[0], run[2], broken, _in_use.has(run[1]))
+		RoomLook.draw(canvas, tower, run[0], run[2], broken, _in_use.has(run[1]), _asleep.has(run[1]) and not _in_use.has(run[1]))
 
 
 ## Stairs and escalators (the link layer) in front of the rooms: each spans its own floor and the one
@@ -322,6 +330,11 @@ func _draw_people(canvas: CanvasItem) -> void:
 	var types: Array = Palette.get_palette()["people"]
 	for figure: Dictionary in _figures:
 		var band: int = figure["band"]
+		if not figure["moving"]:  # resting: on a spot of its room, doing what the sim says
+			var rest_shirt: Color = types[(figure["id"] as int) % types.size()] if band == 0 else PeopleView.color_of(band)
+			var p := Palette.get_palette()
+			ActivityLook.draw(canvas, figure["px"], figure["pfeet"], figure["act"], ActivityLook.frame(figure["id"], tower.tick), rest_shirt, skin, p["gold"], p["white"])
+			continue
 		var at := _shown_at(figure)
 		var x := roundi(at.x * VC.CELL_W) + (VC.CELL_W - FIGURE_W) / 2
 		var feet := roundi((at.y + 1.0) * VC.CELL_H) - 3
