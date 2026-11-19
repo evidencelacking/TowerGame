@@ -1,7 +1,8 @@
-# Art standard (draft)
+# Art standard
 
-Status: draft for #240. The owner picks one of three mock-ups; the winner's palette and rules
-replace the "Palette" section below and feed the renderer (M10.2). All wording is ours.
+Status: the owner chose direction A's warm colours with B's thin-line styling (2026-11-19, #240),
+shown as mock-up D (`mockups/art_d.tscn`). The renderer (M10.2) draws from the palette below.
+All wording is ours.
 
 ## Feel rules
 
@@ -44,6 +45,24 @@ Launch (PowerShell): `python D:\Claude\TowerGame\tools\play.py --scene res://moc
 Captures: `docs/mockups/art_<x>_day.png` and `_night.png`, made by running a scene windowed with
 `-- --capture=<dir>`. Headless Godot has no renderer, so capture needs a window.
 
-## Palette
+## Palette and line style (direction D)
 
-To be filled from the chosen direction.
+The source of truth is style 3 (D) in `mockups/art_drawer.gd` until the renderer takes it over.
+
+| Use | Colour |
+|---|---|
+| Day sky, top to horizon | `#5cb8f0` to `#f8e4a8` |
+| Night sky, top to horizon | `#1a1440` to `#68305c` |
+| Walls, slabs, outlines | `#3a2216`, `#22120c`, `#160a06` |
+| Room hues (one per kind family) | `#e8b458`, `#58a0e0`, `#e0648c`, `#f08030`; new kinds add hues of the same warmth and saturation |
+| Shaft, car | `#2a1a12`, `#e4c43c` |
+| Ground, earth | `#4a8a30`, `#5a3a22` |
+| People | `#d03030`, `#3050c8`, `#30a040`, `#f0f0f0`, `#8a38a8`; skin `#f0c090` |
+| Lamp light | `#fff0a0` |
+
+Line style:
+- Furniture is drawn as 1-pixel lines in the room hue darkened by about 45%, not filled and
+  outlined blocks. No chunky outlines.
+- Each room has a thin dark frame; each slab has a 1-pixel warm highlight line.
+- Empty rooms dim to about 45% by day and 80% by night; in-use rooms are full colour with a
+  lighter band under the ceiling.
