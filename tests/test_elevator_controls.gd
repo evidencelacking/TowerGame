@@ -93,8 +93,7 @@ static func _run_toolbar(check: Callable) -> void:
 	for id in ["service_shaft", "service_car"]:
 		check.call(Toolbar.item_state(id, 2)["enabled"], "%s is buildable at 2 stars" % id)
 	for id in ["express_shaft", "express_car"]:
-		var state := Toolbar.item_state(id, 5)
-		check.call(not state["enabled"] and "Not buildable" in state["tooltip"], "%s stays greyed out" % id)
+		check.call(Toolbar.item_state(id, 2)["locked"] and Toolbar.item_state(id, 3)["enabled"], "%s unlocks at 3 stars" % id)
 	var tip: String = Toolbar.item_state("local_shaft", 1)["tooltip"]
 	check.call("Drag" in tip and "Click a floor of a shaft" in tip and "resize" in tip, "the shaft tooltip documents drag, resize and click-for-stop")
 	check.call("Click a shaft to add a car" in Toolbar.item_state("local_car", 1)["tooltip"], "the car tooltip says how to add a car")
@@ -104,7 +103,7 @@ static func _run_toolbar(check: Callable) -> void:
 	bar.bind(ghost)
 	check.call(bar.select("local_shaft") and ghost.tool == "local_shaft", "picking the local shaft sets the ghost tool")
 	check.call(bar.select("local_car") and ghost.tool == "local_car", "picking the local car sets the ghost tool")
-	check.call(not bar.select("express_shaft") and ghost.tool == "local_car", "the express shaft cannot be picked")
+	check.call(not bar.select("express_shaft") and ghost.tool == "local_car", "the express shaft is locked at 1 star")
 	for entry: Array in [[KEY_E, "local_shaft"], [KEY_A, "local_car"]]:
 		ghost.set_tool("")
 		var key := InputEventKey.new()
@@ -259,7 +258,7 @@ static func _run_refusals(check: Callable) -> void:
 	bare.free()
 	# Words for the codes a gesture cannot reach today.
 	var words := {RoomsScript.NOT_IN_SHAFT: "Not a floor of this shaft", RoomsScript.NOTHING_THERE: "No shaft here",
-		RoomsScript.NO_CARS_HERE: "Only local and service shafts take cars", RoomsScript.BAD_SHAFT_SPAN: "The top must be above the bottom",
+		RoomsScript.NO_CARS_HERE: "Needs a shaft of the car's own kind", RoomsScript.BAD_SHAFT_SPAN: "The top must be above the bottom",
 		RoomsScript.MAX_SHAFTS: "The tower has the most shafts (24)", RoomsScript.SHORT_OF_FUNDS: "Not enough money"}
 	for code: int in words:
 		check.call(Ghost.reason_text("elevator", code) == words[code], "refusal %d reads '%s'" % [code, words[code]])

@@ -45,7 +45,7 @@ static func run(check: Callable) -> void:
 	check.call(_add(u, uid, 4) == RoomsScript.OK and funds - u.ledger.balance == CatalogueScript.cost("local_car"), "a car is charged the catalogue price")
 	check.call(u.rooms.cars_of(uid) == [[uid, 4, 4, 0, 0, 0, 0, 0, 0]] and u.rooms.car_capacity() == 17, "a car starts at home, empty; capacity is 17")
 	TestShafts._shaft(u, 3, 8, 110, "express_shaft")
-	check.call(_add(u, _shaft_id(u, 3, 110), 4) == RoomsScript.NO_CARS_HERE, "express shafts take no cars")
+	check.call(_add(u, _shaft_id(u, 3, 110), 4) == RoomsScript.BAD_HOME_FLOOR, "an express shaft with no lobby has no stop to home a car")
 
 	# Remove: newest car, no refund.
 	_add(u, uid, 6)

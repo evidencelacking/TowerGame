@@ -10,8 +10,8 @@ const GridScript := preload("res://scripts/sim/grid.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 
-const SHAFT_TOOLS: Array[String] = ["local_shaft", "service_shaft"]
-const CAR_TOOLS: Array[String] = ["local_car", "service_car"]
+const SHAFT_TOOLS: Array[String] = ["local_shaft", "service_shaft", "express_shaft"]
+const CAR_TOOLS: Array[String] = ["local_car", "service_car", "express_car"]
 
 ## Wording for the refusal codes only elevators raise (the shaft-span ones live in the ghost).
 const TEXT: Dictionary = {
@@ -20,8 +20,9 @@ const TEXT: Dictionary = {
 	RoomsScript.MAX_CARS: "A shaft holds at most 8 cars",
 	RoomsScript.STAR_CAR_CAP: "More stars allow more cars",
 	RoomsScript.BAD_HOME_FLOOR: "A car's home must be a stop",
-	RoomsScript.NO_CARS_HERE: "Only local and service shafts take cars",
+	RoomsScript.NO_CARS_HERE: "Needs a shaft of the car's own kind",
 	RoomsScript.HOME_DROPPED: "Would drop a car's home floor",
+	RoomsScript.EXPRESS_NO_STOP: "Express shafts stop only at lobbies and basements",
 	RoomsScript.HOME_STOP: "A car's home floor must stay a stop",
 }
 

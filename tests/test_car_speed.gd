@@ -20,11 +20,12 @@ static func _setup() -> TowerSim:
 	t.stars = 3
 	TestShafts._shaft(t, 1, 30, 100)
 	TestShafts._shaft(t, 1, 100, 110, "express_shaft")
+	t.floors.build_lobby(t.ledger, 0, 30, 100, 131, 1, t.grid)  # the express stops at lobbies only
+	t.floors.build_lobby(t.ledger, 0, 90, 100, 131, 1, t.grid)
 	return t
 
 
-## Puts a car at floor 1 in the shaft at x. Express shafts take no cars by command yet, so the
-## car is placed straight into the lists.
+## Puts a car at floor 1 in the shaft at x, straight into the lists.
 static func _car_in(t: TowerSim, x: int) -> int:
 	var id := TestCars._shaft_id(t, 1, x)
 	t.rooms._cars.append([id, 1, 1, 0, 0, 0, 0, 0, 0])
@@ -53,7 +54,7 @@ static func _ride(t: TowerSim, n: int, floor_number: int) -> int:
 static func run(check: Callable) -> void:
 	var local_units := CarsScript.LOCAL_UNITS_PER_FLOOR
 	var express_units := CarsScript.EXPRESS_UNITS_PER_FLOOR
-	check.call(express_units * 3 <= local_units * 2, "express is at least 1.5 times as fast as local")
+	check.call(express_units * 18 <= local_units * 10, "express is about twice as fast as local (at least 1.8x)")
 	check.call(CarsScript.units_per_floor("express_shaft") == express_units and CarsScript.units_per_floor("local_shaft") == local_units and CarsScript.units_per_floor("service_shaft") == local_units, "speed depends on the shaft kind")
 	var stop_units := CarsScript.DOOR_OPEN_UNITS + CarsScript.DOOR_HOLD_UNITS + CarsScript.DOOR_CLOSE_UNITS
 	check.call(stop_units > 0 and stop_units <= CarsScript.TICK_UNITS, "a stop costs something, at most 1 tick")
@@ -65,14 +66,14 @@ static func run(check: Callable) -> void:
 	var local_30 := _ride(t, local, 30)
 	check.call(local_30 == 3 and local_30 <= TARGET_TICKS, "a 30-floor local ride has its doors open after exactly 3 ticks")
 
-	# 100-floor express ride: 99 floors = 594 units, doors open at 614, so tick 7.
-	var express_100 := _ride(t, express, 100)
-	check.call(express_100 == 7 and express_100 <= TARGET_TICKS, "a 100-floor express ride has its doors open after exactly 7 ticks")
+	# Express ride to the floor-90 sky lobby: 89 floors = 445 units, doors open at 465, so tick 5.
+	var express_90 := _ride(t, express, 90)
+	check.call(express_90 == 5 and express_90 <= TARGET_TICKS, "an express ride to floor 90 has its doors open after exactly 5 ticks")
 
 	# A local car at the same speed over 100 floors: 99 floors = 891 units, doors at 911, tick 10.
 	check.call((99 * local_units + CarsScript.DOOR_OPEN_UNITS + CarsScript.TICK_UNITS - 1) / CarsScript.TICK_UNITS == TARGET_TICKS, "a local car would cover 100 floors in exactly 10 ticks")
 
-	# The same 30-floor ride on an express car beats the local car.
+	# The same 30-floor ride (to the floor-30 sky lobby) on an express car beats the local car.
 	var u := _setup()
 	var slow := _car_in(u, 100)
 	var fast := _car_in(u, 110)

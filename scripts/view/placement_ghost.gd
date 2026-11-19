@@ -260,7 +260,7 @@ static func command_for(tool_id: String, verdict: Dictionary, tick: int, kind: S
 		REPLACE: return Cmd.make(due, Cmd.REPLACE_ROOM, [CatalogueScript.IDS.find(kind), floor_number, x] as Array[int])
 		STAIRS: return Cmd.make(due, Cmd.PLACE_STAIRS, [floor_number, x] as Array[int])
 		ESCALATOR: return Cmd.make(due, Cmd.PLACE_ESCALATOR, [floor_number, x] as Array[int])
-		"local_shaft", "service_shaft", "local_car", "service_car":
+		"local_shaft", "service_shaft", "express_shaft", "local_car", "service_car", "express_car":
 			return Cmd.make(due, verdict["command"], verdict["args"])
 		"lobby": return Cmd.make(due, Cmd.BUILD_LOBBY, [floor_number, x, x + verdict["width"] - 1, 1] as Array[int])
 		"floor": return Cmd.make(due, Cmd.BUILD_FLOOR, [floor_number, x, x + verdict["width"] - 1] as Array[int])

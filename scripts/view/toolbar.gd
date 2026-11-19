@@ -31,8 +31,10 @@ const TOOL_TIPS: Dictionary = {
 	Ghost.REPLACE: "Replace the room under the cursor with the last room tool you chose (R).",
 	"local_shaft": SHAFT_TIP + " Hotkey E.",
 	"service_shaft": SHAFT_TIP,
+	"express_shaft": SHAFT_TIP + " Express shafts stop only at lobbies and basements, any height.",
 	"local_car": CAR_TIP + " Hotkey A.",
 	"service_car": CAR_TIP,
+	"express_car": CAR_TIP + " Holds 36.",
 }
 const HOTKEYS: Dictionary = {"lobby": "L", "floor": "F", "stairs": "S", "escalator": "X", "office": "O", "condo": "C",
 	"local_shaft": "E", "local_car": "A",
