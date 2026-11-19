@@ -5,9 +5,9 @@ extends RefCounted
 ## numbers, so one native pixel is always a whole number of screen pixels.
 
 const CELL_W := 8  ## Native pixels per floor-unit column.
-const CELL_H := 32  ## Native pixels per floor (owner decision; the mock-ups stay at 24).
-const FIGURE_W := 3  ## A standing figure, native pixels; sized here so it can grow (toward 4x9) in one place.
-const FIGURE_H := 7
+const CELL_H := 32  ## Native pixels per floor.
+const FIGURE_W := 4  ## A standing figure, native pixels; sized here so it can grow in one place.
+const FIGURE_H := 9
 const SLAB_H := 2  ## The floor slab along the bottom of each floor, inside its CELL_H.
 const GridScript := preload("res://scripts/sim/grid.gd")
 

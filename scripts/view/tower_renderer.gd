@@ -315,8 +315,8 @@ func _shown_at(figure: Dictionary) -> Vector2:
 ## phase choose the frame: walking alternates legs apart and together every half column, stairs
 ## lift one leg and bob, an escalator rider stands with legs together.
 func _draw_figure(canvas: CanvasItem, x: int, feet: int, shirt: Color, band: int, skin: Color, pose: int = 0, phase: int = 0) -> void:
-	var head_h := maxi(FIGURE_H * 2 / 7, 2)
-	var leg_h := maxi(FIGURE_H / 7, 1)
+	var head_h := maxi(FIGURE_H / 3, 2)
+	var leg_h := maxi(FIGURE_H / 4, 1)
 	var bob := 1 if pose == PeopleView.POSE_STAIRS and phase % 2 == 1 else 0
 	var top := feet - FIGURE_H - bob
 	var legs := shirt.darkened(0.4)

@@ -8,7 +8,7 @@ const BAND_NAMES: Array[String] = ["Calm", "Uneasy", "Angry"]
 const OUTSIDE := "outside"
 const PICK_RADIUS_PX := 14.0  ## How close, in screen pixels, a click must be to a figure.
 const FEET_UP_PX := 3  ## A figure's feet sit this far above the bottom edge of its floor row.
-const CENTER_UP_PX := 4  ## Its middle sits this far above its feet (a figure is about 7 px tall).
+const CENTER_UP_PX := 5  ## Its middle sits this far above its feet (a figure is 9 px tall).
 
 
 ## "Office, floor 3", or "outside" for no room. Floors below ground read "B2".
