@@ -10,7 +10,7 @@ const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const Bench := preload("res://tools/bench_tower.gd")
 
 const SMALL_TICKS := 400
-const SMALL_HASH := 6821104094165238091  ## Hash of the small tower after SMALL_TICKS ticks, from main without the #108 speed-ups (after #114; re-pinned for #146: the hotel adds one count to the hashed state). Re-pinned for #150: the commerce ints (verified: without them the hash is the previous pin).
+const SMALL_HASH := 315130629662660779  ## Hash of the small tower after SMALL_TICKS ticks, from main without the #108 speed-ups (after #114; re-pinned for #146: the hotel adds one count to the hashed state). Re-pinned for #150: the commerce ints (verified: without them the hash is the previous pin). Re-pinned for #148: the housekeeping ints (one count, no stations in the bench tower).
 
 
 ## What a scan of the whole grid for stairs and escalators finds, in scan order: [floor, column, escalator].
