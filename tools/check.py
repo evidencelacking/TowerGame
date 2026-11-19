@@ -152,6 +152,14 @@ def run_game_tests():
     return lines[:20] or ["Godot tests did not finish."]
 
 
+def run_ui_tests():
+    """The automated UI tester (#262), headless. Known failures in tools/ui_expected.json don't fail it."""
+    import ui_test
+
+    code, text = ui_test.run()
+    return [] if code == 0 else text.splitlines()[-30:]
+
+
 def run_tool_tests():
     result = subprocess.run(
         [sys.executable, "-m", "unittest", "discover", "-q", "-s", "tools/tests"],
@@ -217,7 +225,7 @@ def full():
     if os.environ.get("CI") is None and not hooks_active():
         problems.append("Git hooks are not active. Run: python tools/setup.py")
     problems += clean_room_problems(tracked_files(), read_tracked)
-    return problems + lint_simulation(ROOT) + run_game_tests() + run_tool_tests()
+    return problems + lint_simulation(ROOT) + run_game_tests() + run_ui_tests() + run_tool_tests()
 
 
 def commit_message(path):

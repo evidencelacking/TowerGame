@@ -1,0 +1,8 @@
+{
+  "_help": "Known UI test failures: case id -> the open issue that explains it. Listed cases show as XFAIL and do not fail CI. When one starts passing it shows as XPASS: delete its line here.",
+  "stairs.stacked": "#259",
+  "escalator.stacked": "#259",
+  "car.express": "#258 (elevator flow: the car ghost judges on a copy without floors, so express cars always look refused)",
+  "shaft.cap.up": "#258 (a drag that starts on the shaft's machine room is judged as a new shaft)",
+  "shaft.cap.down": "#258 (a drag that starts on the shaft's machine room is judged as a new shaft)"
+}

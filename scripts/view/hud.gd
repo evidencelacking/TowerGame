@@ -76,7 +76,7 @@ func _refresh() -> void:
 		clock.year(), clock.quarter(), DAY_NAMES[clock.day_of_week()], clock.hour(), clock.minute()]
 	_period.text = "Period %d" % clock.period()
 	_money.text = format_money(_driver.tower.ledger.balance)
-	_stars.text = "Stars %d" % _driver.tower.stars
+	_stars.text = "Stars %d" % _driver.tower.stars + ("   DEMO" if DemoMode.active() else "")
 	_population.text = format_population(_driver.tower.population())
 	var needs := format_demands(_driver.tower.demands)
 	_demands.text = needs
