@@ -119,6 +119,26 @@ static func draw_arrival(canvas: CanvasItem, rect: Rect2i, level: float, floor_b
 	_indicator(canvas, rect, floor_bottom_of.call(nearest) as int, Color("ff5030"))
 
 
+## How open a car's doors are at a level, 0 (closed) to 1 (open): fully open when the car stands at a floor,
+## closing as it leaves (and opening as it arrives) over ARRIVED_SLACK of a level. A car that crosses more
+## than a level between two sim ticks is passing through, so its doors stay shut.
+static func door_open(level: float, step: float = 0.0) -> float:
+	if step > 1.0:
+		return 0.0
+	return clampf(1.0 - absf(level - roundf(level)) / ARRIVED_SLACK, 0.0, 1.0)
+
+
+## The gap of open car doors over the doors of the floor whose surface is at floor_bottom: a lit opening in
+## the middle that widens with open (0 draws nothing), with the door leaves left on each side.
+static func draw_door_gap(canvas: Object, rect: Rect2i, floor_bottom: int, open: float, lit: Color) -> void:
+	var full := rect.size.x - 8
+	var gap := roundi(open * full)
+	if gap <= 0:
+		return
+	var x := rect.position.x + rect.size.x / 2 - gap / 2
+	canvas.draw_rect(Rect2i(x, floor_bottom - DOOR_H + 1, gap, DOOR_H - 1), lit)
+
+
 ## A car: dark frame, body, ceiling lamp, centre doors, a rail, and up to five riders as small figures.
 static func draw_car(canvas: CanvasItem, rect: Rect2i, car_color: Color, load: int, people: Array) -> void:
 	var p := Palette.get_palette()

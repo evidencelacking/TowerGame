@@ -5,6 +5,7 @@ const PeopleView := preload("res://scripts/view/people_view.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const RoomLook := preload("res://scripts/view/room_look.gd")
 const TransportLook := preload("res://scripts/view/transport_look.gd")
+const EventLook := preload("res://scripts/view/event_look.gd")
 const ActivityLook := preload("res://scripts/view/activity_look.gd")
 const SkyLook := preload("res://scripts/view/sky_look.gd")
 const Palette := preload("res://scripts/view/palette.gd")
@@ -28,8 +29,8 @@ const GLIDE_MAX_COLUMNS := 12.0  ## A move longer than this between two ticks is
 ## escalators) and shafts sit in front of the rooms behind them (#126); the floor slabs come after
 ## rooms because a room fills its whole row and would hide its own slab.
 const STATIC_LAYERS: Array[String] = ["_draw_backdrop", "_draw_lobby", "_draw_rooms", "_draw_links", "_draw_floors", "_draw_shafts"]
-const DYNAMIC_LAYERS: Array[String] = ["_draw_queues", "_draw_cars", "_draw_people"]
-const DRAW_ORDER: Array[String] = ["_draw_backdrop", "_draw_lobby", "_draw_rooms", "_draw_links", "_draw_floors", "_draw_shafts", "_draw_queues", "_draw_cars", "_draw_people"]
+const DYNAMIC_LAYERS: Array[String] = ["_draw_queues", "_draw_cars", "_draw_events", "_draw_people"]
+const DRAW_ORDER: Array[String] = ["_draw_backdrop", "_draw_lobby", "_draw_rooms", "_draw_links", "_draw_floors", "_draw_shafts", "_draw_queues", "_draw_cars", "_draw_events", "_draw_people"]
 
 var tower: Tower = null
 var _people_view := PeopleView.new()
@@ -339,6 +340,15 @@ func _draw_figure(canvas: CanvasItem, x: int, feet: int, shirt: Color, band: int
 		canvas.draw_rect(Rect2i(x + mark * 2 - 2, top - 2, 1, 1), shirt)
 
 
+## Fire and smoke, guards on their way, the rescue craft and the threat search (event_look.gd); each draws
+## only while its sim state is active.
+func _draw_events(canvas: CanvasItem) -> void:
+	EventLook.draw_fire(canvas, tower, tower.tick)
+	EventLook.draw_search(canvas, tower, tower.tick)
+	EventLook.draw_guards(canvas, tower, tower.tick)
+	EventLook.draw_rescue(canvas, tower, tower.tick)
+
+
 func _draw_people(canvas: CanvasItem) -> void:
 	var skin: Color = Palette.get_palette()["skin"]
 	var types: Array = Palette.get_palette()["people"]
@@ -406,6 +416,8 @@ func _draw_cars(canvas: CanvasItem) -> void:
 		var w: int = (car["width"] as int) * VC.CELL_W - 6
 		var h := VC.CELL_H - VC.SLAB_H - 3
 		TransportLook.draw_car(canvas, Rect2i(x, y, w, h), car_color, car["load"], p["people"])
+		var lit: Color = p["lamp"]
+		TransportLook.draw_door_gap(canvas, Rect2i(x - 3, y - 3, w + 6, VC.CELL_H), y - 3 + VC.CELL_H - VC.SLAB_H, TransportLook.door_open(car["level"], car["step"]), lit)
 
 
 ## Hall queues: people going up wait left of the shaft, going down right of it; a long queue shows
