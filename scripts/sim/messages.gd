@@ -34,6 +34,9 @@ const PESTS_WARNING := 36  ## a: room id. A dirty hotel room will get pests soon
 const PESTS_FOUND := 37  ## a: room id. A hotel room is infested; only demolition clears it (#149).
 const DEMAND_RAISED := 38  ## a: Demands id. The tower needs something (#168).
 const DEMAND_CLEARED := 39  ## a: Demands id. The need is met.
+const VIP_ARRIVED := 40  ## a: suite room id. A VIP checked in (#173).
+const VIP_GOOD := 41  ## a: suite room id. The VIP left happy: star 4 can follow.
+const VIP_BAD := 42  ## a: suite room id. The VIP left unhappy; another comes in a few days.
 const ROOM_DIRTY := 34  ## a: room id. Hotel guests checked out; the room needs cleaning (#147).
 
 const CAP := 500  ## Entries kept; the oldest drop first.
