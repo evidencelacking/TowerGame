@@ -58,3 +58,19 @@ static func run(check: Callable) -> void:
 	_put(s, "security", 3, 100)
 	s.promote_stars()
 	check.call(s.star_facts()["security"] == 1 and not s.demands.is_open(DemandsScript.SECURITY), "an office satisfies the star fact and clears the demand")
+
+	# Response (#216): covered floor, uncovered floor, nearest of two offices.
+	var r := _tower()
+	check.call(Sec.response_ticks(r.rooms, r.grid, 10) == -1 and Sec.responder(r.rooms, r.grid, 10) == 0, "no office: no response")
+	_put(r, "security", 3, 100)
+	var office: int = Sec.offices(r.rooms)[0]
+	check.call(Sec.response_ticks(r.rooms, r.grid, 3) == 3, "guards reach their own floor in one minute (3 ticks)")
+	check.call(Sec.response_ticks(r.rooms, r.grid, 18) > Sec.response_ticks(r.rooms, r.grid, 4) and Sec.response_ticks(r.rooms, r.grid, 18) > 0, "a covered floor gets a response that grows with distance")
+	check.call(Sec.responder(r.rooms, r.grid, 18) == office, "the office answers a covered floor")
+	check.call(Sec.response_ticks(r.rooms, r.grid, 19) == -1 and Sec.responder(r.rooms, r.grid, 19) == 0, "an uncovered floor gets no response")
+	_put(r, "security", 40, 100)
+	var far: int = Sec.offices(r.rooms)[1]
+	check.call(Sec.responder(r.rooms, r.grid, 30) == far and Sec.responder(r.rooms, r.grid, 10) == office, "with two offices the nearer one answers")
+	check.call(Sec.response_ticks(r.rooms, r.grid, 30) < Sec.response_ticks(r.rooms, r.grid, 18) + 1 and Sec.response_ticks(r.rooms, r.grid, 30) > 0, "a floor between offices is answered")
+	check.call(Sec.search_rank(10, 10) == 0 and Sec.search_rank(10, 11) == 1 and Sec.search_rank(10, 9) == 2 and Sec.search_rank(10, 12) == 3, "a sweep goes up one, down one, and so on")
+	check.call(Sec.search_rank(10, 26) == -1 and Sec.search_rank(1, -1) == 2, "a sweep stops at the reach and counts no floor 0")
