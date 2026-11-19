@@ -70,7 +70,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 31
+const SAVE_VERSION := 32
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -152,7 +152,7 @@ func enqueue(command: Command) -> bool:
 ##   3. systems run (clock #2, grid #3 and later systems hook in here, in a fixed order)
 ## People in the tower right now (derived from people, not saved).
 func population() -> int:
-	return people.in_tower_count()
+	return people.in_tower_count() + commerce.visitors_inside(clock.minute_of_day())
 
 
 func step() -> void:
