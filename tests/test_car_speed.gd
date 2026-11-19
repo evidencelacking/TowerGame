@@ -19,7 +19,7 @@ static func _setup() -> TowerSim:
 		t.floors.fill_span(f, 100, 131)
 	t.stars = 3
 	TestShafts._shaft(t, 1, 30, 100)
-	TestShafts._shaft(t, 1, 100, 110, "express_shaft")
+	TestShafts._shaft(t, 1, 99, 110, "express_shaft")
 	t.floors.build_lobby(t.ledger, 0, 30, 100, 131, 1, t.grid)  # the express stops at lobbies only
 	t.floors.build_lobby(t.ledger, 0, 90, 100, 131, 1, t.grid)
 	return t

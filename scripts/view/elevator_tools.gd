@@ -24,6 +24,8 @@ const TEXT: Dictionary = {
 	RoomsScript.HOME_DROPPED: "Would drop a car's home floor",
 	RoomsScript.EXPRESS_NO_STOP: "Express shafts stop only at lobbies and basements",
 	RoomsScript.HOME_STOP: "A car's home floor must stay a stop",
+	RoomsScript.NO_MACHINE_ROOM: "No floor left for the machine room",
+	RoomsScript.MACHINE_ROOM: "A machine room is here",
 }
 
 
@@ -87,6 +89,10 @@ static func _blank(floor_number: int, x_left: int, width: int) -> Dictionary:
 		"command": -1, "args": [] as Array[int]}
 
 
+static func _floor_note(floor_units: int) -> String:
+	return "" if floor_units == 0 else ", builds %d floor unit%s" % [floor_units, "" if floor_units == 1 else "s"]
+
+
 ## A shaft tool at the pointer. The gesture began at (start_floor, start_column) and is now at
 ## floor_number: on empty ground that places a shaft over the dragged floors; on a shaft's end it
 ## resizes; a click (no movement) on a shaft toggles that floor's stop.
@@ -113,6 +119,7 @@ static func _evaluate_place(t: TowerSim, tool_id: String, floor_number: int, sta
 	out["floor"] = bottom
 	out["top"] = top
 	var checked := t.rooms.check_place_shaft(t.grid, t.floors, tool_id, bottom, top, out["x"])
+	out["machines"] = RoomsScript.machine_floors(bottom, top)
 	out["cost"] = checked["cost"]
 	out["code"] = checked["reason"]
 	if CatalogueScript.star(tool_id) > star_rating:
@@ -121,7 +128,7 @@ static func _evaluate_place(t: TowerSim, tool_id: String, floor_number: int, sta
 		out["code"] = RoomsScript.SHORT_OF_FUNDS
 	elif checked["reason"] == 0:
 		out["valid"] = true
-		out["note"] = "Floors %s to %s (%d)" % [floor_label(bottom), floor_label(top), checked["span"]]
+		out["note"] = "Floors %s to %s (%d)%s" % [floor_label(bottom), floor_label(top), checked["span"], _floor_note(checked["floor_units"])]
 		out["command"] = TowerSim.Command.PLACE_SHAFT
 		out["args"] = [CatalogueScript.IDS.find(tool_id), bottom, top, out["x"]] as Array[int]
 	return out
@@ -157,11 +164,14 @@ static func _evaluate_resize(t: TowerSim, shaft: Dictionary, floor_number: int, 
 		return out
 	out["floor"] = bottom
 	out["top"] = top
+	out["machines"] = RoomsScript.machine_floors(bottom, top)
 	var trial := _trial(t)
-	out["code"] = trial.rooms.resize_shaft(trial.grid, trial.floors, shaft["id"], bottom, top)
+	var before: int = trial.ledger.balance
+	out["code"] = trial.rooms.resize_shaft(trial.grid, trial.floors, trial.ledger, trial.tick, shaft["id"], bottom, top)
+	out["cost"] = before - trial.ledger.balance
 	if out["code"] == 0:
 		out["valid"] = true
-		out["note"] = "Resize to floors %s to %s (free)" % [floor_label(bottom), floor_label(top)]
+		out["note"] = "Resize to floors %s to %s (%s)" % [floor_label(bottom), floor_label(top), "free" if out["cost"] == 0 else "floors $%d" % out["cost"]]
 		out["command"] = TowerSim.Command.RESIZE_SHAFT
 		out["args"] = [shaft["id"], bottom, top] as Array[int]
 	return out

@@ -63,6 +63,8 @@ const RAMP_NOT_UNDER_LOBBY := 65  ## Parking ramp: the first goes on B1 under th
 const RAMP_NOT_BELOW_RAMP := 66  ## Parking ramp: a later ramp goes directly below a ramp.
 const NOT_BASEMENT := 67  ## Parking ramps and spaces go below ground.
 const EXPRESS_NO_STOP := 68  ## Express stop: only lobbies and basements can be stops.
+const NO_MACHINE_ROOM := 70  ## Shaft: no floor above the top stop (floor 100) or below the bottom stop (B10) for a machine room.
+const MACHINE_ROOM := 71  ## A shaft's machine room is on the cell, so no room or link goes there.
 const ESCALATOR_FLOOR := 69  ## Escalator: it stands only on commercial, lobby or empty floors (#185), never over an office, condo or the like.
 
 const CAR_INTS := 9  ## Ints in one saved car (SHAFT to NEXT in cars.gd).
@@ -174,6 +176,9 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 		if floors.has_shaft(floor_number, column):
 			result["reason"] = OVER_SHAFT
 			return result
+		if machine_room_at(floor_number, column):
+			result["reason"] = MACHINE_ROOM
+			return result
 		if floors.has_floor(floor_number, column):
 			continue
 		new_units += 1
@@ -248,6 +253,9 @@ func _check_place_tall(grid: GridScript, floors: FloorsScript, kind: String, flo
 				return result
 			if floors.has_shaft(level, column):
 				result["reason"] = OVER_SHAFT
+				return result
+			if machine_room_at(level, column):
+				result["reason"] = MACHINE_ROOM
 				return result
 			if floors.has_floor(level, column):
 				continue
@@ -420,7 +428,7 @@ func _check_place_link(grid: GridScript, floors: FloorsScript, kind: String, flo
 			if floors.has_shaft(level, column):
 				result["reason"] = OVER_SHAFT
 				return result
-			if links.cell_at(level, column) != GridScript.EMPTY:
+			if links.cell_at(level, column) != GridScript.EMPTY or machine_room_at(level, column):
 				result["reason"] = OVERLAPS_LINK
 				return result
 	for column in range(x_left, x_left + width):
@@ -494,12 +502,51 @@ func _shaft_base(id: int) -> int:
 	return 0
 
 
+## Floors holding a shaft's machine rooms (#228): the one above the top stop and the one below the
+## bottom stop, on the shaft's columns. A shaft whose bottom stop is floor 1 has its lower machine
+## room in the ground, so it takes no cell (and no B1). The result leaves out a floor that does not exist.
+static func machine_floors(bottom: int, top: int) -> Array[int]:
+	var out: Array[int] = []
+	var below := floor_below(bottom) if bottom != 1 else 0
+	if below != 0:
+		out.append(below)
+	var above := floor_above(top)
+	if above != 0:
+		out.append(above)
+	return out
+
+
+## True when a shaft's machine room stands on the cell. Rooms and links keep off it.
+func machine_room_at(floor_number: int, column: int) -> bool:
+	for shaft: int in _shafts:
+		var info: Array = _shafts[shaft]
+		var width: int = CatalogueScript.field(kind_of(shaft), "width")
+		if column < int(info[2]) or column >= int(info[2]) + width:
+			continue
+		var top := _floor_at_offset(int(info[1]), int(info[0]) - 1)
+		if machine_floors(int(info[1]), top).has(floor_number):
+			return true
+	return false
+
+
+## The floor offset floors above bottom (basements count, floor 1 follows B1).
+static func _floor_at_offset(bottom: int, offset: int) -> int:
+	var level := bottom
+	for i in offset:
+		level = floor_above(level)
+	return level
+
+
 ## Checks a shaft: kind is a catalogue id with the shaft placement, bottom and top are floor
-## numbers (inclusive). Returns {"reason", "cost", "span"}. Needs 1 to 30 floors (express: any
-## height), fewer than 24 shafts, a built floor under every column on every floor, and nothing
-## other link in the way (rooms are fine, as for stairs).
-func check_place_shaft(_grid: GridScript, floors: FloorsScript, kind: String, bottom: int, top: int, x_left: int) -> Dictionary:
-	var result := {"reason": OK, "cost": 0, "span": 0}
+## numbers (inclusive). Returns {"reason", "cost", "span", "floor_units"}. Needs 1 to 30 floors
+## (express: any height), fewer than 24 shafts, a machine room cell above the top and below the
+## bottom (see machine_floors) free of rooms and links, nothing else in the way (rooms on the
+## shaft's own floors are fine, as for stairs), and floor to rest on. Floor units missing under
+## the shaft or its machine rooms are built at FLOOR_COST_PER_UNIT each, which the cost includes
+## (with the shaft's price when priced; a resize passes false). A missing unit with nothing to
+## rest on, even once the others are built, is NO_FLOOR_FOR_SHAFT.
+func check_place_shaft(grid: GridScript, floors: FloorsScript, kind: String, bottom: int, top: int, x_left: int, priced: bool = true) -> Dictionary:
+	var result := {"reason": OK, "cost": 0, "span": 0, "floor_units": 0}
 	if not CatalogueScript.IDS.has(kind) or CatalogueScript.field(kind, "placement") != CatalogueScript.PLACE_SHAFT:
 		result["reason"] = UNKNOWN_KIND
 		return result
@@ -517,33 +564,70 @@ func check_place_shaft(_grid: GridScript, floors: FloorsScript, kind: String, bo
 	if _shafts.size() >= int(CatalogueScript.field(kind, "limit")):
 		result["reason"] = MAX_SHAFTS
 		return result
+	if (bottom != 1 and floor_below(bottom) == 0) or floor_above(top) == 0:
+		result["reason"] = NO_MACHINE_ROOM
+		return result
 	var width: int = CatalogueScript.field(kind, "width")
 	if x_left < 0 or x_left + width > GridScript.WIDTH_UNITS:
 		result["reason"] = OFF_TOWER
 		return result
+	var stops: Array[int] = []
 	var level := bottom
 	for i in span:
-		for column in range(x_left, x_left + width):
-			if floors.has_shaft(level, column):
+		stops.append(level)
+		level = floor_above(level)
+	var machines := machine_floors(bottom, top)
+	for column in range(x_left, x_left + width):
+		for stop: int in stops:
+			if floors.has_shaft(stop, column):
 				result["reason"] = OVER_SHAFT
 				return result
-			if links.cell_at(level, column) != GridScript.EMPTY:
+			if links.cell_at(stop, column) != GridScript.EMPTY or machine_room_at(stop, column):
 				result["reason"] = OVERLAPS_LINK
 				return result
-		level = floor_above(level)
-	level = bottom
-	for i in span:
-		for column in range(x_left, x_left + width):
-			if not floors.has_floor(level, column):
+		for machine: int in machines:
+			if floors.has_shaft(machine, column):
+				result["reason"] = OVER_SHAFT
+				return result
+			if links.cell_at(machine, column) != GridScript.EMPTY or machine_room_at(machine, column):
+				result["reason"] = OVERLAPS_LINK
+				return result
+			if grid.cell_at(machine, column) != GridScript.EMPTY:
+				result["reason"] = OVERLAPS_ROOM
+				return result
+			if floors.has_lobby_at(machine, column):
+				result["reason"] = OVERLAPS_LOBBY
+				return result
+	var cells: Array[int] = []
+	cells.append_array(stops)
+	cells.append_array(machines)
+	var new_units := 0
+	for column in range(x_left, x_left + width):
+		for cell: int in cells:
+			if floors.has_floor(cell, column):
+				continue
+			new_units += 1
+			if not _rests_on_floor(floors, cells, cell, column):
 				result["reason"] = NO_FLOOR_FOR_SHAFT
 				return result
-		level = floor_above(level)
-	result["cost"] = CatalogueScript.cost(kind)
+	result["floor_units"] = new_units
+	result["cost"] = (CatalogueScript.cost(kind) if priced else 0) + new_units * CatalogueScript.FLOOR_COST_PER_UNIT
 	return result
 
 
+## True when the floor unit at (cell, column), not built yet, would rest on floor: the ground
+## floor always does, floors above it rest on the floor below, basements on the floor above (B1 on
+## floor 1). What it rests on may be built or be another cell of the same shaft.
+func _rests_on_floor(floors: FloorsScript, cells: Array[int], cell: int, column: int) -> bool:
+	if cell == 1:
+		return true
+	var support := floor_below(cell) if cell > 1 else floor_above(cell)
+	return floors.has_floor(support, column) or cells.has(support)
+
+
 ## Places a shaft (the PLACE_SHAFT command): kind_index, bottom, top, x_left. One ledger charge
-## (the catalogue price, however tall), ref = the catalogue index. Returns OK or a reason code.
+## (the catalogue price, however tall, plus any floor built under the shaft and its machine
+## rooms), ref = the catalogue index. Returns OK or a reason code.
 func place_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, kind_index: int, bottom: int, top: int, x_left: int) -> int:
 	if kind_index < 0 or kind_index >= CatalogueScript.IDS.size():
 		return UNKNOWN_KIND
@@ -555,6 +639,7 @@ func place_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, a
 		return SHORT_OF_FUNDS
 	var span: int = checked["span"]
 	var width: int = CatalogueScript.field(kind, "width")
+	_fill_shaft_floors(floors, bottom, top, x_left, width)
 	var clear := false
 	while not clear:  # _next_id only grows, so this ends once a free run of span ids is found
 		clear = true
@@ -573,6 +658,18 @@ func place_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, a
 	_shafts[_next_id] = [span, bottom, x_left, [] as Array[int], _next_id]
 	_next_id += span
 	return OK
+
+
+## Builds the floor units missing under a shaft's stops and machine rooms (already priced).
+func _fill_shaft_floors(floors: FloorsScript, bottom: int, top: int, x_left: int, width: int) -> void:
+	var cells: Array[int] = machine_floors(bottom, top)
+	var level := bottom
+	for i in shaft_span(bottom, top):
+		cells.append(level)
+		level = floor_above(level)
+	for cell: int in cells:
+		floors.fill_span(cell, x_left, x_left + width - 1)
+
 
 ## Occupant cells and marks of a shaft: base id, span floors from bottom, x_left, width.
 func _put_shaft_cells(grid: GridScript, floors: FloorsScript, base: int, bottom: int, span: int, x_left: int, width: int) -> void:
@@ -602,10 +699,11 @@ func _in_shaft_span(info: Array, floor_number: int) -> bool:
 
 
 ## Resizes a shaft in place (the RESIZE_SHAFT command): shaft id, new bottom, new top, same
-## column. Same limits as placement; free (a shaft is priced flat). Stop flags of floors that
+## column. Same rules as placement, but nothing is charged for the shaft itself: only floor units
+## missing under the new stops or machine rooms are built, at the floor price (#228). Stop flags of floors that
 ## remain are kept; new floors are stops. The occupant ids move to a new base when the old one
 ## has no room to grow. Calls and cars (#93, #94) must drop the removed floors here.
-func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, top: int) -> int:
+func resize_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, id: int, bottom: int, top: int) -> int:
 	if not _shafts.has(id):
 		return NOTHING_THERE
 	var info: Array = _shafts[id]
@@ -617,8 +715,10 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, 
 	var old_base: int = info[4]
 	_clear_shaft_cells(grid, floors, old_base, old_bottom, old_span, x_left, width)
 	_shafts.erase(id)
-	var checked := check_place_shaft(grid, floors, kind, bottom, top, x_left)
+	var checked := check_place_shaft(grid, floors, kind, bottom, top, x_left, false)
 	var reason: int = checked["reason"]
+	if reason == OK and checked["cost"] > ledger.balance:
+		reason = SHORT_OF_FUNDS
 	if reason == OK:
 		for car: Array in _cars:
 			if car[CarsScript.SHAFT] == id and not _in_shaft_span([checked["span"], bottom], car[CarsScript.HOME]):
@@ -627,6 +727,9 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, id: int, bottom: int, 
 		_put_shaft_cells(grid, floors, old_base, old_bottom, old_span, x_left, width)
 		_shafts[id] = info
 		return reason
+	if checked["cost"] > 0:
+		ledger.charge(at_tick, checked["cost"], _kind_of[id])
+	_fill_shaft_floors(floors, bottom, top, x_left, width)
 	var span: int = checked["span"]
 	var base := old_base
 	var clear := false

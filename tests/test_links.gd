@@ -96,7 +96,7 @@ static func run(check: Callable) -> void:
 	_escalator(f, 3, 108)
 	check.call(_stairs(f, 4, 110) == RoomsScript.OVERLAPS_LINK, "stairs over an escalator's upper half are refused")
 	check.call(_escalator(f, 3, 112) == RoomsScript.OVERLAPS_LINK, "an escalator over an escalator is refused")
-	check.call(_stairs(f, 6, 100) == RoomsScript.NO_FLOOR_FOR_STAIRS and _shaft(f, 5, 7, 112) == RoomsScript.NO_FLOOR_FOR_SHAFT, "stairs and shafts need built floor on every level")
+	check.call(_stairs(f, 6, 100) == RoomsScript.NO_FLOOR_FOR_STAIRS and _shaft(f, 20, 22, 112) == RoomsScript.NO_FLOOR_FOR_SHAFT, "stairs and shafts need built floor on every level")
 	check.call(_stairs(f, 3, 129) == RoomsScript.NO_FLOOR_FOR_STAIRS, "stairs may not hang past the floor")
 	var before := f.ledger.balance
 	_stairs(f, 3, 102)
