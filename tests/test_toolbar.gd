@@ -43,12 +43,11 @@ static func run(check: Callable) -> void:
 			check.call(str(CatalogueScript.star(id)) in state["tooltip"], "%s tooltip names its unlock star" % id)
 	check.call(not Toolbar.item_state("service_shaft", 1)["enabled"], "a star 2 item is greyed at 1 star")
 	check.call(not Toolbar.item_state("hotel_single", 1)["enabled"], "a star 2 room is greyed at 1 star")
-	# Star 1 items the sim cannot build yet show, cannot be picked, and say why.
-	for id in ["fast_food"]:
-		var pending := Toolbar.item_state(id, 1)
-		check.call(not pending["enabled"] and not pending["locked"], "%s is greyed but not star-locked" % id)
-		check.call("Not buildable" in pending["tooltip"], "%s tooltip says it is not buildable yet" % id)
-		check.call(not bar.select(id) and ghost.tool == "", "%s cannot be selected" % id)
+	# Fast food (#150) is built now: star 1, enabled, selectable.
+	var shop := Toolbar.item_state("fast_food", 1)
+	check.call(shop["enabled"] and not shop["locked"], "fast_food is enabled at 1 star")
+	check.call(bar.select("fast_food") and ghost.tool == "fast_food", "fast_food can be selected")
+	check.call(bar.select("fast_food") and ghost.tool == "", "picking fast_food again turns the tool off")
 	check.call(not bar.select("service_shaft") and ghost.tool == "", "a locked item cannot be selected")
 	check.call(Toolbar.item_state("restaurant", 5)["tooltip"] != "", "an unlocked but unbuilt item still explains itself")
 

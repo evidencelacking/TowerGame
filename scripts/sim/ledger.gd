@@ -15,6 +15,8 @@ const COST := 6  ## A quarterly running cost; amount is negative. Never refused 
 const SALE := 7  ## A condo sold to its buyer; amount is positive. Kept apart from INCOME (rent) for the finance window.
 const HOTEL := 8  ## A hotel room's nightly price, paid once at check-out; amount is positive; ref is the room id.
 
+const SHOP := 9  ## A shop's daily takings (fast food, #150); negative when the day loses money. Own kind for the finance window.
+
 ## Results returned by charge().
 const OK := 0
 const SHORT_OF_FUNDS := 1
@@ -61,6 +63,9 @@ func sale(at_tick: int, amount: int, ref: int) -> void:
 	_add(at_tick, amount, SALE, ref)
 
 
+## Credits a shop's daily result: positive income or a negative loss; ref is the room id.
+func shop_sales(at_tick: int, amount: int, ref: int) -> void:
+	_add(at_tick, amount, SHOP, ref)
 ## Earns a hotel room's nightly price (zero or more) at check-out; ref is the room id.
 func hotel(at_tick: int, amount: int, ref: int) -> void:
 	_add(at_tick, amount, HOTEL, ref)
