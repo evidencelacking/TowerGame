@@ -11,6 +11,7 @@ const RoomLook := preload("res://scripts/view/room_look.gd")
 
 ## Kinds with a real recipe (10.3): not the placeholder, shaped for the full 32 px floor.
 const BATCH_1: Array[String] = ["lobby", "office", "condo", "hotel_single", "hotel_twin", "hotel_suite", "housekeeping"]
+const BATCH_2: Array[String] = ["fast_food", "restaurant", "retail", "movie_theatre", "party_hall", "medical", "security", "recycling", "parking_ramp", "parking_space", "metro", "cathedral"]
 
 
 static func run(check: Callable) -> void:
@@ -61,6 +62,12 @@ static func run(check: Callable) -> void:
 	# Native pixel space: 8 px per column, 24 px per floor, whole numbers.
 	check.call(VC.CELL_W == 8 and VC.CELL_H == 32, "renderer: native space is 8 px per column and 32 px per floor")
 	_batch(check, BATCH_1)
+	_batch(check, BATCH_2)
+	var still_placeholder: Array[String] = []
+	for kind: String in CatalogueScript.IDS:
+		if RoomRecipes.is_placeholder(kind):
+			still_placeholder.append(kind)
+	check.call(still_placeholder.is_empty(), "recipes: no catalogue kind is a placeholder (%s)" % str(still_placeholder))
 
 
 ## A batch of real recipes: none is a placeholder, each fills most of the floor height, its in-use and empty
