@@ -46,4 +46,7 @@ Captures: `docs/mockups/art_<x>_day.png` and `_night.png`, made by running a sce
 
 ## Palette
 
-To be filled from the chosen direction.
+To be filled from the chosen direction. Until then all three are data in `scripts/view/palette.gd`:
+`Palette.DEFAULT_INDEX` (0 = A, 1 = B, 2 = C) picks the one the renderer uses, and nothing else
+names a colour. Room hues and furniture come from `scripts/view/room_recipes.gd` (one recipe per
+catalogue kind). `docs/mockups/renderer_a.png` is the real renderer drawing a small tower in A.

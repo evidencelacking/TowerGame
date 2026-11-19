@@ -100,7 +100,7 @@ func click_at(world: Vector2, person_radius: float) -> void:
 	if PersonInfo.pick(_view.figures(tower), world, person_radius) != -1:
 		return
 	var floor_number := RoomInfo.floor_at_y(world.y)
-	if floor_number != 0 and not ElevatorTools.shaft_at(tower, floor_number, floori(world.x / VC.CELL_PX)).is_empty():
+	if floor_number != 0 and not ElevatorTools.shaft_at(tower, floor_number, floori(world.x / VC.CELL_W)).is_empty():
 		close()  # the elevator panel takes clicks on a shaft
 		return
 	var id := RoomInfo.room_at(tower, world)

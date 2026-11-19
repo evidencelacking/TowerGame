@@ -341,8 +341,8 @@ func _unhandled_input(event: InputEvent) -> void:
 ## The cell under the mouse as Vector2i(floor number, column).
 func _mouse_cell() -> Vector2i:
 	var world := get_global_mouse_position()
-	var row := floori(world.y / VC.CELL_PX)
-	return Vector2i(GridScript.index_to_floor(GridScript.FLOOR_COUNT - 1 - row), floori(world.x / VC.CELL_PX))
+	var row := floori(world.y / VC.CELL_H)
+	return Vector2i(GridScript.index_to_floor(GridScript.FLOOR_COUNT - 1 - row), floori(world.x / VC.CELL_W))
 
 
 ## Left button down on a cell. Shaft, lobby and floor tools start a drag; every other tool
@@ -421,7 +421,7 @@ func _draw() -> void:
 	var rows: int = result["height"]
 	if result.has("machines"):  ## A shaft's machine rooms: a cap above the top and below the bottom stop.
 		for machine: int in result["machines"]:
-			var cap := Rect2i(result["x"] * VC.CELL_PX, VC.floor_to_row(machine) * VC.CELL_PX, result["width"] * VC.CELL_PX, VC.CELL_PX)
+			var cap := Rect2i(result["x"] * VC.CELL_W, VC.floor_to_row(machine) * VC.CELL_H, result["width"] * VC.CELL_W, VC.CELL_H)
 			draw_rect(cap, Color(VALID_TINT if result["valid"] else INVALID_TINT, 0.35))
 			draw_rect(cap, Color(0.9, 0.9, 0.95), false, 1.0)
 	if result.has("top"):  ## A shaft: from its top floor down to its bottom.
@@ -430,8 +430,8 @@ func _draw() -> void:
 	elif result["height"] > 1:
 		for _i in range(result["height"] - 1):  ## Stairs span two floors, a lobby up to three: draw from the top one.
 			top = RoomsScript.floor_above(top)
-	var rect := Rect2i(result["x"] * VC.CELL_PX, VC.floor_to_row(top) * VC.CELL_PX,
-		result["width"] * VC.CELL_PX, rows * VC.CELL_PX)
+	var rect := Rect2i(result["x"] * VC.CELL_W, VC.floor_to_row(top) * VC.CELL_H,
+		result["width"] * VC.CELL_W, rows * VC.CELL_H)
 	var tint := VALID_TINT if result["valid"] else INVALID_TINT
 	draw_rect(rect, tint)
 	draw_rect(rect, Color(tint, 1.0), false, 1.0)

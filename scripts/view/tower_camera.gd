@@ -3,12 +3,14 @@ extends Camera2D
 ## steps, always clamped so the view never leaves the tower's world.
 
 const ViewConsts := preload("res://scripts/view/view_consts.gd")
-const ZOOM_STEPS: Array[int] = [1, 2, 3, 4]
+## Whole numbers only, so a native pixel (10.2) is always a whole number of screen pixels.
+const ZOOM_STEPS: Array[int] = [1, 2, 3, 4, 6]
+const START_ZOOM_INDEX := 1  ## Zoom 2: a floor is 48 px, a figure about 14 px, at 1080p.
 const KEY_SPEED_PX := 600.0  ## Screen pixels per second.
 const EDGE_MARGIN_PX := 8
 const EDGE_SPEED_PX := 500.0
 
-var _zoom_index: int = 0
+var _zoom_index: int = START_ZOOM_INDEX
 var _dragging: bool = false
 var _focus: Vector2 = Vector2.ZERO  ## Intended view centre (world px); `position` is its clamped result.
 
@@ -32,7 +34,7 @@ static func clamp_position(pos: Vector2, view_px: Vector2, zoom: int, world: Rec
 ## The focus point that centres the lobby (floor 1), the middle of the tower's width.
 static func start_focus() -> Vector2:
 	var row: int = ViewConsts.floor_to_row(1)
-	return Vector2(ViewConsts.world_rect().size.x / 2.0, (row + 0.5) * ViewConsts.CELL_PX)
+	return Vector2(ViewConsts.world_rect().size.x / 2.0, (row + 0.5) * ViewConsts.CELL_H)
 
 
 ## Applied camera position for an intended focus: view-clamped, whole pixels.
