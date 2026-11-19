@@ -29,7 +29,9 @@ static func _put(t: TowerSim, kind: String, floor_number: int, x: int) -> int:
 
 ## Makes the first fire certain (once a security office stands), so tests do not wait on 4% a day.
 static func _force(t: TowerSim) -> void:
-	t.events.kinds[0]["chance_of"] = func() -> int: return 100000 if Sec.threats_possible(t.rooms) and t.fire.state_ints()[1] == 0 else 0
+	var fire := t.fire  # the closure holds the parts, not the tower, so nothing cycles and leaks
+	var rooms := t.rooms
+	t.events.kinds[0]["chance_of"] = func() -> int: return 100000 if Sec.threats_possible(rooms) and fire.state_ints()[1] == 0 else 0
 
 
 ## Steps until a room burns; false if none does within the limit.

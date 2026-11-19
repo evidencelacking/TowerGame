@@ -147,7 +147,7 @@ func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_START
 	names.name_seed = seed_value
 	events.reseed(seed_value)
 	fire.reseed(seed_value)
-	events.kinds = [fire.kind(_fire_chance)] as Array[Dictionary]
+	events.kinds = [fire.kind()] as Array[Dictionary]
 	ledger = LedgerScript.new(starting_funds)
 	rooms.floors = floors
 	word_of_mouth.attach(grades, rooms, grid, people)
@@ -176,10 +176,6 @@ func enqueue(command: Command) -> bool:
 ## People in the tower right now (derived from people, not saved).
 func population() -> int:
 	return people.in_tower_count() + commerce.visitors_inside(clock.minute_of_day())
-
-
-func _fire_chance() -> int:
-	return fire.chance(rooms)
 
 
 ## Removes a room by disaster (fire, #217) and lets go of everything that pointed at it, as a bulldoze does.

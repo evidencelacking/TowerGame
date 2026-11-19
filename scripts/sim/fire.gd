@@ -56,13 +56,17 @@ func reseed(tower_seed: int) -> void:
 	_rng.reseed(tower_seed ^ SEED_SALT)
 
 
-## The event kind to register in Events.kinds. chance_of is the gate: 0 without a security office.
-func kind(chance_of: Callable) -> Dictionary:
-	return {"id": KIND, "class": EventsScript.FIRE, "chance": CHANCE, "chance_den": CHANCE_DEN, "chance_of": chance_of,
+## The event kind to register in Events.kinds. Its chance is gated: 0 without a security office.
+func kind() -> Dictionary:
+	return {"id": KIND, "class": EventsScript.FIRE, "chance": CHANCE, "chance_den": CHANCE_DEN, "chance_of": _gate,
 		"min_stars": MIN_STARS, "choices": 2, "timeout": TIMEOUT, "floor": 0, "costs": [0, RESCUE_COST],
 		"title": "Fire!",
 		"text": "A fire has broken out in the tower. Guards from a security office within reach will put it out, but a floor no office covers has no guards. A burning room is destroyed after three periods, and the fire spreads to rooms beside and above.\nA rescue craft costs $500,000: it arrives in about one period and puts out every fire, but the first two rooms that burned are lost.",
 		"labels": ["Leave it to the guards", "Call the rescue craft ($500,000)"]}
+
+
+func _gate() -> int:
+	return chance(_rooms)
 
 
 ## The chance now: the fire's odds with a security office, none without.
