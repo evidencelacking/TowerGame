@@ -14,6 +14,7 @@ const RoomInfo := preload("res://scripts/view/room_info.gd")
 const ElevatorTools := preload("res://scripts/view/elevator_tools.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
+const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
 var tower: TowerSim = null
@@ -22,6 +23,7 @@ var shaft_id: int = -1  ## The shaft shown, or -1 when closed.
 var panel: PanelContainer
 var title: Label
 var grid: GridContainer
+var schedule_grid: GridContainer
 var _signature: String = ""
 
 
@@ -63,6 +65,13 @@ func _init() -> void:
 	grid = GridContainer.new()
 	grid.name = "Grid"
 	scroll.add_child(grid)
+	var heading := Label.new()
+	heading.text = "Schedule: mode, response floors (0 any), wait seconds (0 to 90)"
+	column.add_child(heading)
+	schedule_grid = GridContainer.new()
+	schedule_grid.name = "Schedule"
+	schedule_grid.columns = 4
+	column.add_child(schedule_grid)
 
 
 func bind(tower_value: TowerSim, ghost_value: Ghost) -> void:
@@ -95,7 +104,7 @@ static func describe(t: Object, id: int) -> Dictionary:
 			rows.append({"floor": floor_number, "label": ElevatorTools.floor_label(floor_number), "stop": t.rooms.is_stop(id, floor_number), "homes": marks})
 		var kind: String = t.rooms.kind_of(id)
 		return {"id": id, "label": "%s, %s to %s" % [kind.replace("_", " "), ElevatorTools.floor_label(shaft["bottom"]), ElevatorTools.floor_label(shaft["top"])],
-			"bottom": shaft["bottom"], "top": shaft["top"], "cars": homes.size(), "homes": homes, "stop_count": shaft["stops"].size(), "rows": rows}
+			"schedule": t.rooms.schedule_of(id), "bottom": shaft["bottom"], "top": shaft["top"], "cars": homes.size(), "homes": homes, "stop_count": shaft["stops"].size(), "rows": rows}
 	return {}
 
 
@@ -160,6 +169,11 @@ func add_car() -> bool:
 	return _send(TowerSim.Command.ADD_CAR, [shaft_id, stops[0]] as Array[int])
 
 
+## Sets one schedule slot (0 to 5: weekday then weekend, morning, midday, evening).
+func set_schedule(slot: int, mode: int, response: int, wait: int) -> bool:
+	return _send(TowerSim.Command.SET_SCHEDULE, [shaft_id, slot, mode, response, wait] as Array[int])
+
+
 func remove_car() -> bool:
 	return _send(TowerSim.Command.REMOVE_CAR, [shaft_id] as Array[int])
 
@@ -183,6 +197,7 @@ func _refresh() -> void:
 	for child in grid.get_children():
 		grid.remove_child(child)
 		child.queue_free()
+	_fill_schedule(info["schedule"])
 	var cars: int = info["cars"]
 	grid.columns = 2 + cars
 	_label("Floor")
@@ -207,6 +222,42 @@ func _refresh() -> void:
 			home.focus_mode = Control.FOCUS_NONE
 			home.pressed.connect(func() -> void: set_home(n, floor_number))
 			grid.add_child(home)
+
+
+func _fill_schedule(schedule: Array[int]) -> void:
+	for child in schedule_grid.get_children():
+		schedule_grid.remove_child(child)
+		child.queue_free()
+	var days: Array[String] = ["Weekday", "Weekend"]
+	var parts: Array[String] = ["morning", "midday", "evening"]
+	var modes: Array[String] = ["normal", "express top", "express bottom"]
+	for slot in RoomsScript.SCHEDULE_SLOTS:
+		var mode: int = schedule[slot * RoomsScript.SCHEDULE_FIELDS]
+		var response: int = schedule[slot * RoomsScript.SCHEDULE_FIELDS + 1]
+		var wait: int = schedule[slot * RoomsScript.SCHEDULE_FIELDS + 2]
+		var name_label := Label.new()
+		name_label.text = "%s %s" % [days[slot / RoomsScript.SCHEDULE_PERIODS], parts[slot % RoomsScript.SCHEDULE_PERIODS]]
+		schedule_grid.add_child(name_label)
+		var mode_button := Button.new()
+		mode_button.name = "Mode%d" % slot
+		mode_button.text = modes[mode]
+		mode_button.focus_mode = Control.FOCUS_NONE
+		mode_button.pressed.connect(func() -> void: set_schedule(slot, (mode + 1) % modes.size(), response, wait))
+		schedule_grid.add_child(mode_button)
+		var response_box := SpinBox.new()
+		response_box.name = "Response%d" % slot
+		response_box.min_value = 0
+		response_box.max_value = RoomsScript.MAX_RESPONSE
+		response_box.value = response
+		response_box.value_changed.connect(func(value: float) -> void: set_schedule(slot, mode, int(value), wait))
+		schedule_grid.add_child(response_box)
+		var wait_box := SpinBox.new()
+		wait_box.name = "Wait%d" % slot
+		wait_box.min_value = 0
+		wait_box.max_value = RoomsScript.MAX_WAIT
+		wait_box.value = wait
+		wait_box.value_changed.connect(func(value: float) -> void: set_schedule(slot, mode, response, int(value)))
+		schedule_grid.add_child(wait_box)
 
 
 func _label(text: String) -> void:

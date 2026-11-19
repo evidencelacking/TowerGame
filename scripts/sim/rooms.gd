@@ -68,6 +68,18 @@ const NO_MACHINE_ROOM := 70  ## Shaft: no floor above the top stop (floor 100) o
 const MACHINE_ROOM := 71  ## A shaft's machine room is on the cell, so no room or link goes there.
 const ESCALATOR_FLOOR := 69  ## Escalator: it stands only on commercial, lobby or empty floors (#185), never over an office, condo or the like.
 
+## Schedules (#188): a shaft has a weekday and a weekend schedule, each over 3 periods (morning,
+## midday, evening). A slot is day_type * SCHEDULE_PERIODS + period, and holds MODE, RESPONSE, WAIT.
+const SCHEDULE_PERIODS := 3
+const SCHEDULE_SLOTS := 6  ## 2 day types x 3 periods.
+const SCHEDULE_FIELDS := 3
+const SCHEDULE_INTS := SCHEDULE_SLOTS * SCHEDULE_FIELDS
+const MODE_NORMAL := 0  ## Idle cars go home.
+const MODE_TOP := 1  ## Express to top: an idle, empty car is sent to the top stop at once.
+const MODE_BOTTOM := 2  ## Express to bottom: the same, to the bottom stop.
+const MAX_WAIT := 90  ## Longest departure wait, in sim seconds. Larger values clamp to this.
+const MAX_RESPONSE := 100  ## Response distance in floors; 0 is no limit.
+const BAD_SCHEDULE := 73  ## Schedule: no such slot or mode.
 const CAR_INTS := 9  ## Ints in one saved car (SHAFT to NEXT in cars.gd).
 const MIN_STOPS := 2  ## A shaft needs at least this many stops (gameplay review of #187: yes).
 const MAX_CARS_PER_SHAFT := 8  ## Cars in one shaft (reference).
@@ -104,6 +116,8 @@ var _queue: Array = []  # people waiting for a car: [person id, shaft id, floor,
 var alighted: Array = []  # [person id, floor] of recent alighters until #95 takes them with take_alighted()
 ## Set by Tower so an express shaft can tell which floors are lobbies (its only stops above ground).
 var floors: FloorsScript = null
+var _schedules: Dictionary = {}  # shaft id -> SCHEDULE_INTS ints (slot * SCHEDULE_FIELDS + MODE, RESPONSE, WAIT); absent = all defaults
+var schedule_slot: int = 0  ## The slot now in force, set by the tower each tick from the clock (derived, not saved).
 var _calls: Array = []  # hall calls [shaft id, floor, dir, car index or -1] in arrival order (see cars.gd)
 
 
@@ -842,6 +856,51 @@ func set_car_home(shaft_id: int, nth: int, home: int) -> int:
 	return NO_SUCH_CAR
 
 
+## The slot (0 to 5) for a day type and the clock's 1-based period (1 to 6): weekday 0, weekend 1;
+## the 6 clock periods fall in morning (1, 2), midday (3, 4) and evening (5, 6).
+static func slot_for(weekend: bool, clock_period: int) -> int:
+	return (SCHEDULE_PERIODS if weekend else 0) + clampi((clock_period - 1) >> 1, 0, SCHEDULE_PERIODS - 1)
+
+
+## A shaft's schedule: SCHEDULE_INTS ints, defaults (all zero) when never set.
+func schedule_of(shaft_id: int) -> Array[int]:
+	var out: Array[int] = []
+	if _schedules.has(shaft_id):
+		out.append_array(_schedules[shaft_id] as Array[int])
+	else:
+		out.resize(SCHEDULE_INTS)
+		out.fill(0)
+	return out
+
+
+## One field (MODE 0, RESPONSE 1, WAIT 2) of a shaft's schedule slot.
+func schedule_field(shaft_id: int, slot: int, field: int) -> int:
+	if not _schedules.has(shaft_id) or slot < 0 or slot >= SCHEDULE_SLOTS or field < 0 or field >= SCHEDULE_FIELDS:
+		return 0
+	return _schedules[shaft_id][slot * SCHEDULE_FIELDS + field]
+
+
+## Sets a slot (the SET_SCHEDULE command): shaft id, slot, mode, response distance, departure wait
+## in sim seconds. The wait clamps to MAX_WAIT and the distance to 0..MAX_RESPONSE.
+func set_schedule(shaft_id: int, slot: int, mode: int, response: int, wait: int) -> int:
+	if not _shafts.has(shaft_id):
+		return NOTHING_THERE
+	if slot < 0 or slot >= SCHEDULE_SLOTS or mode < MODE_NORMAL or mode > MODE_BOTTOM:
+		return BAD_SCHEDULE
+	var values: Array[int] = schedule_of(shaft_id)
+	values[slot * SCHEDULE_FIELDS] = mode
+	values[slot * SCHEDULE_FIELDS + 1] = clampi(response, 0, MAX_RESPONSE)
+	values[slot * SCHEDULE_FIELDS + 2] = clampi(wait, 0, MAX_WAIT)
+	var plain := true
+	for value in values:
+		plain = plain and value == 0
+	if plain:
+		_schedules.erase(shaft_id)
+	else:
+		_schedules[shaft_id] = values
+	return OK
+
+
 ## Turns a shaft's stop on a floor on or off (the SET_SHAFT_STOP command). Refused if the floor
 ## is outside the span, or if switching it off would leave fewer than MIN_STOPS stops. A disabled floor is passed, not stopped at.
 func set_shaft_stop(id: int, floor_number: int, on: bool) -> int:
@@ -1106,6 +1165,7 @@ func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
 				floors.mark_shaft(level, column, false)
 			level = floor_above(level)
 		_shafts.erase(id)
+		_schedules.erase(id)
 
 
 ## True when id is the upper-floor half of a stairs or escalator (not a link of its own).
@@ -1293,6 +1353,12 @@ func state_ints() -> Array[int]:
 		ints.append(_riders[n].size())
 		for rider: Array in _riders[n]:
 			ints.append_array(rider as Array[int])
+	var scheduled: Array = _schedules.keys()
+	scheduled.sort()
+	ints.append(scheduled.size())
+	for shaft_id: int in scheduled:
+		ints.append(shaft_id)
+		ints.append_array(_schedules[shaft_id] as Array[int])
 	var link_ints := links.state_ints()
 	ints.append(link_ints.size())
 	ints.append_array(link_ints)
@@ -1342,6 +1408,11 @@ func load_ints(ints: Array) -> bool:
 			riders.append(ints.slice(at + 1 + 2 * i, at + 3 + 2 * i))
 		_riders.append(riders)
 		at += 1 + 2 * riders.size()
+	_schedules = {}
+	for i in range(ints[at]):
+		_schedules[ints[at + 1]] = ints.slice(at + 2, at + 2 + SCHEDULE_INTS)
+		at += 1 + SCHEDULE_INTS
+	at += 1
 	links.load_ints(ints.slice(at + 1, at + 1 + ints[at]))
 	alighted = []
 	_next_id = ints[0]
@@ -1388,6 +1459,18 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 		if ints[at] < 0 or at + 1 + 2 * ints[at] > ints.size():
 			return false
 		at += 1 + 2 * ints[at]
+	if at >= ints.size() or ints[at] < 0 or at + 1 + (1 + SCHEDULE_INTS) * ints[at] >= ints.size():
+		return false
+	var schedule_total: int = ints[at]
+	for i in range(schedule_total):
+		if not shaft_ids.has(ints[at + 1 + (1 + SCHEDULE_INTS) * i]):
+			return false
+		for k in SCHEDULE_INTS:
+			var value: int = ints[at + 2 + (1 + SCHEDULE_INTS) * i + k]
+			var field: int = k % SCHEDULE_FIELDS
+			if value < 0 or (field == 0 and value > MODE_BOTTOM) or (field == 1 and value > MAX_RESPONSE) or (field == 2 and value > MAX_WAIT):
+				return false
+	at += 1 + (1 + SCHEDULE_INTS) * schedule_total
 	if at >= ints.size() or ints[at] < 0 or at + 1 + ints[at] != ints.size():
 		return false
 	var link_grid := GridScript.new()

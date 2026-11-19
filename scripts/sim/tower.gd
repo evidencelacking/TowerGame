@@ -60,6 +60,7 @@ class Command:
 	const PLACE_ESCALATOR := 18  ## Places an escalator between two floors: args are lower floor, x_left. See Rooms.place_escalator.
 	const DEBUG_UNLOCK_ALL := 90  ## Debug only: args[0] 1 unlocks every room kind, 0 restores star gating. See Tower.unlock_all.
 	const SET_CAR_HOME := 20  ## Moves a car's home floor: args are shaft id, the car's place among the shaft's cars (0 oldest), floor. See Rooms.set_car_home.
+	const SET_SCHEDULE := 21  ## Sets one shaft schedule slot: args are shaft id, slot (0 to 5: weekday then weekend, 3 periods each), mode (0 normal, 1 express to top, 2 to bottom), response distance, departure wait in seconds. See Rooms.set_schedule.
 	const SET_SHAFT_STOP := 15  ## Turns a shaft's stop on a floor on or off: args are shaft id, floor, on (1 or 0). See Rooms.set_shaft_stop.
 
 	var tick: int = 0  ## The tick this command applies at.
@@ -74,7 +75,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 36
+const SAVE_VERSION := 37
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -295,6 +296,10 @@ func _apply_command(command: Command) -> void:
 			if command.args.size() == 3:
 				last_refusal = rooms.set_car_home(command.args[0], command.args[1], command.args[2])
 				_note_refusal(MessagesScript.ROOM_REFUSED, command.args[0])
+		Command.SET_SCHEDULE:
+			if command.args.size() == 5:
+				last_refusal = rooms.set_schedule(command.args[0], command.args[1], command.args[2], command.args[3], command.args[4])
+				_note_refusal(MessagesScript.ROOM_REFUSED, command.args[0])
 		Command.REMOVE_CAR:
 			if command.args.size() == 1:
 				last_refusal = rooms.remove_car(command.args[0])
@@ -335,6 +340,7 @@ func _run_systems() -> void:
 			messages.add(tick, MessagesScript.TRIP_UNREACHABLE, trips.blocked_transfers)
 		trips.blocked_transfers = 0
 	grades.tick(people)
+	rooms.schedule_slot = RoomsScript.slot_for(clock.day_of_week() == Clock.WE, clock.period())
 	CarsScript.tick(rooms)
 	trips.collect_arrivals(floors, rooms, grid, people)
 	people.tick(clock)
