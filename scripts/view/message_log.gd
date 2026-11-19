@@ -161,6 +161,7 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.TENANT_LEFT: return "Tenants left a %s on floor %s" % [_kind_name(a), _floor_name(b)]
 		Msg.DAILY_SALES: return "Shops settled: %s$%d across %d shop(s)" % ["-" if a < 0 else "", absi(a), b]
 		Msg.QUARTER_SETTLED: return "Quarter closed: rent $%d, running costs $%d" % [a, b]
+		Msg.TRIP_UNREACHABLE: return "%d people cannot reach their goal: a trip may change elevators only once, at a lobby" % a
 		Msg.GUEST_UNREACHED: return "Hotel guests could not reach their room and left"
 		Msg.VIP_ARRIVED: return "A VIP checked into a suite"
 		Msg.VIP_GOOD: return "The VIP left delighted"

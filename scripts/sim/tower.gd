@@ -325,6 +325,10 @@ func _run_systems() -> void:
 		if rent_income > 0 or running > 0:
 			messages.add(tick, MessagesScript.QUARTER_SETTLED, rent_income, running)
 	trips.tick(clock, floors, rooms, grid, people)
+	if trips.blocked_transfers > 0:  # a trip that needs a second transfer has no route: warn once a day
+		if not messages.recent(MessagesScript.TRIP_UNREACHABLE, tick - TripsScript.WARN_EVERY_TICKS + 1):
+			messages.add(tick, MessagesScript.TRIP_UNREACHABLE, trips.blocked_transfers)
+		trips.blocked_transfers = 0
 	grades.tick(people)
 	CarsScript.tick(rooms)
 	trips.collect_arrivals(floors, rooms, grid, people)
