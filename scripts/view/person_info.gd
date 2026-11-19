@@ -3,6 +3,7 @@ extends RefCounted
 
 const VC := preload("res://scripts/view/view_consts.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
+const NamesScript := preload("res://scripts/sim/names.gd")
 
 const BAND_NAMES: Array[String] = ["Calm", "Uneasy", "Angry"]
 const OUTSIDE := "outside"
@@ -23,7 +24,7 @@ static func room_label(tower: Object, room: int) -> String:
 	return "%s, floor %s" % [kind.capitalize().replace("_", " "), "B%d" % -floor_number if floor_number < 0 else str(floor_number)]
 
 
-## The person at index i: {"id", "name", "from", "to", "stress", "band", "band_name", "renamed"}.
+## The person at index i: {"id", "name", "age", "age_name", "title", "from", "to", "stress", "band", "band_name", "renamed"}.
 ## From is the room they left (or are in); to is the room they are heading for.
 static func describe(tower: Object, i: int) -> Dictionary:
 	var people: PeopleScript = tower.people
@@ -32,7 +33,12 @@ static func describe(tower: Object, i: int) -> Dictionary:
 		here = people.trip_from(i)
 	var id := people.id_at(i)
 	var band := people.stress_band(i)
+	var seed_value: int = tower.names.name_seed
+	var kind: String = tower.rooms.kind_of(people.work_of(i)) if people.work_of(i) != PeopleScript.NONE else tower.rooms.kind_of(people.home_of(i))
+	var age: int = NamesScript.age_band(seed_value, id)
+	var title: String = NamesScript.title_for(seed_value, id, kind)
 	return {
+		"age": age, "age_name": NamesScript.BAND_NAMES[age], "title": title,
 		"id": id, "name": tower.names.name_of(id), "renamed": tower.names.is_renamed(id),
 		"from": room_label(tower, here), "to": room_label(tower, people.goal_room(i)),
 		"stress": people.stress_of(i), "band": band, "band_name": BAND_NAMES[band],
@@ -40,7 +46,9 @@ static func describe(tower: Object, i: int) -> Dictionary:
 
 
 static func lines_for(info: Dictionary) -> Array[String]:
+	var who: String = info["age_name"] if info["title"] == "" else "%s, %s" % [info["title"], info["age_name"].to_lower()]
 	return [
+		who,
 		"From: %s" % info["from"],
 		"To: %s" % info["to"],
 		"Stress: %d (%s)" % [info["stress"], info["band_name"]],
