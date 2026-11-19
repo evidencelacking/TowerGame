@@ -21,6 +21,12 @@ func _ready() -> void:
 	($PlacementGhost as PlacementGhost).set_tower(_tower)
 	($MessageLog as MessageLog).set_tower(_tower)
 	($Toolbar as Toolbar).bind($PlacementGhost as PlacementGhost)
+	var banner := CanvasLayer.new()
+	banner.set_script(preload("res://scripts/view/promotion_banner.gd"))
+	banner.name = "PromotionBanner"
+	add_child(banner)
+	banner.bind(_tower)
+	banner.unlocked.connect(($Toolbar as Toolbar).mark_new)
 	var person_window := PersonWindow.new()
 	person_window.name = "PersonWindow"
 	add_child(person_window)
