@@ -217,7 +217,7 @@ func _apply_command(command: Command) -> void:
 					messages.add(tick, MessagesScript.FLOOR_BUILT, command.args[0])
 		Command.BUILD_LOBBY:
 			if command.args.size() == 4:
-				last_refusal = floors.build_lobby(ledger, tick, command.args[0], command.args[1], command.args[2], command.args[3])
+				last_refusal = floors.build_lobby(ledger, tick, command.args[0], command.args[1], command.args[2], command.args[3], grid)
 				if not _note_refusal(MessagesScript.LOBBY_REFUSED, 0):
 					messages.add(tick, MessagesScript.LOBBY_BUILT, command.args[3])
 		Command.PLACE_ROOM:

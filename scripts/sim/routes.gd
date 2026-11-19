@@ -119,7 +119,6 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 		var cost := ESCALATOR_COST if node_esc[k] else STAIRS_COST
 		edges[k].append([k + 1, cost, kind, false])
 		edges[k + 1].append([k, cost, kind, false])
-	var lobby_top := _lobby_top(floors)
 	var waiting := rooms.waiting_keys()  # what car_waiting_at would say, from one pass over the cars
 	var group_start := stair_nodes  # a shaft's stop nodes are contiguous, in stop order
 	for i in range(stair_nodes, count):
@@ -130,7 +129,7 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 		while j < count and node_shaft[j] == node_shaft[i]:
 			if j != i:
 				var rise := absi(GridScript.floor_to_index(node_floor[i]) - GridScript.floor_to_index(node_floor[j]))
-				edges[i].append([j, base + ELEVATOR_COST_PER_FLOOR * rise, 2, node_floor[j] >= 1 and node_floor[j] <= lobby_top])
+				edges[i].append([j, base + ELEVATOR_COST_PER_FLOOR * rise, 2, floors.is_lobby_floor(node_floor[j])])
 			j += 1
 
 	if not _search(node_floor, node_x, node_shaft, node_esc, edges, floors, true, result):
@@ -144,16 +143,10 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 	return result
 
 
-## True when floor_number is a lobby floor, where elevator transfers are allowed. Today that is
-## the ground lobby's floors; sky lobbies join here later.
+## True when floor_number is a lobby floor, where elevator transfers are allowed: the ground
+## lobby's floors and the sky lobby floors that have a lobby (Floors.is_lobby_floor).
 static func is_lobby_floor(floors: FloorsScript, floor_number: int) -> bool:
-	return floor_number >= 1 and floor_number <= _lobby_top(floors)
-
-
-## The top floor of the ground lobby, or 0 when there is none. Read once per search.
-static func _lobby_top(floors: FloorsScript) -> int:
-	var span := floors.lobby_span()
-	return 0 if span.is_empty() else span[2]
+	return floors.is_lobby_floor(floor_number)
 
 
 ## Every stairs and escalator as [floor, column, is_escalator], bottom floor first and left to
@@ -183,7 +176,6 @@ static func _stair_spots(rooms: RoomsScript, grid: GridScript) -> Array:
 ## of rides is fine. Fills result.legs and returns true when the goal is reached.
 static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Array[int], node_esc: Array[bool], edges: Array, floors: FloorsScript, limit_transfers: bool, result: Dictionary) -> bool:
 	var step := LEG_LIMIT + 1
-	var lobby_top := _lobby_top(floors)
 	var states := node_floor.size() * step * 4
 	var dist: Array[int] = []
 	var prev: Array[int] = []
@@ -224,7 +216,7 @@ static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Arra
 			if edge[2] == 2 and limit_transfers:
 				if es == 0:
 					next_es = 2 if edge[3] else 1
-				elif es == 2 and node_floor[node] >= 1 and node_floor[node] <= lobby_top:
+				elif es == 2 and floors.is_lobby_floor(node_floor[node]):
 					next_es = 3
 				else:
 					continue

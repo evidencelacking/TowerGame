@@ -34,7 +34,10 @@ const FLOOR_TEXT: Dictionary = {
 	FloorsScript.OVER_SHAFT: "Over a shaft",
 	FloorsScript.ALREADY_BUILT: "Already built",
 	FloorsScript.OCCUPIED_BY_LOBBY: "Overlaps the lobby",
-	FloorsScript.LOBBY_BAD_FLOOR: "The lobby goes on floor 1",
+	FloorsScript.LOBBY_BAD_FLOOR: "Lobbies go on floor 1, or 15, 30, 45, 60, 75, 90",
+	FloorsScript.SKY_NEEDS_LOBBY: "Build the ground lobby first",
+	FloorsScript.SKY_WIDER_THAN_LOBBY: "A sky lobby is no wider than the ground lobby",
+	FloorsScript.SKY_OCCUPIED: "A room is in the way",
 	FloorsScript.LOBBY_BAD_HEIGHT: "Lobby must be 1 to 3 floors tall",
 	FloorsScript.LOBBY_EXISTS: "The lobby is already built",
 	FloorsScript.LOBBY_GAPPED: "Must touch the existing lobby",
@@ -177,13 +180,13 @@ static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: in
 	match tool_id:
 		"lobby":
 			source = "floors"
-			var lobby := t.floors.check_lobby(floor_number, out["x"], out["x"] + out["width"] - 1, 1)
+			var lobby := t.floors.check_lobby(floor_number, out["x"], out["x"] + out["width"] - 1, 1, t.grid)
 			code = lobby["reason"]
 			out["cost"] = lobby["cost"]
 			if lobby["x_end"] >= lobby["x_start"]:  ## Show the span as clamped to the grid.
 				out["x"] = maxi(lobby["x_start"], 0)
 				out["width"] = mini(lobby["x_end"], GridScript.WIDTH_UNITS - 1) - out["x"] + 1
-			if t.floors.has_lobby():  ## Extending: the lobby's height, and say so.
+			if floor_number == 1 and t.floors.has_lobby():  ## Extending: the lobby's height, and say so.
 				out["height"] = lobby["height"]
 				out["note"] = "Widen lobby, %d unit%s" % [out["width"], "" if out["width"] == 1 else "s"]
 		"floor":
@@ -259,7 +262,7 @@ static func command_for(tool_id: String, verdict: Dictionary, tick: int, kind: S
 		ESCALATOR: return Cmd.make(due, Cmd.PLACE_ESCALATOR, [floor_number, x] as Array[int])
 		"local_shaft", "service_shaft", "local_car", "service_car":
 			return Cmd.make(due, verdict["command"], verdict["args"])
-		"lobby": return Cmd.make(due, Cmd.BUILD_LOBBY, [1, x, x + verdict["width"] - 1, 1] as Array[int])
+		"lobby": return Cmd.make(due, Cmd.BUILD_LOBBY, [floor_number, x, x + verdict["width"] - 1, 1] as Array[int])
 		"floor": return Cmd.make(due, Cmd.BUILD_FLOOR, [floor_number, x, x + verdict["width"] - 1] as Array[int])
 	if CatalogueScript.has(tool_id):
 		return Cmd.make(due, Cmd.PLACE_ROOM, [CatalogueScript.IDS.find(tool_id), floor_number, x] as Array[int])
