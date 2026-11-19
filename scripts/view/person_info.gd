@@ -63,6 +63,8 @@ static func pick(figures: Array[Dictionary], world: Vector2, radius: float) -> i
 	var best := -1
 	var best_dist := radius * radius
 	for figure: Dictionary in figures:
+		if figure.get("staff", false):
+			continue
 		var d := figure_center(figure).distance_squared_to(world)
 		var id: int = figure["id"]
 		if d < best_dist or (d == best_dist and best != -1 and id < best):

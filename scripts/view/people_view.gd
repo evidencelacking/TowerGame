@@ -144,7 +144,9 @@ func _cleaners(tower: Object) -> Array[Dictionary]:
 		var run: Array[int] = tower.grid.run_of(room)
 		if run.is_empty():
 			continue
-		out.append(_resting(run, room, tower.rooms.kind_of(room), ActivityLook.CLEANING, 1, 0, run[1]))
+		var cleaner := _resting(run, room, tower.rooms.kind_of(room), ActivityLook.CLEANING, 1, 0, run[1])
+		cleaner["staff"] = true  # not a person: the id is the room's, so a click must not open a person window
+		out.append(cleaner)
 	return out
 
 
