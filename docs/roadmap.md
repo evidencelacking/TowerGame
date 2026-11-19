@@ -29,7 +29,7 @@ systems, and then becomes our own.
 |---|---|---|
 | Engine | Godot 4, GDScript, statically typed | Same as the strategy game: its skill, hooks, lint and CI carry over. Full screen, scaling and Windows/Mac/Linux export built in |
 | Simulation | `scripts/sim/`: integers only, fixed tick, seeded random, commands in | Deterministic, testable headless, replayable; saves are just state |
-| Display | Native Godot shapes (coloured blocks, simple people) until the game plays well; original pixel art at integer scale in M10 | Playable before art (owner, 2026-11-10). No art from the original |
+| Display | Native Godot shapes (coloured blocks, simple people) until the game plays well; original pixel art drawn by code at integer scale in M10 (no image files; zoom-detail sprites later) | Playable before art (owner, 2026-11-10). No art from the original |
 | Platforms | Windows first; Mac and Linux checked at milestones | The owner's machine |
 | Repo | `evidencelacking/TowerGame` (public, empty) | Owner's choice; strict content boundary |
 | Values in conflict | Manual wins unless the player guides agree with each other; else we tune | Owner, 2026-11-10 |
