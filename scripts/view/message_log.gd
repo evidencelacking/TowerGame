@@ -163,6 +163,8 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.QUARTER_SETTLED: return "Quarter closed: rent $%d, running costs $%d" % [a, b]
 		Msg.GUEST_UNREACHED: return "Hotel guests could not reach their room and left"
 		Msg.ROOM_DIRTY: return "A hotel room needs cleaning"
+		Msg.PESTS_WARNING: return "A dirty hotel room will get pests soon"
+		Msg.PESTS_FOUND: return "Pests in a hotel room: demolish it to clear them"
 		Msg.STAR_PROMOTED: return "Your tower has grown to %d stars. New buildings are open to you." % a
 	return "Something happened"
 

@@ -119,7 +119,7 @@ func dirty_since(room: int) -> int:
 
 
 func is_dirty(room: int) -> bool:
-	return dirty_since(room) >= 0
+	return dirty_since(room) >= 0 and not is_infested(room)
 
 
 ## Housekeeping hook (#147): the room has been cleaned and may take guests again.
@@ -150,6 +150,14 @@ func parking_free() -> int:
 
 
 ## Forgets a room (bulldozed or replaced). Tower calls it beside People.remove_room.
+## Set by Tower (#149). An infested room takes no guests and reads as not dirty, so cleaning staff skip it.
+var pests: Object = null
+
+
+func is_infested(room: int) -> bool:
+	return pests != null and pests.is_infested(room)
+
+
 func remove_room(room: int) -> void:
 	_records.erase(room)
 
@@ -194,7 +202,7 @@ func tick(clock: ClockScript, floors: FloorsScript, people: PeopleScript, rng: O
 
 
 func _vacant(id: int, r: Array[int], minute: int, night: int, floors: FloorsScript, people: PeopleScript, rng: Object) -> void:
-	if r[_DIRTY_SINCE] >= 0 or not floors.has_lobby():
+	if r[_DIRTY_SINCE] >= 0 or is_infested(id) or not floors.has_lobby():
 		return
 	if minute >= CHECK_IN_FROM and minute < CHECK_IN_TO and r[_PLANNED_NIGHT] != night:
 		r[_PLANNED_NIGHT] = night
