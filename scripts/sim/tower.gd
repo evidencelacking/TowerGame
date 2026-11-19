@@ -70,7 +70,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 30
+const SAVE_VERSION := 31
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -213,6 +213,7 @@ func _apply_command(command: Command) -> void:
 				if last_refusal == RoomsScript.OK:
 					people.remove_room(doomed["room_id"])
 					rent.remove_room(doomed["room_id"])
+					commerce.remove_room(doomed["room_id"])
 					hotel.remove_room(doomed["room_id"])
 					pests.remove_room(doomed["room_id"])
 				if not _note_refusal(MessagesScript.BULLDOZE_REFUSED, command.args[0]):
@@ -226,6 +227,7 @@ func _apply_command(command: Command) -> void:
 				if last_refusal == RoomsScript.OK:
 					people.remove_room(replaced["room_id"])
 					rent.remove_room(replaced["room_id"])
+					commerce.remove_room(replaced["room_id"])
 					hotel.remove_room(replaced["room_id"])
 					pests.remove_room(replaced["room_id"])
 				if not _note_refusal(MessagesScript.REPLACE_REFUSED, command.args[0]):
@@ -295,7 +297,7 @@ func _run_systems() -> void:
 	pests.tick(hotel, grid, rng, messages, tick)
 	housekeeping.tick(clock, floors, grid)
 	if clock.quarter_started:
-		var rent_income := rent.collect(rooms, people, ledger, tick)
+		var rent_income := rent.collect(rooms, people, ledger, tick) + commerce.collect_rent(rooms, rent, ledger, tick)
 		var running := RunningCostsScript.charge(rooms, floors, ledger, tick)
 		if rent_income > 0 or running > 0:
 			messages.add(tick, MessagesScript.QUARTER_SETTLED, rent_income, running)
@@ -329,6 +331,7 @@ func promote_stars() -> void:
 ## a day (Evaluation.EVALUATE_MINUTE); public so tests can call it.
 func evaluate_tenants() -> void:
 	evaluation.evaluate(rooms, people, grades, grid, floors, tenancy, ledger, messages, rng, tick)
+	commerce.evaluate(floors, rooms, grid, tenancy, rent, messages, tick)
 
 
 ## Quality score 0 to 300 of a graded room (office, condo, hotel), or -1. Read-only, for the view.
