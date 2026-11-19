@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://mockups/art_scene.gd" id="1"]
+
+[node name="ArtB" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1")
+style_id = 1
+title_text = "B: muted architectural, thin lines, cool night"
+file_stem = "art_b"

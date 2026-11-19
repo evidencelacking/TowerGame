@@ -1,6 +1,6 @@
 """Launches the game: imports first when Godot's class cache is stale, then runs it full screen.
 
-  python tools/play.py [extra Godot arguments]
+  python tools/play.py [--scene res://path.tscn] [extra Godot arguments]
 """
 import subprocess
 import sys
@@ -21,7 +21,12 @@ def main(extra):
     if problems:
         print("\n".join(problems))
         return 1
-    return subprocess.call([exe, "--path", str(ROOT), "--fullscreen", *extra])
+    # "--scene res://x.tscn" runs that scene instead of the main one (Godot takes it positionally).
+    args = []
+    it = iter(extra)
+    for a in it:
+        args.append(next(it, "") if a == "--scene" else a)
+    return subprocess.call([exe, "--path", str(ROOT), "--fullscreen", *args])
 
 
 if __name__ == "__main__":
