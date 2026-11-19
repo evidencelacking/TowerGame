@@ -2,41 +2,62 @@ class_name StarRules
 extends RefCounted
 ## Star requirements as data, and the promotion check. Integers only.
 ##
-## REQUIREMENTS maps a star rating to what a tower needs to reach it. Today only star 2 is
-## here (population 300; docs/gameplay-reference.md). Ranks 3 to 5 (#20, 7.1) add rows with more
-## fields (security, services, VIP, metro) and a matching test in meets(); rating_after is
-## already generic over rows. What each star unlocks is the "star" column of the room catalogue.
+## REQUIREMENTS maps a star rating to what a tower needs to reach it (docs/gameplay-reference.md). What each star unlocks is the "star" column of the room catalogue.
 ## Population counts people in the tower at the moment of the check, not residents, so it
 ## swings with the time of day. Stars never drop (owner ruling 2026-11-14): promotion only.
 
-const Clock := preload("res://scripts/sim/clock.gd")
-
+## Each row lists what a tower needs for that star. A tower meets a row when every field holds:
+##   population    people in the tower at the check (hotel guests always count, #37).
+##   security      at least this many security offices.
+##   suites        at least this many hotel suites.
+##   demands_met   true: no open demand of any kind (medical, recycling, parking, transport; owner
+##                 ruling on #166). Needs the demand systems; until they exist the fact is false.
+##   vip_good      true: the last VIP visit ended well. Until the VIP exists the fact is false.
+##   metro         at least this many metro stations.
+## The facts a tower reports are a Dictionary with the same keys (see Tower.star_facts); a key that
+## is missing counts as 0 or false. The top rank (15,000, cathedral, wedding) will be another row.
 const REQUIREMENTS: Dictionary = {
 	2: {"population": 300},
+	3: {"population": 1000, "security": 1},
+	4: {"population": 5000, "suites": 2, "demands_met": true, "vip_good": true},
+	5: {"population": 10000, "metro": 1},
 }
 
-## In-game minute of the day whose period start runs the check, once per day. The reference
-## does not say when ranks are evaluated (unverified); 14:00 is the start of the afternoon
-## period, when workers are in. Tunable.
-const CHECK_MINUTE := 840
+## Ticks between checks. Population is read at the tick of the check, so it swings with the time
+## of day, and a star once earned is kept (owner ruling on #166), so any tick can promote. Checking
+## every tick would walk every person, so the sim checks on every 15th tick. Tunable.
+const CHECK_EVERY := 15
 
 
-## True on the single tick of each day that begins the period starting at CHECK_MINUTE.
-static func is_check_tick(clock: Clock) -> bool:
-	return clock.ticks_in_period() == 0 and Clock.period_start(clock.period() - 1) == CHECK_MINUTE
+## True on the ticks that run the promotion check.
+static func is_check_tick(tick: int) -> bool:
+	return tick % CHECK_EVERY == 0
 
 
-## True if a tower with this population qualifies for the star.
-static func meets(star: int, population: int) -> bool:
+## True if a tower with these facts qualifies for the star.
+static func meets(star: int, facts: Dictionary) -> bool:
 	if not REQUIREMENTS.has(star):
 		return false
-	return population >= int(REQUIREMENTS[star]["population"])
+	var row: Dictionary = REQUIREMENTS[star]
+	for field: String in row:
+		var need: Variant = row[field]
+		if typeof(need) == TYPE_BOOL:
+			if bool(facts.get(field, false)) != need:
+				return false
+		elif int(facts.get(field, 0)) < int(need):
+			return false
+	return true
+
+
+## The population the star needs (out of reach for a star with no row), for the cheap first test.
+static func population_for(star: int) -> int:
+	return int(REQUIREMENTS[star]["population"]) if REQUIREMENTS.has(star) else 1 << 30
 
 
 ## The star rating after a check: current, or higher by however many ranks are now earned in
 ## order. Never lower than current.
-static func rating_after(current: int, population: int) -> int:
+static func rating_after(current: int, facts: Dictionary) -> int:
 	var star := current
-	while star < 5 and meets(star + 1, population):
+	while star < 5 and meets(star + 1, facts):
 		star += 1
 	return star
