@@ -10,6 +10,7 @@ const Ledger := preload("res://scripts/sim/ledger.gd")
 const Finance := preload("res://scripts/sim/finance.gd")
 const Messages := preload("res://scripts/sim/messages.gd")
 const People := preload("res://scripts/sim/people.gd")
+const Clock := preload("res://scripts/sim/clock.gd")
 
 const DAY_TICKS := 2550
 const LUNCH_PERIOD_TICK := 900  ## 11:00, a weekday.
@@ -80,7 +81,7 @@ static func run(check: Callable) -> void:
 	_staff(t)
 	_run(t, LUNCH_PERIOD_TICK, 500)
 	var lunch_customers := t.commerce.customers_today(shop)
-	check.call(lunch_customers > 0 and lunch_customers <= 6, "office workers buy at lunch (customers: %d)" % lunch_customers)
+	check.call(lunch_customers > 0 and lunch_customers <= 6 + Commerce.visitors_for("fast_food", 3, Clock.WD1), "office workers and visitors buy at lunch (customers: %d)" % lunch_customers)
 	check.call(_shop_lines(t).is_empty(), "nothing is credited until the day settles")
 
 	# The full day settles once, as its own ledger kind, and the finance window shows it.
@@ -256,7 +257,7 @@ static func _store(t: TowerSim) -> int:
 
 ## Gives the shop a settled last day with this many customers (the save format is the test seam).
 static func _set_last_day(t: TowerSim, room: int, customers: int) -> void:
-	t.commerce.load_ints([-1, 1, room, 0, customers, 0])
+	t.commerce.load_ints([-1, 0, 0, 1, room, 0, customers, 0])
 
 
 static func run_retail(check: Callable) -> void:
@@ -344,9 +345,79 @@ static func run_retail(check: Callable) -> void:
 	var loaded := TowerSim.new(1, 1)
 	check.call(loaded.load_state(low.save()) and loaded.state_hash() == low.state_hash(), "retail state survives save and load")
 	var vac := _retail_tower(true)
-	vac.commerce.load_ints([-1, 0, 1, _store(vac), 2])
+	vac.commerce.load_ints([-1, 0, 0, 0, 1, _store(vac), 2])
 	var again := TowerSim.new(1, 1)
 	check.call(again.load_state(vac.save()) and again.commerce.is_vacant(_store(vac)), "a vacant shop survives save and load")
 	var bad: Dictionary = vac.save()
 	bad["commerce"] = [-1, 0, 2, 5, 1]
 	check.call(not TowerSim.new(1, 1).load_state(bad), "a malformed vacancy list is refused")
+
+
+## Customers one shop of a kind served over a whole day that starts on the given day of the quarter
+## (no staff, so every customer is a visitor from outside).
+static func _visitor_day(kind: String, day: int, seed_value: int = 42) -> int:
+	var t := TowerSim.new(seed_value, 100000000)
+	t.floors.build_lobby(t.ledger, 0, 1, 100, 163, 2)
+	t.floors.fill_span(3, 100, 163)
+	t.rooms.place_room(t.grid, t.floors, t.ledger, 0, Catalogue.IDS.find(kind), 3, 112)
+	t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, 1, 100)
+	t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, 2, 104)
+	t.clock.set_to_tick(day * DAY_TICKS)
+	var shop := -1
+	for id in t.rooms.room_ids():
+		if t.rooms.kind_of(id) == kind:
+			shop = id
+	var peak := 0
+	var inside := 0
+	for i in DAY_TICKS - 100:  # stop before the day settles and clears the count
+		t.step()
+		peak = maxi(peak, t.commerce.customers_today(shop))
+		inside = maxi(inside, t.commerce.visitors_inside(t.clock.minute_of_day()))
+	_last_inside = inside
+	return peak
+
+
+static var _last_inside := 0
+
+
+static func run_visitors(check: Callable) -> void:
+	# The table: a weekend beats a weekday for every kind; nobody comes at night.
+	var table_ok := true
+	var night_ok := true
+	for kind: String in Commerce.VISITORS:
+		var wd := 0
+		var we := 0
+		for period in range(1, Clock.PERIODS + 1):
+			wd += Commerce.visitors_for(kind, period, Clock.WD1)
+			we += Commerce.visitors_for(kind, period, Clock.WE)
+			check.call(Commerce.visitors_for(kind, period, Clock.WD1) == Commerce.visitors_for(kind, period, Clock.WD2), "%s period %d: both weekdays match" % [kind, period])
+			check.call(Commerce.visitors_for(kind, period, Clock.WE) >= Commerce.visitors_for(kind, period, Clock.WD1), "%s period %d: the weekend is never quieter" % [kind, period])
+		table_ok = table_ok and we > wd and wd > 0
+		night_ok = night_ok and Commerce.visitors_for(kind, 6, Clock.WE) == 0 and Commerce.visitors_for(kind, 6, Clock.WD1) == 0 and Commerce.visitors_for(kind, 1, Clock.WD1) == 0
+	check.call(table_ok, "every kind has more visitors on the weekend than a weekday, and some on a weekday")
+	check.call(night_ok, "no visitors in the night period or the early morning rush")
+	check.call(Commerce.visitors_for("retail", 5, Clock.WE) > Commerce.visitors_for("retail", 3, Clock.WE), "the weekend shopping peak is the evening")
+	check.call(Commerce.visitors_for("fast_food", 3, Clock.WD1) == 12 and Commerce.visitors_for("fast_food", 3, Clock.WE) == 20, "counts by period: fast food lunch is 12 on a weekday and 20 on the weekend")
+	check.call(Commerce.visitors_for("office", 3, Clock.WD1) == 0 and Commerce.visitors_for("retail", 0, Clock.WD1) == 0 and Commerce.visitors_for("retail", 7, Clock.WD1) == 0, "unknown kinds and periods bring nobody")
+	check.call(Commerce.period_of_minute(Commerce.LUNCH) == 3 and Commerce.period_of_minute(Commerce.DINNER) == 5 and Commerce.period_of_minute(Commerce.SNACK_MORNING) == 2 and Commerce.period_of_minute(100) == 6 and Commerce.period_of_minute(300) == 1, "meal minutes map to clock periods")
+
+	# In play: with nobody working, each kind's shop is busier on the weekend, and it is repeatable.
+	for kind: String in ["fast_food", "restaurant", "retail"]:
+		var weekday := _visitor_day(kind, Clock.WD1)
+		var weekend := _visitor_day(kind, Clock.WE)
+		check.call(weekday > 0 and weekend > weekday, "%s: the weekend brings more visitors than a weekday (%d vs %d)" % [kind, weekend, weekday])
+		check.call(_visitor_day(kind, Clock.WE) == weekend, "%s: the same seed gives the same visitors" % kind)
+	_visitor_day("fast_food", Clock.WD1)
+	check.call(_last_inside > 0 and _last_inside <= Commerce.visitors_for("fast_food", 3, Clock.WD1), "visitors count toward population while they are inside (%d)" % _last_inside)
+
+	# Unreachable tower: no stairs, so the shop stays empty.
+	var t := _tower(false)
+	t.clock.set_to_tick(Clock.WE * DAY_TICKS)
+	for i in DAY_TICKS - 100:
+		t.step()
+	check.call(t.commerce.customers_today(_shop(t)) == 0 and t.commerce.visitors_inside(720) == 0, "an unreachable shop gets no visitors")
+
+	# Save and load keep the visitors inside.
+	var s := _tower(true)
+	s.commerce.load_ints([-1, 5, 800, 0, 0])
+	check.call(Commerce.valid_ints(s.commerce.state_ints()) and s.commerce.visitors_inside(790) == 5 and s.commerce.visitors_inside(800) == 0, "visitors inside round-trip through the save and leave on time")

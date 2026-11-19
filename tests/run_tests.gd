@@ -127,6 +127,7 @@ func _initialize() -> void:
 	TestCommerce.run(check)
 	TestCommerce.run_restaurant(check)
 	TestCommerce.run_retail(check)
+	TestCommerce.run_visitors(check)
 	TestSaveLoad.run(check)
 	TestHotel.run(check)
 	TestPests.run(check)
