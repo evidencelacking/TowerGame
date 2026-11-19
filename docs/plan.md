@@ -205,19 +205,26 @@ Values in brackets on each issue are the gameplay expert's recommendations, chos
 ## M10 Look, sound and UI
 
 Starts only once the game is playable on native shapes (owner, 2026-11-10). All art is
-original; nothing is taken from the original game's art or animation.
+original; nothing is taken from the original game's art or animation. Art is drawn by code
+(owner, 2026-11-19): each room kind is a recipe of palette, frame, furniture shapes and spots,
+drawn at a low native resolution and scaled up by whole numbers. No image files until the
+zoom-detail sprites in Later. Every activity gets a visual: if the sim knows someone is doing
+something, the view shows it. Animation reads sim state only and adds no saved state.
 
 | ID | Task | Done when | Issue |
 |---|---|---|---|
-| 10.1 | Art direction: 3 mock-ups of one floor slice; owner picks; name the game | Decision recorded |  |
-| 10.2 | Art standard and `art-keeper` agent | Approved |  |
-| 10.3 | Sprite sets, one task each: lobby, offices, condos, hotel, food, shops, services, transport, people, sky | Each passes art-keeper |  |
-| 10.4 | Overview map with Eval, Rent, Hotel and Problems filters; click jumps the camera; the Eval filter is #142 | Works | #142 |
-| 10.5 | Bulk rent: set rent for a selection, a floor or a room type | One action changes many | #28 |
-| 10.6 | Day/night sky by period | Smooth over a day |  |
-| 10.7 | Sound: ambience, UI, elevator, crowd, events (original or licensed) | Licence per file |  |
-| 10.8 | Settings: resolution, full screen, UI scale, volume, keys, starting funds | Persist |  |
-| 10.9 | Renderer polish: a more elegant native-shape look (owner, on #6) | Owner approves | #143 |
+| 10.1 | Feel rules in our own words (cutaway boxes, readable walls, colour per kind, lit rooms in use, sky carries the time) and 3 code-drawn mock-ups of one floor slice; owner picks; name the game | Decision recorded |  |
+| 10.2 | Renderer: low-res canvas at integer scale, palette, recipe system (frame, furniture, spots, empty and in-use looks), batched drawing; replaces the native-shape look (absorbs #143) | Sharp at 1080p and 4K; test: every room kind has a recipe | #143 |
+| 10.3 | Recipes, batch 1: lobby, offices, condos, hotel rooms, housekeeping | Owner approves by eye; tests: in-use and empty looks differ |  |
+| 10.4 | Recipes, batch 2: food, shops, services, parking, recycling, transport (stairs and escalator slopes, shafts, cars) | Owner approves by eye |  |
+| 10.5 | People: figures about 3x7 native px with a colour per type and stress marks, a 2-frame walk, a standing pose on escalators, a stepping cycle on stairs, smooth diagonal movement on stairs and escalator legs, smoothing between ticks | Test: height moves smoothly floor to floor |  |
+| 10.6 | Activities in rooms: occupants on recipe spots chosen by id (desks, tables, beds, sofas), shown doing what the sim says (working, at lunch, eating, sleeping with lights off, cleaning, queueing, shopping); small idle motion from id and period | Tests: spots stay inside the room; same moment draws the same |  |
+| 10.7 | Event and service visuals: fire and smoke, guards moving, rescue craft, threat search, VIP, treasure, rain, fly-past, elevator doors | Each M9 event has a visual |  |
+| 10.8 | Sky and light: day/night by period, lit windows, rain | Smooth over a day |  |
+| 10.9 | Overview map with Eval, Rent, Hotel and Problems filters; click jumps the camera; the Eval filter is #142 | Works | #142 |
+| 10.10 | Bulk rent: set rent for a selection, a floor or a room type | One action changes many | #28 |
+| 10.11 | Sound: ambience, UI, elevator, crowd, events (original or licensed) | Licence per file |  |
+| 10.12 | Settings: resolution, full screen, UI scale, volume, keys, starting funds | Persist |  |
 
 ## M11 Full game
 
@@ -240,6 +247,9 @@ Performance work and optional features, after the features above (owner, 2026-11
 |---|---|---|---|
 | L.1 | Performance: 15,000 people (was 8.9) | Target frame rate held | #190 |
 | L.2 | Tenant direction bias and rush-hour waiting stress (optional, was 8.10) | Tests | #191 |
+| L.3 | Zoom detail: when zoomed in on a room, draw more detail (finer furniture, larger people with faces and clothes); code first, hand-made sprites if code is not enough | Owner approves by eye |  |
+| L.4 | Bigger people as a setting or at higher zoom, grown from the 10.5 figures | Owner approves by eye |  |
+| L.5 | Room and option variety beyond the original: new room kinds, variants of each kind (styles, sizes, upgrades), more tenant choices; each new kind gets a recipe | Owner picks the list |  |
 
 ## Issues list from the player guides
 
@@ -256,7 +266,7 @@ Obvious or required changes found in the player guides. They are folded into the
 | 6 | feature | Replace tool | Players relied on the shift-click trick | 2.7 | #25 |
 | 7 | feature | Message log | Messages flashed past too fast | 2.11 | #26 |
 | 8 | feature | Autosave | Players lost towers to crashes | 5.12 | #27 |
-| 9 | feature | Bulk rent tool | Rent changed one room at a time was the top complaint | 10.5 | #28 |
+| 9 | feature | Bulk rent tool | Rent changed one room at a time was the top complaint | 10.10 | #28 |
 | 10 | feature | Complaint reasons in info windows | Players had to guess why tenants left | 5.7 | #29 |
 | 11 | feature | Recycling rules: 2 floors, touching, fills and empties daily | Missing from the first plan | 7.6 | #30 |
 | 12 | feature | Parking ramp column and chained spaces | Missing from the first plan | 7.7 | #31 |
