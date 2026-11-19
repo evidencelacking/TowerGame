@@ -308,7 +308,7 @@ func _run_systems() -> void:
 	people.tick(clock)
 	if EvaluationScript.is_due(clock):
 		evaluate_tenants()
-	if StarRulesScript.is_check_tick(clock):
+	if StarRulesScript.is_check_tick(tick):
 		promote_stars()
 
 
@@ -318,11 +318,37 @@ func unlocked_stars() -> int:
 	return 5 if unlock_all else stars
 
 
-## Raises stars to what the population now earns and logs one message per star gained. Never
-## lowers. Runs once a day (StarRules.CHECK_MINUTE); public so tests can call it.
+## What the star rules ask about the tower now (keys as in StarRules.REQUIREMENTS). Read-only.
+## Demands and the VIP verdict have no systems yet, so they report "not met" until those are built.
+## Security, metro, demands and the VIP are not buildable or simulated yet, so tests set
+## star_fixture (not saved) to stand in for them; its keys override the queried facts.
+var star_fixture: Dictionary = {}
+
+
+func star_facts() -> Dictionary:
+	var security := 0
+	var metro := 0
+	for id in rooms.room_ids():
+		match rooms.kind_of(id):
+			"security": security += 1
+			"metro": metro += 1
+	var facts := {
+		"population": population(), "security": security, "suites": hotel.suites().size(), "metro": metro,
+		"demands_met": false,  # until the medical, recycling, parking and transport demands exist
+		"vip_good": false,  # until the VIP visit exists
+	}
+	facts.merge(star_fixture, true)
+	return facts
+
+
+## Raises stars to what the tower now earns and logs one message per star gained. Never lowers.
+## Runs every StarRules.CHECK_EVERY ticks; public so tests can call it at any tick. The cheap
+## population test goes first so the room scan only runs when the next star is within reach.
 func promote_stars() -> void:
-	var earned := StarRulesScript.rating_after(stars, population())
-	while stars < earned:
+	var people_now := population()
+	while stars < 5 and people_now >= StarRulesScript.population_for(stars + 1):
+		if not StarRulesScript.meets(stars + 1, star_facts()):
+			break
 		stars += 1
 		messages.add(tick, MessagesScript.STAR_PROMOTED, stars)
 
