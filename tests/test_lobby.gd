@@ -5,6 +5,7 @@ const Harness := preload("res://tests/harness.gd")
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Command := TowerSim.Command
 const FloorsScript := preload("res://scripts/sim/floors.gd")
+const GridScriptRef := preload("res://scripts/sim/grid.gd")
 
 
 static func _lobby(tower: TowerSim, floor_number: int, x_start: int, x_end: int, height: int) -> int:
@@ -60,7 +61,7 @@ static func run(check: Callable) -> void:
 	check.call(_lobby(bad, 1, 19, 10, 1) == FloorsScript.BAD_SPAN, "a backwards lobby span is refused")
 	check.call(bad.ledger.balance == start and not bad.floors.has_lobby(), "refused lobbies change nothing")
 	check.call(_lobby(bad, 1, 10, 19, 1) == FloorsScript.OK, "the first lobby builds")
-	check.call(_lobby(bad, 1, 100, 109, 1) == FloorsScript.LOBBY_EXISTS, "a second lobby is refused")
+	check.call(_lobby(bad, 1, 100, 109, 1) == FloorsScript.LOBBY_GAPPED, "a second, separate lobby is refused")
 
 	# Existing floor units are not charged twice.
 	var pre := Harness.make(1)
@@ -93,3 +94,68 @@ static func run(check: Callable) -> void:
 	var same := rev.floors.revision
 	_lobby(rev, 1, 20, 29, 1)
 	check.call(rev.floors.revision == same, "a refused build leaves the revision alone")
+
+
+	_widen_tests(check)
+
+
+static func _widen_tests(check: Callable) -> void:
+	# Widen right, left, and both in one drag; charge is new columns only.
+	var w := Harness.make(1)
+	_lobby(w, 1, 100, 109, 1)
+	var funds := w.ledger.balance
+	check.call(_lobby(w, 1, 110, 114, 1) == FloorsScript.OK and w.floors.lobby_span() == ([100, 114, 1] as Array[int]), "the lobby widens to the right")
+	check.call(funds - w.ledger.balance == 5500 * 5, "widening right charges the new units only")
+	check.call(_lobby(w, 1, 95, 99, 1) == FloorsScript.OK and w.floors.lobby_span() == ([95, 114, 1] as Array[int]), "the lobby widens to the left")
+	funds = w.ledger.balance
+	var lines := w.ledger.lines.size()
+	check.call(_lobby(w, 1, 90, 120, 1) == FloorsScript.OK and w.floors.lobby_span() == ([90, 120, 1] as Array[int]), "one drag widens both sides")
+	check.call(funds - w.ledger.balance == 5500 * 11 and w.ledger.lines.size() == lines + 1, "a two-sided drag is one charge for the new units")
+	# 3-floor lobby: extension takes the height and prices per floor.
+	var tall := Harness.make(1)
+	_lobby(tall, 1, 50, 59, 3)
+	funds = tall.ledger.balance
+	check.call(_lobby(tall, 1, 60, 63, 1) == FloorsScript.OK and tall.floors.lobby_span() == ([50, 63, 3] as Array[int]), "an extension takes the lobby's height")
+	check.call(funds - tall.ledger.balance == 5500 * 4 * 3, "a 3-floor extension charges new units x 3 floors")
+	# Overlap charges only the new part; fully covered is refused free.
+	var ov := Harness.make(1)
+	_lobby(ov, 1, 100, 109, 1)
+	funds = ov.ledger.balance
+	_lobby(ov, 1, 105, 112, 1)
+	check.call(funds - ov.ledger.balance == 5500 * 3, "an overlapping drag charges only the uncovered units")
+	funds = ov.ledger.balance
+	check.call(_lobby(ov, 1, 102, 108, 1) == FloorsScript.ALREADY_BUILT and ov.ledger.balance == funds, "a drag wholly inside the lobby is refused and free")
+	# Clamp at the grid edge.
+	var edge := Harness.make(1)
+	var last := GridScriptRef.WIDTH_UNITS - 1
+	_lobby(edge, 1, last - 9, last - 5, 1)
+	check.call(_lobby(edge, 1, last - 4, last + 20, 1) == FloorsScript.OK and edge.floors.lobby_span() == ([last - 9, last, 1] as Array[int]), "a drag past the edge clamps to the edge")
+	var left := Harness.make(1)
+	_lobby(left, 1, 5, 9, 1)
+	_lobby(left, 1, -30, 4, 1)
+	check.call(left.floors.lobby_span() == ([0, 9, 1] as Array[int]), "a drag past the left edge clamps to column 0")
+	# Refusals with distinct reasons.
+	var r := Harness.make(1)
+	_lobby(r, 1, 100, 109, 1)
+	funds = r.ledger.balance
+	check.call(_lobby(r, 1, 112, 115, 1) == FloorsScript.LOBBY_GAPPED, "a gapped drag is refused")
+	check.call(_lobby(r, 2, 110, 115, 1) == FloorsScript.LOBBY_BAD_FLOOR, "a drag on another floor is refused")
+	r.floors.mark_shaft(1, 111)
+	check.call(_lobby(r, 1, 105, 112, 1) == FloorsScript.OVER_SHAFT, "a drag across a shaft is refused")
+	check.call(r.ledger.balance == funds and r.floors.lobby_span() == ([100, 109, 1] as Array[int]), "refused widenings change nothing")
+	# Floors above never block widening, and floor 2 can then be wider than the old lobby.
+	var up := Harness.make(1)
+	_lobby(up, 1, 100, 109, 1)
+	_floor(up, 2, 100, 109)
+	check.call(_floor(up, 2, 100, 112) != FloorsScript.OK, "floor 2 cannot exceed the old lobby")
+	check.call(_lobby(up, 1, 95, 115, 1) == FloorsScript.OK, "a built floor above does not block widening")
+	check.call(_floor(up, 2, 95, 115) == FloorsScript.OK, "floor 2 can be built wider than the old lobby")
+	# Save/load and determinism.
+	var loaded := TowerSim.new(0)
+	check.call(loaded.load_state(up.save()) and loaded.state_hash() == up.state_hash() and loaded.floors.lobby_span() == ([95, 115, 1] as Array[int]), "a widened lobby survives save and load")
+	var script: Array[Command] = [
+		Command.make(1, Command.BUILD_LOBBY, [1, 20, 29, 2]),
+		Command.make(2, Command.BUILD_LOBBY, [1, 15, 35, 1]),
+		Command.make(3, Command.BUILD_FLOOR, [3, 15, 35]),
+	]
+	check.call(Harness.run_script(7, script, 4) == Harness.run_script(7, script, 4), "widening commands are deterministic")

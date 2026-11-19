@@ -30,7 +30,8 @@ const ALREADY_BUILT := 15  ## Every unit in the span is already a floor.
 const OCCUPIED_BY_LOBBY := 16  ## The span crosses a cell the ground lobby occupies.
 const LOBBY_BAD_FLOOR := 17  ## The ground lobby goes on floor 1 only.
 const LOBBY_BAD_HEIGHT := 18  ## The ground lobby is 1, 2 or 3 floors tall.
-const LOBBY_EXISTS := 19  ## The tower already has its ground lobby.
+const LOBBY_EXISTS := 19  ## (Unused since #181: the lobby can be widened.)
+const LOBBY_GAPPED := 20  ## The drag does not touch the existing ground lobby.
 
 const BUILT := 1  # cell flag bits
 const SHAFT := 2
@@ -186,48 +187,71 @@ func lobby_span() -> Array[int]:
 	return span
 
 
-## Checks a ground lobby without changing anything. Returns {"reason", "new_units", "cost"}.
-## Cost is the lobby price per unit for every floor it occupies, plus the floor price for each
-## unit not already built. UNVERIFIED: tall lobby priced per floor (gameplay review left it open).
+## Checks a ground lobby without changing anything. Returns {"reason", "new_units", "cost",
+## "x_start", "x_end", "height"}; the last three are the span actually built (clamped, and the
+## existing height when extending). Cost is the lobby price per new column for every floor it
+## occupies, plus the floor price for each new unit not already built.
+## Using the tool again on floor 1 EXTENDS the existing lobby (drag-to-any-width): a drag past the
+## grid edge clamps to the edge (an improvement on refusing), a drag that overlaps the lobby
+## charges only the new columns, one drag may add units on both sides, and the extension takes the
+## existing height (the height argument is ignored). Floors above never block widening. A drag that
+## leaves a gap to the lobby is refused (LOBBY_GAPPED). Shrinking is out of scope.
+## UNVERIFIED: tall lobby priced per floor (gameplay review left it open).
 func check_lobby(floor_number: int, x_start: int, x_end: int, height: int) -> Dictionary:
-	var result := {"reason": OK, "new_units": 0, "cost": 0}
+	var result := {"reason": OK, "new_units": 0, "cost": 0, "x_start": x_start, "x_end": x_end, "height": height}
 	if floor_number != 1:
 		result["reason"] = LOBBY_BAD_FLOOR
 		return result
-	if height < 1 or height > LOBBY_MAX_HEIGHT:
+	var existing := lobby_span()
+	if existing.is_empty() and (height < 1 or height > LOBBY_MAX_HEIGHT):
 		result["reason"] = LOBBY_BAD_HEIGHT
 		return result
-	if has_lobby():
-		result["reason"] = LOBBY_EXISTS
-		return result
-	if x_end < x_start or x_start < 0 or x_end >= GridScript.WIDTH_UNITS:
+	if x_end < x_start:
 		result["reason"] = BAD_SPAN
 		return result
+	x_start = maxi(x_start, 0)
+	x_end = mini(x_end, GridScript.WIDTH_UNITS - 1)
+	if x_end < x_start:  # entirely off the grid
+		result["reason"] = BAD_SPAN
+		return result
+	if not existing.is_empty():
+		height = existing[2]
+		if x_end < existing[0] - 1 or x_start > existing[1] + 1:
+			result["reason"] = LOBBY_GAPPED
+			return result
+	result["x_start"] = x_start
+	result["x_end"] = x_end
+	result["height"] = height
 	var new_units := 0
-	for level in range(1, height + 1):
-		for column in range(x_start, x_end + 1):
+	var new_columns := 0
+	for column in range(x_start, x_end + 1):
+		if has_lobby_at(1, column):
+			continue
+		new_columns += 1
+		for level in range(1, height + 1):
 			if has_shaft(level, column):
 				result["reason"] = OVER_SHAFT
 				return result
 			if not has_floor(level, column):
 				new_units += 1
-	var width := x_end - x_start + 1
-	# unverified: tall lobby priced per floor
+	if new_columns == 0:
+		result["reason"] = ALREADY_BUILT
+		return result
 	result["new_units"] = new_units
-	result["cost"] = CatalogueScript.cost("lobby") * width * height + new_units * CatalogueScript.FLOOR_COST_PER_UNIT
+	result["cost"] = CatalogueScript.cost("lobby") * new_columns * height + new_units * CatalogueScript.FLOOR_COST_PER_UNIT
 	return result
 
 
-## Builds the ground lobby over floors 1 to height in one charge. Returns OK or a reason code,
-## and changes nothing on a refusal.
+## Builds the ground lobby over floors 1 to height in one charge, or extends it (see check_lobby).
+## Returns OK or a reason code, and changes nothing on a refusal.
 func build_lobby(ledger: LedgerScript, at_tick: int, floor_number: int, x_start: int, x_end: int, height: int) -> int:
 	var checked := check_lobby(floor_number, x_start, x_end, height)
 	if checked["reason"] != OK:
 		return checked["reason"]
 	if ledger.charge(at_tick, checked["cost"], CatalogueScript.IDS.find("lobby")) != LedgerScript.OK:
 		return SHORT_OF_FUNDS
-	for level in range(1, height + 1):
-		for column in range(x_start, x_end + 1):
+	for level in range(1, checked["height"] + 1):
+		for column in range(checked["x_start"], checked["x_end"] + 1):
 			var index := _cell_index(level, column)
 			_flags[index] = _flags[index] | BUILT | LOBBY
 	revision += 1
