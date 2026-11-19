@@ -49,7 +49,7 @@ static func run(check: Callable) -> void:
 	check.call(three == 31, "3 stars with an office: all five demands open")
 	check.call(D.compute(3, {}, ALL) == (1 << (D.SECURITY - 1)) | (1 << (D.SUITE - 1)), "without offices the office-driven demands stay quiet")
 	check.call(D.compute(3, {"office": 1, "security": 1, "hotel_suite": 2, "medical": 1, "recycling": 1, "parking_space": 1}, ALL) == 0, "each remedy clears its demand")
-	check.call(D.compute(3, office, Rooms.PLACEABLE) == 1 << (D.SUITE - 1) | 0, "only demands whose remedy is buildable open (today: suite)")
+	check.call(D.compute(3, office, ["office", "hotel_suite"] as Array[String]) == 1 << (D.SUITE - 1), "only demands whose remedy is buildable open")
 
 	# On a tower: raised once, cleared once, re-raised after loss.
 	var t := _tower()
