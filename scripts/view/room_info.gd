@@ -20,7 +20,7 @@ const CUSTOMER_KINDS: Array[String] = ["restaurant", "fast_food", "retail"]
 
 ## The floor number of a world-space y, or 0 if outside the tower.
 static func floor_at_y(y: float) -> int:
-	var row := floori(y / VC.CELL_PX)
+	var row := floori(y / VC.CELL_H)
 	if row < 0 or row >= GridScript.FLOOR_COUNT:
 		return 0
 	return GridScript.FLOOR_MAX - row if row < GridScript.FLOOR_MAX else GridScript.FLOOR_MAX - 1 - row
@@ -31,7 +31,7 @@ static func room_at(tower: Object, world: Vector2) -> int:
 	var floor_number := floor_at_y(world.y)
 	if floor_number == 0 or world.x < 0.0:
 		return -1
-	var id: int = tower.grid.cell_at(floor_number, floori(world.x / VC.CELL_PX))
+	var id: int = tower.grid.cell_at(floor_number, floori(world.x / VC.CELL_W))
 	var room: int = tower.rooms.room_of(id)
 	if id <= GridScript.EMPTY or room == 0:
 		return -1

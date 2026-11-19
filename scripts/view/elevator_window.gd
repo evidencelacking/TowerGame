@@ -180,7 +180,7 @@ func click_at(world: Vector2) -> bool:
 	if floor_number == 0 or world.x < 0.0:
 		close()
 		return false
-	var hit := ElevatorTools.shaft_at(tower, floor_number, floori(world.x / VC.CELL_PX))
+	var hit := ElevatorTools.shaft_at(tower, floor_number, floori(world.x / VC.CELL_W))
 	if hit.is_empty():
 		close()
 	else:

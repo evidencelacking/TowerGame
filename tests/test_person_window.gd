@@ -7,6 +7,7 @@ const TowerSim := preload("res://scripts/sim/tower.gd")
 const Command := TowerSim.Command
 const NamesScript := preload("res://scripts/sim/names.gd")
 const PersonInfo := preload("res://scripts/view/person_info.gd")
+const VC := preload("res://scripts/view/view_consts.gd")
 const PeopleView := preload("res://scripts/view/people_view.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const TestCondos := preload("res://tests/test_condos.gd")
@@ -59,7 +60,7 @@ static func run(check: Callable) -> void:
 		{"id": 5, "floor": 3, "x": 10}, {"id": 6, "floor": 3, "x": 11}, {"id": 7, "floor": 3, "x": 12}]
 	var at_six := PersonInfo.figure_center(crowd[1]) + Vector2(3, 0)
 	check.call(PersonInfo.pick(crowd, at_six, 14.0) == 6, "pick: among a crowd the closest one is chosen, not the first")
-	check.call(PersonInfo.pick(crowd, PersonInfo.figure_center(crowd[0]) + Vector2(8, 0), 14.0) == 5, "pick: a point exactly between two goes to the lower id")
+	check.call(PersonInfo.pick(crowd, PersonInfo.figure_center(crowd[0]) + Vector2(VC.CELL_W / 2, 0), 14.0) == 5, "pick: a point exactly between two goes to the lower id")
 	check.call(PersonInfo.pick(crowd, at_six, 3.5) == 6, "pick: a zoomed-in click with a small world radius still finds the figure")
 	check.call(PersonInfo.pick(crowd, at_six + Vector2(0, 40), 14.0) == -1, "pick: a point on another floor picks nobody")
 	var no_one: Array[Dictionary] = []

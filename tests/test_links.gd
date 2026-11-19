@@ -14,6 +14,7 @@ const TestElevatorRoutes := preload("res://tests/test_elevator_routes.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const Toolbar := preload("res://scripts/view/toolbar.gd")
 const Renderer := preload("res://scripts/view/tower_renderer.gd")
+const Palette := preload("res://scripts/view/palette.gd")
 
 const OFFICE := 5
 const CONDO := 6
@@ -202,7 +203,10 @@ static func run(check: Callable) -> void:
 	check.call(ok["valid"] and ok["cost"] == 20000 and ok["width"] == 8 and ok["height"] == 2, "the ghost shows an 8 by 2 escalator at its price")
 	var command := Ghost.command_for("escalator", ok, g.tick)
 	check.call(command != null and command.kind == Command.PLACE_ESCALATOR and command.args == ([3, 100] as Array[int]), "a click sends PLACE_ESCALATOR")
-	check.call(Renderer.KIND_COLORS["escalator"] != Renderer.KIND_COLORS["stairs"], "escalators are drawn in a different colour from stairs")
+	var distinct := true
+	for palette: Dictionary in Palette.PALETTES:
+		distinct = distinct and palette["hues"]["escalator"] != palette["hues"]["stairs"]
+	check.call(distinct, "escalators are drawn in a different colour from stairs in every palette")
 
 	# Draw order: rooms, then links, then shafts, then people in front.
 	var order: Array[String] = Renderer.DRAW_ORDER

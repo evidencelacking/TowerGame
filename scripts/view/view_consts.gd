@@ -1,8 +1,14 @@
 extends RefCounted
-## Shared view constants and world-space helpers. World space: x grows right from
-## column 0, y grows down from the top of floor 100. One grid cell is CELL_PX square.
+## Shared view constants and world-space helpers. World space is the tower's native pixel space
+## (10.2): x grows right from column 0, y grows down from the top of floor 100. A grid cell is
+## CELL_W wide and CELL_H tall; the renderer draws at this resolution and the camera zooms by whole
+## numbers, so one native pixel is always a whole number of screen pixels.
 
-const CELL_PX := 16  ## Pixels per grid cell (and per floor height) at zoom 1.
+const CELL_W := 8  ## Native pixels per floor-unit column.
+const CELL_H := 32  ## Native pixels per floor (owner decision; the mock-ups stay at 24).
+const FIGURE_W := 3  ## A standing figure, native pixels; sized here so it can grow (toward 4x9) in one place.
+const FIGURE_H := 7
+const SLAB_H := 2  ## The floor slab along the bottom of each floor, inside its CELL_H.
 const GridScript := preload("res://scripts/sim/grid.gd")
 
 
@@ -15,4 +21,4 @@ static func floor_to_row(floor_number: int) -> int:
 
 ## The whole tower in pixels at zoom 1.
 static func world_rect() -> Rect2:
-	return Rect2(0, 0, GridScript.WIDTH_UNITS * CELL_PX, GridScript.FLOOR_COUNT * CELL_PX)
+	return Rect2(0, 0, GridScript.WIDTH_UNITS * CELL_W, GridScript.FLOOR_COUNT * CELL_H)

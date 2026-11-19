@@ -28,7 +28,7 @@ static func _of_kind(t: TowerSim, kind: String) -> Array[int]:
 ## The world point at the middle of a room's first cell.
 static func _spot(t: TowerSim, room: int) -> Vector2:
 	var run := t.grid.run_of(room)
-	return Vector2((run[1] + 0.5) * VC.CELL_PX, (VC.floor_to_row(run[0]) + 0.5) * VC.CELL_PX)
+	return Vector2((run[1] + 0.5) * VC.CELL_W, (VC.floor_to_row(run[0]) + 0.5) * VC.CELL_H)
 
 
 static func run(check: Callable) -> void:
@@ -39,7 +39,7 @@ static func run(check: Callable) -> void:
 	var spot := _spot(t, a)
 	check.call(RoomInfo.room_at(t, spot) == a, "room_at: a point inside a room finds it")
 	check.call(RoomInfo.floor_at_y(spot.y) == 3, "floor_at_y: the row maps back to floor 3")
-	check.call(RoomInfo.floor_at_y(VC.CELL_PX * 100.5) == -1 and RoomInfo.floor_at_y(VC.CELL_PX * 99.5) == 1, "floor_at_y: floor 1 sits above B1")
+	check.call(RoomInfo.floor_at_y(VC.CELL_H * 100.5) == -1 and RoomInfo.floor_at_y(VC.CELL_H * 99.5) == 1, "floor_at_y: floor 1 sits above B1")
 	check.call(RoomInfo.room_at(t, Vector2(-5, spot.y)) == -1 and RoomInfo.room_at(t, Vector2(spot.x, -5)) == -1, "room_at: off the tower finds nothing")
 
 	var ghost := Ghost.new()

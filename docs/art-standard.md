@@ -68,3 +68,8 @@ Line style:
 - Each room has a thin dark frame; each slab has a 1-pixel warm highlight line.
 - Empty rooms dim to about 45% by day and 80% by night; in-use rooms are full colour with a
   lighter band under the ceiling.
+
+In the renderer (`scripts/view/palette.gd`, `room_recipes.gd`): D is palette index 3 and the default;
+A, B and C stay selectable by `Palette.DEFAULT_INDEX`. The renderer draws at 8 px per column and
+32 px per floor (`VC.CELL_W`, `VC.CELL_H`), matching `art_d32.tscn`. `docs/mockups/renderer_d.png` is the real
+renderer drawing a small tower.
