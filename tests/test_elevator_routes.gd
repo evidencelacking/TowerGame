@@ -96,7 +96,11 @@ static func run(check: Callable) -> void:
 	r = RoutesScript.find(x.floors, x.rooms, x.grid, 5, 100, 8, 110)
 	var rides := _kinds(r).count(RoutesScript.ELEVATOR)
 	check.call(r["reason"] == RoutesScript.OK and rides == 2, "one transfer at the lobby is allowed")
-	var y := _plain(12)
+	# The third shaft stands beside the lobby (columns 120 and up): a machine room cannot sit in it (#228).
+	var y := TowerSim.new(1, 100000000)
+	y.floors.build_lobby(y.ledger, 0, 1, 100, 119, 2)
+	for f in range(1, 13):
+		y.floors.fill_span(f, 120 if f < 3 else 100, 131)
 	var ya := _shaft(y, 1, 5, 100)
 	for f in [2, 3, 4]:
 		y.rooms.set_shaft_stop(ya, f, false)

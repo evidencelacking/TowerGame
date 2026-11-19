@@ -212,6 +212,10 @@ func _draw_shafts() -> void:
 		var rect := Rect2i((shaft["x"] as int) * cell, top_row * cell, (shaft["width"] as int) * cell, (bottom_row - top_row + 1) * cell)
 		draw_rect(rect, SHAFT_COLOR)
 		draw_rect(rect, SHAFT_COLOR.lightened(0.4), false, 1.0)
+		for machine: int in Tower.RoomsScript.machine_floors(shaft["bottom"], shaft["top"]):  # the machine-room caps (#228)
+			var cap := Rect2i(rect.position.x, VC.floor_to_row(machine) * cell, rect.size.x, cell)
+			draw_rect(cap, SHAFT_COLOR.lightened(0.15))
+			draw_rect(cap, SHAFT_COLOR.lightened(0.4), false, 1.0)
 		for floor_number: int in shaft["stops"]:
 			var y := (VC.floor_to_row(floor_number) + 1) * cell - 3
 			draw_rect(Rect2i(rect.position.x + 2, y, rect.size.x - 4, 2), DOOR_COLOR)
