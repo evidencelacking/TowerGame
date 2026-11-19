@@ -18,7 +18,7 @@ static var index: int = DEFAULT_INDEX
 
 const PALETTES: Array[Dictionary] = [
 	{  # A: warm, saturated, chunky dark outlines
-		"sky_day": Color("5cb8f0"), "sky_horizon": Color("f8e4a8"), "sky_night": Color("1a1440"),
+		"sky_day": Color("5cb8f0"), "sky_horizon": Color("f8e4a8"), "sky_night": Color("1a1440"), "sky_night_horizon": Color("68305c"),
 		"wall": Color("3a2216"), "slab": Color("22120c"), "outline": Color("160a06"), "slab_hi": Color("5a3a28"),
 		"hues": {
 			"lobby": Color("e8b458"), "office": Color("58a0e0"), "condo": Color("c880d8"), "hotel": Color("e0648c"),
@@ -35,7 +35,7 @@ const PALETTES: Array[Dictionary] = [
 		"people": [Color("d03030"), Color("3050c8"), Color("30a040"), Color("f0f0f0"), Color("8a38a8")],
 	},
 	{  # B: muted architectural, thin lines, cool tones
-		"sky_day": Color("b4c6d4"), "sky_horizon": Color("e0e6ea"), "sky_night": Color("0a1222"),
+		"sky_day": Color("b4c6d4"), "sky_horizon": Color("e0e6ea"), "sky_night": Color("0a1222"), "sky_night_horizon": Color("1a2438"),
 		"wall": Color("1e242c"), "slab": Color("303a46"), "outline": Color("7a8c9e"), "slab_hi": Color("46525f"),
 		"hues": {
 			"lobby": Color("b4a88e"), "office": Color("86a0b2"), "condo": Color("a898a8"), "hotel": Color("c09e76"),
@@ -52,7 +52,7 @@ const PALETTES: Array[Dictionary] = [
 		"people": [Color("5a6a7a"), Color("8a7a6a"), Color("6a8a8a"), Color("a0a0a8"), Color("7a6a8a")],
 	},
 	{  # C: bold flat colour, black walls, high contrast
-		"sky_day": Color("38a0ff"), "sky_horizon": Color("38a0ff"), "sky_night": Color("0c0c2c"),
+		"sky_day": Color("38a0ff"), "sky_horizon": Color("38a0ff"), "sky_night": Color("0c0c2c"), "sky_night_horizon": Color("0c0c2c"),
 		"wall": Color("000000"), "slab": Color("000000"), "outline": Color("000000"), "slab_hi": Color("000000"),
 		"hues": {
 			"lobby": Color("ffd000"), "office": Color("2850ff"), "condo": Color("a040ff"), "hotel": Color("ff2a88"),
@@ -69,7 +69,7 @@ const PALETTES: Array[Dictionary] = [
 		"people": [Color("ffffff"), Color("000000"), Color("ffe000"), Color("ff2a88"), Color("00e0ff")],
 	},
 	{  # D: A's warm colours with B's thin lines (owner pick)
-		"sky_day": Color("5cb8f0"), "sky_horizon": Color("f8e4a8"), "sky_night": Color("1a1440"),
+		"sky_day": Color("5cb8f0"), "sky_horizon": Color("f8e4a8"), "sky_night": Color("1a1440"), "sky_night_horizon": Color("68305c"),
 		"wall": Color("3a2216"), "slab": Color("22120c"), "outline": Color("160a06"), "slab_hi": Color("75645c"),
 		"hues": {
 			"lobby": Color("e8b458"), "office": Color("58a0e0"), "condo": Color("c880d8"), "hotel": Color("e0648c"),

@@ -5,7 +5,8 @@ const PeopleView := preload("res://scripts/view/people_view.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const RoomLook := preload("res://scripts/view/room_look.gd")
 const TransportLook := preload("res://scripts/view/transport_look.gd")
-const Palette := preload("res://scripts/view/palette.gd")
+const SkyLook := preload("res://scripts/view/sky_look.gd")
+const Palette :=preload("res://scripts/view/palette.gd")
 const PixelLayer := preload("res://scripts/view/pixel_layer.gd")
 ## Draws the tower on a low-resolution canvas (10.2). World space is native pixels (8 px per column,
 ## 24 px per floor, see view_consts.gd). The rooms, links, floors and shafts go into one SubViewport
@@ -33,6 +34,7 @@ var tower: Tower = null
 var _people_view := PeopleView.new()
 var _elevators := ElevatorView.new()
 var _seen_tick: int = -1
+var _seen_rain: bool = false
 var _static_tick: int = -1000000
 var _since_tick: float = 0.0  ## Seconds since the sim last ticked.
 var _tick_len: float = 1.0 / 30.0  ## Seconds the last tick took; cars slide over this long.
@@ -85,6 +87,7 @@ func _process(delta: float) -> void:
 	if tower == null or _static_layer == null:
 		return
 	_since_tick += delta
+	_follow_sky()
 	var new_tick := tower.tick != _seen_tick
 	if _elevators.observe(tower):
 		_tick_len = maxf(_since_tick, 0.001)
@@ -122,6 +125,18 @@ func _process(delta: float) -> void:
 		_dynamic_layer.queue_redraw()
 		_dynamic_view.render_target_update_mode = SubViewport.UPDATE_ONCE
 	_seen_tick = tower.tick
+
+
+## Copies the time of day into SkyLook (rooms read it when drawn) and redraws the sky and every room when
+## daylight has moved a step or the rain flag changed, so night falls in a few dozen steps a day.
+func _follow_sky() -> void:
+	var step := SkyLook.quantized(tower.clock.minute_of_day())
+	if step == SkyLook.daylight and _seen_rain == SkyLook.rain:
+		return
+	SkyLook.daylight = step
+	_seen_rain = SkyLook.rain
+	_static_tick = -1000000
+	queue_redraw()
 
 
 func set_tower(value: Tower) -> void:
@@ -220,10 +235,8 @@ func _draw() -> void:
 	var ground_y := Tower.Grid.FLOOR_MAX * VC.CELL_H  # bottom of floor 1, top of B1
 	var left := -MARGIN
 	var width := world.size.x + 2 * MARGIN
-	draw_rect(Rect2i(left, world.position.y - MARGIN, width, ground_y + MARGIN), p["sky_day"])
-	var horizon: Color = p["sky_horizon"]
-	for band in 4:  # a lighter haze toward the horizon, in whole-pixel bands
-		draw_rect(Rect2i(left, ground_y - (band + 1) * VC.CELL_H, width, VC.CELL_H), (p["sky_day"] as Color).lerp(horizon, 0.25 * (4 - band) / 4.0))
+	var minute := tower.clock.minute_of_day() if tower != null else 12 * 60
+	SkyLook.draw(self, p, minute, SkyLook.daylight, SkyLook.rain, left, world.position.y - MARGIN, width, ground_y, world.size.x, VC.CELL_H)
 	draw_rect(Rect2i(left, ground_y, width, world.size.y - ground_y + MARGIN), p["earth"])
 	draw_rect(Rect2i(left, ground_y, width, 3), p["ground"])
 
