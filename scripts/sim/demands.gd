@@ -7,7 +7,7 @@ extends RefCounted
 ## A demand is open while its trigger holds and its remedy is missing:
 ##   SECURITY   from 2 stars (star 3 asks for a security office), no security office.
 ##   SUITE      from 3 stars (star 4 asks for 2 suites), fewer than SUITES_FOR_STAR_4 suites.
-##   MEDICAL    from 3 stars, at least one office, no medical centre.
+##   MEDICAL    from 3 stars, fewer medical centres than one per OFFICES_PER_MEDICAL offices (rounded up).
 ##   RECYCLING  from 3 stars, at least one office, no recycling centre.
 ##   PARKING    from 3 stars, at least one office, no parking space.
 ## A demand only opens once its remedy can be built (its room kind is in Rooms.PLACEABLE), so
@@ -23,6 +23,7 @@ const RECYCLING := 4
 const PARKING := 5
 const IDS: Array[int] = [SECURITY, SUITE, MEDICAL, RECYCLING, PARKING]
 
+const OFFICES_PER_MEDICAL := 20  ## Offices one medical centre serves, no distance (owner ruling, #170; tunable).
 const SUITES_FOR_STAR_4 := 2  ## Mirrors StarRules.REQUIREMENTS[4]["suites"].
 const _REMEDY: Dictionary = {SECURITY: "security", MEDICAL: "medical", RECYCLING: "recycling", PARKING: "parking_space"}
 const _MIN_STARS: Dictionary = {SECURITY: 2, SUITE: 3, MEDICAL: 3, RECYCLING: 3, PARKING: 3}
@@ -57,7 +58,9 @@ static func compute(stars: int, kind_counts: Dictionary, buildable: Array[String
 		if stars < int(_MIN_STARS[id]):
 			continue
 		var wanted := false
-		if id == SUITE:
+		if id == MEDICAL:
+			wanted = buildable.has("medical") and int(kind_counts.get("medical", 0)) * OFFICES_PER_MEDICAL < offices
+		elif id == SUITE:
 			wanted = buildable.has("hotel_suite") and int(kind_counts.get("hotel_suite", 0)) < SUITES_FOR_STAR_4
 		else:
 			var remedy: String = _REMEDY[id]
