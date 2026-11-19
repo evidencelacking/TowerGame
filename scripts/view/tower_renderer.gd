@@ -6,7 +6,9 @@ const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const RoomLook := preload("res://scripts/view/room_look.gd")
 const TransportLook := preload("res://scripts/view/transport_look.gd")
 const EventLook := preload("res://scripts/view/event_look.gd")
-const Palette :=preload("res://scripts/view/palette.gd")
+const ActivityLook := preload("res://scripts/view/activity_look.gd")
+const SkyLook := preload("res://scripts/view/sky_look.gd")
+const Palette := preload("res://scripts/view/palette.gd")
 const PixelLayer := preload("res://scripts/view/pixel_layer.gd")
 ## Draws the tower on a low-resolution canvas (10.2). World space is native pixels (8 px per column,
 ## 24 px per floor, see view_consts.gd). The rooms, links, floors and shafts go into one SubViewport
@@ -34,6 +36,7 @@ var tower: Tower = null
 var _people_view := PeopleView.new()
 var _elevators := ElevatorView.new()
 var _seen_tick: int = -1
+var _seen_rain: bool = false
 var _static_tick: int = -1000000
 var _since_tick: float = 0.0  ## Seconds since the sim last ticked.
 var _tick_len: float = 1.0 / 30.0  ## Seconds the last tick took; cars slide over this long.
@@ -43,6 +46,7 @@ var _figures: Array[Dictionary] = []
 var _from: Dictionary = {}  ## Person id -> Vector2(column, row) at the previous tick, to glide from.
 var _has_moving: bool = false
 var _in_use: Dictionary = {}  ## Room id -> true for rooms with someone resting in them.
+var _asleep: Dictionary = {}  ## Room id -> true for rooms where everyone present is asleep: lights off.
 var _checked_tick: int = -1000000
 var _floor_rects: Array[Rect2i] = []  ## Runs of built floor units, one row tall; rebuilt when the layout changes.
 var _room_runs: Array[Array] = []  ## [id, owning room id, rect] per placed room run.
@@ -86,6 +90,7 @@ func _process(delta: float) -> void:
 	if tower == null or _static_layer == null:
 		return
 	_since_tick += delta
+	_follow_sky()
 	var new_tick := tower.tick != _seen_tick
 	if _elevators.observe(tower):
 		_tick_len = maxf(_since_tick, 0.001)
@@ -125,6 +130,18 @@ func _process(delta: float) -> void:
 	_seen_tick = tower.tick
 
 
+## Copies the time of day into SkyLook (rooms read it when drawn) and redraws the sky and every room when
+## daylight has moved a step or the rain flag changed, so night falls in a few dozen steps a day.
+func _follow_sky() -> void:
+	var step := SkyLook.quantized(tower.clock.minute_of_day())
+	if step == SkyLook.daylight and _seen_rain == SkyLook.rain:
+		return
+	SkyLook.daylight = step
+	_seen_rain = SkyLook.rain
+	_static_tick = -1000000
+	queue_redraw()
+
+
 func set_tower(value: Tower) -> void:
 	tower = value
 	_static_tick = -1000000
@@ -144,12 +161,18 @@ func refresh_palette() -> void:
 ## Rooms with someone resting in them, from the figures drawn this tick.
 func _rooms_in_use() -> Dictionary:
 	var used: Dictionary = {}
+	var sleeping: Dictionary = {}
 	for figure: Dictionary in _figures:
 		if figure["moving"]:
 			continue
 		var id: int = tower.grid.cell_at(figure["floor"], figure["x"])
-		if id != Tower.Grid.EMPTY:
+		if id == Tower.Grid.EMPTY:
+			continue
+		if figure["act"] == ActivityLook.SLEEPING:
+			sleeping[tower.rooms.room_of(id)] = true
+		else:
 			used[tower.rooms.room_of(id)] = true
+	_asleep = sleeping
 	return used
 
 
@@ -221,10 +244,8 @@ func _draw() -> void:
 	var ground_y := Tower.Grid.FLOOR_MAX * VC.CELL_H  # bottom of floor 1, top of B1
 	var left := -MARGIN
 	var width := world.size.x + 2 * MARGIN
-	draw_rect(Rect2i(left, world.position.y - MARGIN, width, ground_y + MARGIN), p["sky_day"])
-	var horizon: Color = p["sky_horizon"]
-	for band in 4:  # a lighter haze toward the horizon, in whole-pixel bands
-		draw_rect(Rect2i(left, ground_y - (band + 1) * VC.CELL_H, width, VC.CELL_H), (p["sky_day"] as Color).lerp(horizon, 0.25 * (4 - band) / 4.0))
+	var minute := tower.clock.minute_of_day() if tower != null else 12 * 60
+	SkyLook.draw(self, p, minute, SkyLook.daylight, SkyLook.rain, left, world.position.y - MARGIN, width, ground_y, world.size.x, VC.CELL_H)
 	draw_rect(Rect2i(left, ground_y, width, world.size.y - ground_y + MARGIN), p["earth"])
 	draw_rect(Rect2i(left, ground_y, width, 3), p["ground"])
 
@@ -257,7 +278,7 @@ func _draw_lobby(canvas: CanvasItem) -> void:
 func _draw_rooms(canvas: CanvasItem) -> void:
 	var broken: Array[int] = Parking.broken_ids(tower.rooms, tower.grid)  # cut-off parking is crossed out
 	for run: Array in _room_runs:
-		RoomLook.draw(canvas, tower, run[0], run[2], broken, _in_use.has(run[1]))
+		RoomLook.draw(canvas, tower, run[0], run[2], broken, _in_use.has(run[1]), _asleep.has(run[1]) and not _in_use.has(run[1]))
 
 
 ## Stairs and escalators (the link layer) in front of the rooms: each spans its own floor and the one
@@ -333,6 +354,11 @@ func _draw_people(canvas: CanvasItem) -> void:
 	var types: Array = Palette.get_palette()["people"]
 	for figure: Dictionary in _figures:
 		var band: int = figure["band"]
+		if not figure["moving"]:  # resting: on a spot of its room, doing what the sim says
+			var rest_shirt: Color = types[(figure["id"] as int) % types.size()] if band == 0 else PeopleView.color_of(band)
+			var p := Palette.get_palette()
+			ActivityLook.draw(canvas, figure["px"], figure["pfeet"], figure["act"], ActivityLook.frame(figure["id"], tower.tick), rest_shirt, skin, p["gold"], p["white"])
+			continue
 		var at := _shown_at(figure)
 		var x := roundi(at.x * VC.CELL_W) + (VC.CELL_W - FIGURE_W) / 2
 		var feet := roundi((at.y + 1.0) * VC.CELL_H) - 3

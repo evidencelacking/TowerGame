@@ -10,6 +10,7 @@ const RecyclingScript := preload("res://scripts/sim/recycling.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
+const SkyLook := preload("res://scripts/view/sky_look.gd")
 
 ## States, as names so tests and the info text can read them.
 const CLEAN := "clean"
@@ -113,12 +114,12 @@ static func describe(tower: Tower, room_id: int, broken: Variant = null) -> Dict
 ## Paints one room's run into rect (native pixels in the canvas item). id may be either half of a
 ## recycling centre; each half is painted in its own rect. broken is as for describe(). lit is the
 ## in-use look: someone is there (the renderer works it out once per refresh); an empty room is dim.
-static func draw(canvas: CanvasItem, tower: Tower, id: int, rect: Rect2i, broken: Variant = null, lit: bool = false) -> void:
+static func draw(canvas: CanvasItem, tower: Tower, id: int, rect: Rect2i, broken: Variant = null, lit: bool = false, dark: bool = false) -> void:
 	var look := describe(tower, id, broken)
 	var kind: String = look["kind"]
 	var state: String = look["state"]
 	var upper := tower.rooms.is_tall_upper(id)
-	var in_use := lit or state == OCCUPIED or state == LEASED
+	var in_use := (lit or state == OCCUPIED or state == LEASED) and not dark  # dark: everyone in it is asleep
 	var p := Palette.get_palette()
 	var base := Palette.hue(RoomRecipes.hue_key(kind))
 	if state == DIRTY or state == INFESTED or state == IDLE or state == VACANT:
@@ -149,7 +150,7 @@ static func draw(canvas: CanvasItem, tower: Tower, id: int, rect: Rect2i, broken
 static func draw_recipe(canvas: CanvasItem, kind: String, rect: Rect2i, base: Color, lit: bool, upper: bool = false, id: int = 0) -> void:
 	var p := Palette.get_palette()
 	var mode: int = p["mode"]
-	var body := base if lit else base.darkened(p["dim"])
+	var body := base if lit else base.darkened(SkyLook.dim_at(p["dim"], SkyLook.daylight))
 	var interior_h := VC.CELL_H - VC.SLAB_H
 	var body_rect := Rect2i(rect.position.x, rect.position.y, rect.size.x, rect.size.y - VC.SLAB_H)
 	canvas.draw_rect(body_rect, body)
@@ -178,7 +179,7 @@ static func _role_colors(p: Dictionary, base: Color, lit: bool, id: int) -> Dict
 	var white: Color = p["white"]
 	return {
 		"furn": furn, "accent": base.lightened(0.4), "lamp": p["lamp"] if lit else p["lamp_off"],
-		"window": p["sky_day"], "ink": p["ink"], "white": white if lit else white.darkened(0.35),
+		"window": SkyLook.window_color(p, lit, SkyLook.daylight, SkyLook.rain), "ink": p["ink"], "white": white if lit else white.darkened(0.35),
 		"red": p["red"], "gold": p["gold"], "green": p["green"], "wood": p["wood"],
 		"car": people[id % people.size()],
 	}
