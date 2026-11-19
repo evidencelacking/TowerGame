@@ -3,6 +3,7 @@ extends Node2D
 const VC := preload("res://scripts/view/view_consts.gd")
 const PeopleView := preload("res://scripts/view/people_view.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
+const RoomLook := preload("res://scripts/view/room_look.gd")
 ## Draws the tower with native shapes only. Reads the Tower read-only; never mutates sim state.
 ## All geometry is integer pixels from view_consts.gd, so edges stay aligned at any zoom.
 
@@ -141,6 +142,10 @@ func _draw_rooms() -> void:
 			seen[id] = true
 			var run := grid.run_of(id)
 			var rect := Rect2i(run[1] * VC.CELL_PX, VC.floor_to_row(floor_number) * VC.CELL_PX, run[2] * VC.CELL_PX, VC.CELL_PX)
+			if tower.rooms.has_room(id) and RoomLook.handles(tower.rooms.kind_of(id)):
+				RoomLook.draw(self, tower, id, rect)
+				column += run[2]
+				continue
 			var color: Color = EMPTY_ROOM_COLOR
 			if tower.rooms.has_room(id):
 				color = KIND_COLORS.get(tower.rooms.kind_of(id), EMPTY_ROOM_COLOR)
