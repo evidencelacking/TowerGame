@@ -15,8 +15,9 @@ All wording is ours.
    The tower reads as alive from across the screen.
 5. **The sky tells the time.** Sky colour, sun, moon and stars carry the time of day. Windows show
    the same sky.
-6. **People are tiny but countable.** About 3x7 native px, one colour per type. Alone they are
-   marks, together they read as a crowd in motion.
+6. **People are small but readable.** About 6x16 native px, half a floor tall (`VC.FIGURE_W`,
+   `VC.FIGURE_H`; every pose derives from the pair). A hair line, a skin face, a shirt in the type
+   colour and two legs. Alone they are people, together a crowd in motion.
 7. **Elevator cars are the main movers.** The car is the brightest moving shape in the shaft, and
    its occupants show.
 8. **Every activity has a visual.** If the sim knows someone is doing something, the view shows it.
@@ -40,7 +41,7 @@ hotel, food, stairs, one shaft with a car, and people. Day on top, night below.
 | A | `art_a.tscn` | Warm, saturated, chunky dark outlines on furniture. |
 | B | `art_b.tscn` | Muted, thin line furniture, cool dusk-and-night palette. |
 | C | `art_c.tscn` | Flat bold colour, black walls, white and black figures, high contrast. |
-| D32 | `art_d32.tscn` | D at 32 px per floor with detailed furniture and 4x9 figures (`floor_h`, `detail` on the scene). |
+| D32 | `art_d32.tscn` | D at 32 px per floor with detailed furniture and 4x9 figures (the renderer now draws 6x16) (`floor_h`, `detail` on the scene). |
 | D40 | `art_d40.tscn` | The same detail at 40 px per floor, to judge how tall a floor needs to be. |
 
 Launch (PowerShell): `python D:\Claude\TowerGame\tools\play.py --scene res://mockups/art_a.tscn`.
