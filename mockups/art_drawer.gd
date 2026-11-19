@@ -64,6 +64,18 @@ static func _style(id: int) -> Dictionary:
 				"people": [Color("5a6a7a"), Color("8a7a6a"), Color("6a8a8a"), Color("a0a0a8"), Color("7a6a8a")],
 				"skin": Color("d8c0a8"), "lamp": Color("f4e8c0"), "wall_w": 1,
 			}
+		3:  # D: A's warm colours with B's thin lines (owner pick, #240)
+			return {
+				"sky_day": [Color("5cb8f0"), Color("f8e4a8")],
+				"sky_night": [Color("1a1440"), Color("68305c")],
+				"wall": Color("3a2216"), "slab": Color("22120c"), "outline": Color("160a06"),
+				"hues": [Color("e8b458"), Color("58a0e0"), Color("e0648c"), Color("f08030")],
+				"dim_day": 0.45, "dim_night": 0.8, "furn": 0.38, "mode": 1,
+				"shaft": Color("2a1a12"), "car": Color("e4c43c"), "ground": Color("4a8a30"),
+				"earth": Color("5a3a22"),
+				"people": [Color("d03030"), Color("3050c8"), Color("30a040"), Color("f0f0f0"), Color("8a38a8")],
+				"skin": Color("f0c090"), "lamp": Color("fff0a0"), "wall_w": 1,
+			}
 		_:  # C: bold flat modern, high contrast
 			return {
 				"sky_day": [Color("38a0ff"), Color("38a0ff")],
@@ -137,7 +149,7 @@ func _draw_sky() -> void:
 			var sx: int = (i * 97 + 13) % NATIVE_W
 			var sy: int = (i * 53 + 7) % 60
 			_r(sx, sy, 1, 1, Color(1, 1, 1, 0.5 + 0.25 * float(i % 3)))
-		_r(420, 6, 7, 7, Color("fff0b0") if style_id == 0 else Color("e8ecff"))
+		_r(420, 6, 7, 7, Color("fff0b0") if style_id == 0 or style_id == 3 else Color("e8ecff"))
 		if style_id == 1:
 			_r(423, 6, 4, 7, top)
 	else:
@@ -204,9 +216,10 @@ func _draw_slabs() -> void:
 	_r(BUILD_X, SKY_H - SLAB, 48 * COL, SLAB, _s["slab"])
 	_r(BUILD_X - ww, SKY_H - SLAB, ww, 4 * FLOOR_H + SLAB, _s["wall"])
 	_r(BUILD_X + 48 * COL, SKY_H - SLAB, ww, 4 * FLOOR_H + SLAB, _s["wall"])
-	if style_id == 1:
+	if _s["mode"] == 1:
+		var line: Color = Color("6a7a8c") if style_id == 1 else _s["wall"].lightened(0.3)
 		for f: int in 4:
-			_r(BUILD_X, _floor_top(f) + FLOOR_H - SLAB, 48 * COL, 1, Color("6a7a8c"))
+			_r(BUILD_X, _floor_top(f) + FLOOR_H - SLAB, 48 * COL, 1, line)
 
 
 func _draw_room(room: Array) -> void:
@@ -227,11 +240,11 @@ func _draw_room(room: Array) -> void:
 	if lit and style_id != 2:
 		_r(x0, y0, w, 3, base.lightened(0.18))
 	_r(x0, y0, _s["wall_w"], h, _s["wall"])
-	if style_id == 1:
+	if _s["mode"] == 1:
 		_frame(x0 + 1, y0, w - 1, h, _s["outline"].darkened(0.3))
 	var furn: Color = base.lightened(0.18)
 	if lit:
-		furn = base.darkened(0.45 if style_id == 1 else _s["furn"])
+		furn = base.darkened(0.45 if _s["mode"] == 1 else _s["furn"])
 	elif style_id == 2:
 		furn = base.lightened(0.3)
 	var accent: Color = base.lightened(0.4)
