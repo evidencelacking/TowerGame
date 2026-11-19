@@ -12,7 +12,7 @@ extends RefCounted
 ## visit is called off, and a new one is tried the next day.
 ##
 ## Verdict (owner ruling, #173): good when the suite is not graded C and the tower's quality is
-## over GOOD_OVER (the B line). Tower quality is the average quality of every graded room (offices,
+## at least GOOD_FROM (the B line). Tower quality is the average quality of every graded room (offices,
 ## condos, hotel rooms; Grades.quality), by integer division. A vacant suite reads as the neutral B
 ## until guests have stayed in it, so in practice the tower's quality decides. No random draw is used.
 ##
@@ -33,7 +33,7 @@ const RETRY_DAYS := 3  ## After a bad verdict the next VIP comes this many days 
 const VISIT_MINUTE := 1080  ## 18:00: the VIP arrives (the hotel's check-in window opens).
 const VISIT_WINDOW := 120  ## A tick may skip minutes, so a visit may start up to this many minutes late.
 const VERDICT_MINUTE := 600  ## 10:00 the next morning: the VIP leaves and gives a verdict.
-const GOOD_OVER := 150  ## Tower quality must be over this (the B line) for a good verdict.
+const GOOD_FROM := 150  ## Tower quality must reach this (the B line, which is acceptable) for a good verdict.
 
 ## Phases.
 const WAITING := 0  ## No VIP in the tower.
@@ -141,7 +141,7 @@ func _visiting(day: int, minute: int, people: PeopleScript, grades: GradesScript
 	if day <= _visit_day or minute < VERDICT_MINUTE:
 		return
 	var suite_ok := grades.grade(_rooms, people, _suite) != GradesScript.GRADE_C
-	var good := suite_ok and tower_quality(_rooms, people, grades) > GOOD_OVER
+	var good := suite_ok and tower_quality(_rooms, people, grades) >= GOOD_FROM
 	_verdict = GOOD if good else BAD
 	_visits += 1
 	_next_day = day + RETRY_DAYS
