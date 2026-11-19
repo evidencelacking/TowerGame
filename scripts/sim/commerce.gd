@@ -16,7 +16,7 @@ extends RefCounted
 ## a B, like a new office. The grade cap (30 for fast food) is the grade bar's full scale.
 ## All numbers here are UNVERIFIED tunables except where marked (docs/gameplay-reference.md).
 ##
-## Saved: the last minute seen, and per shop the customers today and yesterday (-1: no settled day yet).
+## Saved: the last minute seen, the outside visitors now inside and when they leave, and per shop the customers today and yesterday (-1: no settled day yet).
 
 const Clock := preload("res://scripts/sim/clock.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
@@ -66,6 +66,16 @@ const SHOP_LUNCH_PERCENT := 25
 const SHOP_EVENING := 1050  ## 17:30.
 const SHOP_EVENING_WINDOW := 120
 const SHOP_EVENING_PERCENT := 25
+## Visitors from outside (#154, 6.10): per shop kind, the visitors who arrive for that kind's meal
+## in each of the 6 clock periods, on a weekday (WD1, WD2) and on the weekend (WE). They enter by
+## the ground lobby only (until the metro and theatre exist), pick a reachable shop of the kind at
+## random and are served like anyone else (seats permitting). Weekends peak for shopping and food.
+## Night periods bring none. All unverified tunables, tune by play.
+const VISITORS: Dictionary = {
+	"fast_food": [[0, 4, 12, 4, 0, 0], [0, 6, 20, 10, 0, 0]],
+	"restaurant": [[0, 0, 0, 0, 6, 0], [0, 0, 0, 0, 14, 0]],
+	"retail": [[0, 0, 4, 0, 6, 0], [0, 0, 14, 0, 24, 0]],
+}
 ## Days a shop stays vacant after its renter leaves before a new renter takes it (if reachable).
 const RELET_DAYS := 3
 
@@ -98,6 +108,8 @@ const PROFILES: Dictionary = {
 }
 
 var _last_minute: int = -1
+var _visitors_in: int = 0  ## Outside visitors inside the tower now (they count toward population, 3.8).
+var _visitors_until: int = 0  ## Minute of day when the latest batch of them leaves.
 var _today: Dictionary = {}  ## Room id -> customers served so far today.
 var _vacant: Dictionary = {}  ## Retail room id -> evaluations vacant (its renter left; absent: leased).
 var _last_day: Dictionary = {}  ## Room id -> customers served in the last settled day (0 counts; absent: none settled yet).
@@ -115,6 +127,29 @@ static func has_sales(kind: String) -> bool:
 ## True if a retail shop's renter has left and no one has taken it yet.
 func is_vacant(room: int) -> bool:
 	return _vacant.has(room)
+
+
+## Visitors from outside who come for this kind's meal in a clock period (1 to 6) on a day of the
+## quarter (Clock.WD1, WD2 or WE).
+static func visitors_for(kind: String, period: int, day: int) -> int:
+	if not VISITORS.has(kind) or period < 1 or period > Clock.PERIODS:
+		return 0
+	var by_day: Array = VISITORS[kind]
+	return int(by_day[1 if day == Clock.WE else 0][period - 1])
+
+
+## The clock period (1 to 6) a minute of the day falls in.
+static func period_of_minute(minute: int) -> int:
+	var found := Clock.PERIODS  # before period 1 starts, it is still the night period
+	for i in Clock.PERIODS:
+		if minute >= Clock.period_start(i):
+			found = i + 1
+	return found
+
+
+## Outside visitors in the tower at this minute of the day.
+func visitors_inside(minute: int) -> int:
+	return _visitors_in if minute < _visitors_until else 0
 
 
 ## Forgets a room that was bulldozed or replaced.
@@ -196,8 +231,10 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 		return
 	for meal: Array in MEALS:
 		if _crossed(prev, minute, meal[0]):
-			_serve(meal[3], meal[1], meal[2], floors, rooms, grid, people, tenancy, rng)
+			_serve(meal[3], meal[1], meal[2], floors, rooms, grid, people, tenancy, rng, clock.day_of_week(), meal[0])
 	if _crossed(prev, minute, SETTLE_MINUTE):
+		_visitors_in = 0
+		_visitors_until = 0
 		_settle(floors, rooms, grid, tenancy, ledger, messages, at_tick)
 
 
@@ -214,7 +251,7 @@ func _open_shops(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, ten
 	return shops
 
 
-func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, tenancy: TenancyScript, rng: Object) -> void:
+func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, tenancy: TenancyScript, rng: Object, day: int, at_minute: int) -> void:
 	var shops: Array[int] = []
 	for id in _open_shops(floors, rooms, grid, tenancy):
 		if rooms.kind_of(id) == kind:
@@ -233,6 +270,20 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		if int(served.get(shop, 0)) < seats_per_meal(rooms.kind_of(shop), window):
 			served[shop] = int(served.get(shop, 0)) + 1
 			_today[shop] = customers_today(shop) + 1
+	# Visitors from outside (#154).
+	var arriving := visitors_for(kind, period_of_minute(at_minute), day)
+	var came := 0
+	for v in arriving:
+		var shop: int = shops[rng.next_below(shops.size())]
+		if int(served.get(shop, 0)) < seats_per_meal(rooms.kind_of(shop), window):
+			served[shop] = int(served.get(shop, 0)) + 1
+			_today[shop] = customers_today(shop) + 1
+			came += 1
+	if came > 0:
+		if at_minute >= _visitors_until:
+			_visitors_in = 0
+		_visitors_in += came
+		_visitors_until = maxi(_visitors_until, at_minute + window)
 
 
 func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy: TenancyScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:
@@ -295,7 +346,7 @@ func state_ints() -> Array[int]:
 		if not ids.has(id):
 			ids.append(id)
 	ids.sort()
-	var ints: Array[int] = [_last_minute, ids.size()]
+	var ints: Array[int] = [_last_minute, _visitors_in, _visitors_until, ids.size()]
 	for id: int in ids:
 		ints.append_array([id, customers_today(id), int(_last_day.get(id, -1))] as Array[int])
 	var vacant: Array = _vacant.keys()
@@ -307,30 +358,32 @@ func state_ints() -> Array[int]:
 
 
 static func valid_ints(ints: Array) -> bool:
-	if ints.size() < 3 or typeof(ints[1]) != TYPE_INT or ints[1] < 0:
+	if ints.size() < 5 or typeof(ints[3]) != TYPE_INT or ints[3] < 0:
 		return false
-	var at: int = 2 + 3 * ints[1]
+	var at: int = 4 + 3 * ints[3]
 	if ints.size() <= at or typeof(ints[at]) != TYPE_INT or ints[at] < 0 or ints.size() != at + 1 + 2 * ints[at]:
 		return false
 	for value in ints:
 		if typeof(value) != TYPE_INT:
 			return false
-	for k in range(2, at, 3):
+	for k in range(4, at, 3):
 		if ints[k] < 0 or ints[k + 1] < 0 or ints[k + 2] < -1:
 			return false
 	for k in range(at + 1, ints.size(), 2):
 		if ints[k] < 0 or ints[k + 1] < 0:
 			return false
-	return ints[0] >= -1 and ints[0] < Clock.MINUTES_PER_DAY
+	return ints[0] >= -1 and ints[0] < Clock.MINUTES_PER_DAY and ints[1] >= 0 and ints[2] >= 0 and ints[2] <= Clock.MINUTES_PER_DAY
 
 
 func load_ints(ints: Array) -> void:
 	_last_minute = ints[0]
+	_visitors_in = ints[1]
+	_visitors_until = ints[2]
 	_today.clear()
 	_last_day.clear()
 	_vacant.clear()
-	var at: int = 2 + 3 * ints[1]
-	for k in range(2, at, 3):
+	var at: int = 4 + 3 * ints[3]
+	for k in range(4, at, 3):
 		if ints[k + 1] > 0:
 			_today[ints[k]] = ints[k + 1]
 		if ints[k + 2] >= 0:
