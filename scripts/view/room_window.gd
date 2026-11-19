@@ -10,6 +10,8 @@ const TowerSim := preload("res://scripts/sim/tower.gd")
 const RoomInfo := preload("res://scripts/view/room_info.gd")
 const PeopleView := preload("res://scripts/view/people_view.gd")
 const PersonInfo := preload("res://scripts/view/person_info.gd")
+const ElevatorTools := preload("res://scripts/view/elevator_tools.gd")
+const VC := preload("res://scripts/view/view_consts.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
 
@@ -96,6 +98,10 @@ func click_at(world: Vector2, person_radius: float) -> void:
 	if tower == null or _tool_active():
 		return
 	if PersonInfo.pick(_view.figures(tower), world, person_radius) != -1:
+		return
+	var floor_number := RoomInfo.floor_at_y(world.y)
+	if floor_number != 0 and not ElevatorTools.shaft_at(tower, floor_number, floori(world.x / VC.CELL_PX)).is_empty():
+		close()  # the elevator panel takes clicks on a shaft
 		return
 	var id := RoomInfo.room_at(tower, world)
 	if id == -1:

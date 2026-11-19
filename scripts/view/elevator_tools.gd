@@ -20,6 +20,7 @@ const TEXT: Dictionary = {
 	RoomsScript.MAX_CARS: "A shaft holds at most 8 cars",
 	RoomsScript.STAR_CAR_CAP: "More stars allow more cars",
 	RoomsScript.BAD_HOME_FLOOR: "A car's home must be a stop",
+	RoomsScript.TOO_FEW_STOPS: "A shaft keeps at least two stops",
 	RoomsScript.NO_CARS_HERE: "Needs a shaft of the car's own kind",
 	RoomsScript.HOME_DROPPED: "Would drop a car's home floor",
 	RoomsScript.EXPRESS_NO_STOP: "Express shafts stop only at lobbies and basements",

@@ -63,11 +63,13 @@ const RAMP_NOT_UNDER_LOBBY := 65  ## Parking ramp: the first goes on B1 under th
 const RAMP_NOT_BELOW_RAMP := 66  ## Parking ramp: a later ramp goes directly below a ramp.
 const NOT_BASEMENT := 67  ## Parking ramps and spaces go below ground.
 const EXPRESS_NO_STOP := 68  ## Express stop: only lobbies and basements can be stops.
+const TOO_FEW_STOPS := 72  ## Shaft stop: a shaft keeps at least MIN_STOPS stops (#187).
 const NO_MACHINE_ROOM := 70  ## Shaft: no floor above the top stop (floor 100) or below the bottom stop (B10) for a machine room.
 const MACHINE_ROOM := 71  ## A shaft's machine room is on the cell, so no room or link goes there.
 const ESCALATOR_FLOOR := 69  ## Escalator: it stands only on commercial, lobby or empty floors (#185), never over an office, condo or the like.
 
 const CAR_INTS := 9  ## Ints in one saved car (SHAFT to NEXT in cars.gd).
+const MIN_STOPS := 2  ## A shaft needs at least this many stops (gameplay review of #187: yes).
 const MAX_CARS_PER_SHAFT := 8  ## Cars in one shaft (reference).
 const CAR_CAPACITY := 17  ## People a local (or service) car holds (reference); enforced in cars.gd (#94).
 const EXPRESS_CAR_CAPACITY := 36  ## People an express car holds (owner ruling 2026-11-10).
@@ -824,14 +826,32 @@ func remove_car(shaft_id: int) -> int:
 	return NOTHING_THERE
 
 
+## Moves a car's home floor (the SET_CAR_HOME command): shaft id, the car's place among the shaft's
+## cars (0 is the oldest), the new home, which must be a stop. An idle car heads there after IDLE_DWELL.
+func set_car_home(shaft_id: int, nth: int, home: int) -> int:
+	var seen := 0
+	for car: Array in _cars:
+		if car[CarsScript.SHAFT] != shaft_id:
+			continue
+		if seen == nth:
+			if not is_stop(shaft_id, home):
+				return BAD_HOME_FLOOR
+			car[CarsScript.HOME] = home
+			return OK
+		seen += 1
+	return NO_SUCH_CAR
+
+
 ## Turns a shaft's stop on a floor on or off (the SET_SHAFT_STOP command). Refused if the floor
-## is outside the span. A disabled floor is passed, not stopped at.
+## is outside the span, or if switching it off would leave fewer than MIN_STOPS stops. A disabled floor is passed, not stopped at.
 func set_shaft_stop(id: int, floor_number: int, on: bool) -> int:
 	if not _shafts.has(id) or not _in_shaft_span(_shafts[id], floor_number):
 		return NOT_IN_SHAFT
 	if on and not _express_ok(id, floor_number):
 		return EXPRESS_NO_STOP
 	var off: Array[int] = _shafts[id][3]
+	if not on and is_stop(id, floor_number) and stops_of(id).size() <= MIN_STOPS:
+		return TOO_FEW_STOPS
 	if not on:
 		for car: Array in _cars:
 			if car[CarsScript.SHAFT] == id and car[CarsScript.HOME] == floor_number:
