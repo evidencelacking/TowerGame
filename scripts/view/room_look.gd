@@ -114,12 +114,12 @@ static func describe(tower: Tower, room_id: int, broken: Variant = null) -> Dict
 ## Paints one room's run into rect (native pixels in the canvas item). id may be either half of a
 ## recycling centre; each half is painted in its own rect. broken is as for describe(). lit is the
 ## in-use look: someone is there (the renderer works it out once per refresh); an empty room is dim.
-static func draw(canvas: CanvasItem, tower: Tower, id: int, rect: Rect2i, broken: Variant = null, lit: bool = false) -> void:
+static func draw(canvas: CanvasItem, tower: Tower, id: int, rect: Rect2i, broken: Variant = null, lit: bool = false, dark: bool = false) -> void:
 	var look := describe(tower, id, broken)
 	var kind: String = look["kind"]
 	var state: String = look["state"]
 	var upper := tower.rooms.is_tall_upper(id)
-	var in_use := lit or state == OCCUPIED or state == LEASED
+	var in_use := (lit or state == OCCUPIED or state == LEASED) and not dark  # dark: everyone in it is asleep
 	var p := Palette.get_palette()
 	var base := Palette.hue(RoomRecipes.hue_key(kind))
 	if state == DIRTY or state == INFESTED or state == IDLE or state == VACANT:

@@ -22,6 +22,7 @@ const ToolbarScript := preload("res://scripts/view/toolbar.gd")
 const GhostScript := preload("res://scripts/view/placement_ghost.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const PeopleViewScript := preload("res://scripts/view/people_view.gd")
+const PersonInfo := preload("res://scripts/view/person_info.gd")
 const EXPECTED_PATH := "res://tools/ui_expected.json"
 const WAIT_FRAMES := 3  ## Frames after an input before the view has caught up.
 const SETTLE_TICKS := 6  ## Sim ticks after a click: commands are due the tick after they are queued.
@@ -238,7 +239,7 @@ func _window_cases() -> void:
 	while figures.is_empty() and waited < PEOPLE_TICK_LIMIT:
 		_step(100)
 		waited += 100
-		figures = view.figures(_tower)
+		figures.assign(view.figures(_tower).filter(func(f: Dictionary) -> bool: return not f.get("staff", false)))  # cleaners are not people
 	if figures.is_empty():
 		_record("window.person", "windows", "Click a person: the person window opens", "-", false, "no person walked in within %d ticks" % waited, "SKIP")
 		return
@@ -418,8 +419,7 @@ func _cell_screen(floor_number: int, column: int) -> Vector2:
 
 
 func _figure_screen(f: Dictionary) -> Vector2:
-	var world := Vector2(float(f["fx"]) * VC.CELL_W + VC.CELL_W / 2.0, float(f["frow"]) * VC.CELL_H + VC.CELL_H - VC.FIGURE_H / 2.0 - VC.SLAB_H)
-	return root.get_canvas_transform() * world
+	return root.get_canvas_transform() * PersonInfo.figure_center(f)  # where the figure is drawn, spot included
 
 
 ## Pans the camera (as a player would) so a cell is mid-screen; returns that cell's screen position.
