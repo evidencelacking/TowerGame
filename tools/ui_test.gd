@@ -81,6 +81,7 @@ func _run_all() -> void:
 	await _zoom2_cases()
 	await _bulldoze_cases()
 	await _window_cases()
+	await _behind_cases()
 
 
 func _toolbar_cases() -> void:
@@ -217,6 +218,30 @@ func _bulldoze_cases() -> void:
 		"Bulldoze one of the two escalators sharing floor 2")
 	await _click_case("bulldoze.stairs", "bulldoze", GhostScript.BULLDOZE, 1, 102,
 		func() -> bool: return _link_kind(1, 100) == "", "Bulldoze the lowest stairs")
+
+
+## Rooms behind transport (#272): a room goes behind a shaft, stairs and an escalator, and bulldoze
+## takes the transport in front first, then the room. Floors 8 to 10 at columns 100 to 120 are free.
+func _behind_cases() -> void:
+	await _drag_case("behind.shaft.place", "behind", "local_shaft", 102, 8, 102, 9,
+		func() -> bool: return _shaft_span(102, 8, 9), "Drag a shaft over floors 8 to 9, columns 100 to 103")
+	await _room_case("office", 8, 100, "behind.shaft.room")
+	await _click_case("behind.shaft.bulldoze_front", "behind", GhostScript.BULLDOZE, 8, 101,
+		func() -> bool: return _shaft_at(8, 101).is_empty() and _kind_at(8, 101) == "office", "Bulldoze at the shaft takes the shaft, not the office")
+	await _click_case("behind.shaft.bulldoze_room", "behind", GhostScript.BULLDOZE, 8, 101,
+		func() -> bool: return _kind_at(8, 101) == "", "A second bulldoze takes the office behind")
+	await _room_case("office", 9, 100, "behind.stairs.room")
+	await _click_case("behind.stairs.place", "behind", "stairs", 8, 102,
+		func() -> bool: return _link_kind(8, 100) == "stairs" and _kind_at(9, 100) == "office", "Stairs over floors 8 to 9 in front of the office")
+	await _click_case("behind.stairs.bulldoze_front", "behind", GhostScript.BULLDOZE, 9, 101,
+		func() -> bool: return _link_kind(8, 100) == "" and _kind_at(9, 101) == "office", "Bulldoze takes the stairs first")
+	await _room_case("retail", 9, 112, "behind.escalator.room")
+	await _click_case("behind.escalator.place", "behind", "escalator", 9, 116,
+		func() -> bool: return _link_kind(9, 112) == "escalator" and _kind_at(9, 112) == "retail", "An escalator in front of the shop on floor 9")
+	await _click_case("behind.escalator.bulldoze_front", "behind", GhostScript.BULLDOZE, 9, 114,
+		func() -> bool: return _link_kind(9, 112) == "" and _kind_at(9, 112) == "retail", "Bulldoze takes the escalator first")
+	await _click_case("behind.escalator.bulldoze_room", "behind", GhostScript.BULLDOZE, 9, 114,
+		func() -> bool: return _kind_at(9, 112) == "", "A second bulldoze takes the shop behind")
 
 
 func _window_cases() -> void:

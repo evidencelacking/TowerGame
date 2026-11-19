@@ -16,6 +16,29 @@ const DOOR_H: int = 18
 const PIPS: int = 4  ## Lamps in a door's indicator.
 const ARRIVED_SLACK: float = 0.15  ## A car this close to a floor level counts as there.
 const RIDERS_SHOWN: int = 5
+const SETTINGS_PATH := "user://settings.cfg"
+const SECTION := "display"
+const KEY_SEE_THROUGH := "elevators_see_through"
+
+## View option (#272): draw shafts as an outline so the room behind shows. View state only: it is
+## kept in user://settings.cfg with the other display settings, never in the tower or a save.
+static var see_through: bool = false
+
+
+## Reads the saved option; the renderer calls it once when it starts.
+static func load_setting() -> void:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		see_through = bool(config.get_value(SECTION, KEY_SEE_THROUGH, false))
+
+
+## Sets the option and keeps it for the next run.
+static func set_see_through(value: bool) -> void:
+	see_through = value
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)  # keep other sections; a missing file is fine
+	config.set_value(SECTION, KEY_SEE_THROUGH, value)
+	config.save(SETTINGS_PATH)
 
 
 ## Whether the flight in a span climbs to the left (odd floor rows) instead of to the right.
@@ -85,6 +108,12 @@ static func _draw_escalator(canvas: CanvasItem, p: Dictionary, hue: Color, span:
 ## The shaft's back wall: centre seam and side edges over rect, as the shaft hue.
 static func draw_shaft_body(canvas: CanvasItem, rect: Rect2i, shaft_color: Color) -> void:
 	var edge := shaft_color.lightened(0.4)
+	if see_through:  ## An outline only, so the room behind shows (#272).
+		canvas.draw_rect(Rect2i(rect.position.x, rect.position.y, 1, rect.size.y), edge)
+		canvas.draw_rect(Rect2i(rect.end.x - 1, rect.position.y, 1, rect.size.y), edge)
+		canvas.draw_rect(Rect2i(rect.position.x, rect.position.y, rect.size.x, 1), edge)
+		canvas.draw_rect(Rect2i(rect.position.x, rect.end.y - 1, rect.size.x, 1), edge)
+		return
 	canvas.draw_rect(rect, shaft_color)
 	canvas.draw_rect(Rect2i(rect.position.x + rect.size.x / 2, rect.position.y, 1, rect.size.y), edge.darkened(0.3))
 	canvas.draw_rect(Rect2i(rect.position.x, rect.position.y, 1, rect.size.y), edge)
@@ -94,6 +123,8 @@ static func draw_shaft_body(canvas: CanvasItem, rect: Rect2i, shaft_color: Color
 ## Closed doors on a floor the shaft stops at (floor_bottom is the pixel row of its floor surface): a frame,
 ## a centre seam, door panels, and an indicator of lamps above (dark; draw_arrival lights it).
 static func draw_doors(canvas: CanvasItem, rect: Rect2i, floor_bottom: int, shaft_color: Color) -> void:
+	if see_through:  ## The shaft is only an outline: no doors in front of the room.
+		return
 	var door := shaft_color.lightened(0.55)
 	var x := rect.position.x + 3
 	var w := rect.size.x - 6
