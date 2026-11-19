@@ -162,7 +162,10 @@ static func draw_recipe(canvas: CanvasItem, kind: String, rect: Rect2i, base: Co
 	var colors := _role_colors(p, base, lit, id)
 	var top := body_rect.end.y - interior_h
 	for shape: Array in RoomRecipes.layout(kind, rect.size.x, upper)["shapes"]:
-		_box(canvas, Rect2i(rect.position.x + (shape[0] as int), top + (shape[1] as int), shape[2] as int, shape[3] as int), colors[shape[4]], mode, p["outline"])
+		var gate: String = shape[5]
+		if gate != "" and (gate == "use") != lit:  # "use" shapes show only while in use, "idle" ones only while empty
+			continue
+		_box(canvas, Rect2i(rect.position.x + (shape[0] as int), top + (shape[1] as int), shape[2] as int, shape[3] as int), colors[shape[4]], mode, p["outline"], shape[4] == "furn")
 
 
 ## Role -> colour for one room in the palette in use.
@@ -181,12 +184,13 @@ static func _role_colors(p: Dictionary, base: Color, lit: bool, id: int) -> Dict
 	}
 
 
-## A furniture box in the palette's style: outlined (A), edges only (B) or flat (C).
-static func _box(canvas: CanvasItem, r: Rect2i, color: Color, mode: int, outline: Color) -> void:
+## A furniture box in the palette's style: outlined (A), edges only for furniture frames (B) or flat (C).
+## Only a hollow shape (the "furn" role) is a frame in B; every other role is a solid fill.
+static func _box(canvas: CanvasItem, r: Rect2i, color: Color, mode: int, outline: Color, hollow: bool = true) -> void:
 	if mode == Palette.MODE_OUTLINED:
 		canvas.draw_rect(r.grow(1), outline)
 		canvas.draw_rect(r, color)
-	elif mode == Palette.MODE_LINE and r.size.x > 2 and r.size.y > 2:
+	elif mode == Palette.MODE_LINE and hollow and r.size.x > 2 and r.size.y > 2:
 		canvas.draw_rect(r, color, false, 1.0)
 	else:
 		canvas.draw_rect(r, color)
