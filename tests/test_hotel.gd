@@ -157,7 +157,7 @@ static func run(check: Callable) -> void:
 ".join(RoomInfo.lines_for(info)).contains("Dirty"), "the room window shows a dirty room")
 	var balance := t.ledger.balance
 	_step_to(t, 12 * 60, 1)
-	check.call(not t.hotel.is_dirty(room), "the stopgap cleaning clears the room by midday (until housekeeping, #147)")
+	check.call(t.hotel.is_dirty(room), "with no housekeeping station nothing cleans the room: it is still dirty at midday")
 	check.call(_hotel_lines(t).size() == 1 and t.ledger.balance == balance, "income was posted once, not again")
 
 	# The dirty hook: a dirty room takes no guests; marking it clean frees it (the control: a clean twin books).
