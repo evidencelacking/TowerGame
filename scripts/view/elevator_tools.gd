@@ -237,7 +237,7 @@ static func evaluate_car(t: TowerSim, tool_id: String, floor_number: int, column
 	if CatalogueScript.star(tool_id) > star_rating:
 		out["text"] = "Needs %d stars" % CatalogueScript.star(tool_id)
 		return out
-	var trial := _trial(t, false)
+	var trial := _trial(t)
 	out["code"] = trial.rooms.add_car(trial.ledger, trial.tick, star_rating, hit["id"], home)
 	if out["code"] == 0:
 		out["valid"] = true
