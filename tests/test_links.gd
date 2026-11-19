@@ -47,8 +47,8 @@ static func run(check: Callable) -> void:
 	check.call(t.rooms.kind_of(t.rooms.link_at(3, 102)) == "stairs" and t.rooms.is_stairs_upper(t.rooms.link_at(4, 103)), "the stairs fill both halves in the link layer")
 	check.call(t.grid.cell_at(3, 102) == office and t.grid.cell_at(4, 103) == condo and t.rooms.kind_of(office) == "office" and t.rooms.kind_of(condo) == "condo", "the rooms behind keep their cells and kinds")
 	check.call(t.rooms.people_in(office) == 6 and t.rooms.people_in(condo) == 3, "a room behind stairs keeps its capacity")
-	check.call(_escalator(t, 3, 106) == RoomsScript.OK, "an escalator over an office and a condo is allowed")
-	check.call(_shaft(t, 1, 6, 120) == RoomsScript.OK and _shaft(t, 3, 4, 108) == RoomsScript.OVERLAPS_LINK, "a shaft may stand beside links but not on the escalator")
+	check.call(_escalator(t, 3, 106) == RoomsScript.ESCALATOR_FLOOR, "an escalator over an office and a condo is refused (#185)")
+	check.call(_shaft(t, 1, 6, 120) == RoomsScript.OK and _shaft(t, 3, 4, 102) == RoomsScript.OVERLAPS_LINK, "a shaft may stand beside links but not on the stairs")
 
 	# Routes: stairs through the lobby, across an office floor, with the office behind them.
 	var r := TestElevatorRoutes._plain(5)
@@ -142,13 +142,13 @@ static func run(check: Callable) -> void:
 	var v := TestElevatorRoutes._plain(6)
 	TestRooms._room(v, OFFICE, 3, 100)
 	_stairs(v, 3, 102)
-	_escalator(v, 3, 106)
+	_escalator(v, 3, 112)
 	_shaft(v, 1, 6, 120)
 	var u := TowerSim.new(0)
 	var data := v.save()
 	check.call(u.load_state(data) and u.state_hash() == v.state_hash(), "a tower with links over rooms saves and loads exactly")
-	check.call(u.rooms.kind_of(u.rooms.link_at(3, 107)) == "escalator" and u.rooms.is_stairs_upper(u.rooms.link_at(4, 107)) and u.rooms.shaft_count() == 1 and u.rooms.link_at(6, 121) != 0, "loaded links keep their cells")
-	check.call(TestRooms._send(u, Command.BULLDOZE, [3, 108] as Array[int]) == RoomsScript.OK and u.rooms.link_at(3, 108) == 0 and u.rooms.kind_of(u.grid.cell_at(3, 104)) == "office", "a loaded escalator can be bulldozed")
+	check.call(u.rooms.kind_of(u.rooms.link_at(3, 119)) == "escalator" and u.rooms.is_stairs_upper(u.rooms.link_at(4, 119)) and u.rooms.shaft_count() == 1 and u.rooms.link_at(6, 121) != 0, "loaded links keep their cells")
+	check.call(TestRooms._send(u, Command.BULLDOZE, [3, 113] as Array[int]) == RoomsScript.OK and u.rooms.link_at(3, 108) == 0 and u.rooms.kind_of(u.grid.cell_at(3, 104)) == "office", "a loaded escalator can be bulldozed")
 	var ints: Array = (data["rooms"] as Array).duplicate()
 	check.call(RoomsScript.valid_ints(ints, v.grid), "fixture: the rooms save is valid against its grid")
 	ints.pop_back()
@@ -156,6 +156,22 @@ static func run(check: Callable) -> void:
 	var bad := data.duplicate()
 	bad["rooms"] = ints
 	check.call(not TowerSim.new(0).load_state(bad), "a tower save with damaged links is rejected")
+
+	# Escalator floor rule (#185): commercial, lobby or empty floors only, whichever is built first.
+	var fl := TestElevatorRoutes._plain(6)
+	check.call(TestRooms._room(fl, OFFICE, 3, 100) == RoomsScript.OK, "fixture: an office on floor 3")
+	var spent_before := fl.ledger.balance
+	check.call(_escalator(fl, 3, 100) == RoomsScript.ESCALATOR_FLOOR and _escalator(fl, 2, 100) == RoomsScript.ESCALATOR_FLOOR and fl.ledger.balance == spent_before, "an escalator over an office, on either of its floors, is refused and free")
+	check.call(_escalator(fl, 3, 109) == RoomsScript.OK, "the same floor is fine beside the office")
+	check.call(_escalator(fl, 1, 100) == RoomsScript.OK, "an escalator on the ground lobby is allowed")
+	check.call(_escalator(fl, 4, 100) == RoomsScript.OK, "an escalator on empty floor is allowed")
+	check.call(TestRooms._room(fl, OFFICE, 4, 100) == RoomsScript.ESCALATOR_FLOOR and TestRooms._room(fl, CONDO, 5, 104) == RoomsScript.ESCALATOR_FLOOR, "place then build: an office or condo cannot go over an escalator")
+	check.call(TestRooms._room(fl, OFFICE, 3, 116) == RoomsScript.ESCALATOR_FLOOR and TestRooms._room(fl, OFFICE, 4, 120) == RoomsScript.OK, "the rule covers the upper floor too, and not beside it")
+	check.call(TestRooms._room(fl, 7, 4, 100) == RoomsScript.OK, "a commercial room (fast food) may go over an escalator")
+	check.call(fl.rooms.check_replace(fl.grid, fl.floors, fl.ledger.balance, "office", 4, 100)["reason"] == RoomsScript.ESCALATOR_FLOOR, "replacing a shop with an office under an escalator is refused")
+	var gl := TestElevatorRoutes._plain(6)
+	TestRooms._room(gl, 7, 3, 100)
+	check.call(_escalator(gl, 3, 100) == RoomsScript.OK, "an escalator over a commercial room is allowed")
 
 	# Escalator placement (#125).
 	var e := TestElevatorRoutes._plain(6)

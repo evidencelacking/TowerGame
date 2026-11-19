@@ -63,6 +63,7 @@ const RAMP_NOT_UNDER_LOBBY := 65  ## Parking ramp: the first goes on B1 under th
 const RAMP_NOT_BELOW_RAMP := 66  ## Parking ramp: a later ramp goes directly below a ramp.
 const NOT_BASEMENT := 67  ## Parking ramps and spaces go below ground.
 const EXPRESS_NO_STOP := 68  ## Express stop: only lobbies and basements can be stops.
+const ESCALATOR_FLOOR := 69  ## Escalator: it stands only on commercial, lobby or empty floors (#185), never over an office, condo or the like.
 
 const CAR_INTS := 9  ## Ints in one saved car (SHAFT to NEXT in cars.gd).
 const MAX_CARS_PER_SHAFT := 8  ## Cars in one shaft (reference).
@@ -158,6 +159,9 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 		result["reason"] = Parking.check_space(self, grid, floor_number, x_left, width)
 	if result["reason"] != OK:
 		return result
+	if _blocked_by_escalator(kind, floor_number, x_left, width):
+		result["reason"] = ESCALATOR_FLOOR
+		return result
 	var new_units := 0
 	var supported := 0
 	for column in range(x_left, x_left + width):
@@ -227,6 +231,9 @@ func _check_place_tall(grid: GridScript, floors: FloorsScript, kind: String, flo
 	var width: int = CatalogueScript.field(kind, "width")
 	if x_left < 0 or x_left + width > GridScript.WIDTH_UNITS:
 		result["reason"] = OFF_TOWER
+		return result
+	if _blocked_by_escalator(kind, floor_number, x_left, width) or _blocked_by_escalator(kind, upper, x_left, width):
+		result["reason"] = ESCALATOR_FLOOR
 		return result
 	var new_units := 0
 	var upper_new := 0
@@ -361,16 +368,44 @@ func _stairs_and_escalators() -> int:
 ## other link (stairs, escalator or shaft) on either, and room under the 64 stairs and escalators
 ## limit. Rooms behind the stairs are fine: links sit in front of them (#126). The placement ghost
 ## (#13) uses this. The grid is not read; it stays so callers keep one signature.
-func check_place_stairs(_grid: GridScript, floors: FloorsScript, floor_number: int, x_left: int) -> Dictionary:
-	return _check_place_link(floors, "stairs", floor_number, x_left)
+func check_place_stairs(grid: GridScript, floors: FloorsScript, floor_number: int, x_left: int) -> Dictionary:
+	return _check_place_link(grid, floors, "stairs", floor_number, x_left)
 
 
 ## The same check for an escalator (#125): 8 wide, otherwise the rules of stairs.
-func check_place_escalator(_grid: GridScript, floors: FloorsScript, floor_number: int, x_left: int) -> Dictionary:
-	return _check_place_link(floors, "escalator", floor_number, x_left)
+func check_place_escalator(grid: GridScript, floors: FloorsScript, floor_number: int, x_left: int) -> Dictionary:
+	return _check_place_link(grid, floors, "escalator", floor_number, x_left)
 
 
-func _check_place_link(floors: FloorsScript, kind: String, floor_number: int, x_left: int) -> Dictionary:
+## Kinds an escalator may stand over (#185): commercial rooms. Lobbies and empty floor have no room.
+const ESCALATOR_KINDS: Array[String] = ["fast_food", "restaurant", "retail", "movie_theatre", "party_hall"]
+
+
+## The id that carries a room's kind: a two-floor room's upper half is id + 1 of its base.
+func _room_base(id: int) -> int:
+	return id if _kind_of.has(id) else id - 1
+
+
+## True when an escalator (either half) is in the link layer at the cell.
+func _escalator_at(floor_number: int, column: int) -> bool:
+	var id := links.cell_at(floor_number, column)
+	if id == GridScript.EMPTY:
+		return false
+	return kind_of(id) == "escalator" or (not _kind_of.has(id) and kind_of(id - 1) == "escalator")
+
+
+## True when a room of kind may not stand under an escalator, and one does in the columns on level.
+## Placing the room first or the escalator first gives the same answer: the rule is on the pair.
+func _blocked_by_escalator(kind: String, level: int, x_left: int, width: int) -> bool:
+	if ESCALATOR_KINDS.has(kind):
+		return false
+	for column in range(x_left, x_left + width):
+		if _escalator_at(level, column):
+			return true
+	return false
+
+
+func _check_place_link(grid: GridScript, floors: FloorsScript, kind: String, floor_number: int, x_left: int) -> Dictionary:
 	var result := {"reason": OK, "cost": 0}
 	var upper := floor_above(floor_number)
 	if not GridScript.is_valid_floor(floor_number) or upper == 0:
@@ -392,6 +427,13 @@ func _check_place_link(floors: FloorsScript, kind: String, floor_number: int, x_
 		if not floors.has_floor(floor_number, column) or not floors.has_floor(upper, column):
 			result["reason"] = NO_FLOOR_FOR_ESCALATOR if kind == "escalator" else NO_FLOOR_FOR_STAIRS
 			return result
+	if kind == "escalator":
+		for column in range(x_left, x_left + width):
+			for level: int in [floor_number, upper]:
+				var room := grid.cell_at(level, column)
+				if room != GridScript.EMPTY and not ESCALATOR_KINDS.has(kind_of(_room_base(room))):
+					result["reason"] = ESCALATOR_FLOOR
+					return result
 	if _stairs_and_escalators() >= int(CatalogueScript.field(kind, "limit")):
 		result["reason"] = STAIRS_LIMIT
 		return result
@@ -411,7 +453,7 @@ func place_escalator(grid: GridScript, floors: FloorsScript, ledger: LedgerScrip
 
 
 func _place_link(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, kind: String, floor_number: int, x_left: int) -> int:
-	var checked := _check_place_link(floors, kind, floor_number, x_left)
+	var checked := _check_place_link(grid, floors, kind, floor_number, x_left)
 	if checked["reason"] != OK:
 		return checked["reason"]
 	var kind_index: int = CatalogueScript.IDS.find(kind)
