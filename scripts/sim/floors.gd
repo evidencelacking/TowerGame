@@ -32,17 +32,24 @@ const LOBBY_BAD_FLOOR := 17  ## The ground lobby goes on floor 1 only.
 const LOBBY_BAD_HEIGHT := 18  ## The ground lobby is 1, 2 or 3 floors tall.
 const LOBBY_EXISTS := 19  ## (Unused since #181: the lobby can be widened.)
 const LOBBY_GAPPED := 20  ## The drag does not touch the existing ground lobby.
+const SKY_NEEDS_LOBBY := 21  ## A sky lobby needs the ground lobby first.
+const SKY_WIDER_THAN_LOBBY := 22  ## A sky lobby is no wider than the ground lobby.
+const SKY_OCCUPIED := 23  ## A room already stands on the sky lobby floor there.
 
 const BUILT := 1  # cell flag bits
 const SHAFT := 2
 const LOBBY := 4  # the ground lobby occupies the cell (it is also BUILT)
 const LOBBY_MAX_HEIGHT := 3
+## Floors a sky lobby may go on (8.1): every 15 floors from 15. Floor 1 is the ground lobby.
+const SKY_LOBBY_FLOORS: Array[int] = [15, 30, 45, 60, 75, 90]
 
 ## Bumps on every change, so the view knows when to redraw. Not saved or hashed.
 var revision: int = 0
 var _flags := PackedByteArray()  # FLOOR_COUNT * WIDTH_UNITS flag bytes
 var _counts: Dictionary = {}  # floor -> span_counts, valid while _counts_revision == revision
 var _counts_revision: int = -1
+var _lobby_floors: Dictionary = {}  # floor -> true, valid while _lobby_revision == revision
+var _lobby_revision: int = -1
 
 
 func _init() -> void:
@@ -164,6 +171,30 @@ func span_counts(floor_number: int) -> Array:
 	return _counts[floor_number]
 
 
+## True when floor_number is a lobby floor, where trips may change elevators and where the stair and
+## escalator counts reset: the ground lobby's floors, or a sky lobby floor with a lobby cell on it.
+## Cached until the floors next change.
+func is_lobby_floor(floor_number: int) -> bool:
+	if _lobby_revision != revision:
+		_lobby_floors.clear()
+		_lobby_revision = revision
+		var span := lobby_span()
+		if not span.is_empty():
+			for level in range(1, span[2] + 1):
+				_lobby_floors[level] = true
+		for sky in SKY_LOBBY_FLOORS:
+			for column in GridScript.WIDTH_UNITS:
+				if has_lobby_at(sky, column):
+					_lobby_floors[sky] = true
+					break
+	return _lobby_floors.has(floor_number)
+
+
+## True when floor_number is one a sky lobby may go on.
+static func is_sky_floor(floor_number: int) -> bool:
+	return SKY_LOBBY_FLOORS.has(floor_number)
+
+
 ## True once the ground lobby is built.
 func has_lobby() -> bool:
 	return not lobby_span().is_empty()
@@ -197,8 +228,13 @@ func lobby_span() -> Array[int]:
 ## existing height (the height argument is ignored). Floors above never block widening. A drag that
 ## leaves a gap to the lobby is refused (LOBBY_GAPPED). Shrinking is out of scope.
 ## UNVERIFIED: tall lobby priced per floor (gameplay review left it open).
-func check_lobby(floor_number: int, x_start: int, x_end: int, height: int) -> Dictionary:
+## A sky lobby (8.1) goes on floors 15, 30 ... 90, is one floor tall, stays within the ground lobby's
+## columns, needs a floor below each new unit and no room on the cells (pass grid to check that), and
+## may cross a shaft (that is how a shaft reaches it). It is not rentable: no room can take its cells.
+func check_lobby(floor_number: int, x_start: int, x_end: int, height: int, grid: GridScript = null) -> Dictionary:
 	var result := {"reason": OK, "new_units": 0, "cost": 0, "x_start": x_start, "x_end": x_end, "height": height}
+	if is_sky_floor(floor_number):
+		return _check_sky_lobby(floor_number, x_start, x_end, grid, result)
 	if floor_number != 1:
 		result["reason"] = LOBBY_BAD_FLOOR
 		return result
@@ -244,18 +280,58 @@ func check_lobby(floor_number: int, x_start: int, x_end: int, height: int) -> Di
 
 ## Builds the ground lobby over floors 1 to height in one charge, or extends it (see check_lobby).
 ## Returns OK or a reason code, and changes nothing on a refusal.
-func build_lobby(ledger: LedgerScript, at_tick: int, floor_number: int, x_start: int, x_end: int, height: int) -> int:
-	var checked := check_lobby(floor_number, x_start, x_end, height)
+func build_lobby(ledger: LedgerScript, at_tick: int, floor_number: int, x_start: int, x_end: int, height: int, grid: GridScript = null) -> int:
+	var checked := check_lobby(floor_number, x_start, x_end, height, grid)
 	if checked["reason"] != OK:
 		return checked["reason"]
 	if ledger.charge(at_tick, checked["cost"], CatalogueScript.IDS.find("lobby")) != LedgerScript.OK:
 		return SHORT_OF_FUNDS
-	for level in range(1, checked["height"] + 1):
+	for level in range(floor_number, floor_number + checked["height"]):
 		for column in range(checked["x_start"], checked["x_end"] + 1):
 			var index := _cell_index(level, column)
 			_flags[index] = _flags[index] | BUILT | LOBBY
 	revision += 1
 	return OK
+
+
+func _check_sky_lobby(floor_number: int, x_start: int, x_end: int, grid: GridScript, result: Dictionary) -> Dictionary:
+	result["height"] = 1
+	var ground := lobby_span()
+	if ground.is_empty():
+		result["reason"] = SKY_NEEDS_LOBBY
+		return result
+	if x_end < x_start or x_end < 0 or x_start >= GridScript.WIDTH_UNITS:
+		result["reason"] = BAD_SPAN
+		return result
+	x_start = maxi(x_start, 0)
+	x_end = mini(x_end, GridScript.WIDTH_UNITS - 1)
+	result["x_start"] = x_start
+	result["x_end"] = x_end
+	if x_start < ground[0] or x_end > ground[1]:
+		result["reason"] = SKY_WIDER_THAN_LOBBY
+		return result
+	var new_columns := 0
+	var new_units := 0
+	var supported := 0
+	for column in range(x_start, x_end + 1):
+		if has_lobby_at(floor_number, column):
+			continue
+		if grid != null and grid.cell_at(floor_number, column) != GridScript.EMPTY:
+			result["reason"] = SKY_OCCUPIED
+			return result
+		new_columns += 1
+		if not has_floor(floor_number, column):
+			new_units += 1
+			if _is_supported(floor_number, column):
+				supported += 1
+	if new_columns == 0:
+		result["reason"] = ALREADY_BUILT
+	elif supported < new_units:
+		result["reason"] = NOTHING_BELOW if supported == 0 else WIDER_THAN_BELOW
+	result["new_units"] = new_units
+	if result["reason"] == OK:
+		result["cost"] = CatalogueScript.cost("lobby") * new_columns + new_units * CatalogueScript.FLOOR_COST_PER_UNIT
+	return result
 
 
 func _is_supported(floor_number: int, column: int) -> bool:
