@@ -185,16 +185,21 @@ Performance and the optional waiting stress moved to Later (owner, 2026-11-19).
 
 ## M9 Events
 
+Values in brackets on each issue are the gameplay expert's recommendations, chosen by the coordinator.
+
 | ID | Task | Done when | Issue |
 |---|---|---|---|
-| 9.1 | Event system: seeded, scheduled and random, dialogs with choices | Reproducible |  |
-| 9.2 | Fire: only with security; spreads sideways and up; security travel time; paid rescue | Both outcomes |  |
-| 9.3 | Threat event (our own version): pay, or search floor by floor before the deadline; a miss destroys about 5 floors | Both outcomes |  |
-| 9.4 | VIP as a full event: dialog and choices (simple VIP in 7.8) | Test |  |
-| 9.5 | Treasure found while building underground | Seeded probability test |  |
-| 9.6 | Rain: fewer visitors, food hit hardest | Test |  |
-| 9.7 | Seasonal fly-past in Q4 at night (our own character) | Visible |  |
-| 9.8 | Alert markers on the overview map | Visible |  |
+| 9.1 | Event scheduler: own seeded stream, rolls per period, choices as commands | Reproducible | #214 |
+| 9.1b | Event dialogs: notice, choices, time left | Choice queues a command | #215 |
+| 9.1c | Security response: guards travel to the event floor | Tests | #216 |
+| 9.2 | Fire: security and 3 stars; spreads sideways and up; $500,000 rescue | Both outcomes | #217 |
+| 9.3 | Threat (our own version): pay $200,000, or search before 13:00; a miss destroys 5 floors | All outcomes | #218 |
+| 9.4 | VIP as a full event: arrival choice, verdict reasons (simple VIP in 7.8) | Test | #219 |
+| 9.5 | Treasure found while building underground: one seeded spot, B3-B8 | Seeded test | #220 |
+| 9.6 | Rain: fewer visitors, food hit hardest | Test | #221 |
+| 9.7 | Seasonal fly-past on a Q4 weekend night (our own character) | Visible | #222 |
+| 9.8 | Alert markers at the screen edge; the overview map reuses them | Visible | #223 |
+| 9.9 | M9 owner playtest | Owner reports results | #224 |
 
 ## M10 Look, sound and UI
 
