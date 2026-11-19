@@ -126,5 +126,5 @@ func cars(tower: Object, t: float) -> Array[Dictionary]:
 			continue
 		var now: int = _cur.get(key, level_of(car[CarsScript.FLOOR]))
 		var before: int = _prev.get(key, now)
-		out.append({"shaft": id, "x": shaft["x"], "width": shaft["width"], "level": lerp_level(before, now, t), "load": car[CarsScript.LOAD], "label": load_label(car[CarsScript.LOAD], tower.rooms.car_capacity()), "moving": before != now})
+		out.append({"shaft": id, "x": shaft["x"], "width": shaft["width"], "level": lerp_level(before, now, t), "load": car[CarsScript.LOAD], "label": load_label(car[CarsScript.LOAD], tower.rooms.car_capacity(id)), "moving": before != now})
 	return out
