@@ -124,6 +124,15 @@ static func run(check: Callable) -> void:
 	var result := TestRooms._send(d, Command.BULLDOZE, [3, 100] as Array[int])
 	check.call(infested_before and result == RoomsScript.OK and d.pests.infested_count() == 0, "demolition clears the pests")
 
+	# Real play: with no station nobody cleans (the old auto-clean is gone), so a checked-out room gets pests.
+	var play := TestHotel._tower(2, "hotel_single", true)
+	var room := play.grid.cell_at(3, 110)
+	var guard := 0
+	while play.pests.infested_count() == 0 and guard < 8 * DAY:
+		play.step()
+		guard += 1
+	check.call(play.pests.is_infested(room) and _count(play, MessagesScript.PESTS_WARNING) >= 1, "in real play an uncleaned room warns, then gets pests")
+
 	# Deterministic with the seeded RNG, and saved with the tower.
 	var one := _spread_run(5)
 	var two := _spread_run(5)

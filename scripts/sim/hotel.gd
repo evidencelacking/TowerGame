@@ -19,9 +19,8 @@ extends RefCounted
 ##
 ## Dirty rooms (#147): is_dirty / dirty_since(room) read the tick the room turned
 ## dirty (-1 when clean), and mark_clean(room) makes it rentable again. A dirty room never takes
-## guests and check-out logs ROOM_DIRTY. TEMPORARY STOPGAP until housekeeping (#148) lands: with
-## AUTO_CLEAN on, dirty rooms are cleaned at AUTO_CLEAN_MINUTE so rooms never stay dirty forever;
-## #148 should set AUTO_CLEAN false and clean through staff (mark_clean).
+## guests and check-out logs ROOM_DIRTY. Only housekeeping staff clean a room (Housekeeping, #148,
+## calls mark_clean); with no station, or no staff route to it, a room stays dirty.
 ##
 ## Suites are flagged in the catalogue ("suite") for the VIP task: see suites() and is_suite().
 ## Every number below is an UNVERIFIED tunable (owner rulings, #146).
@@ -47,8 +46,6 @@ const CHECK_OUT_TO := 600  ## 10:00: check-out minutes are drawn from [CHECK_OUT
 const BOOK_PERCENT := 70  ## Chance a clean vacant room is booked on a night (tunable guess).
 const PATIENCE_MINUTES := 90  ## Sim minutes guests keep trying to reach the room before giving up (tunable guess).
 const GIVE_UP_MINUTES := 240  ## Even guests still in transit give up after this long, so a stay can never hang.
-const AUTO_CLEAN := true  ## TEMPORARY until #148 (housekeeping flips this to false): clean dirty rooms automatically. See the header.
-const AUTO_CLEAN_MINUTE := 660  ## 11:00.
 const PARKING_KIND := "parking_space"
 
 ## Room states.
@@ -113,7 +110,7 @@ func state_of(room: int) -> int:
 
 
 ## The tick the room turned dirty at its last check-out, or -1 when it is clean. Pure read: the
-## hook for housekeeping (#147).
+## hook for housekeeping (#148).
 func dirty_since(room: int) -> int:
 	return _records[room][_DIRTY_SINCE] if _records.has(room) else -1
 
@@ -122,7 +119,7 @@ func is_dirty(room: int) -> bool:
 	return dirty_since(room) >= 0 and not is_infested(room)
 
 
-## Housekeeping hook (#147): the room has been cleaned and may take guests again.
+## Housekeeping hook (#148): the room has been cleaned and may take guests again.
 func mark_clean(room: int) -> void:
 	if _records.has(room):
 		_records[room][_DIRTY_SINCE] = -1
@@ -190,8 +187,6 @@ func tick(clock: ClockScript, floors: FloorsScript, people: PeopleScript, rng: O
 			var fresh: Array[int] = [VACANT, -1, -1, CHECK_OUT_FROM, -1, 0, -1, 0]
 			_records[id] = fresh
 		var r: Array[int] = _records[id]
-		if AUTO_CLEAN and r[_DIRTY_SINCE] >= 0 and minute >= AUTO_CLEAN_MINUTE and minute < CHECK_IN_FROM:
-			r[_DIRTY_SINCE] = -1
 		match r[_STATE]:
 			VACANT:
 				_vacant(id, r, minute, night, floors, people, rng)
