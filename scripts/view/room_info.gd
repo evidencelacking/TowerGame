@@ -57,7 +57,7 @@ static func describe(tower: Object, room: int) -> Dictionary:
 		"floor_label": PersonInfo.room_label(tower, room).get_slice(", ", 1),
 		"width": run[2] if run.size() == 3 else 0,
 		"occupants": names, "capacity": tower.rooms.people_in(room),
-		"vacant": graded and names.is_empty(),
+		"vacant": (graded and names.is_empty()) or tower.commerce.is_vacant(room),
 		"quality": tower.quality(room) if graded else -1,
 		"grade": tower.grade(room) if graded else tower.commerce.grade(tower.rooms, room),
 		"customers_grade": CUSTOMER_KINDS.has(kind),

@@ -232,3 +232,121 @@ static func run_restaurant(check: Callable) -> void:
 	check.call(Finance.totals(d.ledger, 0).get(Ledger.SHOP, 0) == lines[0][1], "the finance window shows restaurant sales")
 	var loaded := TowerSim.new(1, 1)
 	check.call(loaded.load_state(d.save()) and loaded.state_hash() == d.state_hash(), "restaurant state survives save and load")
+
+
+static func _retail_tower(linked: bool) -> TowerSim:
+	var t := TowerSim.new(42, 100000000)
+	t.floors.build_lobby(t.ledger, 0, 1, 100, 163, 2)
+	t.floors.fill_span(3, 100, 163)
+	t.rooms.place_room(t.grid, t.floors, t.ledger, 0, Catalogue.IDS.find("office"), 3, 100)
+	var placed := t.rooms.place_room(t.grid, t.floors, t.ledger, 0, Catalogue.IDS.find("retail"), 3, 112)
+	assert(placed == 0, "the retail shop places, refusal %d" % placed)
+	if linked:
+		t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, 1, 100)
+		t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, 2, 104)
+	return t
+
+
+static func _store(t: TowerSim) -> int:
+	for id in t.rooms.room_ids():
+		if t.rooms.kind_of(id) == "retail":
+			return id
+	return -1
+
+
+## Gives the shop a settled last day with this many customers (the save format is the test seam).
+static func _set_last_day(t: TowerSim, room: int, customers: int) -> void:
+	t.commerce.load_ints([-1, 1, room, 0, customers, 0])
+
+
+static func run_retail(check: Callable) -> void:
+	var prof: Dictionary = Commerce.PROFILES["retail"]
+	check.call(not Commerce.has_sales("retail") and Commerce.has_sales("fast_food") and Commerce.has_sales("restaurant"), "retail earns rent, not sales")
+	check.call((prof["food"] as Array).size() == 11, "a retail shop is one of 11 kinds")
+	var rents: Array = Catalogue.row("retail")["rent"]
+	check.call(rents.size() == 4 and rents[0] < rents[1] and rents[1] < rents[2] and rents[2] < rents[3], "retail has four rent levels, lowest to highest")
+	var cases := {0: 2, 14: 2, 15: 1, 20: 1, 21: 0, 30: 0}
+	var ok := true
+	for customers: int in cases:
+		ok = ok and Commerce.grade_of_customers("retail", customers) == cases[customers]
+	check.call(ok, "retail grade: 14 is C, 15 and 20 are B, 21 (over 20) is A")
+
+	# Rent arrives at the quarter start, at the level's amount, once.
+	var t := _retail_tower(true)
+	var store := _store(t)
+	t.clock.set_to_tick(7650 - 1)
+	t.step()
+	var rent_lines := 0
+	var paid := 0
+	for line: Array in t.ledger.lines:
+		if line[2] == Ledger.INCOME and line[3] == store:
+			rent_lines += 1
+			paid += line[1]
+	check.call(rent_lines == 1 and paid == rents[2], "a leased shop pays its default rent at the quarter start (%d)" % paid)
+	check.call(t.commerce.collect_rent(t.rooms, t.rent, t.ledger, t.tick) == rents[2], "collect_rent reports the quarter's rent")
+
+	# Shop sales never reach the ledger as a shop line for retail.
+	var day := _retail_tower(true)
+	_staff(day)
+	_run(day, 0, DAY_TICKS)
+	check.call(_shop_lines(day).is_empty() and day.commerce.has_settled(_store(day)), "retail settles a day without a sales line")
+	check.call(day.commerce.customers_last_day(_store(day)) > 0, "office workers shop (customers: %d)" % day.commerce.customers_last_day(_store(day)))
+
+	# At the rest period a shop at C leaves; B and A stay; before a settled day it is a B.
+	var fresh := _retail_tower(true)
+	fresh.evaluate_tenants()
+	check.call(not fresh.commerce.is_vacant(_store(fresh)), "a new shop (B) stays")
+	var low := _retail_tower(true)
+	_set_last_day(low, _store(low), 14)
+	low.evaluate_tenants()
+	check.call(low.commerce.is_vacant(_store(low)), "a shop at grade C leaves at the rest period")
+	var left := 0
+	for i in low.messages.count():
+		if low.messages.entry(i)[1] == Messages.TENANT_LEFT:
+			left += 1
+	check.call(left == 1, "the renter leaving is logged")
+	var mid := _retail_tower(true)
+	_set_last_day(mid, _store(mid), 15)
+	mid.evaluate_tenants()
+	check.call(not mid.commerce.is_vacant(_store(mid)), "a shop at grade B stays")
+
+	# A vacant shop pays no rent and takes no customers, and is re-let after three evenings.
+	low.clock.set_to_tick(7650 - 1)
+	low.step()
+	var vacant_rent := 0
+	for line: Array in low.ledger.lines:
+		if line[2] == Ledger.INCOME and line[3] == _store(low):
+			vacant_rent += line[1]
+	check.call(vacant_rent == 0, "a vacant shop pays no rent")
+	low.evaluate_tenants()
+	low.evaluate_tenants()
+	check.call(low.commerce.is_vacant(_store(low)), "still vacant after two more evaluations")
+	low.evaluate_tenants()
+	check.call(not low.commerce.is_vacant(_store(low)) and not low.commerce.has_settled(_store(low)), "a new renter takes the shop after 3 evaluations, as a fresh B")
+
+	# At the lowest rent level renters never leave.
+	var cheap := _retail_tower(true)
+	var cheap_id := _store(cheap)
+	cheap.enqueue(TowerSim.Command.make(cheap.tick + 1, TowerSim.Command.SET_RENT, [cheap_id, 0] as Array[int]))
+	cheap.step()
+	_set_last_day(cheap, cheap_id, 0)
+	cheap.evaluate_tenants()
+	check.call(not cheap.commerce.is_vacant(cheap_id), "a C shop at the lowest rent never leaves")
+
+	# An unreachable shop earns no customers, settles a C day and then leaves.
+	var cut := _retail_tower(false)
+	_staff(cut)
+	_run(cut, 0, DAY_TICKS)
+	cut.evaluate_tenants()
+	check.call(cut.commerce.is_vacant(_store(cut)), "an unreachable shop goes C and leaves")
+
+	# Save and load keep who is vacant.
+	var loaded := TowerSim.new(1, 1)
+	check.call(loaded.load_state(low.save()) and loaded.state_hash() == low.state_hash(), "retail state survives save and load")
+	var vac := _retail_tower(true)
+	vac.commerce.load_ints([-1, 0, 1, _store(vac), 2])
+	var again := TowerSim.new(1, 1)
+	check.call(again.load_state(vac.save()) and again.commerce.is_vacant(_store(vac)), "a vacant shop survives save and load")
+	var bad: Dictionary = vac.save()
+	bad["commerce"] = [-1, 0, 2, 5, 1]
+	check.call(not TowerSim.new(1, 1).load_state(bad), "a malformed vacancy list is refused")

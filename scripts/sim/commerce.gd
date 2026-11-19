@@ -27,6 +27,8 @@ const TenancyScript := preload("res://scripts/sim/tenancy.gd")
 const LedgerScript := preload("res://scripts/sim/ledger.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
 const HotelScript := preload("res://scripts/sim/hotel.gd")
+const RentScript := preload("res://scripts/sim/rent.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
 
 ## Meal times (minute of day), windows (minutes a meal lasts) and the percent of people inside
@@ -53,7 +55,19 @@ const MEALS: Array = [
 	[LUNCH, LUNCH_WINDOW, LUNCH_PERCENT, "fast_food"],
 	[SNACK_AFTERNOON, SNACK_WINDOW, SNACK_PERCENT, "fast_food"],
 	[DINNER, DINNER_WINDOW, DINNER_PERCENT, "restaurant"],
+	[SHOP_LUNCH, SHOP_LUNCH_WINDOW, SHOP_LUNCH_PERCENT, "retail"],
+	[SHOP_EVENING, SHOP_EVENING_WINDOW, SHOP_EVENING_PERCENT, "retail"],
 ]
+
+## Retail (#153): shoppers come at lunch and after work (percent of people inside who shop).
+const SHOP_LUNCH := 750  ## 12:30.
+const SHOP_LUNCH_WINDOW := 60
+const SHOP_LUNCH_PERCENT := 25
+const SHOP_EVENING := 1050  ## 17:30.
+const SHOP_EVENING_WINDOW := 120
+const SHOP_EVENING_PERCENT := 25
+## Days a shop stays vacant after its renter leaves before a new renter takes it (if reachable).
+const RELET_DAYS := 3
 
 const SETTLE_MINUTE := 1380  ## 23:00: the day's takings are credited.
 
@@ -74,15 +88,40 @@ const PROFILES: Dictionary = {
 		"tiers": [[0, -6000], [20, 4000], [25, 6000], [50, 10000]],
 		"food": ["French", "Italian", "Steak", "Seafood", "Chinese"],
 	},
+	# Retail (#153): income is the renter's quarterly rent (Rent), not sales, so "sales" is false and
+	# customers only grade the shop. Seats and the cap of 30 are unverified; the 11 kinds are named here.
+	"retail": {
+		"seats": 40, "linger_minutes": 15, "grade_cap": 30, "grade_a": 21, "grade_b": 15, "sales": false,
+		"tiers": [[0, 0]],
+		"food": ["Books", "Clothes", "Toys", "Shoes", "Jewellery", "Flowers", "Gifts", "Music", "Games", "Electronics", "Sports"],
+	},
 }
 
 var _last_minute: int = -1
 var _today: Dictionary = {}  ## Room id -> customers served so far today.
+var _vacant: Dictionary = {}  ## Retail room id -> evaluations vacant (its renter left; absent: leased).
 var _last_day: Dictionary = {}  ## Room id -> customers served in the last settled day (0 counts; absent: none settled yet).
 
 
 static func is_shop(kind: String) -> bool:
 	return PROFILES.has(kind)
+
+
+## True if the kind sells for its own income (food); retail pays rent instead.
+static func has_sales(kind: String) -> bool:
+	return is_shop(kind) and bool(PROFILES[kind].get("sales", true))
+
+
+## True if a retail shop's renter has left and no one has taken it yet.
+func is_vacant(room: int) -> bool:
+	return _vacant.has(room)
+
+
+## Forgets a room that was bulldozed or replaced.
+func remove_room(room: int) -> void:
+	_today.erase(room)
+	_last_day.erase(room)
+	_vacant.erase(room)
 
 
 ## Which of the five kinds of food this shop sells (by room id; nothing is stored).
@@ -170,7 +209,7 @@ func _open_shops(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, ten
 	var shops: Array[int] = []
 	var entry_x := floors.lobby_span()[0]
 	for id in rooms.room_ids():
-		if is_shop(rooms.kind_of(id)) and tenancy.reachable(floors, rooms, grid, id, entry_x):
+		if is_shop(rooms.kind_of(id)) and not is_vacant(id) and tenancy.reachable(floors, rooms, grid, id, entry_x):
 			shops.append(id)
 	return shops
 
@@ -199,18 +238,55 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy: TenancyScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:
 	var open := _open_shops(floors, rooms, grid, tenancy)
 	var net := 0
+	var sellers := 0
 	for id in open:
+		if not has_sales(rooms.kind_of(id)):
+			continue
+		sellers += 1
 		var amount := income_for(rooms.kind_of(id), customers_today(id))
 		ledger.shop_sales(at_tick, amount, id)
 		net += amount
 	var counts: Dictionary = {}
 	for id in rooms.room_ids():
-		if is_shop(rooms.kind_of(id)):
+		if is_shop(rooms.kind_of(id)) and not is_vacant(id):
 			counts[id] = customers_today(id)
 	_last_day = counts
 	_today.clear()
-	if not open.is_empty():
-		messages.add(at_tick, MessagesScript.DAILY_SALES, net, open.size())
+	if sellers > 0:
+		messages.add(at_tick, MessagesScript.DAILY_SALES, net, sellers)
+
+
+## One quarter's rent from every leased retail shop (income, like office rent). Returns the total.
+func collect_rent(rooms: RoomsScript, rent: RentScript, ledger: LedgerScript, at_tick: int) -> int:
+	var total := 0
+	for id in rooms.room_ids():
+		if rooms.kind_of(id) == "retail" and not is_vacant(id):
+			var amount := rent.rent_of(rooms, id)
+			ledger.income(at_tick, amount, id)
+			total += amount
+	return total
+
+
+## The rest-period check for retail (run with the tenant evaluation): a leased shop at grade C
+## loses its renter (not at the lowest rent level, where renters never leave); a vacant shop is
+## re-let after RELET_DAYS if the lobby reaches it. A shop before its first settled day is a B.
+func evaluate(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy: TenancyScript, rent: RentScript, messages: MessagesScript, at_tick: int) -> void:
+	var ids := rooms.room_ids()
+	ids.sort()
+	var entry_x := floors.lobby_span()[0] if floors.has_lobby() else 0
+	for id in ids:
+		if rooms.kind_of(id) != "retail":
+			continue
+		if is_vacant(id):
+			_vacant[id] = int(_vacant[id]) + 1
+			if int(_vacant[id]) >= RELET_DAYS and floors.has_lobby() and tenancy.reachable(floors, rooms, grid, id, entry_x):
+				_vacant.erase(id)
+		elif grade(rooms, id) == GradesScript.GRADE_C and not rent.never_leaves(rooms, id):
+			_vacant[id] = 0
+			_today.erase(id)
+			_last_day.erase(id)
+			var run := grid.run_of(id)
+			messages.add(at_tick, MessagesScript.TENANT_LEFT, CatalogueScript.IDS.find("retail"), run[0] if not run.is_empty() else 0)
 
 
 func state_ints() -> Array[int]:
@@ -222,17 +298,28 @@ func state_ints() -> Array[int]:
 	var ints: Array[int] = [_last_minute, ids.size()]
 	for id: int in ids:
 		ints.append_array([id, customers_today(id), int(_last_day.get(id, -1))] as Array[int])
+	var vacant: Array = _vacant.keys()
+	vacant.sort()
+	ints.append(vacant.size())
+	for id: int in vacant:
+		ints.append_array([id, int(_vacant[id])] as Array[int])
 	return ints
 
 
 static func valid_ints(ints: Array) -> bool:
-	if ints.size() < 2 or typeof(ints[1]) != TYPE_INT or ints[1] < 0 or ints.size() != 2 + 3 * ints[1]:
+	if ints.size() < 3 or typeof(ints[1]) != TYPE_INT or ints[1] < 0:
+		return false
+	var at: int = 2 + 3 * ints[1]
+	if ints.size() <= at or typeof(ints[at]) != TYPE_INT or ints[at] < 0 or ints.size() != at + 1 + 2 * ints[at]:
 		return false
 	for value in ints:
 		if typeof(value) != TYPE_INT:
 			return false
-	for k in range(2, ints.size(), 3):
+	for k in range(2, at, 3):
 		if ints[k] < 0 or ints[k + 1] < 0 or ints[k + 2] < -1:
+			return false
+	for k in range(at + 1, ints.size(), 2):
+		if ints[k] < 0 or ints[k + 1] < 0:
 			return false
 	return ints[0] >= -1 and ints[0] < Clock.MINUTES_PER_DAY
 
@@ -241,8 +328,12 @@ func load_ints(ints: Array) -> void:
 	_last_minute = ints[0]
 	_today.clear()
 	_last_day.clear()
-	for k in range(2, ints.size(), 3):
+	_vacant.clear()
+	var at: int = 2 + 3 * ints[1]
+	for k in range(2, at, 3):
 		if ints[k + 1] > 0:
 			_today[ints[k]] = ints[k + 1]
 		if ints[k + 2] >= 0:
 			_last_day[ints[k]] = ints[k + 2]
+	for k in range(at + 1, ints.size(), 2):
+		_vacant[ints[k]] = ints[k + 1]

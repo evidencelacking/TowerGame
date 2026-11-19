@@ -122,7 +122,7 @@ const _ROWS: Dictionary = {
 	"restaurant": {"width": 24, "height": 1, "cost": 200000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
-	"retail": {"width": 12, "height": 1, "cost": 100000, "per_unit": false, "star": 3,
+	"retail": {"rent": [1500, 3000, 5000, 7500], "width": 12, "height": 1, "cost": 100000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ANYWHERE, "limit": 512,
 		"limit_group": "parking_shops", "limit_scope": "tower"},
 	"movie_theatre": {"width": 32, "height": 2, "cost": 500000, "per_unit": false, "star": 3,
