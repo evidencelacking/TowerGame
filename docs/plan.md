@@ -179,22 +179,27 @@ guests always count toward population (owner, #37).
 | 8.6 | Elevator panel: car columns, home floors, floor on/off | Edits apply | #187 |
 | 8.7 | Schedules by WD/WE and period: express to top/bottom, response distance, departure wait 0-90 s | Test each | #188 |
 | 8.8 | Panel preview of one shaft, explained in plain words | Shows cars and riders | #189 |
-| 8.9 | Performance: 15,000 people | Target frame rate held | #190 |
-| 8.10 | Tenant direction bias and rush-hour waiting stress (optional) | Tests | #191 |
-| 8.11 | M8 owner playtest | Owner reports results | #192 |
+| 8.9 | M8 owner playtest | Owner reports results | #192 |
+
+Performance and the optional waiting stress moved to Later (owner, 2026-11-19).
 
 ## M9 Events
 
+Values in brackets on each issue are the gameplay expert's recommendations, chosen by the coordinator.
+
 | ID | Task | Done when | Issue |
 |---|---|---|---|
-| 9.1 | Event system: seeded, scheduled and random, dialogs with choices | Reproducible |  |
-| 9.2 | Fire: only with security; spreads sideways and up; security travel time; paid rescue | Both outcomes |  |
-| 9.3 | Threat event (our own version): pay, or search floor by floor before the deadline; a miss destroys about 5 floors | Both outcomes |  |
-| 9.4 | VIP as a full event: dialog and choices (simple VIP in 7.8) | Test |  |
-| 9.5 | Treasure found while building underground | Seeded probability test |  |
-| 9.6 | Rain: fewer visitors, food hit hardest | Test |  |
-| 9.7 | Seasonal fly-past in Q4 at night (our own character) | Visible |  |
-| 9.8 | Alert markers on the overview map | Visible |  |
+| 9.1 | Event scheduler: own seeded stream, rolls per period, choices as commands | Reproducible | #214 |
+| 9.1b | Event dialogs: notice, choices, time left | Choice queues a command | #215 |
+| 9.1c | Security response: guards travel to the event floor | Tests | #216 |
+| 9.2 | Fire: security and 3 stars; spreads sideways and up; $500,000 rescue | Both outcomes | #217 |
+| 9.3 | Threat (our own version): pay $200,000, or search before 13:00; a miss destroys 5 floors | All outcomes | #218 |
+| 9.4 | VIP as a full event: arrival choice, verdict reasons (simple VIP in 7.8) | Test | #219 |
+| 9.5 | Treasure found while building underground: one seeded spot, B3-B8 | Seeded test | #220 |
+| 9.6 | Rain: fewer visitors, food hit hardest | Test | #221 |
+| 9.7 | Seasonal fly-past on a Q4 weekend night (our own character) | Visible | #222 |
+| 9.8 | Alert markers at the screen edge; the overview map reuses them | Visible | #223 |
+| 9.9 | M9 owner playtest | Owner reports results | #224 |
 
 ## M10 Look, sound and UI
 
@@ -225,6 +230,15 @@ original; nothing is taken from the original game's art or animation.
 | 11.6 | Tutorial: first tower to 2 stars | Owner completes it |  |
 | 11.7 | Balance run: scripted headless 10-year towers per strategy (offices-only, condos, hotels) | Money and population report |  |
 | 11.8 | Release builds: Windows zip; Mac and Linux exports checked | Launch |  |
+
+## Later
+
+Performance work and optional features, after the features above (owner, 2026-11-19).
+
+| ID | Task | Done when | Issue |
+|---|---|---|---|
+| L.1 | Performance: 15,000 people (was 8.9) | Target frame rate held | #190 |
+| L.2 | Tenant direction bias and rush-hour waiting stress (optional, was 8.10) | Tests | #191 |
 
 ## Issues list from the player guides
 
