@@ -107,7 +107,7 @@ static func star_of(id: String) -> int:
 
 
 static func display_name(id: String) -> String:
-	return TOOL_NAMES.get(id, id.capitalize())
+	return TOOL_NAMES.get(id, CatalogueScript.display_name(id))
 
 
 ## What the toolbar shows for an item at a star rating: {enabled, locked, text, tooltip}.
