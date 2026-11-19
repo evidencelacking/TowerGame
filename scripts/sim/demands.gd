@@ -8,7 +8,8 @@ extends RefCounted
 ##   SECURITY   from 2 stars (star 3 asks for a security office), no security office.
 ##   SUITE      from 3 stars (star 4 asks for 2 suites), fewer than SUITES_FOR_STAR_4 suites.
 ##   MEDICAL    from 3 stars, fewer medical centres than one per OFFICES_PER_MEDICAL offices (rounded up).
-##   RECYCLING  from 3 stars, at least one office, no recycling centre.
+##   RECYCLING  from 3 stars, at least one office, and no recycling centre, or rubbish overflowing
+##              (kind_counts "recycling_short", set from Recycling.short()).
 ##   PARKING    from 3 stars, at least one office, fewer working parking spaces than the larger of the
 ##              offices and the suites (kind_counts "parking_working"; Parking.needed, owner ruling #172).
 ## A demand only opens once its remedy can be built (its room kind is in Rooms.PLACEABLE), so
@@ -66,6 +67,8 @@ static func compute(stars: int, kind_counts: Dictionary, buildable: Array[String
 		else:
 			var remedy: String = _REMEDY[id]
 			wanted = buildable.has(remedy) and int(kind_counts.get(remedy, 0)) == 0
+			if id == RECYCLING:
+				wanted = buildable.has(remedy) and (int(kind_counts.get(remedy, 0)) == 0 or int(kind_counts.get("recycling_short", 0)) > 0)
 			if id == PARKING:
 				var working: int = int(kind_counts.get("parking_working", kind_counts.get(remedy, 0)))
 				wanted = buildable.has(remedy) and working < maxi(offices, int(kind_counts.get("hotel_suite", 0)))

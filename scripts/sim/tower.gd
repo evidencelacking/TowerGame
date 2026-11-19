@@ -29,6 +29,7 @@ const CommerceScript := preload("res://scripts/sim/commerce.gd")
 const HotelScript := preload("res://scripts/sim/hotel.gd")
 const PestsScript := preload("res://scripts/sim/pests.gd")
 const HousekeepingScript := preload("res://scripts/sim/housekeeping.gd")
+const RecyclingScript := preload("res://scripts/sim/recycling.gd")
 const DemandsScript := preload("res://scripts/sim/demands.gd")
 const StarRulesScript := preload("res://scripts/sim/star_rules.gd")
 
@@ -71,7 +72,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 33
+const SAVE_VERSION := 34
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -107,6 +108,8 @@ var hotel := HotelScript.new(rooms, rent)
 var pests := PestsScript.new(rooms)
 ## Housekeepers: six per station, they clean dirty hotel rooms (see Housekeeping). Saved.
 var housekeeping := HousekeepingScript.new(rooms, hotel)
+## Recycling centres: rubbish fills them by day and a truck empties them each morning (see Recycling). Saved.
+var recycling := RecyclingScript.new(rooms)
 var demands := DemandsScript.new()
 ## Why a tenant room is unhappy: noise, distance or rent (see Complaints). Derived, so not saved.
 var complaints := ComplaintsScript.new()
@@ -309,6 +312,7 @@ func _run_systems() -> void:
 	hotel.tick(clock, floors, people, rng, ledger, messages, tick)
 	pests.tick(hotel, grid, rng, messages, tick)
 	housekeeping.tick(clock, floors, grid)
+	recycling.tick(clock, people.in_tower_count())
 	if clock.quarter_started:
 		var rent_income := rent.collect(rooms, people, ledger, tick) + commerce.collect_rent(rooms, rent, ledger, tick)
 		var running := RunningCostsScript.charge(rooms, floors, ledger, tick)
@@ -358,14 +362,14 @@ func star_facts() -> Dictionary:
 ## Runs every StarRules.CHECK_EVERY ticks; public so tests can call it at any tick. The cheap
 ## population test goes first so the room scan only runs when the next star is within reach.
 func promote_stars() -> void:
-	demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid)})
+	demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid), "recycling_short": 1 if recycling.short() else 0})
 	var people_now := population()
 	while stars < 5 and people_now >= StarRulesScript.population_for(stars + 1):
 		if not StarRulesScript.meets(stars + 1, star_facts()):
 			break
 		stars += 1
 		messages.add(tick, MessagesScript.STAR_PROMOTED, stars)
-		demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid)})
+		demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid), "recycling_short": 1 if recycling.short() else 0})
 
 
 ## Grades every tenanted office and condo: A brings a friend, C leaves (see Evaluation). Runs once
@@ -431,6 +435,7 @@ func _state_ints() -> Array[int]:
 	ints.append_array(hotel.state_ints())
 	ints.append_array(pests.state_ints())
 	ints.append_array(housekeeping.state_ints())
+	ints.append_array(recycling.state_ints())
 	ints.append_array(demands.state_ints())
 	ints.append(last_refusal)
 	if unlock_all:
@@ -455,7 +460,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "demands": demands.state_ints(), "evaluation": evaluation.state_ints(), "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "recycling": recycling.state_ints(), "demands": demands.state_ints(), "evaluation": evaluation.state_ints(), "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -483,11 +488,12 @@ func load_state(data: Dictionary) -> bool:
 	var hotel_ints: Variant = data.get("hotel")
 	var pests_ints: Variant = data.get("pests")
 	var housekeeping_ints: Variant = data.get("housekeeping")
+	var recycling_ints: Variant = data.get("recycling")
 	var evaluation_ints: Variant = data.get("evaluation")
 	var demands_ints: Variant = data.get("demands")
 	var commerce_ints: Variant = data.get("commerce")
 	var queue_data: Variant = data.get("queue")
-	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and rent_ints is Array and hotel_ints is Array and commerce_ints is Array and housekeeping_ints is Array and pests_ints is Array and evaluation_ints is Array and demands_ints is Array and queue_data is Array):
+	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and rent_ints is Array and hotel_ints is Array and commerce_ints is Array and housekeeping_ints is Array and recycling_ints is Array and pests_ints is Array and evaluation_ints is Array and demands_ints is Array and queue_data is Array):
 		return false
 	var loaded_grid := Grid.new()
 	if not Clock.valid_ints(clock_ints) or not loaded_grid.load_ints(grid_ints) or not LedgerScript.valid_ints(ledger_ints) or not FloorsScript.valid_ints(floors_ints):
@@ -500,7 +506,7 @@ func load_state(data: Dictionary) -> bool:
 		return false
 	if not GradesScript.valid_ints(grades_ints) or not NamesScript.valid_ints(names_ints) or not EvaluationScript.valid_ints(evaluation_ints):
 		return false
-	if not RentScript.valid_ints(rent_ints) or not HotelScript.valid_ints(hotel_ints) or not CommerceScript.valid_ints(commerce_ints) or not HousekeepingScript.valid_ints(housekeeping_ints) or not PestsScript.valid_ints(pests_ints) or not DemandsScript.valid_ints(demands_ints):
+	if not RentScript.valid_ints(rent_ints) or not HotelScript.valid_ints(hotel_ints) or not CommerceScript.valid_ints(commerce_ints) or not HousekeepingScript.valid_ints(housekeeping_ints) or not RecyclingScript.valid_ints(recycling_ints) or not PestsScript.valid_ints(pests_ints) or not DemandsScript.valid_ints(demands_ints):
 		return false
 	var loaded_queue: Array[Command] = []
 	for entry in queue_data:
@@ -531,6 +537,7 @@ func load_state(data: Dictionary) -> bool:
 	hotel.load_ints(hotel_ints)
 	pests.load_ints(pests_ints)
 	housekeeping.load_ints(housekeeping_ints)
+	recycling.load_ints(recycling_ints)
 	demands.load_ints(demands_ints)
 	last_refusal = data["last_refusal"]
 	tick = data["tick"]

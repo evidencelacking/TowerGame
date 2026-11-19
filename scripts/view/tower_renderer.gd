@@ -39,6 +39,7 @@ const KIND_COLORS: Dictionary = {
 	"condo": Color(0.85, 0.65, 0.85),
 	"stairs": Color(0.80, 0.72, 0.45),
 	"escalator": Color(0.35, 0.75, 0.80),
+	"recycling": Color(0.45, 0.65, 0.40),
 	"parking_ramp": Color(0.50, 0.50, 0.55),
 	"parking_space": Color(0.62, 0.62, 0.68),
 }
@@ -145,14 +146,15 @@ func _draw_rooms() -> void:
 				continue
 			seen[id] = true
 			var run := grid.run_of(id)
+			var upper_of: int = tower.rooms.room_of(id)  # a two-floor room draws both halves as its kind
 			var rect := Rect2i(run[1] * VC.CELL_PX, VC.floor_to_row(floor_number) * VC.CELL_PX, run[2] * VC.CELL_PX, VC.CELL_PX)
 			if tower.rooms.has_room(id) and RoomLook.handles(tower.rooms.kind_of(id)):
 				RoomLook.draw(self, tower, id, rect)
 				column += run[2]
 				continue
 			var color: Color = EMPTY_ROOM_COLOR
-			if tower.rooms.has_room(id):
-				color = KIND_COLORS.get(tower.rooms.kind_of(id), EMPTY_ROOM_COLOR)
+			if upper_of != 0:
+				color = KIND_COLORS.get(tower.rooms.kind_of(upper_of), EMPTY_ROOM_COLOR)
 			else:
 				color = ROOM_COLORS.get(room_type_of.call(id), EMPTY_ROOM_COLOR)
 			draw_rect(rect, color)

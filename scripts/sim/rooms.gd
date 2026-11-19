@@ -54,6 +54,9 @@ const NO_SUCH_CAR := 52  ## Send car: there is no such car.
 const BAD_CALL := 53  ## Place call: the direction is not UP or DOWN, or no car can go that way from the floor.
 const OVERLAPS_LINK := 54  ## Stairs, escalator or shaft: another link (stairs, escalator or shaft) is in the way.
 const NO_FLOOR_FOR_ESCALATOR := 55  ## Escalator: one of the two floors is not built under the escalator.
+const NOT_UNDERGROUND := 60  ## A basement-only room (recycling) needs every one of its floors below ground.
+const NOT_TOUCHING := 61  ## Recycling: a new centre must touch an existing centre.
+const TALL_REPLACE := 62  ## Replace cannot put a two-floor room (recycling) in; bulldoze and place it.
 const NOT_CHAINED := 63  ## Parking space: it must touch the ramp or a working space.
 const RAMP_COLUMN := 64  ## Parking ramp: later ramps share the column of the first.
 const RAMP_NOT_UNDER_LOBBY := 65  ## Parking ramp: the first goes on B1 under the ground lobby.
@@ -67,7 +70,10 @@ const CAR_CAPACITY := 17  ## People a local car holds (reference); enforced in c
 const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
-const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite"]
+const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite"]
+## Rooms two floors tall. Their grid run is on the lower (deeper) floor under the room's id, and the
+## upper floor is a second grid occupant under id + 1 that is not a room of its own (see room_of).
+const TALL_KINDS: Array[String] = ["recycling"]
 const FIRST_ID := 1000  ## Room occupant ids start here, clear of ids given to PLACE commands.
 
 ## The link layer (#126): stairs, escalators and elevator shafts. Links sit in front of rooms and
@@ -130,6 +136,8 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 	if parking and floor_number > 0:
 		result["reason"] = NOT_BASEMENT
 		return result
+	if TALL_KINDS.has(kind):
+		return _check_place_tall(grid, floors, kind, floor_number, x_left)
 	if floor_number < 0 and not parking and CatalogueScript.field(kind, "placement") != CatalogueScript.PLACE_ANYWHERE:
 		result["reason"] = BELOW_GROUND
 		return result
@@ -185,12 +193,113 @@ func place_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at
 		return SHORT_OF_FUNDS
 	var width: int = CatalogueScript.field(kind, "width")
 	floors.fill_span(floor_number, x_left, x_left + width - 1)
+	if TALL_KINDS.has(kind):
+		var upper := floor_above(floor_number)
+		floors.fill_span(upper, x_left, x_left + width - 1)
+		while _id_taken(grid, _next_id) or _id_taken(grid, _next_id + 1):
+			_next_id += 1
+		grid.place(_next_id + 1, upper, x_left, width)
+		grid.place(_next_id, floor_number, x_left, width)
+		_kind_of[_next_id] = kind_index
+		_next_id += 2
+		return OK
 	while _id_taken(grid, _next_id):
 		_next_id += 1
 	grid.place(_next_id, floor_number, x_left, width)
 	_kind_of[_next_id] = kind_index
 	_next_id += 1
 	return OK
+
+
+## Placement of a two-floor basement room: floor_number is the lower (deeper) floor and the upper is
+## the floor above it, both below ground. Upper floor units rest on the floor above them and the
+## lower on the upper, as basements do (Floors). A centre after the first must touch another centre.
+func _check_place_tall(grid: GridScript, floors: FloorsScript, kind: String, floor_number: int, x_left: int) -> Dictionary:
+	var result := {"reason": OK, "cost": 0, "floor_units": 0}
+	var upper := floor_above(floor_number)
+	if floor_number > -2:
+		result["reason"] = NOT_UNDERGROUND
+		return result
+	var width: int = CatalogueScript.field(kind, "width")
+	if x_left < 0 or x_left + width > GridScript.WIDTH_UNITS:
+		result["reason"] = OFF_TOWER
+		return result
+	var new_units := 0
+	var upper_new := 0
+	var upper_supported := 0
+	for level in [upper, floor_number]:
+		for column in range(x_left, x_left + width):
+			if grid.cell_at(level, column) != GridScript.EMPTY:
+				result["reason"] = OVERLAPS_ROOM
+				return result
+			if floors.has_lobby_at(level, column):
+				result["reason"] = OVERLAPS_LOBBY
+				return result
+			if floors.has_shaft(level, column):
+				result["reason"] = OVER_SHAFT
+				return result
+			if floors.has_floor(level, column):
+				continue
+			new_units += 1
+			if level == upper:
+				upper_new += 1
+				if floors.has_floor(floor_above(upper), column):
+					upper_supported += 1
+	result["floor_units"] = new_units
+	result["cost"] = CatalogueScript.cost(kind) + new_units * CatalogueScript.FLOOR_COST_PER_UNIT
+	if upper_new > 0 and upper_supported == 0:
+		result["reason"] = NOTHING_BELOW
+		return result
+	if upper_supported < upper_new:
+		result["reason"] = OVERHANG
+		return result
+	if _has_kind(kind) and not _touches_centre(grid, kind, floor_number, x_left, width):
+		result["reason"] = NOT_TOUCHING
+	return result
+
+
+## True when at least one room of the kind is placed.
+func _has_kind(kind: String) -> bool:
+	for id in _kind_of:
+		if kind_of(id) == kind:
+			return true
+	return false
+
+
+## True when a cell next to or above or below the room's footprint belongs to a room of the same kind.
+func _touches_centre(grid: GridScript, kind: String, floor_number: int, x_left: int, width: int) -> bool:
+	var upper := floor_above(floor_number)
+	for level in [floor_number, upper]:
+		for column in [x_left - 1, x_left + width]:
+			if _same_kind_cell(grid, kind, level, column):
+				return true
+	for column in range(x_left, x_left + width):
+		if _same_kind_cell(grid, kind, floor_above(upper), column) or _same_kind_cell(grid, kind, _floor_below(floor_number), column):
+			return true
+	return false
+
+
+func _same_kind_cell(grid: GridScript, kind: String, floor_number: int, column: int) -> bool:
+	return floor_number != 0 and kind_of(room_of(grid.cell_at(floor_number, column))) == kind
+
+
+static func _floor_below(floor_number: int) -> int:
+	return floor_number - 1  # Only called for basements, where the floor below is one deeper.
+
+
+## The room an occupant id belongs to: the id itself, or the lower id for the upper half of a
+## two-floor room, or 0 for EMPTY and for an occupant that is no room.
+func room_of(id: int) -> int:
+	if _kind_of.has(id):
+		return id
+	if _kind_of.has(id - 1) and TALL_KINDS.has(kind_of(id - 1)):
+		return id - 1
+	return 0
+
+
+## True when id is the upper-floor half of a two-floor room.
+func is_tall_upper(id: int) -> bool:
+	return not _kind_of.has(id) and _kind_of.has(id - 1) and TALL_KINDS.has(kind_of(id - 1))
 
 
 ## True when id is placed in the room grid or in the link layer.
@@ -792,6 +901,8 @@ func stops_of(id: int) -> Array[int]:
 func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
 	if not is_link_kind(kind_of(id)):
 		grid.remove(id)
+	if TALL_KINDS.has(kind_of(id)):
+		grid.remove(id + 1)
 	if is_stair_kind(kind_of(id)):
 		links.remove(id)
 		links.remove(id + 1)
@@ -875,7 +986,7 @@ func _check_remove(grid: GridScript, floors: FloorsScript, floor_number: int, x:
 		# Links can stand inside a lobby, so only an empty lobby cell is the lobby itself.
 		result["reason"] = PERMANENT if floors.has_lobby_at(floor_number, x) else NOTHING_THERE
 		return result
-	if is_stairs_upper(id):
+	if is_stairs_upper(id) or is_tall_upper(id):
 		id -= 1
 	if _shaft_base(id) != 0:
 		id = _shaft_base(id)
@@ -918,6 +1029,9 @@ func bulldoze(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_t
 ## the replace charges. The new placement is judged on a copy of the grid with the old room gone.
 func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: String, floor_number: int, x_left: int) -> Dictionary:
 	var result := {"reason": OK, "cost": 0, "refund": 0, "net": 0, "room_id": 0, "floor_units": 0}
+	if TALL_KINDS.has(kind):
+		result["reason"] = TALL_REPLACE
+		return result
 	var removal := _check_remove(grid, floors, floor_number, x_left, false)
 	if removal["reason"] != OK:
 		result["reason"] = removal["reason"]
@@ -929,6 +1043,8 @@ func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: S
 	after.load_ints(grid.state_ints())
 	if not is_link_kind(kind_of(id)):
 		after.remove(id)
+	if TALL_KINDS.has(kind_of(id)):
+		after.remove(id + 1)
 	var placed := check_place(after, floors, kind, floor_number, x_left)
 	result["cost"] = placed["cost"]
 	result["floor_units"] = placed["floor_units"]
@@ -1111,5 +1227,7 @@ static func valid_ints(ints: Array, grid: GridScript) -> bool:
 		if grid != null and not shaft_ids.has(id) and not (link_grid.has_occupant(id) if is_link else grid.has_occupant(id)):
 			return false
 		if grid != null and is_stair_kind(CatalogueScript.IDS[kind_index]) and not link_grid.has_occupant(id + 1):
+			return false
+		if grid != null and TALL_KINDS.has(CatalogueScript.IDS[kind_index]) and not grid.has_occupant(id + 1):
 			return false
 	return true
