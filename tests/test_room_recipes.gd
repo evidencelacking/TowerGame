@@ -7,6 +7,10 @@ const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
+const RoomLook := preload("res://scripts/view/room_look.gd")
+
+## Kinds with a real recipe (10.3): not the placeholder, shaped for the full 32 px floor.
+const BATCH_1: Array[String] = ["lobby", "office", "condo", "hotel_single", "hotel_twin", "hotel_suite", "housekeeping"]
 
 
 static func run(check: Callable) -> void:
@@ -56,3 +60,52 @@ static func run(check: Callable) -> void:
 	check.call(Palette.DEFAULT_INDEX == 3, "palette: D (A colours, B lines) is the default")
 	# Native pixel space: 8 px per column, 24 px per floor, whole numbers.
 	check.call(VC.CELL_W == 8 and VC.CELL_H == 32, "renderer: native space is 8 px per column and 32 px per floor")
+	_batch(check, BATCH_1)
+
+
+## A batch of real recipes: none is a placeholder, each fills most of the floor height, its in-use and empty
+## looks differ, and every spot lies inside the room and fits a 4x9 figure at the catalogue width and at others.
+static func _batch(check: Callable, kinds: Array[String]) -> void:
+	var placeholders: Array[String] = []
+	var short: Array[String] = []
+	var same_look: Array[String] = []
+	var bad_spots: Array[String] = []
+	var no_spots: Array[String] = []
+	var p := Palette.get_palette()
+	for kind: String in kinds:
+		if RoomRecipes.is_placeholder(kind):
+			placeholders.append(kind)
+			continue
+		var width_px: int = int(CatalogueScript.field(kind, "width")) * VC.CELL_W
+		if CatalogueScript.row(kind).get("per_unit", false):
+			width_px = 40 * VC.CELL_W  # a lobby is at least a few dozen wide
+		var layout := RoomRecipes.layout(kind, width_px)
+		var top := RoomRecipes.INTERIOR_H
+		var shapes: Array = layout["shapes"]
+		for shape: Array in shapes:
+			top = mini(top, shape[1] as int)
+		if shapes.size() < 8 or top > 8:
+			short.append(kind)  # a real recipe has detail and reaches near the ceiling
+		var hue := Palette.hue(RoomRecipes.hue_key(kind))
+		var lit: Dictionary = RoomLook._role_colors(p, hue, true, 0)
+		var dim: Dictionary = RoomLook._role_colors(p, hue, false, 0)
+		var differs := false
+		for role: String in lit:
+			if role != "car" and lit[role] != dim[role]:
+				differs = true
+		var used_lamp := false
+		for shape: Array in shapes:
+			used_lamp = used_lamp or shape[4] == "lamp" or shape[4] == "white" or shape[5] != ""
+		if not differs or not used_lamp:
+			same_look.append(kind)
+		var spots := RoomRecipes.spots(kind, width_px)
+		if spots.is_empty() and not RoomRecipes.RECIPES_WITHOUT_SPOTS.has(kind):
+			no_spots.append(kind)
+		for w: int in [width_px, width_px * 2, 40]:
+			for spot: Vector2i in RoomRecipes.spots(kind, w):
+				if not RoomRecipes.spot_inside(spot, w):
+					bad_spots.append("%s %s" % [kind, str(spot)])
+	check.call(placeholders.is_empty(), "recipes: no placeholder left in the batch (%s)" % str(placeholders))
+	check.call(short.is_empty(), "recipes: each real recipe is detailed and uses the full floor height (%s)" % str(short))
+	check.call(same_look.is_empty(), "recipes: in-use and empty looks differ (%s)" % str(same_look))
+	check.call(bad_spots.is_empty() and no_spots.is_empty(), "recipes: spots lie inside the room and fit a figure (%s %s)" % [str(bad_spots.slice(0, 3)), str(no_spots)])
