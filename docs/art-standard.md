@@ -40,6 +40,8 @@ hotel, food, stairs, one shaft with a car, and people. Day on top, night below.
 | A | `art_a.tscn` | Warm, saturated, chunky dark outlines on furniture. |
 | B | `art_b.tscn` | Muted, thin line furniture, cool dusk-and-night palette. |
 | C | `art_c.tscn` | Flat bold colour, black walls, white and black figures, high contrast. |
+| D32 | `art_d32.tscn` | D at 32 px per floor with detailed furniture and 4x9 figures (`floor_h`, `detail` on the scene). |
+| D40 | `art_d40.tscn` | The same detail at 40 px per floor, to judge how tall a floor needs to be. |
 
 Launch (PowerShell): `python D:\Claude\TowerGame\tools\play.py --scene res://mockups/art_a.tscn`.
 Captures: `docs/mockups/art_<x>_day.png` and `_night.png`, made by running a scene windowed with
