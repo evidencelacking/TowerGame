@@ -100,7 +100,7 @@ const RECIPES: Dictionary = {
 	"restaurant": {
 		"hue": "food",
 		"fixed": [[1, 3, 0, 1, "gold"]],
-		"repeats": [{"pad": 12, "every": 28, "lo": -3, "hi": 11, "shapes": [
+		"repeats": [{"pad": 12, "every": 28, "lo": -3, "hi": 13, "shapes": [
 			[0, 14, 8, 1, "furn"], [3, 15, 2, 6, "furn"], [-3, 17, 2, 4, "furn"], [9, 17, 2, 4, "furn"],
 			[1, 8, 5, 2, "lamp"], [3, 4, 1, 4, "ink"]], "spots": [[-3, 21], [9, 21]]}],
 	},
@@ -118,7 +118,7 @@ const RECIPES: Dictionary = {
 	"party_hall": {
 		"hue": "civic",
 		"fixed": [[8, 3, 0, 2, "accent"], [-2, 5, 4, 4, "gold", "c"]],
-		"repeats": [{"pad": 12, "every": 24, "lo": 0, "hi": 12, "shapes": [
+		"repeats": [{"pad": 12, "every": 24, "lo": 0, "hi": 13, "shapes": [
 			[0, 16, 12, 2, "furn"], [5, 18, 2, 3, "furn"]], "spots": [[0, 21], [9, 21]]}],
 	},
 	"medical": {

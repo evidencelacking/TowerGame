@@ -7,6 +7,7 @@ const TestCondos := preload("res://tests/test_condos.gd")
 const TestTenancy := preload("res://tests/test_tenancy.gd")
 const People := preload("res://scripts/sim/people.gd")
 const PeopleView := preload("res://scripts/view/people_view.gd")
+const VC := preload("res://scripts/view/view_consts.gd")
 
 
 static func run(check: Callable) -> void:
@@ -37,6 +38,27 @@ static func run(check: Callable) -> void:
 	var legs := [{"kind": 1, "floor": 3, "from_x": 110, "to_x": 100, "to_floor": 3}, {"kind": 2, "floor": 3, "from_x": 100, "to_x": 100, "to_floor": 2}]
 	check.call(PeopleView.along(legs, 0, 10) == [3, 110], "people view: a trip starts at its start")
 	check.call(PeopleView.along(legs, 10, 10) == [2, 100], "people view: a trip ends at its goal")
+
+	# Smooth stairs: height moves a little every step from one floor to the next, with no halfway jump,
+	# and the figure crosses the link's width as it climbs (left to right going up, back going down).
+	var climb := [{"kind": 2, "floor": 1, "from_x": 100, "to_x": 100, "to_floor": 2}]
+	var rows: Array[float] = []
+	var columns: Array[float] = []
+	for elapsed in 21:
+		var step_spot := PeopleView.along_f(climb, elapsed, 20)
+		rows.append(step_spot["frow"])
+		columns.append(step_spot["fx"])
+	var up_steps_ok := true
+	for n in range(1, rows.size()):
+		up_steps_ok = up_steps_ok and rows[n] < rows[n - 1] and rows[n - 1] - rows[n] < 0.1 and columns[n] > columns[n - 1]
+	check.call(up_steps_ok and rows[0] == float(VC.floor_to_row(1)) and rows[20] == float(VC.floor_to_row(2)), "people view: height moves smoothly from floor to floor along a stairs leg")
+	var link_end := 100.0 + PeopleView.link_columns(2) - 1
+	check.call(columns[0] == 100.0 and columns[20] == link_end, "people view: climbing a stairs leg crosses the link left to right")
+	var descend := [{"kind": 2, "floor": 2, "from_x": 100, "to_x": 100, "to_floor": 1}]
+	check.call(PeopleView.along_f(descend, 0, 20)["fx"] == link_end and PeopleView.along_f(descend, 20, 20)["fx"] == 100.0, "people view: going down a stairs leg crosses the link right to left")
+	check.call(PeopleView.along_f(climb, 10, 20)["pose"] == PeopleView.POSE_STAIRS and PeopleView.along_f(legs, 0, 10)["pose"] == PeopleView.POSE_WALK, "people view: stairs legs have the stairs pose, walking the walk pose")
+	var belt := [{"kind": 4, "floor": 1, "from_x": 90, "to_x": 90, "to_floor": 2}]
+	check.call(PeopleView.along_f(belt, 5, 10)["pose"] == PeopleView.POSE_ESCALATOR and (PeopleView.along_f(belt, 10, 10)["fx"] as float) == 90.0 + PeopleView.link_columns(4) - 1, "people view: an escalator leg glides across its whole belt in the escalator pose")
 
 	check.call(PeopleView.color_of(People.BAND_CALM) == Color(0.05, 0.05, 0.05), "people view: calm is black")
 	check.call(PeopleView.color_of(People.BAND_UNEASY).r > 0.9 and PeopleView.color_of(People.BAND_UNEASY).b > 0.5, "people view: uneasy is pink")

@@ -8,7 +8,7 @@ const BAND_NAMES: Array[String] = ["Calm", "Uneasy", "Angry"]
 const OUTSIDE := "outside"
 const PICK_RADIUS_PX := 14.0  ## How close, in screen pixels, a click must be to a figure.
 const FEET_UP_PX := 3  ## A figure's feet sit this far above the bottom edge of its floor row.
-const CENTER_UP_PX := 4  ## Its middle sits this far above its feet (a figure is about 7 px tall).
+const CENTER_UP_PX := 5  ## Its middle sits this far above its feet (a figure is 9 px tall).
 
 
 ## "Office, floor 3", or "outside" for no room. Floors below ground read "B2".
@@ -49,9 +49,10 @@ static func lines_for(info: Dictionary) -> Array[String]:
 
 ## Centre of a figure in world pixels (matches TowerRenderer._draw_people, floor top row plus the feet offset).
 static func figure_center(figure: Dictionary) -> Vector2:
-	var x: int = (figure["x"] as int) * VC.CELL_W + VC.CELL_W / 2
-	var feet: int = (VC.floor_to_row(figure["floor"]) + 1) * VC.CELL_H - FEET_UP_PX
-	return Vector2(x, feet - CENTER_UP_PX)
+	var column: float = figure.get("fx", float(figure["x"]))  # moving figures carry fractional positions
+	var row: float = figure.get("frow", float(VC.floor_to_row(figure["floor"])))
+	var feet := (row + 1.0) * VC.CELL_H - FEET_UP_PX
+	return Vector2(column * VC.CELL_W + VC.CELL_W / 2.0, feet - CENTER_UP_PX)
 
 
 ## The id of the figure nearest to a world point within radius world pixels, or -1. Ties go to the
