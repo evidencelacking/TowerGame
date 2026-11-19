@@ -30,8 +30,8 @@ const GLIDE_MAX_COLUMNS := 12.0  ## A move longer than this between two ticks is
 ## escalators) and shafts sit in front of the rooms behind them (#126); the floor slabs come after
 ## rooms because a room fills its whole row and would hide its own slab.
 const STATIC_LAYERS: Array[String] = ["_draw_backdrop", "_draw_lobby", "_draw_rooms", "_draw_links", "_draw_floors", "_draw_shafts"]
-const DYNAMIC_LAYERS: Array[String] = ["_draw_queues", "_draw_cars", "_draw_events", "_draw_people"]
-const DRAW_ORDER: Array[String] = ["_draw_backdrop", "_draw_lobby", "_draw_rooms", "_draw_links", "_draw_floors", "_draw_shafts", "_draw_queues", "_draw_cars", "_draw_events", "_draw_people"]
+const DYNAMIC_LAYERS: Array[String] = ["_draw_belts", "_draw_queues", "_draw_cars", "_draw_events", "_draw_people"]
+const DRAW_ORDER: Array[String] = ["_draw_backdrop", "_draw_lobby", "_draw_rooms", "_draw_links", "_draw_floors", "_draw_shafts", "_draw_belts", "_draw_queues", "_draw_cars", "_draw_events", "_draw_people"]
 
 var tower: Tower = null
 var _people_view := PeopleView.new()
@@ -300,6 +300,14 @@ func _draw_links(canvas: CanvasItem) -> void:
 	var p := Palette.get_palette()
 	for run: Array in _link_runs:
 		_draw_link(canvas, p, run[0], run[1])
+
+
+## The escalators' moving steps and handrail dashes, redrawn each tick from the sim tick (so they scroll
+## the same on every run); the fixed frame is in the link layer.
+func _draw_belts(canvas: CanvasItem) -> void:
+	for run: Array in _link_runs:
+		if run[0] == "escalator":
+			TransportLook.draw_belt(canvas, run[1], tower.tick, Palette.hue("escalator"))
 
 
 ## One link in its two-floor rect, drawn without a background (transport_look.gd) so the room behind shows.

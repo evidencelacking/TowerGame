@@ -24,8 +24,9 @@ static func flips(span: Rect2i) -> bool:
 	return (span.end.y / VC.CELL_H) % 2 == 1
 
 
-## One stairs or escalator in its two-floor rect; only the lower floor is drawn on.
-static func draw_link(canvas: CanvasItem, kind: String, span: Rect2i) -> void:
+## One stairs or escalator in its two-floor rect; only the lower floor is drawn on. An escalator's moving
+## parts (step edges, handrail dashes) are draw_belt, redrawn each tick; this is its fixed frame.
+static func draw_link(canvas: Object, kind: String, span: Rect2i) -> void:
 	var p := Palette.get_palette()
 	var hue := Palette.hue(kind)
 	var base_y := span.end.y - VC.SLAB_H  # the lower floor's surface
@@ -35,56 +36,132 @@ static func draw_link(canvas: CanvasItem, kind: String, span: Rect2i) -> void:
 		_draw_escalator(canvas, p, hue, span, base_y)
 
 
-## A tread or rail segment: the colour on top over a dark line.
-static func _lit_line(canvas: CanvasItem, p: Dictionary, x: int, y: int, w: int, color: Color) -> void:
-	canvas.draw_rect(Rect2i(x, y, w, 1), color)
-	canvas.draw_rect(Rect2i(x, y + 1, w, 1), p["outline"])
+## Row of the tread top `i` columns into the climb (0 at the lower floor, w - 1 at the upper one), so every
+## flight starts and ends at a floor's walking height and stacked flights meet there (#259).
+static func surface_y(base_y: int, w: int, i: int) -> int:
+	return base_y - 1 - i * VC.CELL_H / maxi(w - 1, 1)
 
 
-static func _draw_stairs(canvas: CanvasItem, p: Dictionary, hue: Color, span: Rect2i, base_y: int) -> void:
+## Pixel column of the `i`th column of the climb.
+static func column_x(span: Rect2i, i: int) -> int:
+	return span.end.x - 1 - i if flips(span) else span.position.x + i
+
+
+## A rect clipped to the link's cells, so nothing drawn can spill out of them.
+static func _fill(canvas: Object, span: Rect2i, rect: Rect2i, color: Color) -> void:
+	var r := span.intersection(rect)
+	if r.size.x > 0 and r.size.y > 0:
+		canvas.draw_rect(r, color)
+
+
+## A diagonal band following the climb, `dy` rows from the tread line: one column at a time. With `join`
+## each column also spans the rise to the next, so a steep band has no gaps.
+static func _diag(canvas: Object, span: Rect2i, base_y: int, dy: int, thick: int, color: Color, join: bool = true) -> void:
 	var w := span.size.x
-	var flip := flips(span)
+	for i in w:
+		var y := surface_y(base_y, w, i) + dy
+		var top := y
+		if join and i < w - 1:
+			top = surface_y(base_y, w, i + 1) + dy
+		_fill(canvas, span, Rect2i(column_x(span, i), top, 1, y - top + thick), color)
+
+
+## A landing plate: the floor's walking surface, `n` columns from column `i`, a lit line over a dark one.
+static func _plate(canvas: Object, p: Dictionary, span: Rect2i, i: int, n: int, y: int, color: Color) -> void:
+	for k in n:
+		var x := column_x(span, i + k)
+		_fill(canvas, span, Rect2i(x, y, 1, 1), color)
+		_fill(canvas, span, Rect2i(x, y + 1, 1, 1), p["outline"])
+
+
+static func _draw_stairs(canvas: Object, p: Dictionary, hue: Color, span: Rect2i, base_y: int) -> void:
+	var w := span.size.x
 	var steps := maxi(w / 4, 2)
-	var light := hue.lightened(0.25)
+	var light := hue.lightened(0.4)
+	var riser_color := hue.darkened(0.5)
 	var rail := (p["wall"] as Color).lightened(0.55)
 	var outline: Color = p["outline"]
-	var prev_y := base_y
-	for i in steps:
-		var y := base_y - (i + 1) * VC.CELL_H / (steps + 1)  # the top step stops one riser short of the upper floor
-		var x0 := i * w / steps
-		var x1 := (i + 1) * w / steps
-		var x := span.position.x + (w - x1 if flip else x0)
-		var sw := x1 - x0
-		_lit_line(canvas, p, x, y, sw, light)
-		canvas.draw_rect(Rect2i(x + sw - 1 if flip else x, y, 1, prev_y - y), outline)  # riser
-		var ry := y - RAIL_H
-		_lit_line(canvas, p, x, ry, sw, rail)
-		if i > 0:  # join the rail to the previous run's height
-			canvas.draw_rect(Rect2i(x + sw - 1 if flip else x, ry, 1, prev_y - y + 1), rail)
-		if i % 3 == 0:  # posts
-			canvas.draw_rect(Rect2i(x + sw / 2, ry + 1, 1, RAIL_H - 1), outline)
+	_diag(canvas, span, base_y, 4, 1, outline)  # the stringer under the treads
+	var prev_y := base_y - 1
+	for n in steps:
+		var i0 := n * w / steps
+		var i1 := (n + 1) * w / steps
+		var y := surface_y(base_y, w, i0)
+		var x0 := column_x(span, i1 - 1)
+		var x1 := column_x(span, i0)
+		var left := mini(x0, x1)
+		_fill(canvas, span, Rect2i(left, y, i1 - i0, 1), light)  # lit tread edge
+		_fill(canvas, span, Rect2i(left, y + 1, i1 - i0, 1), hue.darkened(0.15))  # tread underside
+		if prev_y > y:  # the riser up to this tread, on its leading side
+			_fill(canvas, span, Rect2i(x1, y + 1, 1, prev_y - y), riser_color)
 		prev_y = y
+		if n % 2 == 0:  # posts down from the rail to the tread
+			var pi := (i0 + i1) / 2
+			_fill(canvas, span, Rect2i(column_x(span, pi), surface_y(base_y, w, pi) - RAIL_H + 2, 1, RAIL_H - 2), outline)
+	_diag(canvas, span, base_y, -RAIL_H, 1, rail)  # handrail
+	_diag(canvas, span, base_y, -RAIL_H + 1, 1, outline)
+	_plate(canvas, p, span, 0, 3, base_y - 1, light)  # landing at each floor
+	_plate(canvas, p, span, w - 3, 3, base_y - 1 - VC.CELL_H, light)
 
 
-static func _draw_escalator(canvas: CanvasItem, p: Dictionary, hue: Color, span: Rect2i, base_y: int) -> void:
+## The escalator's fixed frame: a truss under the belt, a see-through balustrade panel, a handrail band,
+## a rounded newel at each end and a lit footplate at the top and bottom.
+static func _draw_escalator(canvas: Object, p: Dictionary, hue: Color, span: Rect2i, base_y: int) -> void:
 	var w := span.size.x
-	var flip := flips(span)
-	var rail := (p["wall"] as Color).lightened(0.55)
+	var rail := (p["wall"] as Color).lightened(0.3)
 	var outline: Color = p["outline"]
-	for x in range(0, w, 2):
-		var y := base_y - (x + 2) * VC.CELL_H / w  # from the lower surface to exactly the upper one
-		var sx := span.position.x + (w - 2 - x if flip else x)
-		var slat := hue if (x / 4) % 2 == 0 else hue.darkened(0.3)
-		canvas.draw_rect(Rect2i(sx, y, 2, 2), slat)
-		canvas.draw_rect(Rect2i(sx, y + 2, 2, 1), outline)  # truss under the belt
-		var ry := y - RAIL_H
-		_lit_line(canvas, p, sx, ry, 2, rail)
-		if x % 8 == 0:
-			canvas.draw_rect(Rect2i(sx, ry + 2, 1, RAIL_H - 2), outline)  # balusters
+	var truss := hue.darkened(0.6)
+	_diag(canvas, span, base_y, 1, 3, truss)  # truss under the belt
+	_diag(canvas, span, base_y, 4, 1, outline)
+	_diag(canvas, span, base_y, 0, 1, hue.darkened(0.3))  # the belt bed
+	_diag(canvas, span, base_y, -RAIL_H + 2, RAIL_H - 3, Color(truss.r, truss.g, truss.b, 0.35), false)  # balustrade panel
+	_diag(canvas, span, base_y, -RAIL_H, 2, rail)  # handrail band
+	_diag(canvas, span, base_y, -RAIL_H + 2, 1, outline)
+	for end: int in 2:  # a rounded newel where the rail meets each floor
+		var lift := VC.CELL_H if end == 1 else 0
+		for k in 3:
+			var i := (w - 1 - k) if end == 1 else k
+			var height := RAIL_H - (2 - k)
+			_fill(canvas, span, Rect2i(column_x(span, i), base_y - 1 - lift - height, 1, height), truss)
+		_plate(canvas, p, span, (w - 4) if end == 1 else 0, 4, base_y - 1 - lift, hue.lightened(0.5))  # footplate
+		_fill(canvas, span, Rect2i(column_x(span, (w - 2) if end == 1 else 1), base_y - 2 - lift, 1, 1), p["gold"])  # its lamp
+
+
+const BELT_PERIOD: int = 4  ## Columns between step edges on an escalator.
+const RAIL_PERIOD: int = 6  ## Columns between dashes on its moving handrail.
+
+
+## How far the steps have moved along the climb at a sim tick: one column a tick, so it repeats every
+## BELT_PERIOD ticks and depends only on the tick.
+static func belt_phase(tick: int) -> int:
+	return posmod(tick, BELT_PERIOD)
+
+
+## An escalator's moving parts at a sim tick: step edges running up the incline, and light dashes on the
+## handrail. Deterministic in the tick; draws nothing but inside the link's cells.
+static func draw_belt(canvas: Object, span: Rect2i, tick: int, hue: Color) -> void:
+	var p := Palette.get_palette()
+	var base_y := span.end.y - VC.SLAB_H
+	var w := span.size.x
+	var phase := belt_phase(tick)
+	var rail_phase := posmod(tick, RAIL_PERIOD)
+	var edge := hue.lightened(0.45)
+	var gap := hue.darkened(0.45)
+	var dash := (p["wall"] as Color).lightened(0.8)
+	for i in range(4, w - 4):  # between the footplates
+		var y := surface_y(base_y, w, i)
+		var x := column_x(span, i)
+		var q := posmod(i - phase, BELT_PERIOD)
+		if q < 2:
+			_fill(canvas, span, Rect2i(x, y, 1, 1), edge)  # a step's lit edge
+		elif q == 2:
+			_fill(canvas, span, Rect2i(x, y + 1, 1, 1), gap)  # the riser's shadow
+		if posmod(i - rail_phase, RAIL_PERIOD) < 2:
+			_fill(canvas, span, Rect2i(x, y - RAIL_H, 1, 1), dash)
 
 
 ## The shaft's back wall: centre seam and side edges over rect, as the shaft hue.
-static func draw_shaft_body(canvas: CanvasItem, rect: Rect2i, shaft_color: Color) -> void:
+static func draw_shaft_body(canvas: Object, rect: Rect2i, shaft_color: Color) -> void:
 	var edge := shaft_color.lightened(0.4)
 	canvas.draw_rect(rect, shaft_color)
 	canvas.draw_rect(Rect2i(rect.position.x + rect.size.x / 2, rect.position.y, 1, rect.size.y), edge.darkened(0.3))
@@ -94,7 +171,7 @@ static func draw_shaft_body(canvas: CanvasItem, rect: Rect2i, shaft_color: Color
 
 ## Closed doors on a floor the shaft stops at (floor_bottom is the pixel row of its floor surface): a frame,
 ## a centre seam, door panels, and an indicator of lamps above (dark; draw_arrival lights it).
-static func draw_doors(canvas: CanvasItem, rect: Rect2i, floor_bottom: int, shaft_color: Color) -> void:
+static func draw_doors(canvas: Object, rect: Rect2i, floor_bottom: int, shaft_color: Color) -> void:
 	var door := shaft_color.lightened(0.55)
 	var x := rect.position.x + 3
 	var w := rect.size.x - 6
@@ -105,7 +182,7 @@ static func draw_doors(canvas: CanvasItem, rect: Rect2i, floor_bottom: int, shaf
 	_indicator(canvas, rect, floor_bottom, door)
 
 
-static func _indicator(canvas: CanvasItem, rect: Rect2i, floor_bottom: int, color: Color) -> void:
+static func _indicator(canvas: Object, rect: Rect2i, floor_bottom: int, color: Color) -> void:
 	var left := rect.position.x + rect.size.x / 2 - (PIPS * 4 - 2) / 2
 	for n in PIPS:
 		canvas.draw_rect(Rect2i(left + n * 4, floor_bottom - DOOR_H - 4, 2, 2), color)
@@ -113,7 +190,7 @@ static func _indicator(canvas: CanvasItem, rect: Rect2i, floor_bottom: int, colo
 
 ## Lights the indicator over the doors of the floor a car stands at (nothing while it is between floors).
 ## level is the car's floor level; floor_bottom_of maps a whole floor level to its surface row.
-static func draw_arrival(canvas: CanvasItem, rect: Rect2i, level: float, floor_bottom_of: Callable) -> void:
+static func draw_arrival(canvas: Object, rect: Rect2i, level: float, floor_bottom_of: Callable) -> void:
 	var nearest := roundi(level)
 	if absf(level - nearest) > ARRIVED_SLACK:
 		return
@@ -141,7 +218,7 @@ static func draw_door_gap(canvas: Object, rect: Rect2i, floor_bottom: int, open:
 
 
 ## A car: dark frame, body, ceiling lamp, centre doors, a rail, and up to five riders as small figures.
-static func draw_car(canvas: CanvasItem, rect: Rect2i, car_color: Color, load: int, people: Array) -> void:
+static func draw_car(canvas: Object, rect: Rect2i, car_color: Color, load: int, people: Array) -> void:
 	var p := Palette.get_palette()
 	canvas.draw_rect(rect.grow(1), p["outline"])
 	canvas.draw_rect(rect, car_color)
