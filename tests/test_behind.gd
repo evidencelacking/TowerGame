@@ -56,3 +56,7 @@ static func run(check: Callable) -> void:
 	var g := TestShafts._tall()
 	check.call(TestLinks._shaft(g, 41, 41, 100) == RoomsScript.OK and not g.floors.has_floor(41, 110), "fixture: a shaft on floor 41 builds only its own units")
 	check.call(TestRooms._send(g, Command.BUILD_FLOOR, [41, 100, 110] as Array[int]) == 0 and g.floors.has_floor(41, 110), "a floor span may cross a shaft")
+
+	# A save keeps a room that shares cells with a shaft.
+	var h := TowerSim.new(0)
+	check.call(h.load_state(r.save()) and h.state_hash() == r.state_hash() and h.grid.cell_at(6, 100) != 0 and h.rooms.link_at(6, 100) != 0, "a tower with a room behind a shaft saves and loads exactly")
