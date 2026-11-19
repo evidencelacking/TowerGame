@@ -3,6 +3,7 @@ extends RefCounted
 
 const VC := preload("res://scripts/view/view_consts.gd")
 const GridScript := preload("res://scripts/sim/grid.gd")
+const CommerceScript := preload("res://scripts/sim/commerce.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
 const ComplaintsScript := preload("res://scripts/sim/complaints.gd")
@@ -58,8 +59,10 @@ static func describe(tower: Object, room: int) -> Dictionary:
 		"occupants": names, "capacity": tower.rooms.people_in(room),
 		"vacant": graded and names.is_empty(),
 		"quality": tower.quality(room) if graded else -1,
-		"grade": tower.grade(room) if graded else GradesScript.GRADE_NONE,
+		"grade": tower.grade(room) if graded else tower.commerce.grade(tower.rooms, room),
 		"customers_grade": CUSTOMER_KINDS.has(kind),
+		"customers": tower.commerce.customers_last_day(room),
+		"customer_cap": CommerceScript.PROFILES[kind]["grade_cap"] if CommerceScript.is_shop(kind) else 0,
 		"rentable": rentable,
 		"rent_level": tower.rent_level(room) if rentable else -1,
 		"rent": tower.rent_amount(room),
@@ -82,7 +85,9 @@ static func lines_for(info: Dictionary) -> Array[String]:
 			lines.append("  " + n)
 	if info.get("dirty", false):
 		lines.append("Dirty: needs cleaning before it can be rented")
-	if info["grade"] != GradesScript.GRADE_NONE:
+	if info["customers_grade"] and info["grade"] != GradesScript.GRADE_NONE:
+		lines.append("Grade %s (%d customers yesterday)" % [GradesScript.letter(info["grade"]), info["customers"]])
+	elif info["grade"] != GradesScript.GRADE_NONE:
 		lines.append("Grade %s (quality %d of %d)" % [GradesScript.letter(info["grade"]), info["quality"], QUALITY_MAX])
 	elif info["customers_grade"]:
 		lines.append("Grade: waiting for customer numbers")
@@ -101,9 +106,11 @@ static func lines_for(info: Dictionary) -> Array[String]:
 	return lines
 
 
-## Fill of the grade bar 0 to QUALITY_MAX, or -1 for no bar. Food and shops have no customer
-## numbers in the sim yet, so they show no bar until M6 supplies them.
+## Fill of the grade bar 0 to QUALITY_MAX, or -1 for no bar. Food and shops fill from last day's
+## customers, scaled so the grade cap fills the bar.
 static func bar_value(info: Dictionary) -> int:
+	if info["customer_cap"] > 0:
+		return mini(info["customers"], info["customer_cap"]) * QUALITY_MAX / info["customer_cap"]
 	return info["quality"]
 
 
