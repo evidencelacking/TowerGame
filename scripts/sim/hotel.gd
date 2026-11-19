@@ -155,6 +155,8 @@ func parking_free() -> int:
 ## Forgets a room (bulldozed or replaced). Tower calls it beside People.remove_room.
 ## Set by Tower (#149). An infested room takes no guests and reads as not dirty, so cleaning staff skip it.
 var pests: Object = null
+## Set by Tower (#173): returns the suite held for the VIP (or -1). It takes no guests meanwhile.
+var reserved_room: Callable = Callable()
 
 
 func is_infested(room: int) -> bool:
@@ -204,6 +206,8 @@ func tick(clock: ClockScript, floors: FloorsScript, people: PeopleScript, rng: O
 
 func _vacant(id: int, r: Array[int], minute: int, night: int, floors: FloorsScript, people: PeopleScript, rng: Object) -> void:
 	if r[_DIRTY_SINCE] >= 0 or is_infested(id) or not floors.has_lobby():
+		return
+	if reserved_room.is_valid() and int(reserved_room.call()) == id:
 		return
 	if minute >= CHECK_IN_FROM and minute < CHECK_IN_TO and r[_PLANNED_NIGHT] != night:
 		r[_PLANNED_NIGHT] = night
