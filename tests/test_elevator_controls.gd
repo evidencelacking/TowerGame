@@ -125,8 +125,9 @@ static func _run_place(check: Callable) -> void:
 	ghost.press(1, SHAFT_COLUMN)
 	var live := ghost.hover(3, SHAFT_COLUMN)
 	check.call(live["valid"] and live["mode"] == "place" and live["floor"] == 1 and live["top"] == 3 and live["x"] == 100 and live["width"] == 4, "the drag ghost spans the dragged floors")
-	check.call(live["cost"] == 200000 and Ghost.lines_for("local_shaft", live)[0] == "local_shaft: $200000", "the ghost shows the shaft price")
-	check.call("Floors 1 to 3 (3)" in Ghost.lines_for("local_shaft", live), "the ghost label shows the span")
+	# The machine room above floor 3 sits on floor 4, which does not exist yet: 4 units at the floor price (#228).
+	check.call(live["cost"] == 202000 and Ghost.lines_for("local_shaft", live)[0] == "local_shaft: $202000", "the ghost shows the shaft price and the floor under the machine room")
+	check.call(live["machines"] == ([4] as Array[int]) and "Floors 1 to 3 (3), builds 4 floor units" in Ghost.lines_for("local_shaft", live), "the ghost label shows the span, the machine room and the floors it builds")
 	var shorter := ghost.hover(2, SHAFT_COLUMN)
 	check.call(shorter["floor"] == 1 and shorter["top"] == 2, "the ghost follows the pointer")
 	# Dragging downward gives the same span the other way round.
@@ -139,7 +140,7 @@ static func _run_place(check: Callable) -> void:
 	var expected: Array[int] = [CatalogueScript.IDS.find("local_shaft"), 1, 3, 100]
 	check.call(command.kind == Command.PLACE_SHAFT and command.args == expected, "the drag queues PLACE_SHAFT with kind, bottom, top and x")
 	t.step()
-	check.call(t.rooms.shaft_count() == 1 and t.ledger.balance == before - 200000, "the shaft is built and paid for")
+	check.call(t.rooms.shaft_count() == 1 and t.ledger.balance == before - 202000 and t.floors.has_floor(4, 100), "the shaft is built and paid for, with its machine room floor")
 	check.call(not ghost.release(3, SHAFT_COLUMN), "a release with no drag does nothing")
 	ghost.free()
 
@@ -163,9 +164,9 @@ static func _run_resize_and_stops(check: Callable) -> void:
 	var again := ElevatorTools.evaluate_shaft(t, "local_shaft", 2, 2, SHAFT_COLUMN, 1)
 	var on_args: Array[int] = [id, 2, 1]
 	check.call(again["valid"] and again["args"] == on_args and "stop on at 2" in again["note"], "a second click turns the stop back on")
-	# Resize: growing over unbuilt floors is refused, then over a built floor it is queued.
-	check.call(not _gesture(ghost, "local_shaft", 3, SHAFT_COLUMN, 5), "growing a shaft over unbuilt floors queues nothing")
-	_gesture(ghost, "floor", 4, 100, 4, 109)
+	# Resize: growing over unbuilt floors builds them (floors 5 and 6, 4 units each) at the floor price.
+	var far := ElevatorTools.evaluate_shaft(t, "local_shaft", 5, 3, SHAFT_COLUMN, 1)
+	check.call(far["valid"] and far["cost"] == 8 * CatalogueScript.FLOOR_COST_PER_UNIT and "floors $4000" in far["note"], "growing a shaft over unbuilt floors shows the floor price")
 	ghost.set_tool("local_shaft")
 	ghost.press(3, SHAFT_COLUMN)
 	var grow := ghost.hover(4, SHAFT_COLUMN)
@@ -177,9 +178,11 @@ static func _run_resize_and_stops(check: Callable) -> void:
 	t.step()
 	check.call(ElevatorTools.shaft_at(t, 4, 101).get("top", 0) == 4, "the shaft now reaches floor 4")
 	# Dragging the bottom end up shrinks it from below.
-	var shrink := ElevatorTools.evaluate_shaft(t, "local_shaft", 2, 1, SHAFT_COLUMN, 1)
-	var shrink_args: Array[int] = [id, 2, 4]
-	check.call(shrink["valid"] and shrink["args"] == shrink_args, "dragging the bottom end up queues a shorter span")
+	var shrink := ElevatorTools.evaluate_shaft(t, "local_shaft", 3, 4, SHAFT_COLUMN, 1)
+	var shrink_args: Array[int] = [id, 1, 3]
+	check.call(shrink["valid"] and shrink["args"] == shrink_args and shrink["cost"] == 0 and "free" in shrink["note"], "dragging the top end down queues a shorter span, free")
+	var into_lobby := ElevatorTools.evaluate_shaft(t, "local_shaft", 2, 1, SHAFT_COLUMN, 1)
+	check.call(not into_lobby["valid"] and into_lobby["code"] == RoomsScript.OVERLAPS_LOBBY, "a bottom end lifted off floor 1 would put its machine room in the lobby")
 	# A drag that starts in the middle is not a resize.
 	var middle := ElevatorTools.evaluate_shaft(t, "local_shaft", 4, 2, SHAFT_COLUMN, 1)
 	check.call(not middle["valid"] and middle["text"] == "Drag from the top or bottom end to resize", "a drag from the middle of a shaft says to use an end")
@@ -212,8 +215,8 @@ static func _run_refusals(check: Callable) -> void:
 	var ghost := _built()
 	var t := ghost.tower
 	ghost.set_tool("local_shaft")
-	check.call(_drag_text(ghost, 1, 3, 5) == "Needs a built floor on every level", "a shaft off the built floors is refused")
-	check.call(_drag_text(ghost, 1, 6) == "Needs a built floor on every level", "a shaft over unbuilt floors is refused")
+	check.call(_drag_text(ghost, 10, 12, 5) == "Needs a built floor on every level", "a shaft off the built floors is refused")
+	check.call(_drag_text(ghost, 10, 12) == "Needs a built floor on every level", "a shaft floating over unbuilt floors is refused")
 	check.call(_drag_text(ghost, -3, 40) == "A shaft spans at most 30 floors", "a shaft over 30 floors is refused")
 	check.call(_drag_text(ghost, 1, 3, 1) == "Runs off the tower's edge", "a shaft over the left edge is refused")
 	check.call(_drag_text(ghost, 1, 3, GridScript.WIDTH_UNITS - 1) == "Runs off the tower's edge", "a shaft over the right edge is refused")
@@ -247,7 +250,7 @@ static func _run_refusals(check: Callable) -> void:
 	var dropped := Ghost.evaluate(t, "local_shaft", 3, 100, 5, "", gesture)
 	check.call(not dropped["valid"] and dropped["text"] == "Would drop a car's home floor", "a resize past a car's home floor is refused")
 	var unbuilt := Ghost.evaluate(t, "local_shaft", 9, 100, 5, "", {"start_floor": 3, "start_column": SHAFT_COLUMN})
-	check.call(unbuilt["text"] == "Needs a built floor on every level", "growing a shaft over unbuilt floors is refused")
+	check.call(unbuilt["valid"] and unbuilt["cost"] > 0, "growing a shaft over unbuilt floors builds them and shows the cost")
 	# Words for the codes a gesture cannot reach today.
 	var words := {RoomsScript.NOT_IN_SHAFT: "Not a floor of this shaft", RoomsScript.NOTHING_THERE: "No shaft here",
 		RoomsScript.NO_CARS_HERE: "Needs a shaft of the car's own kind", RoomsScript.BAD_SHAFT_SPAN: "The top must be above the bottom",

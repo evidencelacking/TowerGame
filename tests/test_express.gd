@@ -21,7 +21,7 @@ static func _setup() -> TowerSim:
 	t.stars = 3
 	t.floors.build_lobby(t.ledger, 0, 15, 100, 131, 1, t.grid)
 	t.floors.build_lobby(t.ledger, 0, 90, 100, 131, 1, t.grid)
-	TestShafts._shaft(t, -3, 100, 110, "express_shaft")
+	TestShafts._shaft(t, -3, 99, 110, "express_shaft")
 	return t
 
 
@@ -31,7 +31,7 @@ static func run(check: Callable) -> void:
 
 	var t := _setup()
 	var id := TestCars._shaft_id(t, -3, 110)
-	check.call(id != 0, "a 103-floor express span is accepted (any height)")
+	check.call(id != 0, "a 102-floor express span is accepted (any height)")
 	# Stops: basements B3 to B1, the ground lobby (floor 1) and the two sky lobbies; nothing else.
 	var stops := t.rooms.stops_of(id)
 	check.call(stops == ([-3, -2, -1, 1, 15, 90] as Array[int]), "an express stops only at lobbies and every basement: %s" % [stops])

@@ -13,7 +13,7 @@ const TestElevatorRoutes := preload("res://tests/test_elevator_routes.gd")
 ## Floors 3 and 4 with stairs at 100, a local shaft (floors 3 to 4, one car at home) at 104 and,
 ## when with_escalator, an escalator at 108. Trips start and end at column 108 so each is near.
 static func _options(with_escalator: bool, car_home: int) -> TowerSim:
-	var t := TestElevatorRoutes._plain(6)
+	var t := TestElevatorRoutes._plain(6, false)  # no lobby: a machine room cannot stand in one (#228)
 	t.stars = 3
 	t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, 3, 100)
 	var shaft := TestElevatorRoutes._shaft(t, 3, 4, 104)

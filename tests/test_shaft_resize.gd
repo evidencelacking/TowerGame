@@ -42,7 +42,7 @@ static func run(check: Callable) -> void:
 	check.call(_id_at(t, 6, 100) == first, "the shaft id is unchanged after a shrink")
 	check.call(t.rooms.link_at(5, 100) == 0 and t.rooms.link_at(9, 100) == 0 and t.rooms.link_at(7, 100) != 0, "shrink frees dropped cells")
 	check.call(not t.floors.has_shaft(5, 100) and not t.floors.has_shaft(12, 103) and t.floors.has_shaft(8, 100), "shrink clears dropped marks")
-	check.call(TestShafts._shaft(t, 3, 5, 100) == RoomsScript.OK, "a dropped floor takes another shaft")
+	check.call(TestShafts._shaft(t, 1, 3, 100) == RoomsScript.OK, "a dropped floor takes another shaft")
 	check.call(_resize(t, id, 8, 6) == RoomsScript.BAD_SHAFT_SPAN and _resize(t, id, 6, 8) == RoomsScript.OK, "top below bottom refused, shaft unchanged")
 	check.call(_resize(t, 999999, 1, 2) == RoomsScript.NOTHING_THERE, "an unknown shaft is refused")
 
@@ -53,11 +53,15 @@ static func run(check: Callable) -> void:
 	TestShafts._shaft(t, 1, 3, 120, "express_shaft")
 	var ex := _id_at(t, 1, 120)
 	check.call(_resize(t, ex, 1, 40) == RoomsScript.OK, "express shafts may grow past 30 floors")
-	check.call(_resize(t, ex, 1, 45) == RoomsScript.NO_FLOOR_FOR_SHAFT, "a missing floor refuses a resize")
+	var express_width: int = CatalogueScript.field("express_shaft", "width")
+	var before := t.ledger.balance
+	check.call(_resize(t, ex, 1, 45) == RoomsScript.OK and before - t.ledger.balance == 5 * express_width * CatalogueScript.FLOOR_COST_PER_UNIT, "a resize builds the missing floors at the floor price and nothing else")
+	check.call(t.floors.has_floor(46, 120) and _resize(t, ex, 1, 40) == RoomsScript.OK and t.ledger.balance == before - 5 * express_width * CatalogueScript.FLOOR_COST_PER_UNIT, "shrinking again refunds nothing and charges nothing")
 	check.call(_resize(t, base, 3, 8) == RoomsScript.OVER_SHAFT, "an overlapping shaft refuses a resize")
 	TestRooms._send(t, Command.BUILD_FLOOR, [41, 100, 131] as Array[int])
-	TestRooms._room(t, CatalogueScript.IDS.find("office"), 9, 100)
-	check.call(_resize(t, base, 6, 9) == RoomsScript.OK and _resize(t, base, 6, 8) == RoomsScript.OK, "a shaft may grow through a room (links sit in front of rooms)")
+	TestRooms._room(t, CatalogueScript.IDS.find("office"), 10, 100)
+	check.call(_resize(t, base, 6, 9) == RoomsScript.OVERLAPS_ROOM, "a room on the new machine room cell refuses a resize")
+	check.call(_resize(t, base, 6, 10) == RoomsScript.OK and _resize(t, base, 6, 8) == RoomsScript.OK, "a shaft may grow through a room (links sit in front of rooms)")
 
 	# Stops.
 	base = _id_at(t, 6, 100)

@@ -44,7 +44,7 @@ static func run(check: Callable) -> void:
 	for f in range(1, 5):
 		t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, f, 100 if f % 2 == 1 else 104)
 	_shaft(t, "express_shaft", 1, 90, 110)
-	_shaft(t, "local_shaft", 90, 100, 120)
+	_shaft(t, "local_shaft", 90, 99, 120)
 	var started := Time.get_ticks_usec()
 	var r := RoutesScript.find(t.floors, t.rooms, t.grid, 5, 104, 95, 120)
 	var micros := Time.get_ticks_usec() - started

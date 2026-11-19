@@ -74,7 +74,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 35
+const SAVE_VERSION := 36
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -278,7 +278,7 @@ func _apply_command(command: Command) -> void:
 					messages.add(tick, MessagesScript.ROOM_BUILT, command.args[0], command.args[1])
 		Command.RESIZE_SHAFT:
 			if command.args.size() == 3:
-				last_refusal = rooms.resize_shaft(grid, floors, command.args[0], command.args[1], command.args[2])
+				last_refusal = rooms.resize_shaft(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2])
 				_note_refusal(MessagesScript.ROOM_REFUSED, command.args[0])
 		Command.SET_SHAFT_STOP:
 			if command.args.size() == 3:

@@ -173,6 +173,7 @@ guests always count toward population (owner, #37).
 |---|---|---|---|
 | 8.1 | Sky lobby: only floors 15, 30 ... 90 | Test | #182 |
 | 8.2 | Express: any height, lobbies and all basements, 36 per car, faster (speed constants exist from #103) | Tests | #183 |
+| 8.2b | Elevator shafts: click to place, drag either end, machine rooms above and below, missing floors built at the floor price | Tests | #228 |
 | 8.3 | Routes across a 100-floor tower: express to sky lobby, one change | Tests | #184 |
 | 8.4 | Escalator rules (placement done in #125, #126): commercial, lobby or empty floors; at most 7 a trip; shared customers | Tests | #185 |
 | 8.5 | Shared stair and escalator limit (64) | Test | #186 |

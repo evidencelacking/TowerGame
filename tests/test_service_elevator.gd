@@ -43,7 +43,7 @@ static func run(check: Callable) -> void:
 	# A service shaft holds only service cars, a local shaft only local ones: the car kind follows the shaft.
 	var funds := t.ledger.balance
 	var svc := _shaft(t, "service_shaft", 1, 6, 100)
-	check.call(svc > 0 and funds - t.ledger.balance == 100000, "a service shaft is charged $100,000")
+	check.call(svc > 0 and funds - t.ledger.balance == 100000 + CatalogueScript.field("service_shaft", "width") * CatalogueScript.FLOOR_COST_PER_UNIT, "a service shaft is charged $100,000 and the floor under its machine room (floor 7)")
 	funds = t.ledger.balance
 	check.call(t.rooms.add_car(t.ledger, 0, 3, svc, 1) == RoomsScript.OK and funds - t.ledger.balance == 50000, "a service car is charged $50,000")
 	var cars: Array = t.rooms.cars_of(svc)

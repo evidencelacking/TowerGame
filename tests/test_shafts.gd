@@ -1,5 +1,6 @@
 extends RefCounted
-## Elevator shaft tests (4.1): up to 30 floors including basements, 24 shafts in all.
+## Elevator shaft tests (4.1): up to 30 floors including basements, 24 shafts in all. Machine rooms and
+## floors built under a shaft are #228 (see test_shaft_machine.gd).
 
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Command := TowerSim.Command
@@ -26,28 +27,28 @@ static func _tall(funds: int = 100000000) -> TowerSim:
 
 static func run(check: Callable) -> void:
 	var local_cost: int = CatalogueScript.cost("local_shaft")
-	# Span limit: basements count, so B10 to 20 is 30 floors and B10 to 21 is 31.
+	# Span limit: basements count, so B9 to 21 is 30 floors and B10 to 21 is 31.
 	var t := _tall()
 	var funds := t.ledger.balance
-	check.call(RoomsScript.shaft_span(-10, 20) == 30 and RoomsScript.shaft_span(-1, 1) == 2 and RoomsScript.shaft_span(1, 30) == 30, "spans count basements and skip floor 0")
+	check.call(RoomsScript.shaft_span(-9, 21) == 30 and RoomsScript.shaft_span(-1, 1) == 2 and RoomsScript.shaft_span(1, 30) == 30, "spans count basements and skip floor 0")
 	check.call(_shaft(t, 1, 31, 100) == RoomsScript.MAX_SHAFT_FLOORS and _shaft(t, 1, 32, 100) == RoomsScript.MAX_SHAFT_FLOORS, "31 floors above ground are refused")
 	check.call(_shaft(t, -10, 21, 100) == RoomsScript.MAX_SHAFT_FLOORS, "31 floors across basements are refused")
 	check.call(_shaft(t, 5, 3, 100) == RoomsScript.BAD_SHAFT_SPAN, "a top below the bottom is refused")
 	check.call(t.ledger.balance == funds and t.rooms.shaft_count() == 0, "refusals are free and place nothing")
 	check.call(_shaft(t, 1, 30, 100) == RoomsScript.OK, "30 floors above ground are accepted")
 	check.call(funds - t.ledger.balance == local_cost, "a shaft is charged once at the catalogue price")
-	check.call(_shaft(t, -10, 20, 110) == RoomsScript.OK, "30 floors across basements are accepted")
-	var base: int = t.rooms.link_at(-10, 110)
-	check.call(base != 0 and t.rooms.link_at(20, 113) != 0 and t.rooms.link_at(1, 110) != 0 and t.rooms.link_at(21, 110) == 0, "a shaft holds one cell column on each floor it spans")
-	check.call(t.floors.has_shaft(-5, 111) and t.floors.has_shaft(20, 110) and not t.floors.has_shaft(21, 110), "shaft cells are marked on every floor")
+	check.call(_shaft(t, -9, 21, 110) == RoomsScript.OK, "30 floors across basements are accepted")
+	var base: int = t.rooms.link_at(-9, 110)
+	check.call(base != 0 and t.rooms.link_at(21, 113) != 0 and t.rooms.link_at(1, 110) != 0 and t.rooms.link_at(22, 110) == 0 and t.rooms.link_at(-10, 110) == 0, "a shaft holds one cell column on each floor it spans")
+	check.call(t.floors.has_shaft(-5, 111) and t.floors.has_shaft(21, 110) and not t.floors.has_shaft(22, 110), "shaft cells are marked on every floor")
 	check.call(_shaft(t, 1, 30, 120, "express_shaft") == RoomsScript.OK, "express shafts take any height under the limit")
 
 	# Overlap and missing floors.
 	funds = t.ledger.balance
 	check.call(_shaft(t, 5, 8, 102) == RoomsScript.OVER_SHAFT, "overlapping a shaft is refused")
 	check.call(TestRooms._room(t, 5, 3, 100) == RoomsScript.OVER_SHAFT, "a room cannot sit on a shaft")
-	check.call(_shaft(t, 35, 45, 100) == RoomsScript.NO_FLOOR_FOR_SHAFT, "a floor missing under the shaft is refused")
-	check.call(_shaft(t, 1, 2, 300) == RoomsScript.NO_FLOOR_FOR_SHAFT, "no floor at all is refused")
+	check.call(_shaft(t, 50, 51, 104) == RoomsScript.NO_FLOOR_FOR_SHAFT, "a floor with nothing to rest on is refused")
+	check.call(_shaft(t, 50, 51, 300) == RoomsScript.NO_FLOOR_FOR_SHAFT, "no floor at all is refused")
 	check.call(_shaft(t, 1, 2, 398) == RoomsScript.OFF_TOWER, "a shaft past the tower width is refused")
 	check.call(t.ledger.balance == funds, "refusals are free")
 
@@ -55,8 +56,8 @@ static func run(check: Callable) -> void:
 	var occupants := t.rooms.links.occupant_count()
 	check.call(TestRooms._send(t, Command.BULLDOZE, [7, 111] as Array[int]) == RoomsScript.OK, "a shaft can be bulldozed from any floor")
 	check.call(occupants - t.rooms.links.occupant_count() == 30 and t.rooms.shaft_count() == 2, "bulldozing removes all 30 per-floor occupants")
-	check.call(t.rooms.link_at(-10, 110) == 0 and t.rooms.link_at(20, 110) == 0 and not t.floors.has_shaft(3, 110), "bulldozing frees every cell and mark")
-	check.call(_shaft(t, -10, 20, 110) == RoomsScript.OK, "the freed column takes a shaft again")
+	check.call(t.rooms.link_at(-9, 110) == 0 and t.rooms.link_at(21, 110) == 0 and not t.floors.has_shaft(3, 110), "bulldozing frees every cell and mark")
+	check.call(_shaft(t, -9, 21, 110) == RoomsScript.OK, "the freed column takes a shaft again")
 
 	# Save round trip.
 	var u := TowerSim.new(0)

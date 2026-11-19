@@ -33,10 +33,10 @@ static func _ticks(t: TowerSim, kind: int, from_tick: int) -> Dictionary:
 	return found
 
 
-## Two leased offices (see TestRent), plus one local shaft on floor 3, one tick before a quarter starts.
+## Two leased offices (see TestRent), plus one local shaft on floors 1 to 3 (its machine room is on 4), one tick before a quarter starts.
 static func _tower() -> TowerSim:
 	var t := TestRent._two_offices()
-	var placed := t.rooms.place_shaft(t.grid, t.floors, t.ledger, t.tick, Catalogue.IDS.find("local_shaft"), 3, 3, SHAFT_X)
+	var placed := t.rooms.place_shaft(t.grid, t.floors, t.ledger, t.tick, Catalogue.IDS.find("local_shaft"), 1, 3, SHAFT_X)
 	assert(placed == 0, "the test shaft places")
 	t.clock.set_to_tick(QUARTER_TICKS - 1)
 	return t

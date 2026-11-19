@@ -419,6 +419,11 @@ func _draw() -> void:
 		return
 	var top: int = result["floor"]
 	var rows: int = result["height"]
+	if result.has("machines"):  ## A shaft's machine rooms: a cap above the top and below the bottom stop.
+		for machine: int in result["machines"]:
+			var cap := Rect2i(result["x"] * VC.CELL_PX, VC.floor_to_row(machine) * VC.CELL_PX, result["width"] * VC.CELL_PX, VC.CELL_PX)
+			draw_rect(cap, Color(VALID_TINT if result["valid"] else INVALID_TINT, 0.35))
+			draw_rect(cap, Color(0.9, 0.9, 0.95), false, 1.0)
 	if result.has("top"):  ## A shaft: from its top floor down to its bottom.
 		top = result["top"]
 		rows = VC.floor_to_row(result["floor"]) - VC.floor_to_row(top) + 1
