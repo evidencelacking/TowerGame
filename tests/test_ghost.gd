@@ -54,7 +54,8 @@ static func run(check: Callable) -> void:
 	check.call(Ghost.reason_text("rooms", RoomsScript.OFF_TOWER) == "Runs off the tower's edge", "off the tower reads as off the edge")
 	check.call(_text(t, "office", 1, 100) == "Floor 1 is for the lobby", "an office on floor 1 reads as the lobby floor")
 	check.call(_text(t, "office", 2, 20) == "Nothing below to rest on", "no floor below reads as nothing below")
-	check.call(_text(t, "lobby", 1, 100) == "The lobby is already built", "a second lobby reads as already built")
+	check.call(_text(t, "lobby", 1, 100) == "Already built", "a lobby tap inside the lobby reads as already built")
+	check.call(_text(t, "lobby", 1, 300) == "Must touch the existing lobby", "a separate second lobby reads as gapped")
 
 	# Overlap, shaft, money.
 	TestRooms._room(t, _kind("office"), 2, 100)
@@ -125,13 +126,13 @@ static func _run_spans(check: Callable) -> void:
 	check.call(ghost.release(1, 10) and tiny._queue[0].args == _ints([1, 10, 10, 1]), "a 1-unit drag works")
 	tiny.step()
 	check.call(tiny.ledger.balance == 2000000 - lobby_unit and tiny.floors.has_floor(1, 10), "a 1-unit lobby costs one unit")
-	# Past the tower edge is refused with a reason, and nothing is queued.
+	# Past the tower edge clamps to the edge (#181) and shows the clamped span.
 	ghost.set_tower(TowerSim.new(1, 2000000))
 	ghost.set_tool("lobby")
 	ghost.press(1, 390)
 	var edge := ghost.hover(1, 400)
-	check.call(not edge["valid"] and edge["text"] == "Runs off the tower's edge", "a drag past the tower edge is refused with a reason")
-	check.call(not ghost.release(1, 400) and ghost.tower._queue.is_empty(), "a refused drag queues nothing")
+	check.call(edge["valid"] and edge["x"] == 390 and edge["width"] == 10, "a drag past the tower edge clamps to the edge")
+	check.call(ghost.release(1, 400) and ghost.tower._queue[0].args == _ints([1, 390, 399, 1]), "the clamped drag queues the clamped span")
 	# Floors: N units at the floor price; a gap or overhang below refuses.
 	var tower := _wide()
 	ghost.set_tower(tower)

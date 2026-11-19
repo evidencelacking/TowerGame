@@ -37,6 +37,7 @@ const FLOOR_TEXT: Dictionary = {
 	FloorsScript.LOBBY_BAD_FLOOR: "The lobby goes on floor 1",
 	FloorsScript.LOBBY_BAD_HEIGHT: "Lobby must be 1 to 3 floors tall",
 	FloorsScript.LOBBY_EXISTS: "The lobby is already built",
+	FloorsScript.LOBBY_GAPPED: "Must touch the existing lobby",
 	FloorsScript.SHORT_OF_FUNDS: "Not enough money",
 }
 const ROOM_TEXT: Dictionary = {
@@ -171,6 +172,12 @@ static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: in
 			var lobby := t.floors.check_lobby(floor_number, out["x"], out["x"] + out["width"] - 1, 1)
 			code = lobby["reason"]
 			out["cost"] = lobby["cost"]
+			if lobby["x_end"] >= lobby["x_start"]:  ## Show the span as clamped to the grid.
+				out["x"] = maxi(lobby["x_start"], 0)
+				out["width"] = mini(lobby["x_end"], GridScript.WIDTH_UNITS - 1) - out["x"] + 1
+			if t.floors.has_lobby():  ## Extending: the lobby's height, and say so.
+				out["height"] = lobby["height"]
+				out["note"] = "Widen lobby, %d unit%s" % [out["width"], "" if out["width"] == 1 else "s"]
 		"floor":
 			source = "floors"
 			var span := t.floors.check_span(floor_number, out["x"], out["x"] + out["width"] - 1)
@@ -404,7 +411,8 @@ func _draw() -> void:
 		top = result["top"]
 		rows = VC.floor_to_row(result["floor"]) - VC.floor_to_row(top) + 1
 	elif result["height"] > 1:
-		top = RoomsScript.floor_above(top)  ## Stairs span two floors: draw from the upper one.
+		for _i in range(result["height"] - 1):  ## Stairs span two floors, a lobby up to three: draw from the top one.
+			top = RoomsScript.floor_above(top)
 	var rect := Rect2i(result["x"] * VC.CELL_PX, VC.floor_to_row(top) * VC.CELL_PX,
 		result["width"] * VC.CELL_PX, rows * VC.CELL_PX)
 	var tint := VALID_TINT if result["valid"] else INVALID_TINT
