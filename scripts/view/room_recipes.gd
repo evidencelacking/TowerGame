@@ -2,7 +2,7 @@ extends RefCounted
 ## Room recipes (10.2, 10.3, 10.4): for every catalogue kind, a hue, furniture shapes, and the spots
 ## where people can stand or sit (used by 10.6). Pure data plus a resolver; reads nothing from the sim.
 ## Real recipes are drawn for the full floor in the approved 32 px look (mockups/art_d32.tscn); the
-## kinds still in PLACEHOLDERS were drawn for a 22 px interior and shift down (10.4 replaces them).
+## kinds still in PLACEHOLDERS (none now) were drawn for a 22 px interior and shift down.
 ##
 ## Coordinates are native pixels inside one floor of the room: x from the room's left edge, y from
 ## its top, over WIDTH x INTERIOR_H (the bottom SLAB_H rows belong to the floor slab); y = INTERIOR_H is the floor.
@@ -22,6 +22,7 @@ extends RefCounted
 ## only the hue.
 
 const VC := preload("res://scripts/view/view_consts.gd")
+const Batch2 := preload("res://scripts/view/recipes_batch_2.gd")
 
 const INTERIOR_H: int = VC.CELL_H - VC.SLAB_H  ## Usable rows above the floor slab.
 const DESIGN_H: int = 22  ## The interior height the placeholder recipes were drawn for; they shift down by the extra.
@@ -29,100 +30,10 @@ const FLOOR_DY: int = INTERIOR_H - DESIGN_H
 const FIGURE_W: int = VC.FIGURE_W  ## A standing figure's size, used to keep spots inside the room.
 const FIGURE_H: int = VC.FIGURE_H
 
-const PLACEHOLDERS: Dictionary = {
-	"floor": {"hue": "floor", "drawn_by": "slab"},
-	"stairs": {"hue": "stairs", "drawn_by": "link"},
-	"escalator": {"hue": "escalator", "drawn_by": "link"},
-	"local_shaft": {"hue": "shaft", "drawn_by": "shaft"},
-	"service_shaft": {"hue": "shaft", "drawn_by": "shaft"},
-	"express_shaft": {"hue": "shaft", "drawn_by": "shaft"},
-	"local_car": {"hue": "car", "drawn_by": "car"},
-	"service_car": {"hue": "car", "drawn_by": "car"},
-	"express_car": {"hue": "car", "drawn_by": "car"},
-	"fast_food": {
-		"hue": "food",
-		"fixed": [[2, 15, 0, 5, "wood"], [2, 13, 0, 2, "accent"]],
-		"repeats": [
-			{"pad": 0, "every": 8, "lo": 0, "hi": 8, "shapes": [[0, 2, 4, 5, "red"], [4, 2, 4, 5, "gold"]]},
-			{"pad": 10, "every": 24, "lo": -4, "hi": 6, "shapes": [[0, 11, 4, 2, "gold"]], "spots": [[-4, 21]]},
-		],
-	},
-	"security": {
-		"hue": "service",
-		"fixed": [[2, 15, 0, 3, "wood"], [-14, 4, 10, 8, "gold", "r"]],
-		"repeats": [{"pad": 4, "every": 11, "lo": 0, "hi": 9, "max": 3, "shapes": [[0, 3, 9, 6, "ink"], [1, 4, 7, 4, "green"]]}],
-		"spots": [[30, 21], [-40, 21, "r"]],
-	},
-	"restaurant": {
-		"hue": "food",
-		"fixed": [[1, 3, 0, 1, "gold"]],
-		"repeats": [{"pad": 12, "every": 28, "lo": -3, "hi": 13, "shapes": [
-			[0, 14, 8, 1, "furn"], [3, 15, 2, 6, "furn"], [-3, 17, 2, 4, "furn"], [9, 17, 2, 4, "furn"],
-			[1, 8, 5, 2, "lamp"], [3, 4, 1, 4, "ink"]], "spots": [[-3, 21], [9, 21]]}],
-	},
-	"retail": {
-		"hue": "shop",
-		"fixed": [[0, 1, 0, 2, "green"]],
-		"repeats": [{"pad": 2, "every": 12, "lo": 0, "hi": 9, "shapes": [
-			[0, 4, 9, 10, "window"], [2, 10, 5, 4, "accent"], [3, 8, 3, 2, "red"]], "spots": [[3, 21]]}],
-	},
-	"movie_theatre": {
-		"hue": "civic",
-		"fixed": [[16, 4, 0, 10, "white"]],
-		"repeats": [{"pad": 16, "every": 12, "lo": 0, "hi": 8, "shapes": [[0, 16, 8, 5, "furn"]], "spots": [[2, 19]]}],
-	},
-	"party_hall": {
-		"hue": "civic",
-		"fixed": [[8, 3, 0, 2, "accent"], [-2, 5, 4, 4, "gold", "c"]],
-		"repeats": [{"pad": 12, "every": 24, "lo": 0, "hi": 13, "shapes": [
-			[0, 16, 12, 2, "furn"], [5, 18, 2, 3, "furn"]], "spots": [[0, 21], [9, 21]]}],
-	},
-	"medical": {
-		"hue": "medical",
-		"fixed": [[6, 5, 4, 12, "red"], [2, 9, 12, 4, "red"]],
-		"repeats": [{"pad": 22, "every": 40, "lo": 0, "hi": 24, "shapes": [
-			[0, 15, 18, 4, "accent"], [0, 13, 4, 2, "white"], [21, 5, 1, 14, "ink"], [19, 5, 4, 5, "window"],
-			[0, 19, 2, 2, "ink"], [16, 19, 2, 2, "ink"]], "spots": [[8, 19]]}],
-	},
-	"recycling": {
-		"hue": "recycling",
-		"repeats": [{"pad": 4, "every": 16, "lo": -1, "hi": 15, "shapes": [
-			[0, 13, 10, 8, "green"], [-1, 12, 12, 2, "ink"], [4, 15, 2, 4, "white"]], "spots": [[12, 21]]}],
-		"upper": {
-			"fixed": [[2, 4, 0, 2, "green"]],
-			"repeats": [{"pad": 10, "every": 24, "lo": 0, "hi": 2, "shapes": [[0, 4, 2, 18, "green"]]}],
-		},
-	},
-	"parking_ramp": {
-		"hue": "parking",
-		"fixed": [
-			[3, 18, 3, 2, "ink"], [6, 16, 3, 4, "ink"], [9, 14, 3, 6, "ink"], [12, 12, 3, 8, "ink"],
-			[15, 10, 3, 10, "ink"], [18, 8, 3, 12, "ink"], [21, 6, 3, 14, "ink"], [24, 4, 3, 16, "ink"],
-			[1, 4, 4, 2, "gold"],
-		],
-	},
-	"parking_space": {
-		"hue": "parking",
-		"fixed": [
-			[0, 4, 1, 18, "white"], [-1, 4, 1, 18, "white", "r"],
-			[4, 14, 22, 5, "car"], [9, 11, 10, 3, "window"], [6, 18, 4, 3, "ink"], [19, 18, 4, 3, "ink"],
-		],
-	},
-	"metro": {
-		"hue": "civic",
-		"fixed": [[0, 18, 0, 4, "furn"], [0, 17, 0, 1, "gold"]],
-		"repeats": [{"pad": 24, "every": 48, "lo": 0, "hi": 12, "shapes": [[0, 4, 12, 5, "ink"], [1, 5, 10, 3, "lamp"]], "spots": [[4, 17]]}],
-	},
-	"cathedral": {
-		"hue": "civic",
-		"fixed": [[-8, 16, 16, 6, "furn", "c"], [-1, 6, 2, 10, "gold", "c"]],
-		"repeats": [{"pad": 12, "every": 24, "lo": 0, "hi": 10, "shapes": [[0, 6, 10, 16, "window"], [2, 3, 6, 3, "window"]]}],
-		"spots": [[20, 21], [-30, 21, "r"]],
-	},
-}
+const PLACEHOLDERS: Dictionary = {}  ## Every kind has a real recipe now; the table stays for kinds added before their art.
 
 ## Real recipes with no spot: nobody stands in them (cars, ramps and the like).
-const RECIPES_WITHOUT_SPOTS: Array[String] = []
+const RECIPES_WITHOUT_SPOTS: Array[String] = ["parking_ramp", "parking_space"]
 
 static var _real: Dictionary = {}
 static var _cache: Dictionary = {}
@@ -360,4 +271,5 @@ static func _build() -> Dictionary:
 			[24, 10, 4, 4, "white"], [29, 9, 4, 5, "gold"], [24, 18, 4, 4, "red"], [29, 17, 4, 5, "white"], [24, 26, 4, 4, "accent"], [29, 25, 4, 5, "white"],
 			[4, 2, 14, 1, "lamp"]], "spots": [[18, 30], [36, 30]]}],
 	}
+	out.merge(Batch2.build())
 	return out
