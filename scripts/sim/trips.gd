@@ -22,10 +22,13 @@ const STRESS_RECOVERY_PER_MINUTE := 1  ## Guess: stress lost each idle minute.
 const STRESS_NO_ROUTE := 30  ## Guess: stress when a trip has no route and is given up.
 const NO_ROUTE_RETRY_MINUTES := 30  ## Guess: minutes before a given-up trip is requested again.
 const GROUND_FLOOR := 1
+const WARN_EVERY_TICKS := 2550  ## One day of ticks (the clock's six periods): the unreachable-trip warning repeats no sooner.
 
 var _last_minute: int = -1  ## Not saved: resume() sets it after a load.
 var _memo: Dictionary = {}  ## [from floor, from x, to floor, to x] -> route found this step; see _find_legs. Not saved.
 var _memo_waiting: Array[int] = []  ## rooms.waiting_keys() when the memo was filled; a change empties it.
+var blocked_transfers: int = 0  ## People this step whose trip needed a second transfer; Tower logs it and clears it. Not saved.
+var _memo_reason: Dictionary = {}  ## Same keys as _memo: the route search's reason code.
 var _routes: Dictionary = {}  ## person id -> legs of the trip under way; a cache, rebuilt from trip_from and the goal.
 
 
@@ -62,7 +65,8 @@ static func segment(legs: Array, first: int) -> Array:
 
 ## Called once per tick. Acts once per sim minute.
 func tick(clock: Object, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript) -> void:
-	_memo.clear()  # the tower can only change between steps, so a memo never outlives one
+	_memo.clear()
+	_memo_reason.clear()  # the tower can only change between steps, so a memo never outlives one
 	var minute: int = clock.minute_of_day()
 	if minute == _last_minute:
 		return
@@ -121,14 +125,20 @@ func _find_legs(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 	var waiting := rooms.waiting_keys()
 	if waiting != _memo_waiting:
 		_memo.clear()
+		_memo_reason.clear()
 		_memo_waiting = waiting
 	var key := [from[0], from[1], to[0], to[1]]
 	if _memo.has(key):
 		var cached: Variant = _memo[key]
+		if cached == null and _memo_reason.get(key, 0) == RoutesScript.TOO_MANY_TRANSFERS:
+			blocked_transfers += 1
 		return null if cached == null else (cached as Array).duplicate(true)
 	var route: Dictionary = RoutesScript.find(floors, rooms, grid, from[0], from[1], to[0], to[1])
 	var found: Variant = null if route["reason"] != RoutesScript.OK else route["legs"]
 	_memo[key] = found if found == null else (found as Array).duplicate(true)
+	_memo_reason[key] = route["reason"]
+	if route["reason"] == RoutesScript.TOO_MANY_TRANSFERS:
+		blocked_transfers += 1
 	return found
 
 

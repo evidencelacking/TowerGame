@@ -6,9 +6,10 @@ extends RefCounted
 ## A trip is a list of legs. Walking along a floor costs its distance; a stairs segment joins
 ## floor N and the floor above and costs STAIRS_COST. Walking over a ground-lobby cell starts a
 ## new leg and resets the stairs count (V), and so does arriving by elevator at a lobby floor.
-## An elevator leg rides one shaft between two of its stops (express shafts take no cars yet).
+## An elevator leg rides one shaft between two of its stops (express shafts stop at lobbies and basements only).
 ## A trip rides at most two elevators and the transfer between them happens on a lobby floor
-## (is_lobby_floor, the seam for sky lobbies). Stairs are entered at their left column (unverified choice).
+## (is_lobby_floor: the ground lobby and the sky lobbies): at most one transfer in a tower of 100 floors; a trip needing
+## a second is refused as TOO_MANY_TRANSFERS and the walkers give up (Trips). Stairs are entered at their left column (unverified choice).
 ##
 ## Preference (#96): escalator first (no waiting, at most MAX_ESCALATORS in a leg), then a car that
 ## is waiting (see Rooms.car_waiting_at), then stairs (at most MAX_STAIRS in a leg), then a car that
@@ -84,7 +85,7 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 		node_shaft.append(0)
 	var stair_nodes := node_floor.size()
 	for shaft: int in rooms.shaft_ids():
-		if rooms.kind_of(shaft) == "express_shaft" or (rooms.kind_of(shaft) == "service_shaft") != staff:
+		if (rooms.kind_of(shaft) == "service_shaft") != staff:
 			continue  # service shafts are staff only, and staff ride nothing else (6.1)
 		for stop: int in rooms.stops_of(shaft):
 			node_floor.append(stop)

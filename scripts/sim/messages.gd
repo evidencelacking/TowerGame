@@ -37,6 +37,7 @@ const DEMAND_CLEARED := 39  ## a: Demands id. The need is met.
 const VIP_ARRIVED := 40  ## a: suite room id. A VIP checked in (#173).
 const VIP_GOOD := 41  ## a: suite room id. The VIP left happy: star 4 can follow.
 const VIP_BAD := 42  ## a: suite room id. The VIP left unhappy; another comes in a few days.
+const TRIP_UNREACHABLE := 43  ## a: people whose trip needed a second transfer this minute (#184). Logged at most once a day.
 const ROOM_DIRTY := 34  ## a: room id. Hotel guests checked out; the room needs cleaning (#147).
 
 const CAP := 500  ## Entries kept; the oldest drop first.
@@ -49,6 +50,16 @@ func add(at_tick: int, code: int, a: int = 0, b: int = 0) -> void:
 	_entries.append_array([at_tick, code, a, b] as Array[int])
 	if count() > CAP:
 		_entries = _entries.slice(FIELDS)
+
+
+## True when an entry with this code was logged at or after since_tick. Reads from the newest back.
+func recent(code: int, since_tick: int) -> bool:
+	var i := count() - 1
+	while i >= 0 and _entries[i * FIELDS] >= since_tick:
+		if _entries[i * FIELDS + 1] == code:
+			return true
+		i -= 1
+	return false
 
 
 func count() -> int:
