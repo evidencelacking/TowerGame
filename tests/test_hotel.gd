@@ -15,7 +15,6 @@ const TestTenancy := preload("res://tests/test_tenancy.gd")
 const TestOfficeDay := preload("res://tests/test_office_day.gd")
 const Harness := preload("res://tests/harness.gd")
 
-const PARKING_ID := 5000
 const MAX_TICKS := 6000  ## Longer than any stretch the tests step: a bound so no loop can hang.
 
 
@@ -28,8 +27,9 @@ static func _tower(seed_value: int, kind: String, linked: bool, parking: bool = 
 	if linked:
 		TestTenancy._link(t)
 	if parking:
-		t.grid.place(PARKING_ID, 3, 124, CatalogueScript.field("parking_space", "width"))
-		t.rooms._kind_of[PARKING_ID] = CatalogueScript.IDS.find("parking_space")
+		# A ramp under the lobby and a space chained to it (B1 rests on the lobby floor).
+		t.rooms.place_room(t.grid, t.floors, t.ledger, 0, CatalogueScript.IDS.find("parking_ramp"), -1, 110)
+		t.rooms.place_room(t.grid, t.floors, t.ledger, 0, CatalogueScript.IDS.find("parking_space"), -1, 114)
 	return t
 
 
