@@ -82,6 +82,7 @@ func _run_all() -> void:
 	await _bulldoze_cases()
 	await _window_cases()
 	await _behind_cases()
+	await _fill_cases()
 
 
 func _toolbar_cases() -> void:
@@ -242,6 +243,13 @@ func _behind_cases() -> void:
 		func() -> bool: return _link_kind(9, 112) == "" and _kind_at(9, 112) == "retail", "Bulldoze takes the escalator first")
 	await _click_case("behind.escalator.bulldoze_room", "behind", GhostScript.BULLDOZE, 9, 114,
 		func() -> bool: return _kind_at(9, 112) == "", "A second bulldoze takes the shop behind")
+
+
+## Auto-fill floor (#273): a shaft dragged a few cells off the floor edge closes the gap on each of its floors.
+func _fill_cases() -> void:
+	await _drag_case("fill.shaft", "fill", "local_shaft", 146, 3, 146, 4,
+		func() -> bool: return _shaft_span(146, 3, 4) and _tower.floors.has_floor(3, 140) and _tower.floors.has_floor(4, 143),
+		"Drag a shaft at columns 144 to 147 over floors 3 to 4, beside floor ending at column 139: the gap fills")
 
 
 func _window_cases() -> void:
