@@ -350,6 +350,8 @@ func _sync_pieces() -> void:
 			var to := mini(from + slice, lobby.end.x)
 			wanted["lobby_%d_%d_%d_%d" % [from, to, lobby.position.y, lobby.size.y]] = [Rect2i(from, lobby.position.y, to - from, lobby.size.y), [], "lobby"]
 			from = to
+	if GraphicsStyle.current().density() > 1:  # sky lobbies (#357): Detailed only, each run of lobby cells in slices
+		_want_sky_lobbies(wanted)
 	for key: Variant in _room_pieces.keys():
 		if not wanted.has(key):
 			_free_piece(_room_pieces[key] as Piece)
@@ -359,7 +361,7 @@ func _sync_pieces() -> void:
 		var piece: Piece = _room_pieces.get(key)
 		if piece == null:
 			piece = _new_piece()
-			piece.node.z_index = LOBBY_Z if (spec[2] as String) == "lobby" else ROOM_Z
+			piece.node.z_index = LOBBY_Z if (spec[2] as String) in ["lobby", DetailRooms.SKY_LOBBY] else ROOM_Z
 			_room_pieces[key] = piece
 		piece.rect = spec[0]
 		piece.runs = spec[1]
@@ -663,6 +665,12 @@ func _paint_room_piece(canvas: CanvasItem, piece: Piece) -> void:
 	var started := Time.get_ticks_usec()
 	DetailLight.drop(piece.uid)
 	DetailLight.painter_id = piece.uid
+	if piece.suite_kind == DetailRooms.SKY_LOBBY:
+		_paint_sky_lobby_slice(canvas, piece)
+		DetailLight.painter_id = 0
+		_glow.queue_redraw()
+		piece.cost_us = Time.get_ticks_usec() - started
+		return
 	if piece.suite_kind == "lobby":
 		_paint_lobby_slice(canvas, piece.rect)
 		DetailLight.painter_id = 0
@@ -739,6 +747,36 @@ func _paint_lobby_slice(canvas: CanvasItem, slice: Rect2i) -> void:
 	var rect := Rect2i(span[0] * VC.CELL_W, VC.floor_to_row(span[2]) * VC.CELL_H, (span[1] - span[0] + 1) * VC.CELL_W, span[2] * VC.CELL_H)
 	DetailRooms.window = Vector2i(slice.position.x, slice.end.x) if slice.size.x < rect.size.x else Vector2i.ZERO
 	GraphicsStyle.current().recipe(canvas, "lobby", rect, Palette.hue("lobby"), true)
+	DetailRooms.window = Vector2i.ZERO
+
+
+## Adds a slice piece to `wanted` for every run of lobby cells on every sky lobby floor. A piece's runs hold
+## [floor, whole run rect], so each slice paints its share of the one picture.
+func _want_sky_lobbies(wanted: Dictionary) -> void:
+	for floor_number: int in tower.floors.SKY_LOBBY_FLOORS:
+		var row_y := VC.floor_to_row(floor_number) * VC.CELL_H
+		var column := 0
+		while column < Tower.Grid.WIDTH_UNITS:
+			if not tower.floors.has_lobby_at(floor_number, column):
+				column += 1
+				continue
+			var start := column
+			while column < Tower.Grid.WIDTH_UNITS and tower.floors.has_lobby_at(floor_number, column):
+				column += 1
+			var run := Rect2i(start * VC.CELL_W, row_y, (column - start) * VC.CELL_W, VC.CELL_H)
+			var from := run.position.x
+			while from < run.end.x:
+				var to := mini(from + LOBBY_SLICE, run.end.x)
+				wanted["sky_%d_%d_%d" % [floor_number, from, to]] = [Rect2i(from, row_y, to - from, VC.CELL_H), [[floor_number, run]], DetailRooms.SKY_LOBBY]
+				from = to
+
+
+## One slice of a sky lobby's hall, confined to the slice's x range like the ground lobby's.
+func _paint_sky_lobby_slice(canvas: CanvasItem, piece: Piece) -> void:
+	var info: Array = piece.runs[0]
+	var run: Rect2i = info[1]
+	DetailRooms.window = Vector2i(piece.rect.position.x, piece.rect.end.x) if piece.rect.size.x < run.size.x else Vector2i.ZERO
+	DetailRooms.draw(canvas, DetailRooms.SKY_LOBBY, run, Palette.hue("lobby"), true, false, info[0] as int)
 	DetailRooms.window = Vector2i.ZERO
 
 

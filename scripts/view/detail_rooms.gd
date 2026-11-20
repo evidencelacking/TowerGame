@@ -13,12 +13,14 @@ const Shops := preload("res://scripts/view/detail_shops.gd")
 const Hall := preload("res://scripts/view/detail_hall.gd")
 const Pool := preload("res://scripts/view/detail_pool.gd")
 const Venues := preload("res://scripts/view/detail_venues.gd")
+const SkyLobby := preload("res://scripts/view/detail_sky_lobby.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const SkyLook := preload("res://scripts/view/sky_look.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
 const KINDS: Array[String] = ["lobby", "office", "condo", "hotel_single", "hotel_twin", "hotel_suite", "housekeeping"]
+const SKY_LOBBY := "sky_lobby"  ## A sky lobby floor (#357): drawn by draw() with the floor number as its id; not a room kind.
 const SUB := 2  ## Mock-up pixels per world pixel.
 const FLOOR_H := Scenes.FLOOR
 const BENCH_GAP := 64.0  ## Seats closer than this (mock-up pixels) get a narrow workstation each.
@@ -26,7 +28,7 @@ const CURTAINS: Array[String] = ["b86a5a", "5a7aa0", "5a8a6a"]
 
 
 static func handles(kind: String) -> bool:
-	return KINDS.has(kind) or Shops.handles(kind) or Hall.handles(kind) or Pool.handles(kind) or Venues.handles(kind)
+	return KINDS.has(kind) or kind == SKY_LOBBY or Shops.handles(kind) or Hall.handles(kind) or Pool.handles(kind) or Venues.handles(kind)
 
 
 ## Paints a room or suite of `kind` over rect (world pixels, at least one floor tall; a lobby taller than a
@@ -49,6 +51,9 @@ static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bo
 		var from := clampi((window.x - rect.position.x) * SUB, 0, w)
 		var to := clampi((window.y - rect.position.x) * SUB, from, w)
 		pen.limit = Rect2i(from, 0, to - from, h - Scenes.SLAB_H)
+	if kind == SKY_LOBBY:
+		SkyLobby.draw(pen, w, y0, id)
+		return
 	var variant: int = RoomRecipes.SUITE if suite else RoomRecipes.variant_for(kind, id)
 	var seats := seat_centres(kind, rect.size.x, upper, variant)
 	var pal := _palette(kind, hue)
