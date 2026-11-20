@@ -69,6 +69,11 @@ const MEALS: Array = [
 	[COWORK_EARLY, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
 	[COWORK_MID, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
 	[COWORK_LATE, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
+	[DECK_MORNING, DECK_WINDOW, DECK_PERCENT, "observation_deck"],
+	[DECK_NOON, DECK_WINDOW, DECK_PERCENT, "observation_deck"],
+	[DECK_AFTERNOON, DECK_WINDOW, DECK_PERCENT, "observation_deck"],
+	[DECK_SUNSET, DECK_WINDOW, DECK_SUNSET_PERCENT, "observation_deck"],
+	[DECK_NIGHT, DECK_WINDOW, DECK_NIGHT_PERCENT, "observation_deck"],
 ]
 
 ## Our own kinds (M13, #291), all unverified tunables. A gym is busy before work, at the break and
@@ -106,6 +111,17 @@ const COWORK_MID := 540  ## 09:00.
 const COWORK_LATE := 630  ## 10:30.
 const COWORK_WINDOW := 120
 const COWORK_PERCENT := 6
+## The observation deck (#318): open all day, five waves, busiest at sunset and after dark (admission is the
+## shop's takings). Unverified tunables.
+const DECK_MORNING := 540  ## 09:00.
+const DECK_NOON := 750  ## 12:30.
+const DECK_AFTERNOON := 930  ## 15:30.
+const DECK_SUNSET := 1110  ## 18:30.
+const DECK_NIGHT := 1260  ## 21:00.
+const DECK_WINDOW := 90
+const DECK_PERCENT := 3
+const DECK_SUNSET_PERCENT := 8
+const DECK_NIGHT_PERCENT := 6
 const WHO_ADULTS := "adults"
 const WHO_ALL := "all"
 const WHO_CHILDREN := "children"
@@ -127,6 +143,19 @@ const VISITORS: Dictionary = {
 	"fast_food": [[0, 4, 12, 4, 0, 0], [0, 6, 20, 10, 0, 0]],
 	"restaurant": [[0, 0, 0, 0, 6, 0], [0, 0, 0, 0, 14, 0]],
 	"retail": [[0, 0, 4, 0, 6, 0], [0, 0, 14, 0, 24, 0]],
+}
+## The metro station (#325, our own design): while the tower is linked to a station, these visitors arrive in
+## addition to VISITORS, per shop kind and clock period, on a weekday and on the weekend. Commuters fill the
+## morning and evening, shoppers the middle of the day; they enter by the ground lobby like the rest.
+const METRO_VISITORS: Dictionary = {
+	"fast_food": [[0, 6, 14, 6, 4, 0], [0, 4, 12, 8, 6, 0]],
+	"restaurant": [[0, 0, 2, 2, 8, 2], [0, 0, 4, 4, 14, 4]],
+	"retail": [[0, 0, 6, 4, 10, 0], [0, 0, 14, 10, 20, 0]],
+}
+## The observation deck (#318): visitors from the city, per clock period on a weekday and on the weekend. They come
+## all day and into the night (unlike VISITORS, which stop after dark), more at sunset and after dark.
+const CITY_VISITORS: Dictionary = {
+	"observation_deck": [[0, 6, 10, 10, 18, 12], [0, 10, 16, 16, 28, 18]],
 }
 ## Days a shop stays vacant after its renter leaves before a new renter takes it (if reachable).
 const RELET_DAYS := 3
@@ -181,6 +210,12 @@ const PROFILES: Dictionary = {
 		"tiers": [[0, -3000], [8, 2500], [16, 5000], [30, 8000]],
 		"food": ["Hot desks", "Quiet room", "Meeting pods", "Studio", "Open floor"],
 	},
+	# Observation deck (#318): 50 places, 30 minute visits, everyone; the 2 staff make an empty day lose $2,000.
+	"observation_deck": {
+		"seats": 50, "linger_minutes": 30, "grade_cap": 40, "grade_a": 35, "grade_b": 20,
+		"tiers": [[0, -2000], [20, 3000], [40, 6000], [80, 10000]],
+		"food": ["Telescopes", "City view", "Sunset deck", "Night skyline", "Photo spot"],
+	},
 	# Clinic (#291): 6 consulting seats, 20 minute visits; only the unwell (low mood) come.
 	"clinic": {
 		"seats": 6, "linger_minutes": 20, "grade_cap": 20, "grade_a": 16, "grade_b": 8, "who": WHO_LOW_MOOD,
@@ -217,6 +252,22 @@ static func visitors_for(kind: String, period: int, day: int) -> int:
 	if not VISITORS.has(kind) or period < 1 or period > Clock.PERIODS:
 		return 0
 	var by_day: Array = VISITORS[kind]
+	return int(by_day[1 if day == Clock.WE else 0][period - 1])
+
+
+## Extra visitors a metro station sends for this kind's meal in a period; 0 for kinds it does not feed.
+static func metro_visitors_for(kind: String, period: int, day: int) -> int:
+	if not METRO_VISITORS.has(kind) or period < 1 or period > Clock.PERIODS:
+		return 0
+	var by_day: Array = METRO_VISITORS[kind]
+	return int(by_day[1 if day == Clock.WE else 0][period - 1])
+
+
+## Visitors from the city for a kind that draws them (the observation deck) in a period; 0 for other kinds.
+static func city_visitors_for(kind: String, period: int, day: int) -> int:
+	if not CITY_VISITORS.has(kind) or period < 1 or period > Clock.PERIODS:
+		return 0
+	var by_day: Array = CITY_VISITORS[kind]
 	return int(by_day[1 if day == Clock.WE else 0][period - 1])
 
 
@@ -328,7 +379,7 @@ func _open_shops(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, ten
 	var shops: Array[int] = []
 	var entry_x := floors.lobby_span()[0]
 	for id in rooms.room_ids():
-		if is_shop(rooms.kind_of(id)) and not is_vacant(id) and tenancy.reachable(floors, rooms, grid, id, entry_x):
+		if is_shop(rooms.kind_of(id)) and not is_vacant(id) and not rooms.is_closed_up(grid, id) and tenancy.reachable(floors, rooms, grid, id, entry_x):
 			shops.append(id)
 	return shops
 
@@ -363,6 +414,9 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 			_today[shop] = customers_today(shop) + 1
 	# Visitors from outside (#154).
 	var arriving := visitors_for(kind, period_of_minute(at_minute), day)
+	if METRO_VISITORS.has(kind) and tenancy.transit_linked(floors, rooms, grid):
+		arriving += metro_visitors_for(kind, period_of_minute(at_minute), day)
+	arriving += city_visitors_for(kind, period_of_minute(at_minute), day)
 	var came := 0
 	for v in arriving:
 		var shop: int = shops[rng.next_below(shops.size())]

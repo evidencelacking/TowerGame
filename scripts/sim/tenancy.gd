@@ -47,10 +47,21 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 		elif kind == "condo" and selling and not rooms.is_sold(id) and _reachable(floors, rooms, grid, id, entry_x):
 			rooms.set_sold(id, true)
 			var price := CatalogueScript.cost(kind)
-			price += price * SynergyScript.demand_percent(grid.run_of(id), SynergyScript.others_of(grid, rooms)) / 100  # daycares lift demand
+			price += price * SynergyScript.demand_percent(grid.run_of(id), SynergyScript.others_of(grid, rooms, transit_linked(floors, rooms, grid))) / 100  # daycares and a metro lift demand
 			ledger.sale(at_tick, price, id)
 			for n in rooms.people_in(id):
 				people.add_person(id, PeopleScript.NONE, rng)
+
+
+## True when the tower has a metro station that people can reach from the ground lobby (#325).
+func transit_linked(floors: FloorsScript, rooms: RoomsScript, grid: GridScript) -> bool:
+	if not floors.has_lobby():
+		return false
+	var entry_x := floors.lobby_span()[0]
+	for id in rooms.room_ids():
+		if rooms.kind_of(id) == SynergyScript.LINKED_KIND and _reachable(floors, rooms, grid, id, entry_x):
+			return true
+	return false
 
 
 ## True if the lobby's route reaches the room (used by Evaluation for friends).

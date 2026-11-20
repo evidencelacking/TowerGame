@@ -31,13 +31,14 @@ const EXPECTED: Array = [
 	["recycling", 500000, 3, true, 0, ""],
 	["parking_ramp", 50000, 3, true, 0, ""],
 	["parking_space", 3000, 3, true, 512, "parking_shops"],
-	["metro", 1000000, 4, false, 1, ""],
+	["metro", 1000000, 3, false, 1, ""],
 	["cathedral", 3000000, 5, false, 1, ""],
 	["gym", 120000, 2, true, 0, ""],
 	["daycare", 80000, 2, true, 0, ""],
 	["clinic", 200000, 3, true, 0, ""],
 	["nightclub", 250000, 4, true, 0, ""],
 	["coworking", 150000, 3, true, 0, ""],
+	["observation_deck", 800000, 4, true, 0, ""],
 ]
 
 
@@ -70,7 +71,7 @@ static func run(check: Callable) -> void:
 	# Sizes the reference states.
 	check.call(Catalogue.field("movie_theatre", "height") == 2, "movie theatre is 2 floors")
 	check.call(Catalogue.field("recycling", "height") == 2, "recycling centre is 2 floors")
-	check.call(Catalogue.field("metro", "height") == 3, "metro station is 3 floors")
+	check.call(Catalogue.field("metro", "height") == 1, "metro station is one basement floor (our own, smaller than the reference)")
 
 	# Prices set by the gameplay review.
 	check.call(Catalogue.field("lobby", "per_unit") == true, "the lobby is charged per unit")

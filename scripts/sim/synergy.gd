@@ -11,8 +11,12 @@ extends RefCounted
 ##   CONDO_DEMAND percent added to a condo's sale price when it sells (tenancy.gd): the demand for it.
 ##   RECOVERY     added to how far a mood may rise in one day, tower-wide, target "*" (mood.gd).
 ##   SALES        percent added to a shop's daily takings when they are positive (commerce.gd).
+##   RENT         percent added to the rent an office pays (rent.gd), tower-wide: the metro station (#325, own
+##                design: a connected tower means a shorter commute, so offices and condos fetch more).
 ##   NOISE        shown in the preview only: noise.gd owns the rule, and the preview folds it in so the ghost
 ##                tells the whole story of a placement.
+## The observation deck (#318, own design) is the tower's pride: its mood rules are the reputation word of mouth
+## spreads, a lift for restaurants and happier hotel guests nearby. A closed deck (not on the top floor) is no source.
 ## Rooms of kinds not built yet (the garden and the nightclub arrive with #292) simply have no sources.
 ## The placement ghost reads preview_at() and shows text_of() for each entry; both are pure.
 
@@ -26,13 +30,15 @@ const CONDO_DEMAND := 1
 const RECOVERY := 2
 const SALES := 3
 const NOISE := 4
-const EFFECT_NAMES: Array[String] = ["mood", "% sale price", "mood recovery a day", "% sales", "noise"]
+const RENT := 5
+const EFFECT_NAMES: Array[String] = ["mood", "% sale price", "mood recovery a day", "% sales", "noise", "% rent"]
 
+const LINKED_KIND := "metro"  ## Its rules apply only while the tower is linked to it (Tenancy.transit_linked).
 const ANY := -1  ## Reach: the whole tower.
 const EVERYONE := "*"  ## Target of a tower-wide effect on people rather than on a kind of room.
 
 ## Most one effect can add up to, either way (a total beyond this is cut).
-const CAPS: Array[int] = [20, 30, 12, 30, 10]
+const CAPS: Array[int] = [20, 30, 12, 30, 10, 30]
 
 ## [source, target, effect, amount, floors, columns]
 const RULES: Array = [
@@ -43,6 +49,14 @@ const RULES: Array = [
 	["clinic", "office", MOOD, 3, 5, ANY],
 	["clinic", EVERYONE, RECOVERY, 4, ANY, ANY],
 	["garden", "restaurant", SALES, 8, ANY, ANY],
+	["metro", "office", RENT, 15, ANY, ANY],
+	["metro", "condo", CONDO_DEMAND, 10, ANY, ANY],
+	["observation_deck", "office", MOOD, 2, ANY, ANY],
+	["observation_deck", "condo", MOOD, 2, ANY, ANY],
+	["observation_deck", "restaurant", SALES, 10, 10, ANY],
+	["observation_deck", "hotel_single", MOOD, 3, 10, ANY],
+	["observation_deck", "hotel_twin", MOOD, 3, 10, ANY],
+	["observation_deck", "hotel_suite", MOOD, 3, 10, ANY],
 	["nightclub", "condo", MOOD, -6, 2, ANY],
 	["nightclub", "hotel_single", MOOD, -6, 2, ANY],
 	["nightclub", "hotel_twin", MOOD, -6, 2, ANY],
@@ -102,6 +116,11 @@ static func recovery_bonus(others: Array) -> int:
 	return total(RECOVERY, EVERYONE, [1, 0, 0], others)
 
 
+## Percent added to office rents by the metro station, tower-wide.
+static func rent_percent(others: Array) -> int:
+	return total(RENT, "office", [1, 0, 0], others)
+
+
 ## Percent added to a shop's positive daily takings by the gardens in the tower.
 static func sales_percent(kind: String, run: Array, others: Array) -> int:
 	return total(SALES, kind, run, others)
@@ -109,10 +128,14 @@ static func sales_percent(kind: String, run: Array, others: Array) -> int:
 
 ## Every placed room that is a source of some rule, as [kind, run] pairs in room id order. Cheap for a tower
 ## without such rooms: the answer is empty and every total is 0.
-static func others_of(grid: GridScript, rooms: RoomsScript) -> Array:
+static func others_of(grid: GridScript, rooms: RoomsScript, linked: bool = true) -> Array:
 	var list := []
 	for id in rooms.room_ids():
 		var kind := rooms.kind_of(id)
+		if kind == LINKED_KIND and not linked:
+			continue  # a station nobody can reach from the lobby gives nothing
+		if rooms.is_closed_up(grid, id):
+			continue  # a deck the tower has grown past is closed (#318)
 		if is_source(kind) and grid.has_occupant(id):
 			list.append([kind, grid.run_of(id)])
 	return list
