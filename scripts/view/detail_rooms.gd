@@ -9,6 +9,7 @@ extends RefCounted
 
 const Prims := preload("res://scripts/view/detail_prims.gd")
 const Scenes := preload("res://scripts/view/detail_scenes.gd")
+const Shops := preload("res://scripts/view/detail_shops.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const SkyLook := preload("res://scripts/view/sky_look.gd")
@@ -22,7 +23,7 @@ const CURTAINS: Array[String] = ["b86a5a", "5a7aa0", "5a8a6a"]
 
 
 static func handles(kind: String) -> bool:
-	return KINDS.has(kind)
+	return KINDS.has(kind) or Shops.handles(kind)
 
 
 ## Paints a room or suite of `kind` over rect (world pixels, at least one floor tall; a lobby taller than a
@@ -53,6 +54,8 @@ static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bo
 			_hotel(pen, kind, w, y0, seats, lit, night, id, pal)
 		"housekeeping":
 			_housekeeping(pen, w, y0, seats, lit, night, id, pal)
+		_:
+			Shops.draw(pen, kind, w, y0, seats, lit, night, id, variant, upper, pal)
 
 
 ## Where people stand or sit in a kind's recipe, as the centre of the figure in mock-up pixels from the room's
@@ -68,7 +71,7 @@ static func seat_centres(kind: String, width_px: int, upper: bool, variant: int)
 static func _palette_key(kind: String) -> String:
 	if kind.begins_with("hotel"):
 		return "hotel"
-	return "service" if kind == "housekeeping" else kind
+	return "service" if kind == "housekeeping" else kind  # batch 2 kinds have a palette of their own
 
 
 ## The kind's shell colours, shifted toward the room's hue when a state tint (dirty, idle) replaces it.

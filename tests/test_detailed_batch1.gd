@@ -97,12 +97,11 @@ static func _placed(check: Callable, classic: GraphicsStyle, detailed: GraphicsS
 	var t := TestPests._tower()
 	var ids: Dictionary = {}
 	var floor_number := 3
-	for kind: String in ["office", "condo", "hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "security"]:
+	for kind: String in ["office", "condo", "hotel_single", "hotel_twin", "hotel_suite", "housekeeping"]:
 		t.floors.fill_span(floor_number, 100, 131)
 		ids[kind] = TestPests._room(t, kind, floor_number, 100)
 		floor_number += 1
 	var differs := true
-	var rest_same := true
 	var rect := Rect2i(0, 0, 8 * 8, VC.CELL_H)
 	for kind: String in ids:
 		var id: int = ids[kind]
@@ -113,12 +112,8 @@ static func _placed(check: Callable, classic: GraphicsStyle, detailed: GraphicsS
 		classic.room(by_classic, t, id, rect, null, true, false)
 		var by_detailed := Recorder.new()
 		detailed.room(by_detailed, t, id, rect, null, true, false)
-		if DetailRooms.handles(kind):
-			differs = differs and not by_detailed.rects.is_empty() and by_detailed.rects != by_classic.rects
-		else:
-			rest_same = rest_same and by_detailed.rects == by_classic.rects
+		differs = differs and not by_detailed.rects.is_empty() and by_detailed.rects != by_classic.rects
 	check.call(differs, "detailed: placed batch 1 rooms draw in the Detailed look")
-	check.call(rest_same, "detailed: kinds outside batch 1 still draw Classic under Detailed")
 	# A dirty hotel room looks different from a clean one (the state tint and marks carry over).
 	var hotel: int = ids["hotel_single"]
 	TestPests._dirty(t, hotel, 0)
