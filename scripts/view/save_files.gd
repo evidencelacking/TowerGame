@@ -11,6 +11,7 @@ const MANUAL_PATH := "user://tower.sav"
 const AUTOSAVE_SLOTS := 3  ## Autosaves rotate through this many files, oldest overwritten first.
 const AUTOSAVE_PATH := "user://autosave_%d.sav"
 const MAGIC := "TOWERSAVE"
+static var autosave_template: String = AUTOSAVE_PATH  ## Tests point this at a file of their own, so parallel runs never share autosaves.
 
 
 ## The autosave slot for a quarter: consecutive quarters use consecutive slots.
@@ -19,7 +20,7 @@ static func autosave_slot(clock: Clock) -> int:
 
 
 static func autosave_path(slot: int) -> String:
-	return AUTOSAVE_PATH % slot
+	return autosave_template % slot
 
 
 ## Writes the tower's save to path. Returns true on success.
