@@ -62,7 +62,6 @@ static func run(check: Callable) -> void:
 	check.call(_text(t, "office", 2, 100) == "Overlaps another room", "a room over a room reads as overlap")
 	check.call(_text(t, "office", 2, 104) == "Overlaps another room", "a partial overlap reads as overlap")
 	check.call(t.floors.mark_shaft(3, 105), "fixture: a shaft cell is marked on floor 3")
-	check.call(Ghost.evaluate(t, "floor", 3, 110, 5, "", {"start_column": 100})["text"] == "Over a shaft", "a floor span over a shaft reads as over a shaft")
 	var poor := _wide()
 	TestRooms._send(poor, Command.PURCHASE, [poor.ledger.balance - 1000, 1] as Array[int])
 	var broke := Ghost.evaluate(poor, "office", 2, 100, 1)

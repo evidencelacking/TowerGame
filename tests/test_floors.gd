@@ -51,7 +51,7 @@ static func run(check: Callable) -> void:
 
 	# Shafts.
 	check.call(tower.floors.mark_shaft(1, 30), "a shaft can be marked")
-	check.call(_build(tower, 1, 28, 32) == FloorsScript.OVER_SHAFT and not tower.floors.has_floor(1, 28), "a floor over a shaft is refused and builds nothing")
+	check.call(_build(tower, 1, 28, 32) == FloorsScript.OK and tower.floors.has_floor(1, 28), "a floor may be built behind a shaft (#272)")
 	check.call(_build(tower, 1, 31, 33) == FloorsScript.OK, "a floor beside a shaft is allowed")
 
 	# Funds.

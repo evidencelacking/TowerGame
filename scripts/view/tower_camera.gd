@@ -1,3 +1,4 @@
+class_name TowerCamera
 extends Camera2D
 ## Pans (middle/right drag, WASD/arrows, screen edges) and zooms (wheel, +/-) in integer
 ## steps, always clamped so the view never leaves the tower's world.
@@ -13,6 +14,13 @@ const EDGE_SPEED_PX := 500.0
 var _zoom_index: int = START_ZOOM_INDEX
 var _dragging: bool = false
 var _focus: Vector2 = Vector2.ZERO  ## Intended view centre (world px); `position` is its clamped result.
+var _following: bool = false
+var _follow_target: Vector2 = Vector2.ZERO  ## World point the camera eases toward while following (#289).
+
+signal follow_stopped  ## A pan (or stop_follow) ended a follow.
+
+const FOLLOW_EASE := 0.25  ## Fraction of the gap closed per frame while following.
+const FOLLOW_SNAP_PX := 0.5
 
 
 ## Clamp a camera centre so a view of view_px at integer zoom stays inside world.
@@ -40,6 +48,13 @@ static func start_focus() -> Vector2:
 ## Applied camera position for an intended focus: view-clamped, whole pixels.
 static func view_position(focus: Vector2, view_px: Vector2, zoom: int, world: Rect2) -> Vector2:
 	return clamp_position(focus, view_px, zoom, world).round()
+
+
+## One easing step of a followed focus toward its target: snaps once within FOLLOW_SNAP_PX.
+static func follow_step(focus: Vector2, target: Vector2) -> Vector2:
+	if focus.distance_to(target) <= FOLLOW_SNAP_PX:
+		return target
+	return focus.lerp(target, FOLLOW_EASE)
 
 
 ## New centre after zooming old_z to new_z so cursor_world stays under the cursor.
@@ -78,17 +93,40 @@ func zoom_at_cursor(step: int) -> void:
 	_apply()
 
 
+## Keeps the view on a world point as it moves; call again each time the point moves. A pan stops it.
+func follow(target: Vector2) -> void:
+	_following = true
+	_follow_target = target
+
+
+func follow_target() -> Vector2:
+	return _follow_target
+
+
+func is_following() -> bool:
+	return _following
+
+
+func stop_follow() -> void:
+	if _following:
+		_following = false
+		follow_stopped.emit()
+
+
 func _clamp_focus(f: Vector2) -> Vector2:
 	var w: Rect2 = ViewConsts.world_rect()
 	return Vector2(clampf(f.x, w.position.x, w.end.x), clampf(f.y, w.position.y, w.end.y))
 
 
 func pan_by_screen(delta_px: Vector2) -> void:
+	stop_follow()
 	_focus = _clamp_focus(_focus + delta_px / float(ZOOM_STEPS[_zoom_index]))
 	_apply()
 
 
 func _apply() -> void:
+	if not is_inside_tree():  # not placed yet (tests build one bare)
+		return
 	var z: int = ZOOM_STEPS[_zoom_index]
 	zoom = Vector2(z, z)
 	# Whole pixels keep integer zoom sharp; _focus is left alone so zooming back recovers it.
@@ -108,6 +146,9 @@ func _process(delta: float) -> void:
 		speed = EDGE_SPEED_PX
 	if dir != Vector2.ZERO:
 		pan_by_screen(dir.limit_length(1.0) * speed * delta)
+	elif _following:
+		_focus = _clamp_focus(follow_step(_focus, _follow_target))
+		_apply()
 	elif get_viewport_rect().size != _last_view:
 		_apply()
 	_last_view = get_viewport_rect().size

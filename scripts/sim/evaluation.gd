@@ -106,14 +106,15 @@ func evaluate(rooms: RoomsScript, people: PeopleScript, grades: GradesScript, gr
 			messages.add(at_tick, MessagesScript.CONDO_REFUND, price)
 
 
-## Mood (12.2): after the grade rule, a household whose mood has been low for MOOD_LEAVE_DAYS days
-## in a row gives notice, and leaves just as a C tenant does (condos refund the sale price).
-func evaluate_moods(rooms: RoomsScript, people: PeopleScript, grid: GridScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:
+## Mood (12.2): after the grade rule, a household whose mood has been low for LEAVE_DAYS days in a
+## row AND whose room is already at a failing grade (C) gives notice, and leaves just as a C tenant
+## does (condos refund the sale price). Mood alone never evicts a B-grade tenant.
+func evaluate_moods(rooms: RoomsScript, people: PeopleScript, grades: GradesScript, grid: GridScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:
 	var ids := rooms.room_ids()
 	ids.sort()
 	for id in ids:
 		var kind := rooms.kind_of(id)
-		if not _occupied(rooms, people, id) or not MoodScript.gave_notice(people, id):
+		if not _occupied(rooms, people, id) or not MoodScript.gave_notice(people, id) or grades.grade(rooms, people, id) != GradesScript.GRADE_C:
 			continue
 		if kind == "condo":
 			var price := CatalogueScript.cost(kind)

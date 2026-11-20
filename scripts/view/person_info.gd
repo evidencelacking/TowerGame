@@ -5,6 +5,8 @@ const VC := preload("res://scripts/view/view_consts.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const NamesScript := preload("res://scripts/sim/names.gd")
 const MoodScript := preload("res://scripts/sim/mood.gd")
+const ElevatorView := preload("res://scripts/view/elevator_view.gd")
+const CarsScript := preload("res://scripts/sim/cars.gd")
 
 const BAND_NAMES: Array[String] = ["Calm", "Uneasy", "Angry"]
 const OUTSIDE := "outside"
@@ -46,6 +48,59 @@ static func describe(tower: Object, i: int) -> Dictionary:
 		"from": room_label(tower, here), "to": room_label(tower, people.goal_room(i)),
 		"stress": people.stress_of(i), "band": band, "band_name": BAND_NAMES[band],
 	}
+
+
+const DEST_NAMES: Array[String] = ["Home", "Work", "Break", "Lunch", "Away"]  ## Indexed by People.DEST_*.
+
+
+## "9:00" for a minute of the day.
+static func clock_text(minute: int) -> String:
+	return "%d:%02d" % [minute / 60, minute % 60]
+
+
+## Today's day plan of the person at index i, one line per entry, in time order, with ">" on the one in
+## force now. Derived from the sim; "No set plan today" when there is none (weekends).
+static func plan_lines(tower: Object, i: int) -> Array[String]:
+	var plan: Array[Array] = tower.people.day_plan(i, tower.clock.day_of_week())
+	var out: Array[String] = ["Today:"]
+	if plan.is_empty():
+		out.append("  No set plan today")
+		return out
+	var now: int = tower.clock.minute_of_day()
+	var current := -1
+	for n in plan.size():
+		if plan[n][0] <= now:
+			current = n
+	for n in plan.size():
+		out.append("%s %s  %s" % [">" if n == current else " ", clock_text(plan[n][0]), DEST_NAMES[plan[n][1]]])
+	return out
+
+
+## The centre of the figure with this id, or Vector2.INF when nobody drawn has it.
+static func center_of(figures: Array[Dictionary], id: int) -> Vector2:
+	for figure: Dictionary in figures:
+		if figure["id"] == id:
+			return figure_center(figure)
+	return Vector2.INF
+
+
+## The middle of the car this person is riding, or Vector2.INF when they are in none. Read from the
+## sim's car and rider lists (so it works while the person is hidden inside the car).
+static func car_center(tower: Object, id: int) -> Vector2:
+	var shafts_by_id: Dictionary = {}
+	for shaft: Dictionary in ElevatorView.shafts(tower):
+		shafts_by_id[shaft["id"]] = shaft
+	for n in tower.rooms._cars.size():
+		for rider: Array in tower.rooms._riders[n]:
+			if rider[0] != id:
+				continue
+			var car: Array = tower.rooms._cars[n]
+			var shaft: Dictionary = shafts_by_id.get(car[CarsScript.SHAFT], {})
+			if shaft.is_empty():
+				return Vector2.INF
+			var y := ElevatorView.level_to_y(float(ElevatorView.level_of(car[CarsScript.FLOOR])), VC.CELL_H) + VC.CELL_H / 2.0
+			return Vector2((shaft["x"] + shaft["width"] / 2.0) * VC.CELL_W, y)
+	return Vector2.INF
 
 
 static func lines_for(info: Dictionary) -> Array[String]:

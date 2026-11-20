@@ -9,6 +9,7 @@ extends Node2D
 ## (DragGesture): press, drag, release sends. A plain click on a lobby or floor tool is a 1-unit span.
 
 const VC := preload("res://scripts/view/view_consts.gd")
+const AutoFill := preload("res://scripts/view/auto_fill.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
@@ -213,6 +214,13 @@ static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: in
 		out["text"] = reason_text("rooms", RoomsScript.SHORT_OF_FUNDS)
 	else:
 		out["valid"] = true
+		if not is_span_tool(tool_id):  ## Auto-fill (#273): floor between the item and the floor beside it.
+			var levels: Array[int] = [floor_number]
+			if tool_id == STAIRS or tool_id == ESCALATOR or RoomsScript.TALL_KINDS.has(tool_id):
+				levels.append(RoomsScript.floor_above(floor_number))
+			AutoFill.apply(t, out, levels, x_left, out["width"])
+			if not out["valid"]:
+				out["text"] = reason_text("rooms", RoomsScript.SHORT_OF_FUNDS)
 	return out
 
 
@@ -221,6 +229,15 @@ static func _evaluate_elevator(t: TowerSim, tool_id: String, floor_number: int, 
 	var out: Dictionary
 	if ElevatorTools.is_shaft_tool(tool_id):
 		out = ElevatorTools.evaluate_shaft(t, tool_id, floor_number, gesture.get("start_floor", floor_number), gesture.get("start_column", column), star_rating)
+		if out.get("mode", "") == "place" and out["valid"]:  ## Auto-fill (#273) beside every stop.
+			var levels: Array[int] = []
+			var level: int = out["floor"]
+			while true:
+				levels.append(level)
+				if level == out["top"]:
+					break
+				level = RoomsScript.floor_above(level)
+			AutoFill.apply(t, out, levels, out["x"], out["width"])
 	else:
 		out = ElevatorTools.evaluate_car(t, tool_id, floor_number, column, star_rating)
 	if out["code"] != 0 and out["text"] == "":  ## A star lock was worded already.
@@ -246,6 +263,18 @@ static func _evaluate_replace(t: TowerSim, kind: String, floor_number: int, x: i
 	else:
 		out["valid"] = true
 		out["text"] = "Replace with %s: net $%d" % [kind, checked["net"]]
+	return out
+
+
+## The commands a click sends: the auto-fill floor spans first (#273), then the item's own command.
+static func commands_for(tool_id: String, verdict: Dictionary, tick: int, kind: String = "") -> Array[TowerSim.Command]:
+	var out: Array[TowerSim.Command] = []
+	var main := command_for(tool_id, verdict, tick, kind)
+	if main == null:
+		return out
+	for span: Array in verdict.get("fill", []):
+		out.append(TowerSim.Command.make(tick + 1, TowerSim.Command.BUILD_FLOOR, [span[0], span[1], span[2]] as Array[int]))
+	out.append(main)
 	return out
 
 
@@ -399,9 +428,14 @@ func hover(floor_number: int, column: int) -> Dictionary:
 func commit() -> bool:
 	if tower == null or tool == "" or result.is_empty():
 		return false
-	var command := command_for(tool, result, tower.tick, last_room)
+	var commands := commands_for(tool, result, tower.tick, last_room)
 	_last_key = []  ## The build changes the verdict: recompute on the next frame.
-	return command != null and tower.enqueue(command)
+	if commands.is_empty():
+		return false
+	var queued := true
+	for command: TowerSim.Command in commands:
+		queued = tower.enqueue(command) and queued
+	return queued
 
 
 func _process(_delta: float) -> void:
@@ -439,6 +473,10 @@ func _draw() -> void:
 	var rect := Rect2i(result["x"] * VC.CELL_W, VC.floor_to_row(top) * VC.CELL_H,
 		result["width"] * VC.CELL_W, rows * VC.CELL_H)
 	var tint := VALID_TINT if result["valid"] else INVALID_TINT
+	for span: Array in result.get("fill", []):  ## Auto-fill cells (#273): a lighter tint.
+		var fill := Rect2i(span[1] * VC.CELL_W, VC.floor_to_row(span[0]) * VC.CELL_H, (span[2] - span[1] + 1) * VC.CELL_W, VC.CELL_H)
+		draw_rect(fill, Color(tint, 0.25))
+		draw_rect(fill, Color(tint, 0.8), false, 1.0)
 	draw_rect(rect, tint)
 	draw_rect(rect, Color(tint, 1.0), false, 1.0)
 

@@ -33,6 +33,12 @@ static func _set_moods(t: TowerSim, mood: int, low_days: int) -> void:
 		t.people.set_low_days(i, low_days)
 
 
+## One mood day by hand: the mood update, then the mood-notice rule (not the grade rule).
+static func _mood_day(t: TowerSim) -> void:
+	t.mood.update(t.rooms, t.grid, t.floors, t.grades, t.people)
+	t.evaluation.evaluate_moods(t.rooms, t.people, t.grades, t.grid, t.ledger, t.messages, t.tick)
+
+
 static func run(check: Callable) -> void:
 	var t := TestEvaluation._pair("condo")
 	check.call(t.people.count() > 0 and t.people.mood_of(0) == PeopleScript.MOOD_START, "mood: a new person starts at the start mood")
@@ -61,11 +67,28 @@ static func run(check: Callable) -> void:
 
 	# Events: the shock lowers the target and the worst one of the day counts.
 	var before_event := _target(t)
-	t.mood.note_event(MoodScript.THREAT_SHOCK)
-	t.mood.note_event(MoodScript.FIRE_SHOCK)
+	t.mood.note_event(MoodScript.THREAT_SHOCK, t.people)
+	t.mood.note_event(MoodScript.FIRE_SHOCK, t.people)
 	check.call(_target(t) == before_event - MoodScript.FIRE_SHOCK and _has(t, MoodScript.REASON_EVENT), "mood: a fire shock lowers the target")
-	t.mood.note_event(MoodScript.THREAT_SHOCK)
+	t.mood.note_event(MoodScript.THREAT_SHOCK, t.people)
 	check.call(t.mood.shock == MoodScript.FIRE_SHOCK, "mood: the worst shock of the day counts")
+
+	# Only people inside the tower at the time feel it: someone outside (no room, no trip) does not.
+	var out := TestEvaluation._pair("condo")
+	out.people._data[PeopleScript.FIELDS * 0 + PeopleScript._LOCATION] = PeopleScript.NONE
+	out.people._data[PeopleScript.FIELDS * 0 + PeopleScript._TRIP] = PeopleScript.TRIP_IDLE
+	out.mood.note_event(MoodScript.FIRE_SHOCK, out.people)
+	check.call(not _has(out, MoodScript.REASON_EVENT), "mood: a fire does not shock someone who was outside the tower")
+	var saved_out := TestEvaluation._pair("condo")
+	saved_out.people._data[PeopleScript.FIELDS * 0 + PeopleScript._LOCATION] = PeopleScript.NONE
+	saved_out.people._data[PeopleScript.FIELDS * 0 + PeopleScript._TRIP] = PeopleScript.TRIP_IDLE
+	saved_out.mood.note_event(MoodScript.THREAT_SHOCK, saved_out.people)
+	saved_out.people._data[PeopleScript.FIELDS * 0 + PeopleScript._LOCATION] = saved_out.people.home_of(0)  # home again after the event
+	check.call(not _has(saved_out, MoodScript.REASON_EVENT), "mood: coming home after the event does not make someone feel it")
+
+	# Crowding never counts on a lobby floor.
+	var lob := TestEvaluation._pair("condo")
+	check.call(lob.floors.is_lobby_floor(1) and not MoodScript.floor_counts(lob.people, lob.grid, lob.floors).has(1), "mood: a lobby floor is never counted as crowded")
 
 	# Noise: an office on the floor above the first condo.
 	var n := TestEvaluation._pair("condo")
@@ -81,25 +104,34 @@ static func run(check: Callable) -> void:
 	TestEvaluation._stress(d, 0)
 	var start := d.people.mood_of(0)
 	var goal := _target(d)
-	d.mood.note_event(MoodScript.FIRE_SHOCK)
-	d.mood.update(d.rooms, d.grid, d.grades, d.people)
+	d.mood.note_event(MoodScript.FIRE_SHOCK, d.people)
+	d.mood.update(d.rooms, d.grid, d.floors, d.grades, d.people)
 	check.call(absi(d.people.mood_of(0) - start) <= MoodScript.STEP and d.mood.shock == 0, "mood: a day moves it at most one step and clears the shock")
 	for k in 30:
-		d.mood.update(d.rooms, d.grid, d.grades, d.people)
+		d.mood.update(d.rooms, d.grid, d.floors, d.grades, d.people)
 	check.call(d.people.mood_of(0) == goal and d.people.low_days_of(0) == 0, "mood: it settles on the target with no low days")
 
-	# Sustained low mood: the tenants stay until the last low day, then give notice. Stress is held at B so
-	# the grade rule is not what sends them away.
+	# Sustained low mood at a failing grade (C): the tenants stay until the last low day, then give notice.
+	# The day is driven by hand so the grade rule does not get there first.
 	for kind in ["condo", "office"]:
 		var l := TestEvaluation._pair(kind)
 		var room: int = l.rooms.room_ids()[0]
-		TestEvaluation._stress(l, TestEvaluation.B_STRESS)
+		TestEvaluation._stress(l, TestEvaluation.C_STRESS)
 		_set_moods(l, 5, MoodScript.LEAVE_DAYS - 2)
-		l.evaluate_tenants()  # low day LEAVE_DAYS - 1
+		_mood_day(l)  # low day LEAVE_DAYS - 1
 		check.call(l.people.count() > 0 and l.people.low_days_of(0) == MoodScript.LEAVE_DAYS - 1, "mood %s: a low day short of notice, they stay" % kind)
-		l.evaluate_tenants()  # low day LEAVE_DAYS
-		check.call(l.people.count() == 0, "mood %s: sustained low mood sends the whole household away" % kind)
+		_mood_day(l)  # low day LEAVE_DAYS
+		check.call(l.people.count() == 0, "mood %s: sustained low mood at grade C sends the whole household away" % kind)
 		check.call(not l.rooms.is_sold(room) if kind == "condo" else l.people.workers_in(room) == 0, "mood %s: the unit is vacant afterwards" % kind)
+		# A B-grade tenant under heavy stress who has been low for many days does NOT leave.
+		var b_t := TestEvaluation._pair(kind)
+		TestEvaluation._stress(b_t, TestEvaluation.B_STRESS)
+		check.call(b_t.grade(MoodScript.room_of(b_t.people, 0)) == GradesScript.GRADE_B, "mood %s: the stressed tenant is at grade B" % kind)
+		_set_moods(b_t, 0, MoodScript.LEAVE_DAYS + 10)
+		var heads := b_t.people.count()
+		for day in 3:
+			_mood_day(b_t)
+		check.call(b_t.people.count() == heads and b_t.people.low_days_of(0) >= MoodScript.LEAVE_DAYS, "mood %s: a B-grade tenant with a rock-bottom mood stays" % kind)
 		# A recovered mood resets the count.
 		var r := TestEvaluation._pair(kind)
 		TestEvaluation._stress(r, 0)
@@ -128,7 +160,7 @@ static func run(check: Callable) -> void:
 	var s := TestEvaluation._pair("condo")
 	s.people.set_mood(0, 61)
 	s.people.set_low_days(0, 3)
-	s.mood.note_event(MoodScript.THREAT_SHOCK)
+	s.mood.note_event(MoodScript.THREAT_SHOCK, s.people)
 	var copy := TowerSim.new(7)
 	check.call(copy.load_state(s.save()) and copy.people.mood_of(0) == 61 and copy.people.low_days_of(0) == 3 and copy.mood.shock == MoodScript.THREAT_SHOCK, "mood: mood, low days and the shock survive save and load")
 	var one := TestEvaluation._pair("condo")
