@@ -64,6 +64,8 @@ static func _basin(p: Object, x0: float, x1: float, yt: float, lit: bool, night:
 	p.R(x0 - 4, yt + 33, 4, 25, TILE.darkened(0.12))
 	p.R(x1, yt + 33, 4, 25, TILE.darkened(0.12))
 	p.gradv(x0, yt + 33, span, 25, WATER_TOP, WATER_DEEP)
+	p.R(x0, yt + 33, span, 4, WATER_TOP.lightened(0.18))  # a lighter surface band
+	p.R(x0, yt + 48, span, 10, WATER_DEEP.darkened(0.3))  # darker water lower down
 	if lit:
 		p.GR(x0, yt + 33, span, 2, Color("b8f4ff"))  # the surface catches the light
 	for k: int in 6:  # tile joints on the far wall under the surface
@@ -71,6 +73,10 @@ static func _basin(p: Object, x0: float, x1: float, yt: float, lit: bool, night:
 	for i: int in int(span / 14.0):  # ripples
 		var rx := x0 + 4.0 + i * 14.0 + Prims.hn(i, id) * 6.0
 		p.R(rx, yt + 36 + (i % 3) * 5, 6, 1, Color("d8fbff"))
+	for j: int in 3:  # a couple of bright ripple highlights
+		var hx := x0 + span * (0.2 + 0.3 * j) + Prims.hn(j, id + 7) * 8.0
+		p.R(hx, yt + 35 + j, 10, 1, Color("f0feff"))
+		p.R(hx + 3, yt + 37 + j, 5, 1, Color("b8f4ff"))
 	for lane: int in 2:  # lane ropes: red and white floats
 		var ly := yt + 41.0 + lane * 8.0
 		p.R(x0, ly, span, 1, CORD)
@@ -84,6 +90,7 @@ static func _basin(p: Object, x0: float, x1: float, yt: float, lit: bool, night:
 		p.R(x0 + 6, yt + 38 + r * 5, 8, 1, STEEL.lightened(0.2))
 	if lit:
 		p.glow(x0 + span * 0.5, yt + 46, span * 0.5, 22.0, Color("70e8ff"), 0.5)
+		p.glow(x0 + span * 0.5, yt + 54, span * 0.4, 8.0, Color("40d0ff"), 0.3)  # the bed glows from below
 	elif night:
 		p.glow(x0 + span * 0.5, yt + 46, span * 0.3, 14.0, Color("70e8ff"), 0.2)
 
@@ -183,6 +190,7 @@ static func _gallery(p: Object, w: float, yt: float, fy: float, seats: Array, li
 		if lit:
 			p.GR(lx - 2 + k * 70, yt + 27, 6, 3, Color("fff0c0"))
 			p.glow(lx + 1 + k * 70, yt + 30, 22.0, 14.0, Color("ffc880"), 0.35)
+			p.glow(lx + 1 + k * 70, yt + 44, 30.0, 18.0, Color("ffb060"), 0.25)  # warm pool on the gallery floor
 		else:
 			p.R(lx - 2 + k * 70, yt + 27, 6, 3, Color("6a6a74"))
 	Scenes.plant(p, w - 12.0, fy, 18.0, Color("a8683c"))

@@ -187,11 +187,8 @@ static func _restaurant(p: Object, w: float, yt: float, fy: float, seats: Array,
 		if i % 2 == 0:
 			p.R(i * 8, yt + 58, 8, 2, Color("5a3a24"))
 	match variant:
-		1:  # a diner: a long counter with stools
-			Furnish.bar(p, 16.0, yt, fy, w - 32.0, lit)
-			for c: float in seats:
-				Furnish.stool(p, c, fy)
-				_note(taken, c - 8.0, c + 8.0)
+		1:  # a diner: chrome counter, round red stools, booths, checkered floor, pie case, neon sign
+			_diner(p, w, yt, fy, seats, lit, taken)
 		3:  # a bar: a long bar in the middle, stools along it
 			var bw := minf(w - 40.0, 180.0)
 			Furnish.bar(p, (w - bw) * 0.5, yt, fy, bw, lit)
@@ -226,6 +223,47 @@ static func _restaurant(p: Object, w: float, yt: float, fy: float, seats: Array,
 					Furnish.stool(p, c, fy)
 					_note(taken, c - 8.0, c + 8.0)
 			Scenes.plant(p, 12.0, fy, 24.0, Color("a8683c"))
+
+
+## The classic American diner: a checkered floor strip, a chrome counter with a pie case and round red stools,
+## a red booth along the wall and a neon DINER sign.
+static func _diner(p: Object, w: float, yt: float, fy: float, seats: Array, lit: bool, taken: Array) -> void:
+	for i: int in int(w / 6.0) + 1:  # black-and-white checks along the floor
+		for j: int in 2:
+			p.R(i * 6, fy + j * 2, 6, 2, Color("f2f2f2") if (i + j) % 2 == 0 else Color("1c1c24"))
+	var chrome := Color("c8d0d8")
+	var cx0 := 16.0
+	var cw := w - 32.0
+	p.shadow(cx0 + cw * 0.5, fy, cw * 0.5, 0.5)
+	p.item(cx0, fy - 22, cw, 22, Color("a8453c"), 2.0)  # the counter's red front
+	p.R(cx0, fy - 16, cw, 1, chrome)  # chrome trim
+	p.R(cx0, fy - 3, cw, 1, chrome)
+	p.item(cx0 - 2, fy - 25, cw + 4, 4, chrome, 2.0)  # chrome top
+	p.R(cx0 - 2, fy - 25, cw + 4, 1, Color("f4f8fc"))
+	var px := cx0 + cw - 34.0  # the pie case on the counter
+	p.item(px, fy - 38, 26, 13, Color("a8d8e8"), 2.0, false)
+	p.R(px + 1, fy - 30, 24, 1, chrome)
+	p.R(px + 4, fy - 34, 6, 4, Color("e8b458"))
+	p.R(px + 14, fy - 34, 6, 4, Color("c8453c"))
+	if lit:
+		p.GW(px, fy - 38, 26, 13, Color("ffe8a0"))
+	for c: float in seats:
+		Furnish.stool(p, c, fy + 4.0)
+		_note(taken, c - 8.0, c + 8.0)
+	p.item(w - 14, yt + 28, 12, 26, Color("a8353a"), 1.5)  # a red booth against the wall
+	p.R(w - 14, yt + 44, 12, 2, chrome)
+	var neon := Color("ff5a7a")  # the neon sign
+	var sx := w * 0.5 - 22.0
+	p.R(sx - 2, yt + 6, 44, 14, Color("2a2230"))
+	if lit:
+		p.GR(sx, yt + 8, 40, 10, neon.darkened(0.55))
+		for k: int in 5:
+			p.GR(sx + 3 + k * 7, yt + 9, 4, 8, neon)
+			p.GR(sx + 5 + k * 7, yt + 12, 2, 2, Color("2a2230"))
+		p.glow(sx + 20.0, yt + 13, 38.0, 20.0, neon, 0.55)
+	else:
+		for k: int in 5:
+			p.R(sx + 3 + k * 7, yt + 9, 4, 8, neon.darkened(0.45))
 
 
 # ---------------------------------------------------------------- shops
