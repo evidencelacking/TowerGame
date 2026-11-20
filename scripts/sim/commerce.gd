@@ -128,6 +128,14 @@ const VISITORS: Dictionary = {
 	"restaurant": [[0, 0, 0, 0, 6, 0], [0, 0, 0, 0, 14, 0]],
 	"retail": [[0, 0, 4, 0, 6, 0], [0, 0, 14, 0, 24, 0]],
 }
+## The metro station (#325, our own design): while the tower is linked to a station, these visitors arrive in
+## addition to VISITORS, per shop kind and clock period, on a weekday and on the weekend. Commuters fill the
+## morning and evening, shoppers the middle of the day; they enter by the ground lobby like the rest.
+const METRO_VISITORS: Dictionary = {
+	"fast_food": [[0, 6, 14, 6, 4, 0], [0, 4, 12, 8, 6, 0]],
+	"restaurant": [[0, 0, 2, 2, 8, 2], [0, 0, 4, 4, 14, 4]],
+	"retail": [[0, 0, 6, 4, 10, 0], [0, 0, 14, 10, 20, 0]],
+}
 ## Days a shop stays vacant after its renter leaves before a new renter takes it (if reachable).
 const RELET_DAYS := 3
 
@@ -217,6 +225,14 @@ static func visitors_for(kind: String, period: int, day: int) -> int:
 	if not VISITORS.has(kind) or period < 1 or period > Clock.PERIODS:
 		return 0
 	var by_day: Array = VISITORS[kind]
+	return int(by_day[1 if day == Clock.WE else 0][period - 1])
+
+
+## Extra visitors a metro station sends for this kind's meal in a period; 0 for kinds it does not feed.
+static func metro_visitors_for(kind: String, period: int, day: int) -> int:
+	if not METRO_VISITORS.has(kind) or period < 1 or period > Clock.PERIODS:
+		return 0
+	var by_day: Array = METRO_VISITORS[kind]
 	return int(by_day[1 if day == Clock.WE else 0][period - 1])
 
 
@@ -363,6 +379,8 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 			_today[shop] = customers_today(shop) + 1
 	# Visitors from outside (#154).
 	var arriving := visitors_for(kind, period_of_minute(at_minute), day)
+	if METRO_VISITORS.has(kind) and tenancy.transit_linked(floors, rooms, grid):
+		arriving += metro_visitors_for(kind, period_of_minute(at_minute), day)
 	var came := 0
 	for v in arriving:
 		var shop: int = shops[rng.next_below(shops.size())]
