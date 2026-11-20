@@ -265,6 +265,23 @@ design (nothing here comes from the original), deterministic in `scripts/sim`, e
 | 14.3 | Routing, rents and evaluation across both towers | Tests |  |
 | 14.4 | The skyline and city around the towers grow with the star rating | Owner approves by eye |  |
 
+### M15 Detailed art (owner, 2026-11-19; direction G Lit)
+
+A second graphics style, chosen by a setting; Classic stays as it is. Detailed draws at double density
+(16 px per column, 64 px per floor) in the G Lit direction: crisp 2x pixel art with Godot 2D lighting.
+All art original and drawn by code.
+
+| ID | Task | Done when | Issue |
+|---|---|---|---|
+| 15.1 | Three mock-ups (E Illustrated, F Rich pixel, G Lit); owner picks | Owner picked G Lit | #300 |
+| 15.2 | Graphics setting (Classic / Detailed) and renderer split into style backends | Tests; ui_test | #301 |
+| 15.3 | Detailed recipes batch 1: lobby, offices, condo, hotel, housekeeping | Owner approves by eye | #302 |
+| 15.4 | Detailed recipes batch 2: food, retail, services, parking, culture, links, shafts, cars | Owner approves by eye | #303 |
+| 15.5 | Detailed animated people with variety by id, age and job | Owner approves by eye | #304 |
+| 15.6 | Lighting and atmosphere at full-tower scale, weather | Frame budget held; owner approves | #305 |
+| 15.7 | Exterior and city: facade, roof, street, parallax skyline | Owner approves by eye | #306 |
+| 15.8 | Detailed UI skin and performance pass | Frame-rate report | #307 |
+
 ## M11 Full game
 
 | ID | Task | Done when | Issue |
