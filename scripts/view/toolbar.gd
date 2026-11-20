@@ -50,6 +50,7 @@ var _category_lists: Array[VBoxContainer] = []  ## One item list per category; o
 var _item_buttons: Dictionary = {}  ## item id -> Button
 var _open_category: int = -1
 var _auto_fill: CheckButton  ## "Auto-fill floor" (#273): a view option, not saved in the tower.
+var _graphics: OptionButton  ## "Graphics: Classic / Detailed" (#301): a view option, not saved in the tower.
 var _see_through: CheckButton  ## "Elevators see-through" (#272): a view option, not saved in the tower.
 var _shown_stars: int = -1
 var _shown_tool: String = "?"
@@ -110,7 +111,20 @@ func _ready() -> void:
 	_see_through.button_pressed = TransportLook.see_through
 	_see_through.toggled.connect(_on_see_through_toggled)
 	row.add_child(_see_through)
+	_graphics = OptionButton.new()
+	_graphics.name = "Graphics"
+	_graphics.tooltip_text = "Graphics style: Classic or Detailed. View only."
+	_graphics.focus_mode = Control.FOCUS_NONE
+	_graphics.add_item("Graphics: Classic", 0)
+	_graphics.add_item("Graphics: Detailed", 1)
+	_graphics.selected = 1 if ViewSettings.detailed_graphics else 0
+	_graphics.item_selected.connect(_on_graphics_selected)
+	row.add_child(_graphics)
 	_refresh()
+
+
+func _on_graphics_selected(index: int) -> void:
+	ViewSettings.set_detailed_graphics(index == 1)
 
 
 func _on_see_through_toggled(on: bool) -> void:
