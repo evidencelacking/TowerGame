@@ -88,6 +88,7 @@ const BULLDOZE_TEXT: Dictionary = {
 }
 
 var tower: TowerSim = null
+var lobby_height: int = 1  ## Floors a new ground lobby gets: 1 to 3, cycled with PageUp/PageDown.
 var tool: String = ""  ## "" (off), BULLDOZE, or a catalogue id.
 var stars: int:  ## Current star rating, read from the sim.
 	get:
@@ -188,7 +189,7 @@ static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: in
 	match tool_id:
 		"lobby":
 			source = "floors"
-			var lobby := t.floors.check_lobby(floor_number, out["x"], out["x"] + out["width"] - 1, 1, t.grid)
+			var lobby := t.floors.check_lobby(floor_number, out["x"], out["x"] + out["width"] - 1, int(gesture.get("lobby_height", 1)), t.grid)
 			code = lobby["reason"]
 			out["cost"] = lobby["cost"]
 			if lobby["x_end"] >= lobby["x_start"]:  ## Show the span as clamped to the grid.
@@ -197,6 +198,10 @@ static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: in
 			if floor_number == 1 and t.floors.has_lobby():  ## Extending: the lobby's height, and say so.
 				out["height"] = lobby["height"]
 				out["note"] = "Widen lobby, %d unit%s" % [out["width"], "" if out["width"] == 1 else "s"]
+			else:
+				out["height"] = int(gesture.get("lobby_height", 1))
+				if out["height"] > 1:
+					out["note"] = "Lobby, %d floors" % out["height"]
 		"floor":
 			source = "floors"
 			var span := t.floors.check_span(floor_number, out["x"], out["x"] + out["width"] - 1)
@@ -303,7 +308,7 @@ static func command_for(tool_id: String, verdict: Dictionary, tick: int, kind: S
 		ESCALATOR: return Cmd.make(due, Cmd.PLACE_ESCALATOR, [floor_number, x] as Array[int])
 		"local_shaft", "service_shaft", "express_shaft", "local_car", "service_car", "express_car":
 			return Cmd.make(due, verdict["command"], verdict["args"])
-		"lobby": return Cmd.make(due, Cmd.BUILD_LOBBY, [floor_number, x, x + verdict["width"] - 1, 1] as Array[int])
+		"lobby": return Cmd.make(due, Cmd.BUILD_LOBBY, [floor_number, x, x + verdict["width"] - 1, verdict["height"]] as Array[int])
 		"floor": return Cmd.make(due, Cmd.BUILD_FLOOR, [floor_number, x, x + verdict["width"] - 1] as Array[int])
 	if CatalogueScript.has(tool_id):
 		return Cmd.make(due, Cmd.PLACE_ROOM, [CatalogueScript.IDS.find(tool_id), floor_number, x] as Array[int])
@@ -370,6 +375,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_B: set_tool(BULLDOZE)
 		KEY_R: set_tool(REPLACE)
 		KEY_ESCAPE: set_tool("")
+		KEY_PAGEUP, KEY_PAGEDOWN:
+			if tool == "lobby" and tower != null and not tower.floors.has_lobby():
+				lobby_height = (lobby_height % 3 + 1) if key.keycode == KEY_PAGEUP else ((lobby_height + 1) % 3 + 1)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -421,7 +429,7 @@ func hover(floor_number: int, column: int) -> Dictionary:
 	if is_span_tool(tool) and _drag.active:
 		floor_number = _drag.start_floor  ## A sideways drag stays on the floor it began on.
 	var x_left := column if tool in [BULLDOZE, REPLACE] or is_span_tool(tool) else column - width_of(tool) / 2
-	var key: Array = [tool, last_room, floor_number, x_left, stars, tower.ledger.balance, _drag.key()]
+	var key: Array = [tool, last_room, floor_number, x_left, stars, tower.ledger.balance, _drag.key(), lobby_height]
 	if key != _last_key:  ## check_replace copies the grid, so only judge when something changed.
 		_last_key = key
 		var gesture := {}
@@ -429,6 +437,7 @@ func hover(floor_number: int, column: int) -> Dictionary:
 			gesture = {"start_floor": _drag.start_floor, "start_column": _drag.start_column}
 			if is_span_tool(tool):
 				gesture = {"start_column": _drag.start_column}
+		gesture["lobby_height"] = lobby_height
 		result = evaluate(tower, tool, floor_number, x_left, stars, last_room, gesture)
 		if _label != null:
 			_label.text = "\n".join(lines_for(tool, result))
