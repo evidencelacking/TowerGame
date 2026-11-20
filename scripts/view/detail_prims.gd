@@ -3,18 +3,23 @@ extends RefCounted
 ## its crisp-pixel path). Every coordinate is in mock-up pixels: half a world pixel, so 16 per column and 64
 ## per floor, counted from `origin` (world pixels). Everything is drawn with draw_rect on any canvas item,
 ## so the same world rects serve Classic and Detailed; the renderer shows Detailed on a 2x canvas.
-## `dark` (0 to 1) pushes tinted colours toward night blue (an empty room at night); GR (a light-emitting
-## rectangle) and GW are never tinted. `night` turns on lamp pools. Nothing here reads the simulation.
+## `dark` (0 to 1) pushes tinted colours toward night blue; GR (a light-emitting rectangle) and GW are never
+## tinted. Night itself is lighting (#305): the renderer darkens the whole canvas, and `glow` records the
+## soft lights a lit room adds (lamp pools, window glow, screen glow) in DetailLight for an additive layer.
+## `night` turns glows on. Nothing here reads the simulation.
 ## `flip` mirrors what is drawn around a vertical axis, so a desk can face either way.
 
 const BAYER: Array = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
 const NIGHT_BLUE: Color = Color("1a2048")
 const HALF: float = 0.5  ## World pixels per mock-up pixel.
+const Light := preload("res://scripts/view/detail_light.gd")
 
 var canvas: Object = null
 var origin: Vector2 = Vector2.ZERO
 var dark: float = 0.0
 var night: bool = false
+var sleeping: bool = false  ## Someone sleeps here: the bedside lamp is the one light.
+var lit: bool = false  ## The room's main lights are on (windows glow only then).
 var limit: Rect2i = Rect2i()  ## Mock-up pixels: nothing paints outside it. An empty rect clips nothing.
 var flip_on: bool = false
 var flip_axis: float = 0.0
@@ -143,10 +148,15 @@ func soft_ell(cx: float, cy: float, rx: float, ry: float, c: Color, strength: fl
 					_fill(px, yy, cell, cell, c, raw)
 
 
-## A pool of warm lamp light on a surface, only at night.
-func pool(cx: float, cy: float, rx: float, ry: float, c: Color, strength: float) -> void:
-	if night:
-		soft_ell(cx, cy, rx, ry, c, strength, true, 2)
+## A pool of warm lamp light on a surface, only at night: a soft glow for the additive layer, kept inside
+## the room. A flipped drawing mirrors the glow's place too.
+func glow(cx: float, cy: float, rx: float, ry: float, c: Color, strength: float) -> void:
+	if not night:
+		return
+	if flip_on:
+		cx = 2.0 * flip_axis - cx
+	var clip := Rect2(origin, Vector2(limit.size) * HALF) if limit.has_area() else Rect2(origin, Vector2(100000, 100000))
+	Light.add(clip, origin + Vector2(cx, cy) * HALF, Vector2(rx, ry) * HALF, c, strength)
 
 
 ## A thin line walked one pixel at a time.

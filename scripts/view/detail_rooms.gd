@@ -4,8 +4,8 @@ extends RefCounted
 ## (detail_scenes.gd on detail_prims.gd) at double density (16 px per column, 64 per floor).
 ## A room is drawn in mock-up pixels inside the same world rect Classic fills. Its furniture is placed from the
 ## recipe's activity spots (room_recipes.gd), so people, who stand and sit at those spots, are at the desks and
-## in the beds. A lit room has its lamps and screens on; an empty one is pushed toward night blue. Real lighting
-## (a darkened world with glows) is not here (#305).
+## in the beds. A lit room has its lamps and screens on. Night is lighting (#305, detail_light.gd): a lit room
+## records glows, an empty one nothing, and the renderer darkens the world.
 
 const Prims := preload("res://scripts/view/detail_prims.gd")
 const Scenes := preload("res://scripts/view/detail_scenes.gd")
@@ -29,11 +29,12 @@ static func handles(kind: String) -> bool:
 ## Paints a room or suite of `kind` over rect (world pixels, at least one floor tall; a lobby taller than a
 ## floor gets columns, tall windows and a mezzanine rail above its bottom floor). hue is the room colour (a
 ## state tint shows through when it is not the kind's own), lit the in-use look, id picks the variant.
-static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bool, upper: bool = false, id: int = 0, suite: bool = false) -> void:
+static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bool, upper: bool = false, id: int = 0, suite: bool = false, asleep: bool = false) -> void:
 	var p := Palette.get_palette()
 	var night := SkyLook.daylight < SkyLook.FULL / 2
-	var dim := SkyLook.dim_at(p["dim"], SkyLook.daylight)
-	var pen := Prims.new(canvas, Vector2(rect.position), 0.0 if lit else clampf(dim, 0.0, 0.85), night and lit)
+	var pen := Prims.new(canvas, Vector2(rect.position), 0.0, night and (lit or asleep))
+	pen.lit = lit
+	pen.sleeping = asleep and not lit
 	var w := rect.size.x * SUB
 	var h := maxi(rect.size.y, VC.CELL_H) * SUB
 	var y0 := h - FLOOR_H  # mock-up row where the bottom floor starts
@@ -41,13 +42,15 @@ static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bo
 	var variant: int = RoomRecipes.SUITE if suite else RoomRecipes.variant_for(kind, id)
 	var seats := seat_centres(kind, rect.size.x, upper, variant)
 	var pal := _palette(kind, hue)
+	if night and lit and kind != "lobby":  # the room's own light: a broad warm wash so walls and floor read lit
+		pen.glow(w * 0.5, y0 + 30.0, w * 0.62, 46.0, Color("ffc880"), 0.28)
 	match kind:
 		"lobby":
 			if y0 > 0:
 				Scenes.mezzanine(pen, w, y0, night)
 			Scenes.lobby(pen, w, y0, seats)
 		"office":
-			_office(pen, w, y0, seats, lit, night, id, pal)
+			_office(pen, w, y0, seats, lit, night, id, pal, variant)
 		"condo":
 			_condo(pen, w, y0, seats, lit, night, id, pal)
 		"hotel_single", "hotel_twin", "hotel_suite":
@@ -92,7 +95,7 @@ static func _overlaps(taken: Array, x0: float, x1: float) -> bool:
 	return false
 
 
-static func _office(p: Object, w: int, y0: int, seats: Array, lit: bool, night: bool, id: int, pal: Array) -> void:
+static func _office_open(p: Object, w: int, y0: int, seats: Array, lit: bool, night: bool, id: int, pal: Array, cubicles: bool = false) -> void:
 	var fy := float(y0 + 58)
 	var yt := float(y0)
 	Scenes.shell_room(p, 0, yt, w, 2, pal)
@@ -144,6 +147,12 @@ static func _office(p: Object, w: int, y0: int, seats: Array, lit: bool, night: 
 			taken.append(Vector2(at - 8.0, at + 8.0))
 			plants -= 1
 		at += 18.0
+	if cubicles:
+		for i: int in seats.size():
+			var c: float = seats[i]
+			if int(facing[i]) == 1:
+				Scenes.partition(p, c - 58.0, fy)
+				Scenes.partition(p, c + 13.0, fy)
 	for i: int in seats.size():
 		var c: float = seats[i]
 		match int(facing[i]):
@@ -155,6 +164,64 @@ static func _office(p: Object, w: int, y0: int, seats: Array, lit: bool, night: 
 				p.flip_around(c)
 				Scenes.desk(p, c - 52.0, fy, lit)
 				p.flip_off()
+
+
+## An office by variant (room_recipes order): 0 open desks, 1 cubicles with partitions, 2 a meeting table,
+## 3 an executive's room, 4 a bench row; the joined suite is a boardroom (#275).
+static func _office(p: Object, w: int, y0: int, seats: Array, lit: bool, night: bool, id: int, pal: Array, variant: int) -> void:
+	match variant:
+		1:
+			_office_open(p, w, y0, seats, lit, night, id, pal, true)
+		2, 3, RoomRecipes.SUITE:
+			_office_formal(p, w, y0, seats, lit, night, id, pal, variant)
+		_:
+			_office_open(p, w, y0, seats, lit, night, id, pal)
+
+
+## The meeting room, the executive's room and the boardroom: no desks per seat, one centrepiece.
+static func _office_formal(p: Object, w: int, y0: int, seats: Array, lit: bool, night: bool, id: int, pal: Array, variant: int) -> void:
+	var fy := float(y0 + 58)
+	var yt := float(y0)
+	Scenes.shell_room(p, 0, yt, w, 2, pal)
+	var curtain := Color(CURTAINS[id % CURTAINS.size()])
+	var lx := 48.0
+	while lx < w - 24.0:
+		Scenes.ceiling_light(p, lx, yt, 36.0, lit, 64.0)
+		lx += 96.0
+	var first: float = seats[0] if seats.size() > 0 else 20.0
+	var last: float = seats[seats.size() - 1] if seats.size() > 0 else w - 20.0
+	var wall_used := Vector2(-1.0, -1.0)
+	if variant == 3:
+		var desk_x := maxf(first - 62.0, 4.0)
+		Scenes.bookcase(p, w - 36.0, fy)
+		Scenes.window(p, 12.0, yt + 12, 38, 22, Color("e8e2d4"), curtain, id + 3, night, false)
+		Scenes.picture(p, desk_x + 18.0, yt + 12, Color("c8606a"), Color("5a7fb4"))
+		p.R(desk_x - 6.0, fy - 2.0, 74.0, 2.0, Color("c9a85c"))  # a rug
+		Scenes.exec_desk(p, desk_x, fy, lit)
+		Scenes.exec_chair(p, first, fy, -1)
+		if seats.size() > 1:
+			Scenes.armchair(p, float(seats[1]), fy, -1, Color("5a8a6a"))
+		Scenes.plant(p, w - 8.0, fy, 22.0, Color("a8683c"))
+		return
+	var x0: float = first + 12.0
+	var x1: float = last - 12.0
+	var board_w := minf(64.0, (x1 - x0) * 0.6)
+	var board_x := (x0 + x1) * 0.5 - board_w * 0.5
+	wall_used = Vector2(board_x - 6.0, board_x + board_w + 6.0)
+	Scenes.whiteboard(p, board_x, yt + 10, board_w, 24.0)
+	var wx := 14.0
+	var k := 0
+	while wx + 38.0 <= w - 8.0:
+		if wx + 38.0 < wall_used.x or wx > wall_used.y:
+			Scenes.window(p, wx, yt + 12, 38, 22, Color("e8e2d4"), curtain, id + k + 3, night, false)
+		wx += 96.0
+		k += 1
+	for i: int in seats.size():
+		var c: float = seats[i]
+		Scenes.chair(p, c, fy, 1 if c < (x0 + x1) * 0.5 else -1)
+	Scenes.meeting_table(p, x0, x1, fy, lit)
+	Scenes.plant(p, 8.0, fy, 22.0, Color("7a5a8a"))
+	Scenes.plant(p, w - 8.0, fy, 22.0, Color("5a7aa0"))
 
 
 ## A bedroom at the left, a table with a chair either side where two seats are, a wardrobe and a kitchen.

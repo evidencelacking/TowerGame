@@ -103,6 +103,8 @@ static func window(p: Object, x: float, y: float, w: float, h: float, frame: Col
 	p.GW(x + 3, y + 1, 4, 10, Color(0.25, 0.25, 0.28))
 	p.GW(x + 9, y + 1, 2, 10, Color(0.18, 0.18, 0.2))
 	p.item(x - 5, y + h + 2, w + 10, 3, frame.lightened(0.1), 1)
+	if p.lit:
+		p.glow(x + w * 0.5, y + h * 0.5, w * 0.8, h * 0.9, Color("ffd890"), 0.3)
 	if blind:
 		for i: int in int(h * 0.4 / 3.0):
 			p.R(x, y + i * 3, w, 2, Color("f2e8d0"))
@@ -122,7 +124,7 @@ static func ceiling_light(p: Object, cx: float, y: float, w: float, on: bool, ra
 	p.item(cx - w * 0.5, y + 3, w, 3, Color("d8d2c8"), 1, false)
 	if on:
 		p.GR(cx - w * 0.5 + 2, y + 5, w - 4, 2, Color("fff6d8"))
-		p.pool(cx, y + 8 + radius * 0.35, radius * 0.9, radius * 0.55, WARM, 0.55)
+		p.glow(cx, y + 8, radius * 1.3, radius * 1.1, WARM, 0.65)
 	else:
 		p.R(cx - w * 0.5 + 2, y + 5, w - 4, 2, Color("b8b2a8"))
 
@@ -164,6 +166,7 @@ static func screen(p: Object, x: float, y: float, powered: bool) -> void:
 		p.GR(x, y, 12, 8, Color("8ad0f0"))
 		p.GR(x + 1, y + 2, 8, 1, Color("e8f8ff"))
 		p.GR(x + 2, y + 4, 6, 1, Color("5aa4d0"))
+		p.glow(x + 6, y + 4, 22.0, 18.0, Color("8ad0f0"), 0.4)
 	else:
 		p.R(x, y, 12, 8, Color("1a2030"))
 
@@ -223,9 +226,9 @@ static func nightstand(p: Object, nx: float, fy: float, lamp_on: bool) -> void:
 	p.R(nx + 6, fy - 7, 2, 1, Color("e8d098"))
 	p.R(nx + 6, fy - 22, 2, 8, Color("c9a85c"))
 	p.item(nx + 2, fy - 28, 10, 7, Color("f4d8a0"), 2.0, false)
-	if lamp_on:
+	if lamp_on or p.sleeping:
 		p.GR(nx + 4, fy - 26, 6, 3, Color("ffe6a8"))
-		p.pool(nx + 7, fy - 24 + 74.0 * 0.35, 74.0 * 0.9, 74.0 * 0.55, WARM, 0.55)
+		p.glow(nx + 7, fy - 24, 74.0, 60.0, WARM, 0.6)
 
 
 static func wardrobe(p: Object, wx: float, fy: float, h: float = 44.0) -> void:
@@ -352,7 +355,7 @@ static func lobby(p: Object, w: float, y: float, seats: Array) -> void:
 		p.R(lx, y + 4, 1, 8, Color("8a7a60"))
 		p.ell(lx, y + 15, 5, 5, Color("f4e8c8"))
 		p.GR(lx - 3, y + 12, 6, 6, Color("fff2c8"))
-		p.pool(lx, y + 15 + 76.0 * 0.35, 76.0 * 0.9, 76.0 * 0.55, WARM, 0.55)
+		p.glow(lx, y + 15, 100.0, 80.0, WARM, 0.65)
 		lx += 103.0
 	if w >= 200.0:
 		p.item(14, y + 12, 22, 28, Color("2e3a52"), 1.5)
@@ -424,3 +427,107 @@ static func mezzanine(p: Object, w: float, top: float, night: bool) -> void:
 	for x: int in range(2, int(w), 8):
 		p.R(x, top - 22, 1, 18, rail)
 	p.item(0, top - 4, w, 3, rail.lightened(0.05), 0.0, false)
+
+
+## A cubicle partition: a tall fabric panel with a lighter edge.
+static func partition(p: Object, x: float, fy: float, h: float = 46.0) -> void:
+	p.item(x, fy - h, 4, h, Color("6f86a4"), 0.0)
+	p.R(x + 1, fy - h + 3, 1, h - 8, Color("93a8c2"))
+	p.R(x - 1, fy - 2, 6, 2, Color("2a2f3c"))
+
+
+## An office chair seen from the side; dir 1 faces right (back on the left), -1 faces left.
+static func chair(p: Object, cx: float, fy: float, dir: int) -> void:
+	if dir < 0:
+		p.flip_around(cx)
+	p.item(cx - 7, fy - 20, 4, 16, Color("3a4a62"), 2.0)
+	p.item(cx - 7, fy - 11, 14, 3, Color("4a5a76"), 1.5)
+	p.R(cx - 1, fy - 8, 2, 8, Color("2a2f3c"))
+	if dir < 0:
+		p.flip_off()
+
+
+## A meeting table with legs, papers, mugs and a laptop; its top spans x0 to x1.
+static func meeting_table(p: Object, x0: float, x1: float, fy: float, powered: bool) -> void:
+	p.shadow((x0 + x1) * 0.5, fy, (x1 - x0) * 0.5, 0.5)
+	p.item(x0 + 4, fy - 21, 5, 21, Color("8a5f3a"), 0.0, false)
+	p.item(x1 - 9, fy - 21, 5, 21, Color("8a5f3a"), 0.0, false)
+	p.item(x0, fy - 25, x1 - x0, 4, Color("c89a62"), 1.0)
+	var x: float = x0 + 12.0
+	var k: int = 0
+	while x + 14.0 < x1 - 8.0:
+		if k % 3 == 1 and powered:
+			p.item(x, fy - 36, 12, 9, Color("2a3140"), 1.0)
+			screen(p, x + 1, fy - 35, true)
+		elif k % 3 == 1:
+			p.item(x, fy - 36, 12, 9, Color("2a3140"), 1.0)
+			screen(p, x + 1, fy - 35, false)
+		else:
+			p.item(x, fy - 27, 10, 2, Color("f4f0e6"), 0.0, false)
+			p.item(x + 12, fy - 29, 4, 4, Color("e8e2d4"), 1.0, false)
+		x += 30.0
+		k += 1
+
+
+## A whiteboard on the wall with a few scribbles.
+static func whiteboard(p: Object, x: float, y: float, w: float, h: float) -> void:
+	p.item(x, y, w, h, Color("f2f0ea"), 1.0)
+	p.R(x + 4, y + 5, w * 0.5, 1, Color("c8606a"))
+	p.R(x + 4, y + 10, w * 0.7, 1, Color("5a7fb4"))
+	p.R(x + 4, y + 15, w * 0.35, 1, Color("5a7fb4"))
+	p.R(x + w - 14, y + 5, 8, 8, Color("e8b458"))
+	p.R(x + 4, y + h - 4, w - 8, 1, Color("8a8a94"))
+
+
+## An executive's desk: a broad dark-wood top on a drawer pedestal, two monitors and a lamp. Left edge at dx.
+static func exec_desk(p: Object, dx: float, fy: float, powered: bool) -> void:
+	p.shadow(dx + 30, fy, 34, 0.5)
+	p.item(dx, fy - 24, 60, 4, Color("7a4a2a"), 1.0)
+	p.item(dx + 2, fy - 20, 6, 20, Color("5a3a22"), 0.0, false)
+	p.item(dx + 38, fy - 20, 20, 20, Color("6a4228"), 1.0)
+	p.R(dx + 41, fy - 14, 14, 1, Color("3a2412"))
+	p.R(dx + 46, fy - 12, 4, 1, Color("e8d098"))
+	p.item(dx + 6, fy - 37, 14, 11, Color("2a3140"), 1.5)
+	screen(p, dx + 7, fy - 36, powered)
+	p.item(dx + 22, fy - 37, 14, 11, Color("2a3140"), 1.5)
+	screen(p, dx + 23, fy - 36, powered)
+	p.item(dx + 44, fy - 31, 7, 4, Color("e8b458"), 1.5, false)
+
+
+## A high-backed leather chair; dir 1 faces right.
+static func exec_chair(p: Object, cx: float, fy: float, dir: int) -> void:
+	if dir < 0:
+		p.flip_around(cx)
+	p.item(cx - 8, fy - 34, 6, 28, Color("5a2a2a"), 2.0)
+	p.item(cx - 8, fy - 13, 18, 4, Color("6a3434"), 1.5)
+	p.R(cx, fy - 9, 2, 9, Color("2a2f3c"))
+	if dir < 0:
+		p.flip_off()
+
+
+## A tall bookcase with rows of coloured books.
+static func bookcase(p: Object, x: float, fy: float, w: float = 24.0, h: float = 52.0) -> void:
+	p.item(x, fy - h, w, h, Color("7a4a2a"), 1.0)
+	var rows: int = int(h / 13.0)
+	for r: int in rows:
+		var ry: float = fy - h + 3.0 + float(r) * 13.0
+		p.R(x + 2, ry + 10, w - 4, 1, Color("4a2a16"))
+		var bx: float = x + 3.0
+		var k: int = 0
+		while bx + 3.0 < x + w - 2.0:
+			var cols: Array = [Color("c8606a"), Color("e8b458"), Color("5a7fb4"), Color("f4f0e6"), Color("5a9a7a")]
+			p.R(bx, ry + 2.0 + float((k + r) % 3), 3, 8.0 - float((k + r) % 3), cols[(k + r * 2) % cols.size()])
+			bx += 4.0
+			k += 1
+
+
+## A low armchair; dir 1 faces right.
+static func armchair(p: Object, cx: float, fy: float, dir: int, body: Color) -> void:
+	if dir < 0:
+		p.flip_around(cx)
+	p.shadow(cx, fy, 14, 0.5)
+	p.item(cx - 12, fy - 22, 6, 22, body.darkened(0.1), 2.0)
+	p.item(cx - 12, fy - 11, 22, 11, body, 2.0)
+	p.item(cx + 6, fy - 16, 6, 5, body.lightened(0.1), 1.5)
+	if dir < 0:
+		p.flip_off()
