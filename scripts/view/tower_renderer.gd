@@ -9,6 +9,7 @@ const TransportLook := preload("res://scripts/view/transport_look.gd")
 const EventLook := preload("res://scripts/view/event_look.gd")
 const ActivityLook := preload("res://scripts/view/activity_look.gd")
 const SkyLook := preload("res://scripts/view/sky_look.gd")
+const DetailLight := preload("res://scripts/view/detail_light.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const GraphicsStyle := preload("res://scripts/view/graphics_style.gd")
 const ViewSettings := preload("res://scripts/view/view_settings.gd")
@@ -62,6 +63,7 @@ var _static_sprite: Sprite2D = null
 var _dynamic_view: SubViewport = null
 var _dynamic_layer: Node2D = null
 var _dynamic_sprite: Sprite2D = null
+var _glow: Node2D = null  ## Detailed night lights, added on top of the world (#305).
 
 
 func _ready() -> void:
@@ -76,6 +78,8 @@ func _ready() -> void:
 	_dynamic_layer = _make_layer(size, _paint_dynamic)
 	_dynamic_view = _dynamic_layer.get_parent()
 	_dynamic_sprite = _sprite_of(_dynamic_view)
+	_glow = DetailLight.new()
+	add_child(_glow)
 	_apply_density()
 	queue_redraw()
 
@@ -121,6 +125,19 @@ func _apply_density() -> void:
 	_dynamic_view.size = _static_view.size  # people are drawn at the style's density too (#304)
 	_dynamic_layer.scale = _static_layer.scale
 	_dynamic_sprite.scale = _static_sprite.scale
+	_apply_ambient()
+
+
+## Detailed lights the world instead of painting it dark (#305): by night the static canvas is multiplied by
+## the sky's ambient colour (people, who are on the dynamic canvas, by half of it) and the glow layer adds the
+## lit rooms' lights over it. Classic is left as it was.
+func _apply_ambient() -> void:
+	var detailed := GraphicsStyle.current().density() > 1
+	var ambient := DetailLight.ambient(SkyLook.daylight) if detailed else Color.WHITE
+	_static_sprite.modulate = ambient
+	_dynamic_sprite.modulate = Color.WHITE.lerp(ambient, 0.5)
+	_glow.visible = detailed
+	_glow.queue_redraw()
 
 
 ## Redraws what changed; the view never polls the whole tower.
@@ -184,6 +201,7 @@ func _follow_sky() -> void:
 		return
 	SkyLook.daylight = step
 	_seen_rain = SkyLook.rain
+	_apply_ambient()
 	_static_tick = -1000000
 	queue_redraw()
 
@@ -271,8 +289,10 @@ func _rebuild_runs() -> void:
 func _paint_static(canvas: CanvasItem) -> void:
 	if tower == null:
 		return
+	DetailLight.clear()
 	for layer: String in STATIC_LAYERS:
 		call(layer, canvas)
+	_glow.queue_redraw()  # after the rooms have recorded their lights
 
 
 func _paint_dynamic(canvas: CanvasItem) -> void:
