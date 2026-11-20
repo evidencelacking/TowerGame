@@ -114,13 +114,17 @@ func _sprite_of(view: SubViewport) -> Sprite2D:
 ## Sizes the static canvas for the style in use (#302): Classic is one pixel per native pixel; a style at
 ## density 2 gets a canvas twice as wide and tall, its layer scaled 2 so every Classic call still paints the
 ## same world rect, and its sprite scaled a half so it covers the same world. Detailed rooms then paint in
-## half-pixel steps that land on whole pixels of the bigger canvas. The dynamic layer (people, cars) stays
-## at native size for now.
+## half-pixel steps that land on whole pixels of the bigger canvas. The dynamic layer (people, cars) gets
+## the same treatment (#304), so Detailed people paint in half-pixel steps; everything else on it still
+## paints in native pixels and lands as before.
 func _apply_density() -> void:
 	var density := GraphicsStyle.current().density()
 	_static_view.size = Vector2i(VC.world_rect().size) * density
 	_static_layer.scale = Vector2(density, density)
 	_static_sprite.scale = Vector2(1.0 / density, 1.0 / density)
+	_dynamic_view.size = _static_view.size  # people are drawn at the style's density too (#304)
+	_dynamic_layer.scale = _static_layer.scale
+	_dynamic_sprite.scale = _static_sprite.scale
 	_apply_ambient()
 
 
@@ -400,15 +404,33 @@ func _shown_at(figure: Dictionary) -> Vector2:
 ## Everything is sized from the figure constants so a bigger figure needs no change here. pose and
 ## phase choose the frame: walking alternates legs apart and together every half column, stairs
 ## lift one leg and bob, an escalator rider stands with legs together.
-func _draw_figure(canvas: CanvasItem, x: int, feet: int, shirt: Color, band: int, skin: Color, pose: int = 0, phase: int = 0) -> void:
+func _draw_figure(canvas: CanvasItem, x: int, feet: int, shirt: Color, band: int, skin: Color, pose: int = 0, phase: int = 0, who: Dictionary = {}, walk: int = 0) -> void:
 	var bob := 1 if pose == PeopleView.POSE_STAIRS and phase % 2 == 1 else 0
 	var top := feet - FIGURE_H - bob
 	var apart := (pose == PeopleView.POSE_WALK and phase % 2 == 0) or pose == PeopleView.POSE_STAIRS
 	var raised_left := 1 if pose == PeopleView.POSE_STAIRS and phase < 2 else 0
 	var raised_right := 1 if pose == PeopleView.POSE_STAIRS and phase >= 2 else 0
-	GraphicsStyle.current().person(canvas, x, feet - bob, shirt, skin, apart, raised_left, raised_right)
+	GraphicsStyle.current().person(canvas, x, feet - bob, shirt, skin, apart, raised_left, raised_right, who, pose, walk)
 	for mark in PeopleView.marks_of(band):  # shape cue: one dot uneasy, two angry
 		canvas.draw_rect(Rect2i(x + mark * 2 - 1, top - 2, 1, 1), shirt)
+
+
+## Who a figure is, for styles that draw people individually (#304): its id, age band, job and facing, and
+## the stress colour when it is not calm. Empty for a figure the view knows nothing about.
+func _who_of(figure: Dictionary, band: int, shirt: Color, facing: int) -> Dictionary:
+	var who := {"id": figure["id"], "age": figure.get("age", 1), "child": figure.get("child", false), "job": figure.get("job", ""), "band": band, "dir": facing}
+	if band != 0:
+		who["shirt"] = shirt
+	return who
+
+
+## Which way a walker faces: along its last move, to the right when it has not moved.
+func _facing_of(figure: Dictionary) -> int:
+	if _from.has(figure["id"]):
+		var dx: float = figure["fx"] - (_from[figure["id"]] as Vector2).x
+		if dx < -0.01:
+			return -1
+	return 1
 
 
 ## Fire and smoke, guards on their way, the rescue craft and the threat search (event_look.gd); each draws
@@ -433,7 +455,7 @@ func _draw_people(canvas: CanvasItem) -> void:
 		if not figure["moving"]:  # resting: on a spot of its room, doing what the sim says
 			var rest_shirt: Color = types[(figure["id"] as int) % types.size()] if band == 0 else PeopleView.color_of(band)
 			var p := Palette.get_palette()
-			GraphicsStyle.current().activity(canvas, figure["px"], figure["pfeet"], figure["act"], ActivityLook.frame(figure["id"], tower.tick), rest_shirt, skin, p["gold"], p["white"])
+			GraphicsStyle.current().activity(canvas, figure["px"], figure["pfeet"], figure["act"], ActivityLook.frame(figure["id"], tower.tick), rest_shirt, skin, p["gold"], p["white"], _who_of(figure, band, rest_shirt, 1))
 			continue
 		var at := _shown_at(figure)
 		var x := roundi(at.x * VC.CELL_W) + (VC.CELL_W - FIGURE_W) / 2
@@ -445,7 +467,8 @@ func _draw_people(canvas: CanvasItem) -> void:
 		# A colour per type (a stand-in until the sim has types: the person's id); a stressed
 		# person wears the band colour instead, so the mood still reads at a glance.
 		var shirt: Color = types[(figure["id"] as int) % types.size()] if band == 0 else PeopleView.color_of(band)
-		_draw_figure(canvas, x, feet, shirt, band, skin, pose, phase)
+		var facing := _facing_of(figure)
+		_draw_figure(canvas, x, feet, shirt, band, skin, pose, phase, _who_of(figure, band, shirt, facing), int(at.x * 8.0) & 3)
 
 
 ## Each shaft across its span; a floor it stops at has doors and an indicator, a disabled one a red cross.
@@ -507,7 +530,8 @@ func _draw_queues(canvas: CanvasItem) -> void:
 		var edge: int = (queue["x"] as int) * VC.CELL_W if side < 0 else ((queue["x"] as int) + (queue["width"] as int)) * VC.CELL_W
 		for n: int in queue["shown"]:
 			var x := edge - (n + 1) * (FIGURE_W + 2) if side < 0 else edge + 2 + n * (FIGURE_W + 2)
-			_draw_figure(canvas, x, feet, ink.lightened(0.35), 0, skin)
+			var waiting := {"id": (queue["floor"] as int) * 31 + (queue["x"] as int) * 7 + n, "age": 1, "child": false, "job": "", "band": 0, "dir": 1 if side < 0 else -1, "still": true}
+			_draw_figure(canvas, x, feet, ink.lightened(0.35), 0, skin, 0, 0, waiting)
 		var label: String = queue["label"]
 		if label != "":
 			var shown_px: int = (queue["shown"] as int) * (FIGURE_W + 2)
