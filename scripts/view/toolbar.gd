@@ -33,6 +33,7 @@ const TOOL_NAMES: Dictionary = {Ghost.BULLDOZE: "Bulldoze", Ghost.REPLACE: "Repl
 const SHAFT_TIP := "Drag up or down over built floors to place a shaft. Drag a shaft's top or bottom end to resize it. Click a floor of a shaft to switch its stop on or off."
 const CAR_TIP := "Click a shaft to add a car, homed at the nearest stop."
 const TOOL_TIPS: Dictionary = {
+	"lobby": "Drag sideways to build the ground lobby. Before it exists, PageUp or PageDown picks 1 to 3 floors tall.",
 	Ghost.BULLDOZE: "Remove a room (B). Stairs, escalators and shafts go first; click again for the room behind. Permanent rooms cannot be removed.",
 	Ghost.REPLACE: "Replace the room under the cursor with the last room tool you chose (R).",
 	"local_shaft": SHAFT_TIP + " Hotkey E.",

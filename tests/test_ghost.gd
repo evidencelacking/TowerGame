@@ -8,6 +8,7 @@ const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
+const Harness := preload("res://tests/harness.gd")
 const TestRooms := preload("res://tests/test_rooms.gd")
 const FALLBACK := "Cannot build here"
 
@@ -33,7 +34,23 @@ static func _text(t: TowerSim, tool_id: String, floor_number: int, x: int, stars
 	return Ghost.evaluate(t, tool_id, floor_number, x, stars)["text"]
 
 
+## A 3-floor lobby is previewed, costed, noted and built through the ghost's own command path.
+static func _run_lobby_height(check: Callable) -> void:
+	var t := TowerSim.new(1, 2000000)
+	var one := Ghost.evaluate(t, "lobby", 1, 131, 1, "", {"start_column": 100})
+	var tall := Ghost.evaluate(t, "lobby", 1, 131, 1, "", {"start_column": 100, "lobby_height": 3})
+	check.call(tall["valid"] and tall["height"] == 3, "a 3-floor lobby ghost is valid and previews its height")
+	check.call(tall["cost"] > one["cost"] and tall["note"] == "Lobby, 3 floors", "the tall lobby costs more and the note shows the height")
+	Harness.queue_all(t, Ghost.commands_for("lobby", tall, t.tick))
+	t.step()
+	var want: Array[int] = [100, 131, 3]
+	check.call(t.floors.lobby_span() == want,"the ghost command builds a 3-floor lobby")
+	var widen := Ghost.evaluate(t, "lobby", 1, 140, 1, "", {"start_column": 132, "lobby_height": 1})
+	check.call(widen["height"] == 3, "widening keeps the lobby's own height")
+
+
 static func run(check: Callable) -> void:
+	_run_lobby_height(check)
 	_run_spans(check)
 	var t := _wide()
 	check.call(t.floors.has_lobby(), "fixture: the lobby is built")
