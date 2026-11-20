@@ -35,11 +35,11 @@ func suite(canvas: Object, kind: String, rect: Rect2i, id: int) -> void:
 	DetailRooms.draw(canvas, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), true, false, id, true)
 
 
-func recipe(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bool) -> void:
+func recipe(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bool, upper: bool = false) -> void:
 	if not DetailRooms.handles(kind):
-		super.recipe(canvas, kind, rect, hue, lit)
+		super.recipe(canvas, kind, rect, hue, lit, upper)
 		return
-	DetailRooms.draw(canvas, kind, rect, hue, lit)
+	DetailRooms.draw(canvas, kind, rect, hue, lit, upper)
 
 
 ## People (#304): every figure has a look of its own, from its id, age and job (detail_people.gd). Without
