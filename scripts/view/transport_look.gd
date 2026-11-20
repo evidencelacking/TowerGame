@@ -9,6 +9,7 @@ extends RefCounted
 ## at the same height with its rail at the same height, so treads, slope and handrail meet there (#259).
 
 const Palette := preload("res://scripts/view/palette.gd")
+const ActivityLook := preload("res://scripts/view/activity_look.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
 const RAIL_H: int = 9  ## Handrail height above a tread.
@@ -179,11 +180,20 @@ static func draw_car(canvas: CanvasItem, rect: Rect2i, car_color: Color, load: i
 	canvas.draw_rect(Rect2i(rect.position.x + 2, rect.position.y + 1, rect.size.x - 4, 1), p["lamp"])
 	canvas.draw_rect(Rect2i(rect.position.x + rect.size.x / 2, rect.position.y + 2, 1, rect.size.y - 2), car_color.darkened(0.35))
 	canvas.draw_rect(Rect2i(rect.position.x + 1, rect.position.y + 12, rect.size.x - 2, 1), car_color.darkened(0.25))
-	var spread := (rect.size.x - 4) / RIDERS_SHOWN
+	draw_riders(canvas, rect, load, people)
+
+
+## Up to five riders as figures inside a car rect: three in front, two behind in the gaps, a few pixels higher.
+static func draw_riders(canvas: Object, rect: Rect2i, load: int, people: Array) -> void:
+	var p := Palette.get_palette()
+	var usable := rect.size.x - 4 - VC.FIGURE_W
 	var feet := rect.end.y - 1
-	for n in mini(load, RIDERS_SHOWN):
-		var shirt: Color = people[n % people.size()]
-		var fx := rect.position.x + 2 + n * spread + (spread - VC.FIGURE_W) / 2
-		canvas.draw_rect(Rect2i(fx, feet - 9, VC.FIGURE_W, 3), p["skin"])
-		canvas.draw_rect(Rect2i(fx, feet - 6, VC.FIGURE_W, 5), shirt)
-		canvas.draw_rect(Rect2i(fx, feet - 1, VC.FIGURE_W, 1), shirt.darkened(0.4))
+	var shown := mini(load, RIDERS_SHOWN)
+	for back: bool in [true, false]:
+		for n in shown:
+			if (n % 2 == 1) != back:
+				continue
+			var shirt: Color = people[n % people.size()]
+			var slot := n / 2  # front riders 0, 2, 4 take slots 0..2; back riders 1, 3 take slots 0..1
+			var fx := rect.position.x + 2 + (usable * (2 * slot + 1) / 4 if back else usable * slot / 2)
+			ActivityLook.draw_person(canvas, fx, feet - (3 if back else 0), shirt, p["skin"])
