@@ -42,6 +42,8 @@ static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bo
 	var top := h - FLOOR_H  # sub-pixel row where the bottom floor starts
 	pen.limit = Rect2i(0, 0, w, h - SLAB_H)  # nothing spills into the neighbour or over the slab
 	_shell(pen, w, h, top, hue)
+	if kind == "lobby" and top > 0:
+		_mezzanine(pen, w, top, h, p, lit)
 	var variant: int = RoomRecipes.SUITE if suite else RoomRecipes.variant_for(kind, id)
 	var shapes: Array = RoomRecipes.layout(kind, rect.size.x, upper, variant)["shapes"]
 	var colors := _colors(p, hue)
@@ -62,6 +64,10 @@ static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bo
 			_furniture(pen, shapes, i, r, windows, colors["furn"])
 		else:
 			_solid(pen, r, colors[role] if colors.has(role) else hue)
+	if lit:
+		_glow(pen, shapes, top)
+	if kind != "lobby" or top == 0:
+		_props(pen, shapes, top, w, id, hue, lit)
 
 
 ## Role -> colour (the recipe roles other than window and lamp, which have their own drawing).
@@ -84,7 +90,12 @@ static func _shell(pen: Object, w: int, h: int, top: int, hue: Color) -> void:
 		pen.R(x, top + 4, 1, 34, wall.darkened(0.045))
 	pen.R(0, top + 4, w, 18, wall.lightened(0.05))  # a lighter upper wall, dithered into the lower
 	pen.dither_band(0, top + 22, w, wall.lightened(0.05))
+	pen.R(0, 4, w, 2, wall.darkened(0.1))  # shade under the cornice, dithered down into the wall
+	pen.dither_band(0, 6, w, wall.darkened(0.1))
+	pen.R(0, top + 34, w, 1, wall.darkened(0.06))
+	pen.dither_band(0, top + 36, w, wall.darkened(0.08))
 	pen.R(0, 0, w, 4, trim)  # cornice at the top of the rect
+	pen.R(0, 3, w, 1, trim.darkened(0.25))
 	pen.R(0, 1, w, 1, trim.lightened(0.25))
 	pen.R(0, top + 38, w, 18, dado)
 	pen.R(0, top + 38, w, 1, dado.lightened(0.3))
@@ -92,6 +103,8 @@ static func _shell(pen: Object, w: int, h: int, top: int, hue: Color) -> void:
 	for x: int in range(15, w, 16):  # panel joints in the dado
 		pen.R(x, top + 40, 1, 12, dado.darkened(0.18))
 	pen.R(0, top + 52, w, 4, trim.darkened(0.12))  # skirting
+	pen.R(0, top + 52, w, 1, trim.lightened(0.2))
+	pen.R(0, top + 55, w, 1, trim.darkened(0.4))
 	pen.R(0, top + 56, w, 4, floor_c)
 	for x: int in range(0, w, 12):  # floor tiles
 		pen.R(x, top + 56, 6, 4, floor_c.darkened(0.1))
@@ -115,7 +128,14 @@ static func _window(pen: Object, r: Rect2i, p: Dictionary, lit: bool) -> void:
 		pen.E(r.position.x + dx + 2, r.position.y + split, mini(2, maxi(r.size.x - dx - 2, 0)), 1, high)
 	var cloud := sky.lerp(Color("ffffff"), 0.35) if SkyLook.daylight > SkyLook.FULL / 2 else sky.lightened(0.1)
 	pen.E(r.position.x + 2, r.position.y + r.size.y * 3 / 5, maxi(r.size.x / 2 - 2, 2), 2, cloud)
+	_skyline(pen, r)
 	pen.R(r.position.x + r.size.x / 2 - 1, r.position.y, 2, r.size.y, frame_c.darkened(0.12))
+	if r.size.x >= 10:
+		var curtain: Color = (p["red"] as Color).lerp(Color("c8a0a0"), 0.3)
+		pen.R(r.position.x - 2, r.position.y - 1, 3, r.size.y + 2, curtain)
+		pen.R(r.end.x - 1, r.position.y - 1, 3, r.size.y + 2, curtain)
+		pen.R(r.position.x - 2, r.position.y - 1, 1, r.size.y + 2, curtain.darkened(0.25))
+		pen.R(r.end.x + 1, r.position.y - 1, 1, r.size.y + 2, curtain.darkened(0.25))
 	pen.R(r.position.x, r.position.y + r.size.y / 2 - 1, r.size.x, 2, frame_c.darkened(0.12))
 	pen.item(r.position.x - 4, r.end.y + 2, r.size.x + 8, 3, frame_c.lightened(0.05), false)
 
@@ -148,6 +168,8 @@ static func _furniture(pen: Object, shapes: Array, index: int, r: Rect2i, window
 	for win: Rect2i in windows:
 		if win.encloses(r):
 			return
+	if r.size.x >= 4 * SUB and r.size.y >= 3 * SUB and r.end.y % FLOOR_H >= 54:
+		pen.E(r.position.x, r.end.y, r.size.x, 2, Color(0, 0, 0, 0.16))  # a soft shadow on the floor
 	var shape: Array = shapes[index]
 	for j: int in index:
 		var before: Array = shapes[j]
@@ -181,3 +203,129 @@ static func _solid(pen: Object, r: Rect2i, color: Color) -> void:
 		pen.R(r.position.x, r.position.y, r.size.x, r.size.y, color)
 	else:
 		pen.item(r.position.x, r.position.y, r.size.x, r.size.y, color, false)
+
+
+## A city behind the glass: buildings of stepped heights in the lower third, with lit windows at night.
+static func _skyline(pen: Object, r: Rect2i) -> void:
+	var night := SkyLook.daylight < SkyLook.FULL / 2
+	var base := Color("2a3258") if night else Color("8aa0b8")
+	var x := 0
+	var k := 0
+	while x < r.size.x - 1:
+		var bw := 4 + (_h(r.position.x + x, k) % 3) * 2
+		bw = mini(bw, r.size.x - x)
+		var bh := 4 + (_h(r.position.x + x, k + 7) % 4) * 2
+		bh = mini(bh, r.size.y - 2)
+		pen.E(r.position.x + x, r.end.y - bh, bw, bh, base.lerp(Color("ffffff"), 0.06 * (k % 3)))
+		if night:
+			for wy: int in range(r.end.y - bh + 1, r.end.y - 1, 3):
+				for wx: int in range(r.position.x + x + 1, r.position.x + x + bw - 1, 2):
+					if _h(wx, wy) % 3 == 0:
+						pen.E(wx, wy, 1, 1, Color("ffd878"))
+		x += bw
+		k += 1
+
+
+## Integer hash of two ints; deterministic, for picking props and building heights.
+static func _h(a: int, b: int) -> int:
+	return ((a + 1) * 73856093 ^ (b + 1) * 19349663 ^ 0x5bd1e995) & 0x7fffffff
+
+
+## A warm halo under each ceiling lamp in a lit room at night, as translucent lighter pixels (real light is #305).
+static func _glow(pen: Object, shapes: Array, top: int) -> void:
+	var strength := clampf(1.0 - float(SkyLook.daylight) / (SkyLook.FULL / 2.0), 0.0, 1.0)
+	if strength <= 0.0:
+		return
+	for shape: Array in shapes:
+		if shape[4] != "lamp" or (shape[1] as int) >= 8 or (shape[3] as int) > 3 or (shape[2] as int) < 6:
+			continue
+		var cx := ((shape[0] as int) + (shape[2] as int) / 2) * SUB
+		var wx := (shape[2] as int) * SUB
+		for i: int in 4:
+			var rx := wx / 2 + 10 + i * 8
+			pen.E(cx - rx, top + 10, rx * 2, 14 + i * 12, Color(1.0, 0.86, 0.55, 0.045 * strength * (4 - i) / 2.0))
+
+
+## Props that vary a room by its id: a plant, a picture, a floor lamp, put where nothing else stands.
+static func _props(pen: Object, shapes: Array, top: int, w: int, id: int, hue: Color, lit: bool) -> void:
+	var taken: Array[Vector2i] = []
+	for shape: Array in shapes:
+		var role: String = shape[4]
+		var x0 := (shape[0] as int) * SUB
+		var x1 := x0 + (shape[2] as int) * SUB
+		if role == "window":
+			taken.append(Vector2i(x0 - 4, x1 + 4))
+		elif role != "lamp" and (shape[1] as int) + (shape[3] as int) >= 20 and (shape[3] as int) >= 3:
+			taken.append(Vector2i(x0 - 2, x1 + 2))
+	var sel := _h(id, 11)
+	for slot: int in 3:
+		var want := (sel >> (slot * 3)) & 7
+		if want > 4:
+			continue
+		var pw := 12 if slot == 0 else 10
+		var x := 8 + _h(id, 20 + slot) % maxi(w - pw - 16, 1)
+		if _blocked(taken, x, pw):
+			continue
+		taken.append(Vector2i(x - 2, x + pw + 2))
+		if slot == 0:
+			_plant(pen, x, top, hue, want % 2 == 0)
+		elif slot == 1:
+			_picture(pen, x, top, hue, want)
+		else:
+			_floor_lamp(pen, x, top, lit)
+
+
+static func _blocked(taken: Array[Vector2i], x: int, pw: int) -> bool:
+	for t: Vector2i in taken:
+		if x < t.y and x + pw > t.x:
+			return true
+	return false
+
+
+static func _plant(pen: Object, x: int, top: int, hue: Color, tall: bool) -> void:
+	var pot := Color("a5603f").lerp(hue, 0.1)
+	pen.item(x + 3, top + 49, 6, 7, pot)
+	var h := 14 if tall else 9
+	pen.R(x + 6, top + 49 - h, 1, h, LEAF.darkened(0.3))
+	pen.R(x + 1, top + 49 - h + 2, 5, 3, LEAF)
+	pen.R(x + 6, top + 49 - h, 5, 3, LEAF.lightened(0.15))
+	pen.R(x + 3, top + 49 - h / 2, 4, 2, LEAF.darkened(0.12))
+	pen.R(x + 7, top + 49 - h / 2 + 1, 4, 2, LEAF)
+
+
+static func _picture(pen: Object, x: int, top: int, hue: Color, kind: int) -> void:
+	var pic := hue.lerp(Color("c06070"), 0.5) if kind % 2 == 0 else hue.lerp(Color("4a7aa0"), 0.6)
+	pen.item(x, top + 12, 10, 8, WOOD, true)
+	pen.R(x + 2, top + 14, 6, 4, pic)
+	pen.R(x + 2, top + 17, 6, 1, pic.darkened(0.25))
+
+
+static func _floor_lamp(pen: Object, x: int, top: int, lit: bool) -> void:
+	pen.R(x + 4, top + 28, 1, 26, WOOD.darkened(0.3))
+	pen.R(x + 2, top + 54, 5, 2, WOOD.darkened(0.2))
+	if lit:
+		pen.E(x + 2, top + 22, 5, 6, Color("ffe8a8"))
+		pen.E(x, top + 20, 9, 12, Color(1.0, 0.85, 0.5, 0.12))
+	else:
+		pen.R(x + 2, top + 22, 5, 6, Color("d8d0b8"))
+
+
+## The lobby's upper floor: columns, tall windows between them, and a mezzanine rail along its floor.
+static func _mezzanine(pen: Object, w: int, top: int, h: int, p: Dictionary, lit: bool) -> void:
+	var step := 96
+	var col := Color("e8dcc0")
+	for cx: int in range(step / 2, w - 4, step):
+		pen.item(cx, 4, 8, h - SLAB_H - 4, col, false)
+		pen.item(cx - 2, 4, 12, 4, col.lightened(0.1), false)  # capital
+		pen.item(cx - 2, h - SLAB_H - 6, 12, 4, col.darkened(0.1), false)  # base
+		pen.R(cx + 3, 10, 1, h - SLAB_H - 18, col.darkened(0.2))  # fluting
+	var wh := top - 34
+	if wh >= 10:
+		for cx: int in range(step / 2 + 16, w - 40, step):
+			_window(pen, Rect2i(cx, 12, 40, wh), p, lit)
+	var rail := Color("5a4030")
+	pen.R(0, top - 22, w, 2, rail.lightened(0.15))  # handrail
+	pen.R(0, top - 18, w, 1, rail)
+	for x: int in range(2, w, 8):
+		pen.R(x, top - 20, 1, 18, rail)  # balusters
+	pen.item(0, top - 2, w, 3, rail.lightened(0.05), false)  # the mezzanine edge
