@@ -7,8 +7,10 @@ const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const Bench := preload("res://tools/bench_tower.gd")
 const Driver := preload("res://scripts/view/sim_driver.gd")
 
-const PATH := "user://test_save_load.sav"
-const BAD_PATH := "user://test_save_load_bad.sav"
+## Files of this run only (process id and clock), so two test runs at once never share one.
+static var _run_id: String = "%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
+static var PATH: String = "user://test_save_load_%s.sav" % _run_id
+static var BAD_PATH: String = "user://test_save_load_bad_%s.sav" % _run_id
 
 
 static func _busy() -> TowerSim:
@@ -36,6 +38,8 @@ static func _run_ticks(t: TowerSim, count: int) -> void:
 
 
 static func run(check: Callable) -> void:
+	var real_template := SaveFiles.autosave_template
+	SaveFiles.autosave_template = "user://test_autosave_%s_%%d.sav" % _run_id
 	var t := _busy()
 	var quarters := 0
 	while quarters < 2 and t.tick < 20000:
@@ -100,4 +104,5 @@ static func run(check: Callable) -> void:
 		DirAccess.remove_absolute(SaveFiles.autosave_path(slot))
 	DirAccess.remove_absolute(PATH)
 	DirAccess.remove_absolute(BAD_PATH)
+	SaveFiles.autosave_template = real_template
 	d.free()

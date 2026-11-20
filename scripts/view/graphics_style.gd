@@ -112,3 +112,17 @@ func activity(canvas: Object, x: int, feet: int, act: int, frame: int, shirt: Co
 ## The sky band above the ground.
 func sky(canvas: Object, p: Dictionary, minute: int, left: int, top: int, width: int, ground_y: int, world_w: int) -> void:
 	SkyLook.draw(canvas, p, minute, SkyLook.daylight, SkyLook.rain, left, top, width, ground_y, world_w, VC.CELL_H)
+
+
+## The outside of the tower (#306): facade edges and roofs over the built floor runs, the street along the
+## ground, and a layer of city skyline behind. Classic draws none of it.
+func exterior(_canvas: Object, _rects: Array[Rect2i], _daylight: int) -> void:
+	pass
+
+
+func street(_canvas: Object, _daylight: int, _world_w: int, _ground_y: int, _built: Dictionary) -> void:
+	pass
+
+
+func skyline(_canvas: Object, _p: Dictionary, _daylight: int, _raining: bool, _stars: int, _depth: int, _world_w: int, _ground_y: int) -> void:
+	pass

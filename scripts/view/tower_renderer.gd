@@ -14,6 +14,7 @@ const Palette := preload("res://scripts/view/palette.gd")
 const GraphicsStyle := preload("res://scripts/view/graphics_style.gd")
 const ViewSettings := preload("res://scripts/view/view_settings.gd")
 const PixelLayer := preload("res://scripts/view/pixel_layer.gd")
+const ExteriorLayer := preload("res://scripts/view/exterior_layer.gd")
 ## Draws the tower on a low-resolution canvas (10.2). World space is native pixels (8 px per column,
 ## 24 px per floor, see view_consts.gd). The rooms, links, floors and shafts go into one SubViewport
 ## that is redrawn only when the floors or rooms change or every STATIC_REFRESH_TICKS ticks (the in-use
@@ -32,9 +33,9 @@ const GLIDE_MAX_COLUMNS := 12.0  ## A move longer than this between two ticks is
 ## Back to front; every name is a method taking the canvas item to paint on. Links (stairs,
 ## escalators) and shafts sit in front of the rooms behind them (#126); the floor slabs come after
 ## rooms because a room fills its whole row and would hide its own slab.
-const STATIC_LAYERS: Array[String] = ["_draw_backdrop", "_draw_lobby", "_draw_rooms", "_draw_links", "_draw_floors", "_draw_shafts"]
+const STATIC_LAYERS: Array[String] = ["_draw_backdrop", "_draw_lobby", "_draw_rooms", "_draw_links", "_draw_floors", "_draw_shafts", "_draw_exterior"]
 const DYNAMIC_LAYERS: Array[String] = ["_draw_belts", "_draw_queues", "_draw_cars", "_draw_events", "_draw_people"]
-const DRAW_ORDER: Array[String] = ["_draw_backdrop", "_draw_lobby", "_draw_rooms", "_draw_links", "_draw_floors", "_draw_shafts", "_draw_belts", "_draw_queues", "_draw_cars", "_draw_events", "_draw_people"]
+const DRAW_ORDER: Array[String] = ["_draw_backdrop", "_draw_lobby", "_draw_rooms", "_draw_links", "_draw_floors", "_draw_shafts", "_draw_exterior", "_draw_belts", "_draw_queues", "_draw_cars", "_draw_events", "_draw_people"]
 
 var tower: Tower = null
 var _people_view := PeopleView.new()
@@ -62,6 +63,8 @@ var _static_layer: Node2D = null
 var _static_sprite: Sprite2D = null
 var _dynamic_view: SubViewport = null
 var _dynamic_layer: Node2D = null
+var _outdoors: Array[Node2D] = []  ## The far and near skylines and the street (#306), behind everything else.
+var _outdoors_key: Array = []  ## What the outdoors were last drawn for: stars, daylight, rain, density, layout.
 var _dynamic_sprite: Sprite2D = null
 var _glow: Node2D = null  ## Detailed night lights, added on top of the world (#305).
 
@@ -71,6 +74,7 @@ func _ready() -> void:
 	ViewSettings.load_settings()
 	_seen_style = GraphicsStyle.current()
 	_seen_see_through = TransportLook.see_through
+	_make_outdoors()
 	var size := Vector2i(VC.world_rect().size)
 	_static_layer = _make_layer(size, _paint_static)
 	_static_view = _static_layer.get_parent()
@@ -80,8 +84,43 @@ func _ready() -> void:
 	_dynamic_sprite = _sprite_of(_dynamic_view)
 	_glow = DetailLight.new()
 	add_child(_glow)
+	add_child(SynergyOverlay.new())  # the synergy filter (#294), above the layers; idle while off
 	_apply_density()
 	queue_redraw()
+
+
+## The skylines and the street (#306): drawn by the style, so Classic shows nothing. Added before the
+## layer sprites, they sit in front of the sky and behind the rooms.
+func _make_outdoors() -> void:
+	for spec: Array in [[0, 0.55], [1, 0.8], [ExteriorLayer.STREET, 1.0]]:
+		var layer: Node2D = ExteriorLayer.new()
+		layer.set("depth", spec[0])
+		layer.set("factor", spec[1])
+		add_child(layer)
+		_outdoors.append(layer)
+
+
+## Keeps the outdoors in step: skylines trail the camera, and everything redraws when the star rating, the
+## daylight, the rain, the style or the floor layout changed.
+func _follow_outdoors() -> void:
+	var camera := get_viewport().get_camera_2d()
+	var camera_x := camera.position.x if camera != null else VC.world_rect().size.x * 0.5
+	for layer: Node2D in _outdoors:
+		layer.call("follow", camera_x)
+	var key: Array = [tower.stars, SkyLook.daylight, SkyLook.rain, GraphicsStyle.current().density(), tower.floors.revision]
+	if key == _outdoors_key:
+		return
+	_outdoors_key = key
+	var built: Dictionary = {}
+	for column: int in Tower.Grid.WIDTH_UNITS:
+		if tower.floors.has_floor(1, column):
+			built[column] = true
+	for layer: Node2D in _outdoors:
+		layer.set("stars", tower.stars)
+		layer.set("daylight", SkyLook.daylight)
+		layer.set("raining", SkyLook.rain)
+		layer.set("built", built)
+		layer.queue_redraw()
 
 
 ## A SubViewport at native size with a layer in it, shown by a nearest-filtered sprite at the origin.
@@ -146,6 +185,7 @@ func _process(delta: float) -> void:
 		return
 	_since_tick += delta
 	_follow_sky()
+	_follow_outdoors()
 	var new_tick := tower.tick != _seen_tick
 	if _elevators.observe(tower):
 		_tick_len = maxf(_since_tick, 0.001)
@@ -216,6 +256,7 @@ func set_tower(value: Tower) -> void:
 
 ## Redraws everything after the palette in use changed.
 func refresh_palette() -> void:
+	_outdoors_key = []
 	_static_tick = -1000000
 	_seen_revision = -1
 	_seen_tick = -1
@@ -321,6 +362,11 @@ func _draw_backdrop(canvas: CanvasItem) -> void:
 	var wall: Color = (Palette.get_palette()["wall"] as Color).lightened(0.12)
 	for rect: Rect2i in _floor_rects:
 		canvas.draw_rect(rect, wall)
+
+
+## Facade edges and roofs on the built floor runs (#306); Classic draws none.
+func _draw_exterior(canvas: CanvasItem) -> void:
+	GraphicsStyle.current().exterior(canvas, _floor_rects, SkyLook.daylight)
 
 
 ## Built floor units: a thin slab along the bottom of each floor's row.

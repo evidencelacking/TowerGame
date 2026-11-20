@@ -68,4 +68,26 @@ static func build() -> Dictionary:
 			"spots": [[23, 30]]}],
 		"spots": [[-10, 30, "r"]],
 	}
+	# Casino: rows of green-felt tables, a line of slot machines with lit tops, strings of lights.
+	out["casino"] = {
+		"hue": "party", "look": "full",
+		"fixed": [
+			[4, 4, 12, 1, "lamp"], [30, 4, 12, 1, "lamp"], [-70, 8, 60, 3, "lamp", "r"], [-70, 14, 8, 16, "furn", "r"], [-58, 14, 8, 16, "furn", "r"], [-46, 14, 8, 16, "furn", "r"],
+		],
+		"repeats": [{"pad": 8, "every": 36, "lo": 0, "hi": 27, "reserve": 80, "shapes": [
+			[0, 18, 22, 3, "furn"], [4, 21, 3, 8, "furn"], [15, 21, 3, 8, "furn"], [6, 14, 10, 4, "gold"], [8, 11, 6, 2, "lamp"]],
+			"spots": [[11, 28]]}],
+		"spots": [[-10, 28, "r"]],
+	}
+	# Observation deck: a glass wall with a railing along the front, telescopes on stands, the city skyline below.
+	out["observation_deck"] = {
+		"hue": "office", "look": "full",
+		"fixed": [
+			[4, 4, 12, 1, "lamp"], [-70, 14, 24, 10, "furn", "r"], [-40, 10, 14, 14, "furn", "r"], [-20, 16, 20, 8, "furn", "r"],
+		],
+		"repeats": [{"pad": 8, "every": 34, "lo": 0, "hi": 27, "reserve": 40, "shapes": [
+			[0, 6, 2, 20, "white"], [4, 16, 3, 10, "furn"], [4, 12, 8, 4, "lamp"], [9, 14, 4, 2, "furn"]],
+			"spots": [[14, 28]]}],
+		"spots": [[-10, 28, "r"]],
+	}
 	return out

@@ -371,8 +371,7 @@ func _run_systems() -> void:
 	housekeeping.tick(clock, floors, grid)
 	recycling.tick(clock, population())
 	if clock.day_started:  # rent comes in daily (#261); the quarter's last day pays the remainder
-		var rent_bonus := SynergyScript.rent_percent(SynergyScript.others_of(grid, rooms, tenancy.transit_linked(floors, rooms, grid)))
-		rent.collect(rooms, people, ledger, tick, clock.quarter_started, rent_bonus)
+		rent.collect(rooms, people, ledger, tick, clock.quarter_started, rent_bonus_percent())
 		commerce.collect_rent(rooms, rent, ledger, tick, clock.quarter_started)
 	if clock.quarter_started:
 		var rent_income := _quarter_rent()
@@ -415,6 +414,11 @@ func _quarter_rent() -> int:
 			total += ledger.lines[n][1]
 		n -= 1
 	return total
+
+
+## Percent added to office rent by a connected tower (a linked metro station, #325). Read-only.
+func rent_bonus_percent() -> int:
+	return SynergyScript.rent_percent(SynergyScript.others_of(grid, rooms, tenancy.transit_linked(floors, rooms, grid)))
 
 
 ## The star rating the build gates use: the real rating, or the top rating while unlock_all is on.

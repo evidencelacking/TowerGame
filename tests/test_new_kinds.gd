@@ -57,7 +57,7 @@ static func _serve(t: TowerSim, kind: String, day: int) -> void:
 
 static func run(check: Callable) -> void:
 	# Catalogue rows: our own numbers, kept in a sensible order against the existing kinds.
-	check.call(Catalogue.IDS.size() == 33 and Catalogue.IDS.find("gym") == 28 and Catalogue.IDS.find("daycare") == 29 and Catalogue.IDS.find("clinic") == 30, "kinds: gym, daycare and clinic follow the cathedral")
+	check.call(Catalogue.IDS.size() == 35 and Catalogue.IDS.find("gym") == 28 and Catalogue.IDS.find("daycare") == 29 and Catalogue.IDS.find("clinic") == 30, "kinds: gym, daycare and clinic follow the cathedral")
 	for kind: String in KINDS:
 		var row: Dictionary = Catalogue.row(kind)
 		check.call(not row.is_empty() and int(row["staff"]) >= 3 and int(row["cost"]) > 0 and int(row["width"]) >= 8, "%s: has cost, width and staff" % kind)
