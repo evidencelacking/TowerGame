@@ -3,6 +3,8 @@ extends SceneTree
 ## real TowerRenderer, empty and with every room in use, saved as one PNG.
 ## Needs a window (headless has no renderer). Placement failures are printed, and the capture quits with
 ## an error when any room could not be placed, so a missing kind cannot pass unnoticed.
+## Options: zoom=N (whole number; use an even one for detailed=1), detailed=1 draws with the Detailed graphics
+## style (#302), time=N sets the clock N percent of the way through the day's ticks.
 ## Run: <godot exe> --path . --script res://tools/capture_recipes.gd -- set=1 out=docs/mockups/recipes_1.png
 ## set=1: lobby, offices, condos, hotel rooms, housekeeping (one view, empty above in use).
 ## set=2: everything else, in four views side by side (empty left, in use right): the shops and services with
@@ -17,6 +19,7 @@ const RendererScript := preload("res://scripts/view/tower_renderer.gd")
 const RoomLook := preload("res://scripts/view/room_look.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const Palette := preload("res://scripts/view/palette.gd")
+const ViewSettings := preload("res://scripts/view/view_settings.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
 const LEFT := 100  ## First column of the capture tower.
@@ -56,6 +59,9 @@ var _view: int = 0
 var _stage: int = 0  ## 0 empty, 1 in use.
 var _frames: int = 0
 var _failed: bool = false
+var _detailed: bool = false
+var _time: int = -1
+var _style_set: bool = false
 var _out: String = "docs/mockups/recipes_1.png"
 var _tower: TowerSim = null
 var _renderer: LitRenderer = null
@@ -93,6 +99,10 @@ func _initialize() -> void:
 			_set = int(arg.get_slice("=", 1))
 		elif arg.begins_with("out="):
 			_out = arg.get_slice("=", 1)
+		elif arg == "detailed=1":
+			_detailed = true
+		elif arg.begins_with("time="):
+			_time = int(arg.get_slice("=", 1))
 		elif arg.begins_with("zoom="):
 			_zoom = maxi(int(arg.get_slice("=", 1)), 1)
 	if _set == 1:
@@ -108,6 +118,11 @@ func _initialize() -> void:
 	if _set == 2:
 		_renderer.showcase = SHOWCASE
 	root.add_child(_renderer)
+	if _time >= 0:
+		var total := 0
+		for period: int in _tower.clock.PERIODS:
+			total += _tower.clock.period_ticks(period)
+		_tower.clock.set_to_tick(total * _time / 100)
 	_renderer.set_tower(_tower)
 	_camera = Camera2D.new()
 	root.add_child(_camera)
@@ -201,6 +216,9 @@ func _link(t: TowerSim, kind: String, floor_number: int, column: int) -> void:
 
 
 func _process(_delta: float) -> bool:
+	if _frames == 0 and not _style_set:  # the renderer reads the saved settings in its _ready, so set the style after it
+		_style_set = true
+		ViewSettings.detailed_graphics = _detailed
 	_frames += 1
 	if _frames < SETTLE_FRAMES:
 		return false
