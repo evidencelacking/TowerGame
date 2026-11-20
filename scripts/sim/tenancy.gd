@@ -15,6 +15,7 @@ const PeopleScript := preload("res://scripts/sim/people.gd")
 const RoutesScript := preload("res://scripts/sim/routes.gd")
 const LedgerScript := preload("res://scripts/sim/ledger.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
+const SynergyScript := preload("res://scripts/sim/synergy.gd")
 
 const LEASE_END := 780  ## 13:00: no leasing from here on (docs/gameplay-reference.md).
 const SALE_STOP := 1260  ## 21:00: no condo sales from here until SALE_RESUME (docs/gameplay-reference.md).
@@ -45,7 +46,9 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 					people.add_person(PeopleScript.NONE, id, rng)
 		elif kind == "condo" and selling and not rooms.is_sold(id) and _reachable(floors, rooms, grid, id, entry_x):
 			rooms.set_sold(id, true)
-			ledger.sale(at_tick, CatalogueScript.cost(kind), id)
+			var price := CatalogueScript.cost(kind)
+			price += price * SynergyScript.demand_percent(grid.run_of(id), SynergyScript.others_of(grid, rooms)) / 100  # daycares lift demand
+			ledger.sale(at_tick, price, id)
 			for n in rooms.people_in(id):
 				people.add_person(id, PeopleScript.NONE, rng)
 

@@ -21,13 +21,15 @@ const GridScript := preload("res://scripts/sim/grid.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
 const NoiseScript := preload("res://scripts/sim/noise.gd")
+const SynergyScript := preload("res://scripts/sim/synergy.gd")
 
 const REASON_TRAVEL := 0
 const REASON_NOISE := 1
 const REASON_GRADE := 2
 const REASON_CROWD := 3
 const REASON_EVENT := 4
-const REASON_NAMES: Array[String] = ["travel waits", "noise", "room grade", "crowding", "a fire or threat"]
+const REASON_NEIGHBOURS := 5  ## Gyms, daycares, clinics, nightclubs nearby (synergy.gd).
+const REASON_NAMES: Array[String] = ["travel waits", "noise", "room grade", "crowding", "a fire or threat", "neighbours"]
 
 const BASE := 100
 const TRAVEL_MAX := 50  ## Travel stress at STRESS_MAX costs this much.
@@ -102,6 +104,9 @@ func factors(rooms: RoomsScript, grid: GridScript, grades: GradesScript, people:
 			found.append([REASON_GRADE, -GRADE_C_PENALTY])
 		var run := grid.run_of(room)
 		if not run.is_empty():
+			var nearby := SynergyScript.mood_delta(rooms.kind_of(room), run, SynergyScript.others_of(grid, rooms))
+			if nearby != 0:
+				found.append([REASON_NEIGHBOURS, nearby])
 			var over: int = counts.get(run[0], 0) - CROWD_FREE
 			if over > 0:
 				found.append([REASON_CROWD, -mini(over / CROWD_STEP * CROWD_PER_STEP, CROWD_MAX)])
@@ -122,9 +127,10 @@ func target(rooms: RoomsScript, grid: GridScript, grades: GradesScript, people: 
 ## Moves everyone's mood one day toward its target, counts low days, then clears the event shock.
 func update(rooms: RoomsScript, grid: GridScript, floors: FloorsScript, grades: GradesScript, people: PeopleScript) -> void:
 	var counts := floor_counts(people, grid, floors)
+	var recovery := SynergyScript.recovery_bonus(SynergyScript.others_of(grid, rooms))  # clinics: moods rise faster
 	for i in people.count():
 		var mood := people.mood_of(i)
-		mood += clampi(target(rooms, grid, grades, people, counts, i) - mood, -STEP, STEP)
+		mood += clampi(target(rooms, grid, grades, people, counts, i) - mood, -STEP, STEP + recovery)
 		people.set_mood(i, mood)
 		people.set_low_days(i, people.low_days_of(i) + 1 if people.mood_of(i) < LOW_BELOW else 0)
 	shock = 0

@@ -33,6 +33,11 @@ const EXPECTED: Array = [
 	["parking_space", 3000, 3, true, 512, "parking_shops"],
 	["metro", 1000000, 4, false, 1, ""],
 	["cathedral", 3000000, 5, false, 1, ""],
+	["gym", 120000, 2, true, 0, ""],
+	["daycare", 80000, 2, true, 0, ""],
+	["clinic", 200000, 3, true, 0, ""],
+	["nightclub", 250000, 4, true, 0, ""],
+	["coworking", 150000, 3, true, 0, ""],
 ]
 
 
