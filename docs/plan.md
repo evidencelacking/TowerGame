@@ -265,6 +265,39 @@ design (nothing here comes from the original), deterministic in `scripts/sim`, e
 | 14.3 | Routing, rents and evaluation across both towers | Tests |  |
 | 14.4 | The skyline and city around the towers grow with the star rating | Owner approves by eye |  |
 
+### M15 Detailed art (owner, 2026-11-19; direction G Lit)
+
+A second graphics style, chosen by a setting; Classic stays as it is. Detailed draws at double density
+(16 px per column, 64 px per floor) in the G Lit direction: crisp 2x pixel art with Godot 2D lighting.
+All art original and drawn by code.
+
+| ID | Task | Done when | Issue |
+|---|---|---|---|
+| 15.1 | Three mock-ups (E Illustrated, F Rich pixel, G Lit); owner picks | Owner picked G Lit | #300 |
+| 15.2 | Graphics setting (Classic / Detailed) and renderer split into style backends | Tests; ui_test | #301 |
+| 15.3 | Detailed recipes batch 1: lobby, offices, condo, hotel, housekeeping | Owner approves by eye | #302 |
+| 15.4 | Detailed recipes batch 2: food, retail, services, parking, culture, links, shafts, cars | Owner approves by eye | #303 |
+| 15.5 | Detailed animated people with variety by id, age and job | Owner approves by eye | #304 |
+| 15.6 | Lighting and atmosphere at full-tower scale, weather | Frame budget held; owner approves | #305 |
+| 15.7 | Exterior and city: facade, roof, street, parallax skyline | Owner approves by eye | #306 |
+| 15.8 | Detailed UI skin and performance pass | Frame-rate report | #307 |
+
+### M16 Destinations, shops and the city link (owner, 2026-11-19)
+
+Bonus kinds like the cathedral, everyday shops, bigger homes and a real transit link. After the M13 sim batch.
+
+| ID | Task | Done when | Issue |
+|---|---|---|---|
+| 16.1 | Observation deck: top floor only, paid visitors, reputation boost | Tests | #318 |
+| 16.2 | Casino: night entertainment, hotel demand, noise and security | Tests | #319 |
+| 16.3 | Outdoor spaces on roofs and setbacks: roof deck, terrace garden, pool deck, playground | Tests; owner approves by eye | #320 |
+| 16.4 | Family condos: join neighbouring condos into larger homes | Tests; save bump | #321 |
+| 16.5 | Everyday shops: grocery and deli/bodega used by residents | Tests | #322 |
+| 16.6 | Restaurant types: cafe, pizza, sushi, fine dining, bar | Tests | #323 |
+| 16.7 | Entertainment: movie theatre end to end, bowling, arcade | Tests | #324 |
+| 16.8 | Transit: station at star 3 and a city-connection bonus | Tests | #325 |
+| 16.9 | Swimming pool: indoor, two floors, slide, diving board, animated water | Tests; owner approves by eye | #328 |
+
 ## M11 Full game
 
 | ID | Task | Done when | Issue |
