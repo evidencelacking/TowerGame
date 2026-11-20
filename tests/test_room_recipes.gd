@@ -14,6 +14,9 @@ const BATCH_1: Array[String] = ["lobby", "office", "condo", "hotel_single", "hot
 const BATCH_2: Array[String] = ["fast_food", "restaurant", "retail", "movie_theatre", "party_hall", "medical", "security", "recycling", "parking_ramp", "parking_space", "metro", "cathedral"]
 
 
+const BATCH_3: Array[String] = ["gym", "daycare", "clinic", "nightclub", "coworking"]
+
+
 static func run(check: Callable) -> void:
 	var missing: Array[String] = []
 	var bad_hue: Array[String] = []
@@ -63,6 +66,7 @@ static func run(check: Callable) -> void:
 	check.call(VC.CELL_W == 8 and VC.CELL_H == 32, "renderer: native space is 8 px per column and 32 px per floor")
 	_batch(check, BATCH_1)
 	_batch(check, BATCH_2)
+	_batch(check, BATCH_3)
 	var still_placeholder: Array[String] = []
 	for kind: String in CatalogueScript.IDS:
 		if RoomRecipes.is_placeholder(kind):

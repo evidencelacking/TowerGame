@@ -363,7 +363,7 @@ func _note_refusal(code: int, detail: int) -> bool:
 func _run_systems() -> void:
 	clock.advance()
 	tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
-	commerce.tick(clock, floors, rooms, grid, people, tenancy, rng, ledger, messages, tick)
+	commerce.tick(clock, floors, rooms, grid, people, tenancy, rng, ledger, messages, tick, life)
 	vip.tick(clock, stars, people, grades, messages, tick)
 	hotel.tick(clock, floors, people, rng, ledger, messages, tick)
 	pests.tick(hotel, grid, rng, messages, tick)
