@@ -43,4 +43,29 @@ static func build() -> Dictionary:
 			"spots": [[11, 30]]}],
 		"spots": [[-8, 30, "r"]],
 	}
+	# Batch 2 (#292). Nightclub: a stage with a disco ball and lights, a bar on the right and small tables.
+	out["nightclub"] = {
+		"hue": "cinema", "look": "full",
+		"fixed": [
+			[4, 22, 44, 8, "furn"], [8, 16, 6, 6, "lamp"], [30, 14, 6, 8, "furn"], [20, 3, 7, 7, "gold"], [21, 0, 1, 3, "furn"],
+			[6, 4, 3, 3, "red"], [36, 4, 3, 3, "green"],
+			[-48, 20, 44, 4, "furn", "r"], [-44, 14, 5, 6, "lamp", "r"], [-34, 14, 5, 6, "lamp", "r"], [-24, 14, 5, 6, "lamp", "r"],
+		],
+		"repeats": [{"pad": 56, "every": 26, "lo": 0, "hi": 10, "reserve": 54, "shapes": [
+			[0, 24, 14, 2, "furn"], [6, 26, 2, 4, "furn"], [3, 20, 8, 4, "gold"]],
+			"spots": [[7, 30]]}],
+		"spots": [[-30, 30, "r"]],
+	}
+	# Co-working: rows of shared desks with monitors, and a coffee corner on the right.
+	out["coworking"] = {
+		"hue": "office", "look": "full",
+		"fixed": [
+			[4, 4, 12, 1, "lamp"], [-44, 18, 40, 12, "furn", "r"], [-40, 12, 8, 6, "lamp", "r"], [-26, 14, 4, 4, "white", "r"],
+		],
+		"repeats": [{"pad": 6, "every": 30, "lo": 0, "hi": 27, "reserve": 52, "shapes": [
+			[0, 20, 20, 1, "furn"], [1, 21, 1, 9, "furn"], [18, 21, 1, 9, "furn"], [2, 22, 9, 1, "furn"],
+			[11, 14, 8, 6, "furn"], [12, 15, 6, 4, "lamp"], [14, 19, 2, 1, "furn"]],
+			"spots": [[23, 30]]}],
+		"spots": [[-10, 30, "r"]],
+	}
 	return out

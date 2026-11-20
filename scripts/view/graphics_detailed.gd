@@ -9,6 +9,7 @@ extends GraphicsStyle
 
 const DetailRooms := preload("res://scripts/view/detail_rooms.gd")
 const Palette := preload("res://scripts/view/palette.gd")
+const DetailPeople := preload("res://scripts/view/detail_people.gd")
 
 
 func density() -> int:
@@ -22,7 +23,7 @@ func room(canvas: Object, tower: Tower, id: int, rect: Rect2i, broken: Variant, 
 		super.room(canvas, tower, id, rect, broken, lit, dark)
 		return
 	var shown := RoomLook.appearance(look, lit, dark)
-	DetailRooms.draw(canvas, kind, rect, shown[0], shown[1], tower.rooms.is_tall_upper(id), id)
+	DetailRooms.draw(canvas, kind, rect, shown[0], shown[1], tower.rooms.is_tall_upper(id), id, false, dark)
 	RoomLook.draw_marks(canvas, look, rect, tower.rooms.is_tall_upper(id))
 
 
@@ -38,3 +39,19 @@ func recipe(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bool) -
 		super.recipe(canvas, kind, rect, hue, lit)
 		return
 	DetailRooms.draw(canvas, kind, rect, hue, lit)
+
+
+## People (#304): every figure has a look of its own, from its id, age and job (detail_people.gd). Without
+## a `who` (a caller that knows nothing of the person) this falls back to Classic's anonymous figure.
+func person(canvas: Object, x: int, feet: int, shirt: Color, skin: Color, apart: bool, lift_l: int, lift_r: int, who: Dictionary = {}, pose: int = 0, walk: int = 0) -> void:
+	if who.is_empty():
+		super.person(canvas, x, feet, shirt, skin, apart, lift_l, lift_r)
+		return
+	DetailPeople.walker(canvas, x, feet, who, pose, walk)
+
+
+func activity(canvas: Object, x: int, feet: int, act: int, frame: int, shirt: Color, skin: Color, prop: Color, white: Color, who: Dictionary = {}) -> void:
+	if who.is_empty():
+		super.activity(canvas, x, feet, act, frame, shirt, skin, prop, white)
+		return
+	DetailPeople.resting(canvas, x, feet, who, act, frame)

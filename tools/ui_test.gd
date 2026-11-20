@@ -130,9 +130,14 @@ func _room_cases() -> void:
 	for kind: String in ["gym", "daycare", "clinic"]:  # on floor 3, over the rooms of floor 2
 		await _room_case(kind, 3, x)
 		x += CatalogueScript.field(kind, "width")
+	x = 160
+	for kind: String in ["nightclub", "coworking"]:  # on floor 4, over the new kinds of floor 3
+		await _room_case(kind, 4, x)
+		x += CatalogueScript.field(kind, "width")
 	await _room_case("parking_ramp", -1, 200)
 	await _room_case("parking_space", -1, 204)
 	await _room_case("recycling", -2, 210)
+	await _room_case("metro", -1, 232)
 	for kind: String in CatalogueScript.IDS:
 		if kind in RoomsScript.PLACEABLE or kind in ["lobby", "floor", "stairs", "escalator"]:
 			continue
