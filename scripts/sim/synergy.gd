@@ -15,6 +15,8 @@ extends RefCounted
 ##                design: a connected tower means a shorter commute, so offices and condos fetch more).
 ##   NOISE        shown in the preview only: noise.gd owns the rule, and the preview folds it in so the ghost
 ##                tells the whole story of a placement.
+## The observation deck (#318, own design) is the tower's pride: its mood rules are the reputation word of mouth
+## spreads, a lift for restaurants and happier hotel guests nearby. A closed deck (not on the top floor) is no source.
 ## Rooms of kinds not built yet (the garden and the nightclub arrive with #292) simply have no sources.
 ## The placement ghost reads preview_at() and shows text_of() for each entry; both are pure.
 
@@ -49,6 +51,12 @@ const RULES: Array = [
 	["garden", "restaurant", SALES, 8, ANY, ANY],
 	["metro", "office", RENT, 15, ANY, ANY],
 	["metro", "condo", CONDO_DEMAND, 10, ANY, ANY],
+	["observation_deck", "office", MOOD, 2, ANY, ANY],
+	["observation_deck", "condo", MOOD, 2, ANY, ANY],
+	["observation_deck", "restaurant", SALES, 10, 10, ANY],
+	["observation_deck", "hotel_single", MOOD, 3, 10, ANY],
+	["observation_deck", "hotel_twin", MOOD, 3, 10, ANY],
+	["observation_deck", "hotel_suite", MOOD, 3, 10, ANY],
 	["nightclub", "condo", MOOD, -6, 2, ANY],
 	["nightclub", "hotel_single", MOOD, -6, 2, ANY],
 	["nightclub", "hotel_twin", MOOD, -6, 2, ANY],
@@ -126,6 +134,8 @@ static func others_of(grid: GridScript, rooms: RoomsScript, linked: bool = true)
 		var kind := rooms.kind_of(id)
 		if kind == LINKED_KIND and not linked:
 			continue  # a station nobody can reach from the lobby gives nothing
+		if rooms.is_closed_up(grid, id):
+			continue  # a deck the tower has grown past is closed (#318)
 		if is_source(kind) and grid.has_occupant(id):
 			list.append([kind, grid.run_of(id)])
 	return list

@@ -23,7 +23,7 @@ const CATEGORIES: Array = [
 	["Services", ["housekeeping", "security", "medical", "recycling", "clinic"]],
 	["Community", ["gym", "daycare"]],
 	["Parking", ["parking_ramp", "parking_space"]],
-	["Landmarks", ["metro", "cathedral"]],
+	["Landmarks", ["metro", "cathedral", "observation_deck"]],
 	["Tools", [Ghost.BULLDOZE, Ghost.REPLACE]],
 ]
 const TOOL_STAR: int = 1  ## Bulldoze and replace are always available.
