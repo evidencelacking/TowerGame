@@ -145,9 +145,16 @@ static func draw(canvas: CanvasItem, tower: Tower, id: int, rect: Rect2i, broken
 		_rubbish(canvas, interior, int(look["fill"]), upper)
 
 
+## A joined suite (#276): one lit space over rect, the union of its rooms, drawn from the kind's suite
+## recipe. The rooms lose their shared walls because only the leftmost wall is drawn. id is the first
+## room's, for the colours that depend on it.
+static func draw_suite(canvas: CanvasItem, kind: String, rect: Rect2i, id: int) -> void:
+	draw_recipe(canvas, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), true, false, id, true)
+
+
 ## The room body and recipe shapes in rect. A rect taller than a floor (the lobby) gets the recipe on its
 ## bottom floor and plain wall above. base is the room colour; lit picks the in-use or empty look.
-static func draw_recipe(canvas: CanvasItem, kind: String, rect: Rect2i, base: Color, lit: bool, upper: bool = false, id: int = 0) -> void:
+static func draw_recipe(canvas: CanvasItem, kind: String, rect: Rect2i, base: Color, lit: bool, upper: bool = false, id: int = 0, suite: bool = false) -> void:
 	var p := Palette.get_palette()
 	var mode: int = p["mode"]
 	var body := base if lit else base.darkened(SkyLook.dim_at(p["dim"], SkyLook.daylight))
@@ -162,7 +169,7 @@ static func draw_recipe(canvas: CanvasItem, kind: String, rect: Rect2i, base: Co
 		canvas.draw_rect(Rect2i(rect.position.x + 1, rect.position.y, rect.size.x - 1, body_rect.size.y), (p["outline"] as Color).darkened(0.3), false, 1.0)
 	var colors := _role_colors(p, base, lit, id)
 	var top := body_rect.end.y - interior_h
-	for shape: Array in RoomRecipes.layout(kind, rect.size.x, upper, RoomRecipes.variant_for(kind, id))["shapes"]:
+	for shape: Array in RoomRecipes.layout(kind, rect.size.x, upper, RoomRecipes.SUITE if suite else RoomRecipes.variant_for(kind, id))["shapes"]:
 		var gate: String = shape[5]
 		if gate != "" and (gate == "use") != lit:  # "use" shapes show only while in use, "idle" ones only while empty
 			continue
