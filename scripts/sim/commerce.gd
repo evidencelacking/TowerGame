@@ -75,6 +75,12 @@ const MEALS: Array = [
 	[DECK_AFTERNOON, DECK_WINDOW, DECK_PERCENT, "observation_deck"],
 	[DECK_SUNSET, DECK_WINDOW, DECK_SUNSET_PERCENT, "observation_deck"],
 	[DECK_NIGHT, DECK_WINDOW, DECK_NIGHT_PERCENT, "observation_deck"],
+	[DELI_BREAKFAST, DELI_BREAKFAST_WINDOW, DELI_BREAKFAST_PERCENT, "deli"],
+	[GROCERY_MORNING, GROCERY_MORNING_WINDOW, GROCERY_MORNING_PERCENT, "grocery"],
+	[DELI_MORNING, DELI_BREAK_WINDOW, DELI_MORNING_PERCENT, "deli"],
+	[DELI_AFTERNOON, DELI_BREAK_WINDOW, DELI_AFTERNOON_PERCENT, "deli"],
+	[GROCERY_EVENING, GROCERY_EVENING_WINDOW, GROCERY_EVENING_PERCENT, "grocery"],
+	[DELI_LATE, DELI_LATE_WINDOW, DELI_LATE_PERCENT, "deli"],
 	[CASINO_EVENING, CASINO_EVENING_WINDOW, CASINO_PERCENT, "casino"],
 	[CASINO_LATE, CASINO_LATE_WINDOW, CASINO_LATE_PERCENT, "casino"],
 	[POOL_EARLY, POOL_WINDOW, POOL_EARLY_PERCENT, "pool"],
@@ -137,6 +143,26 @@ const DECK_WINDOW := 90
 const DECK_PERCENT := 3
 const DECK_SUNSET_PERCENT := 8
 const DECK_NIGHT_PERCENT := 6
+## Everyday shops (#322, our own design, unverified). A grocery serves residents (people whose home is a condo or a hotel
+## room) in a morning and an after-work wave; a deli is for everyone: breakfast, two breaks and a late snack.
+const GROCERY_MORNING := 480  ## 08:00.
+const GROCERY_MORNING_WINDOW := 90
+const GROCERY_MORNING_PERCENT := 6
+const GROCERY_EVENING := 1050  ## 17:30.
+const GROCERY_EVENING_WINDOW := 120
+const GROCERY_EVENING_PERCENT := 20
+const DELI_BREAKFAST := 390  ## 06:30.
+const DELI_BREAKFAST_WINDOW := 60
+const DELI_BREAKFAST_PERCENT := 10
+const DELI_MORNING := 630  ## 10:30.
+const DELI_MORNING_PERCENT := 8
+const DELI_AFTERNOON := 900  ## 15:00.
+const DELI_AFTERNOON_PERCENT := 6
+const DELI_BREAK_WINDOW := 30
+const DELI_LATE := 1320  ## 22:00.
+const DELI_LATE_WINDOW := 60
+const DELI_LATE_PERCENT := 5
+const WHO_RESIDENTS := "residents"
 ## The casino (#319): open 20:00 to 05:00 in two waves of adults; hotel guests gamble far more often than the
 ## tower's other people (CASINO_GUEST_PERCENT). Every gambler stakes CASINO_STAKE on an even bet he wins
 ## CASINO_WIN_PERCENT of the time, so the house keeps 10 percent of the stakes in the long run: the takings at
@@ -295,6 +321,18 @@ const PROFILES: Dictionary = {
 		"seats": 50, "linger_minutes": 30, "grade_cap": 40, "grade_a": 35, "grade_b": 20,
 		"tiers": [[0, -2000], [20, 3000], [40, 6000], [80, 10000]],
 		"food": ["Telescopes", "City view", "Sunset deck", "Night skyline", "Photo spot"],
+	},
+	# Grocery (#322): 30 places, 20 minute shops, residents only; the 3 staff make an empty day lose $3,000.
+	"grocery": {
+		"seats": 30, "linger_minutes": 20, "grade_cap": 40, "grade_a": 30, "grade_b": 15, "who": WHO_RESIDENTS,
+		"tiers": [[0, -3000], [15, 2500], [30, 5000], [60, 8000]],
+		"food": ["Fresh produce", "Dairy", "Bakery", "Frozen", "Household"],
+	},
+	# Deli (#322): 10 places, 10 minute stops, everyone; the 1 staff make an empty day lose $1,000.
+	"deli": {
+		"seats": 10, "linger_minutes": 10, "grade_cap": 30, "grade_a": 20, "grade_b": 10,
+		"tiers": [[0, -1000], [10, 1200], [20, 2500], [40, 4000]],
+		"food": ["Breakfast rolls", "Sandwiches", "Coffee", "Snacks", "Newspapers"],
 	},
 	# Casino (#319): 60 places, hour-long sessions, adults only. Its takings come from the bets (see CASINO_STAKE);
 	# the tiers only grade it and price an empty night (the wages).
@@ -549,6 +587,8 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		if who == WHO_LOW_MOOD and people.mood_of(i) >= CLINIC_MOOD_BELOW:
 			continue
 		var home := people.home_of(i)
+		if who == WHO_RESIDENTS and not (home != PeopleScript.NONE and rooms.has_room(home) and (rooms.kind_of(home) == "condo" or HotelScript.is_hotel_kind(rooms.kind_of(home)))):
+			continue
 		var guest := (kind == "restaurant" or kind == "casino" or kind == "fine_dining" or kind == "pool") and home != PeopleScript.NONE and rooms.has_room(home) and HotelScript.is_hotel_kind(rooms.kind_of(home))
 		if rng.next_below(100) >= (_guest_percent(kind) if guest else percent):
 			continue

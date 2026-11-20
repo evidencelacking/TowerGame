@@ -63,7 +63,8 @@ const IDS: Array[String] = [
 	"express_shaft", "express_car", "hotel_twin", "hotel_suite", "restaurant", "retail",
 	"movie_theatre", "party_hall", "medical", "recycling", "parking_ramp", "parking_space",
 	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino",
-	"cafe", "pizza", "sushi", "fine_dining", "bar", "pool",
+	"cafe", "pizza", "sushi", "fine_dining", "bar",
+	"grocery", "deli", "pool",
 ]
 
 const _ROWS: Dictionary = {
@@ -183,6 +184,13 @@ const _ROWS: Dictionary = {
 		"limit_group": "", "limit_scope": "tower"},
 	"observation_deck": {"upkeep": 6000, "staff": 2, "width": 32, "height": 1, "cost": 800000, "per_unit": false, "star": 4,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# Everyday shops (#322, our own design). A grocery serves the tower's households; a deli is the small early-and-late shop.
+	"grocery": {"staff": 3, "width": 20, "height": 1, "cost": 180000, "per_unit": false, "star": 2,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"deli": {"staff": 1, "width": 8, "height": 1, "cost": 60000, "per_unit": false, "star": 1,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	# The restaurant family (#323, our own design): five kinds beside fast food and the restaurant, each with its own hours, audience and price.
 	"cafe": {"staff": 2, "width": 12, "height": 1, "cost": 90000, "per_unit": false, "star": 2,

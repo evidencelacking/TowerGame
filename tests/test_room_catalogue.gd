@@ -45,6 +45,8 @@ const EXPECTED: Array = [
 	["sushi", 180000, 3, true, 0, ""],
 	["fine_dining", 300000, 4, true, 0, ""],
 	["bar", 140000, 3, true, 0, ""],
+	["grocery", 180000, 2, true, 0, ""],
+	["deli", 60000, 1, true, 0, ""],
 	["pool", 700000, 3, true, 0, ""],
 ]
 
