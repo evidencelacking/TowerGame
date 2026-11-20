@@ -30,6 +30,9 @@ static func handles(kind: String) -> bool:
 ## Paints a room or suite of `kind` over rect (world pixels, at least one floor tall; a lobby taller than a
 ## floor gets columns, tall windows and a mezzanine rail above its bottom floor). hue is the room colour (a
 ## state tint shows through when it is not the kind's own), lit the in-use look, id picks the variant.
+static var window: Vector2i = Vector2i.ZERO  ## World x range (from, to) the next draw is confined to; ZERO draws it all. Lets a wide room be painted in slices (#346).
+
+
 static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bool, upper: bool = false, id: int = 0, suite: bool = false, asleep: bool = false) -> void:
 	var p := Palette.get_palette()
 	var night := SkyLook.daylight < SkyLook.FULL / 2
@@ -40,6 +43,10 @@ static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bo
 	var h := maxi(rect.size.y, VC.CELL_H) * SUB
 	var y0 := h - FLOOR_H  # mock-up row where the bottom floor starts
 	pen.limit = Rect2i(0, 0, w, h - Scenes.SLAB_H)  # nothing spills into the neighbour or over the slab
+	if window != Vector2i.ZERO:
+		var from := clampi((window.x - rect.position.x) * SUB, 0, w)
+		var to := clampi((window.y - rect.position.x) * SUB, from, w)
+		pen.limit = Rect2i(from, 0, to - from, h - Scenes.SLAB_H)
 	var variant: int = RoomRecipes.SUITE if suite else RoomRecipes.variant_for(kind, id)
 	var seats := seat_centres(kind, rect.size.x, upper, variant)
 	var pal := _palette(kind, hue)

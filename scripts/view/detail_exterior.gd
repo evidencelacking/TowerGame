@@ -243,6 +243,9 @@ static func _walkers(pen: Pen, x: int, slot: int) -> void:
 ## One layer of the city, from `STREET_FROM` across, standing on the ground line. depth 0 is the far haze,
 ## depth 1 the nearer, darker row with windows. Each star adds height and fills the gaps between buildings;
 ## at night the windows light up. Hashed, so it never shimmers.
+static var window: Vector2i = Vector2i.ZERO  ## World x range (from, to) the next skyline draws blocks for; ZERO draws all. Lets the skyline be painted in slices (#346).
+
+
 static func skyline(canvas: Object, p: Dictionary, dl: int, raining: bool, stars: int, depth: int, world_w: int, ground_y: int) -> void:
 	var colors := SkyLook.colors(p, dl, raining)
 	var horizon: Color = colors["horizon"]
@@ -256,7 +259,7 @@ static func skyline(canvas: Object, p: Dictionary, dl: int, raining: bool, stars
 	while x < world_w - STREET_FROM:
 		var bw := 10 - depth * 2 + int(Pen.hn(i, 11) * 14.0)
 		var present := Pen.hn(i, 7) <= fill
-		if present:
+		if present and (window == Vector2i.ZERO or (x >= window.x and x < window.y)):
 			var reach := (28.0 + 22.0 * float(level)) * (1.0 - 0.3 * float(depth))
 			var bh := int(14.0 + Pen.hn(i, 12) * reach)
 			_block(pen, x * 2, bw * 2, bh * 2, body.darkened(0.06 * float(i % 2)), i, depth)

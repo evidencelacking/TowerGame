@@ -70,13 +70,36 @@ func _emit(x: float, y: float, w: float, h: float, c: Color) -> void:
 		canvas.draw_rect(Rect2(origin.x + r.position.x * HALF, origin.y + r.position.y * HALF, r.size.x * HALF, r.size.y * HALF), c)
 
 
+## The x range (mock-up pixels from the room's left wall) this pen paints in: wide open unless limited. Scene
+## loops over a wide room start and stop inside it, so painting one slice of a room costs only its share (#346).
+func x_from() -> float:
+	return float(limit.position.x) if limit.has_area() and not flip_on else -1.0e9
+
+
+func x_to() -> float:
+	return float(limit.end.x) if limit.has_area() and not flip_on else 1.0e9
+
+
+## The index range [first, last) of repeats `step` apart from x0, `count` of them, `reach` wide each, that can touch the x range.
+func repeats(x0: float, step: float, count: int, reach: float) -> Vector2i:
+	if not limit.has_area() or flip_on:
+		return Vector2i(0, count)
+	var first := clampi(int(floorf((x_from() - x0 - reach) / step)), 0, count)
+	var last := mini(count, int(ceilf((x_to() - x0) / step)) + 1)
+	return Vector2i(first, maxi(first, last))
+
+
 func R(x: float, y: float, w: float, h: float, c: Color) -> void:
+	if not flip_on and limit.has_area() and (x >= limit.end.x or x + w <= limit.position.x):  # cheap reject, so a narrow limit costs little (#346)
+		return
 	if w > 0.0 and h > 0.0:
 		_emit(x, y, w, h, tone(c))
 
 
 ## A light-emitting rectangle (bulb, screen, sky in a window): never darkened by the room.
 func GR(x: float, y: float, w: float, h: float, c: Color) -> void:
+	if not flip_on and limit.has_area() and (x >= limit.end.x or x + w <= limit.position.x):
+		return
 	if w > 0.0 and h > 0.0:
 		_emit(x, y, w, h, c)
 
@@ -106,6 +129,7 @@ func gradv(x: float, y: float, w: float, h: float, c1: Color, c2: Color, raw: bo
 	if w <= 0.0 or h <= 0.0:
 		return
 	var steps: int = 4
+	var run := repeats(x, 2.0, int(w) / 2, 2.0)
 	var iy: int = int(y)
 	var ih: int = int(h)
 	for s: int in steps:
@@ -116,7 +140,7 @@ func gradv(x: float, y: float, w: float, h: float, c1: Color, c2: Color, raw: bo
 		if s > 0 and y1 - y0 >= 2:
 			var prev: Color = c1.lerp(c2, float(s - 1) / float(steps))
 			for dy: int in 2:  # alternate cells of the step above into the first two rows of this one
-				for k: int in int(w) / 2:
+				for k: int in range(run.x, run.y):
 					if (k + dy) % 2 == 0:
 						_fill(x + float(k * 2), float(iy + y0 + dy), 2.0, 1.0, prev, raw)
 
@@ -155,7 +179,7 @@ func glow(cx: float, cy: float, rx: float, ry: float, c: Color, strength: float)
 		return
 	if flip_on:
 		cx = 2.0 * flip_axis - cx
-	var clip := Rect2(origin, Vector2(limit.size) * HALF) if limit.has_area() else Rect2(origin, Vector2(100000, 100000))
+	var clip := Rect2(origin + Vector2(limit.position) * HALF, Vector2(limit.size) * HALF) if limit.has_area() else Rect2(origin, Vector2(100000, 100000))
 	Light.add(clip, origin + Vector2(cx, cy) * HALF, Vector2(rx, ry) * HALF, c, strength)
 
 

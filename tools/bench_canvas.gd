@@ -8,21 +8,24 @@ const Bench := preload("res://tools/bench_tower.gd")
 const RendererScript := preload("res://scripts/view/tower_renderer.gd")
 const ViewSettings := preload("res://scripts/view/view_settings.gd")
 
-const REBUILD_FROM := 30  ## Frames of warmup, then REBUILD_FRAMES frames each forcing a static rebuild.
-const REBUILD_FRAMES := 100
-const SCROLL_FROM := 140
+const SETTLE_FRAMES := 30  ## Idle frames before the forced rebuild, so the GPU has drained the warmup renders and does not bill them to it.
+const REBUILD_FROM := 30  ## Frames of warmup at least, and until the first draw has finished.
+const REBUILD_MAX_FRAMES := 1500  ## Give up waiting for the tiles after this many frames.
 const SCROLL_FRAMES := 200
 
 var _tower: Tower = null
 var _renderer: TowerRenderer = null
 var _camera: Camera2D = null
-var _n: int = 0  ## Frames seen; the run ends at SCROLL_FROM + SCROLL_FRAMES.
+var _n: int = 0  ## Frames seen; the run ends after the scroll.
 var _detailed: bool = true
 var _zoom: int = 2
 var _shot: String = ""  ## shot=PATH saves the last frame as a PNG.
 var _rebuild: Array[int] = []
 var _scroll: Array[int] = []
 var _last: int = 0
+var _phase: int = 0  ## 0 warm up, 1 rebuild, 2 scroll, 3 report.
+var _phase_start: int = 0
+var _idle: int = 0
 
 
 func _initialize() -> void:
@@ -53,25 +56,48 @@ func _process(_delta: float) -> bool:
 		_camera.make_current()
 		_last = now
 		return false
-	if _n > REBUILD_FROM and _n <= REBUILD_FROM + REBUILD_FRAMES:
-		_renderer.refresh_palette()  # a static rebuild every frame
+	if _phase == 0:
+		_idle = _idle + 1 if (not _renderer.has_method("pending_work") or int(_renderer.call("pending_work")) == 0) else 0
+	if _phase == 0 and _n >= REBUILD_FROM and _idle >= SETTLE_FRAMES:  # one forced full rebuild, timed frame by frame until every tile near the view is redrawn
+		_renderer.refresh_palette()
+		_phase = 1
+		_phase_start = _n
+	elif _phase == 1:
 		_rebuild.append(now - _last)
-	elif _n > SCROLL_FROM and _n <= SCROLL_FROM + SCROLL_FRAMES:
-		_camera.position.x += 6.0
-		_scroll.append(now - _last)
+		var settled := not _renderer.has_method("pending_work") or (_n - _phase_start > 2 and int(_renderer.call("pending_work")) == 0)
+		if settled or _n - _phase_start > REBUILD_MAX_FRAMES:
+			_phase = 2
+			_phase_start = _n
+	elif _phase == 2:
+		if _n - _phase_start > SCROLL_FRAMES:
+			_phase = 3
+		else:
+			_camera.position.x += 6.0
+			_scroll.append(now - _last)
 	_last = now
-	if _n <= SCROLL_FROM + SCROLL_FRAMES:
+	if _phase < 3:
 		return false
 	var tex := Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576.0
 	var video := Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0
 	print("style=%s zoom=%d" % ["detailed" if ViewSettings.detailed_graphics else "classic", _zoom])
 	print("  render_texture_mem_mb=%.1f video_mem_mb=%.1f" % [tex, video])
-	print("  static rebuild frame: %.2f ms avg   scroll frame: %.2f ms avg" % [_avg(_rebuild), _avg(_scroll)])
+	print("  full static rebuild: %d frames, %.2f ms avg, %.2f ms worst   scroll frame: %.2f ms avg, %.2f ms worst" % [_rebuild.size(), _avg(_rebuild), _worst(_rebuild), _avg(_scroll), _worst(_scroll)])
+	var top := _rebuild.duplicate()
+	top.sort()
+	top.reverse()
+	print("  slowest rebuild frames ms: ", top.slice(0, 6).map(func(v: int) -> float: return v / 1000.0))
 	if _shot != "" and root.get_texture().get_image().save_png(_shot) != OK:
 		push_error("could not save " + _shot)
 	if tex <= 0.0:
 		push_error("texture memory reads 0: no renderer, so nothing was measured")
 	return true
+
+
+func _worst(a: Array[int]) -> float:
+	var w := 0
+	for v: int in a:
+		w = maxi(w, v)
+	return w / 1000.0
 
 
 func _avg(a: Array[int]) -> float:
