@@ -113,6 +113,13 @@ func stop_follow() -> void:
 		follow_stopped.emit()
 
 
+## Moves the view to centre on a world point at once (a news story's room or floor). Ends any follow.
+func jump_to(target: Vector2) -> void:
+	stop_follow()
+	_focus = _clamp_focus(target)
+	_apply()
+
+
 func _clamp_focus(f: Vector2) -> Vector2:
 	var w: Rect2 = ViewConsts.world_rect()
 	return Vector2(clampf(f.x, w.position.x, w.end.x), clampf(f.y, w.position.y, w.end.y))

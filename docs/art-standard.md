@@ -56,6 +56,15 @@ restaurant, stairs, escalator, elevator shaft and car, and 12x32 people with fac
 | F | `art_f.tscn` | Rich pixel: crisp 2x pixel art, ordered dithering, selective outlines, 3-tone furniture. |
 | G | `art_g.tscn` | Lit: F's shapes with Godot 2D lighting, so lamps and windows glow at night. |
 
+Direction G was chosen (#300). Detailed batch 1 (#302: lobby, office, condo, hotel rooms, housekeeping) is drawn by
+`scripts/view/detail_rooms.gd` on `detail_prims.gd` and `detail_scenes.gd`, ported from the G Lit mock-up and placed from the recipes' spots, inside the same world
+rects, shown on a 2x static canvas (`TowerRenderer._apply_density`), so spots, camera and picking are unchanged. Use an even
+camera zoom to keep sub-pixels crisp. Captures: `docs/mockups/detailed_batch1_day.png` and `_night.png`
+(`tools/capture_recipes.gd set=1 detailed=1 time=35 zoom=4`; `time=2` for night).
+Night under Detailed is lighting (#305), not darker paint: the renderer multiplies the static canvas by the sky's ambient colour
+(`detail_light.gd`, the mock-up's day and night ambients) and an additive glow node above it paints each lit room's lamp pools, window and
+screen glow from one radial texture, clipped to the room (no per-room PointLight2D). Empty rooms stay dark; a sleeper keeps a bedside lamp.
+
 Captures: `docs/mockups/art_e_day.png` ... `art_g_night.png`, made with `-- --capture=docs/mockups`.
 
 Launch (PowerShell): `python D:\Claude\TowerGame\tools\play.py --scene res://mockups/art_a.tscn`.

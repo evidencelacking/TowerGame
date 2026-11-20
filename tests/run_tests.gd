@@ -25,6 +25,8 @@ const TestLinks := preload("res://tests/test_links.gd")
 const TestStackedLinks := preload("res://tests/test_stacked_links.gd")
 const TestTransportArt := preload("res://tests/test_transport_art.gd")
 const TestFollow := preload("res://tests/test_follow.gd")
+const TestThoughts := preload("res://tests/test_thoughts.gd")
+const TestNews := preload("res://tests/test_news.gd")
 const TestShafts := preload("res://tests/test_shafts.gd")
 const TestShaftResize := preload("res://tests/test_shaft_resize.gd")
 const TestShaftMachine := preload("res://tests/test_shaft_machine.gd")
@@ -100,6 +102,7 @@ const TestDemands := preload("res://tests/test_demands.gd")
 const TestSecurity := preload("res://tests/test_security.gd")
 const TestMedical := preload("res://tests/test_medical.gd")
 const TestDemoMode := preload("res://tests/test_demo_mode.gd")
+const TestDetailPeople := preload("res://tests/test_detail_people.gd")
 
 var failures := 0
 
@@ -127,6 +130,8 @@ func _initialize() -> void:
 	TestStackedLinks.run(check)
 	TestTransportArt.run(check)
 	TestFollow.run(check)
+	TestThoughts.run(check)
+	TestNews.run(check)
 	TestShafts.run(check)
 	TestShaftResize.run(check)
 	TestShaftMachine.run(check)
@@ -206,6 +211,7 @@ func _initialize() -> void:
 	TestSecurity.run(check)
 	TestMedical.run(check)
 	TestDemoMode.run(check)
+	TestDetailPeople.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 

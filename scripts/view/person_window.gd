@@ -10,6 +10,9 @@ const PeopleView := preload("res://scripts/view/people_view.gd")
 const PersonInfo := preload("res://scripts/view/person_info.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const NamesScript := preload("res://scripts/sim/names.gd")
+const NewsFeed := preload("res://scripts/view/news_feed.gd")
+
+const RECENT_STORIES := 3  ## Stories about this person shown in the window.
 
 var tower: TowerSim = null
 var ghost: Ghost = null  ## Read for the active build tool.
@@ -137,9 +140,22 @@ func _refresh(reset_field: bool) -> void:
 	var info := PersonInfo.describe(tower, i)
 	var lines := PersonInfo.lines_for(info)
 	lines.append_array(PersonInfo.plan_lines(tower, i))
+	lines.append_array(recent_lines(person_id))
 	panel.show_info(info["name"], lines, info["name"], reset_field)
 	if is_following():
 		_push_follow_target()
+
+
+## "Recent:" then this person's newest stories, one per line; nothing when they have none.
+func recent_lines(id: int) -> Array[String]:
+	var out: Array[String] = []
+	var stories := NewsFeed.stories_for(tower, id, RECENT_STORIES)
+	if stories.is_empty():
+		return out
+	out.append("Recent:")
+	for story in stories:
+		out.append("  " + story)
+	return out
 
 
 func _input(event: InputEvent) -> void:
