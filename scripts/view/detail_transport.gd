@@ -1,12 +1,16 @@
 extends RefCounted
 ## Detailed transport (#303): stairs, escalators, elevator shafts and cars in the G Lit look, composed from
 ## the mock-up's own drawing (mockups/detail_drawer.gd: _stairs, _shaft, _escalator and the car) on the
-## 2x sub-pixel grid of detail_prims.gd. Like Classic, stairs and escalators have no background, so the
-## room behind shows through; they climb one floor over their width with the same slope and the same
-## direction rule as Classic, so people ride where the treads are.
+## 2x sub-pixel grid of detail_prims.gd. Stairs and escalators have a background panel on each floor of
+## their span (the mock-up's), unlike Classic; they climb one floor over their width with the same slope
+## and the same direction rule as Classic, so people ride where the treads are. A car's riders are Detailed
+## figures (detail_people.gd).
 
 const Prims := preload("res://scripts/view/detail_prims.gd")
 const TransportLook := preload("res://scripts/view/transport_look.gd")
+const Scenes := preload("res://scripts/view/detail_scenes.gd")
+const DetailPeople := preload("res://scripts/view/detail_people.gd")
+const VC := preload("res://scripts/view/view_consts.gd")
 
 const SUB := 2  ## Mock-up pixels per world pixel.
 const SLAB := 4  ## Floor slab, mock-up pixels.
@@ -21,12 +25,31 @@ static func _pen(canvas: Object, rect: Rect2i) -> Prims:
 	return pen
 
 
+## The wall behind a flight of stairs, one panel per floor of its span: a blue-grey gradient with a light
+## cornice, ticks, a baseboard and a pale floor strip (the mock-up's _stairs backdrop), and an exit sign.
+static func _stair_panel(p: Prims, w: int) -> void:
+	for f: int in 2:
+		var y := float(f * FLOOR)
+		p.gradv(0, y, w, 56, Color("6f7694"), Color("565c78"))
+		p.R(0, y, w, 3, Color("8d93ae"))
+		p.R(0, y + 3, w, 1, Color("3e4358"))
+		for i: int in range(1, 5):
+			p.R(w * i / 5.0, y + 4, 1, 50, Color("5a6080"))
+		p.R(0, y + 54, w, 2, Color("3e4358"))
+		p.R(0, y + 56, w, 4, Color("8a8498"))
+		p.R(0, y + 56, w, 1, Color("aaa4b8"))
+		p.R(6, y + 6, 12, 7, Color("2a3a30"))
+		p.GR(7, y + 7, 10, 5, Color("5ae08a"))
+		p.R(10, y + 9, 4, 1, Color("1a3a28"))
+
+
 ## One flight of stairs in its two-floor span: stepped treads with a solid underside, a handrail on posts.
-## Even rows climb to the right, odd rows to the left (as Classic).
+## Even rows climb to the right, odd rows to the left (as Classic). Behind them a panel on each floor.
 static func stairs(canvas: Object, span: Rect2i) -> void:
 	var p := _pen(canvas, span)
 	var w := span.size.x * SUB
 	var fy := float(span.size.y * SUB - SLAB)  # the lower floor's surface
+	_stair_panel(p, w)
 	if TransportLook.flips(span):
 		p.flip_around(w * 0.5)
 	var n := maxi(w / 8, 2)
@@ -63,6 +86,9 @@ static func escalator(canvas: Object, span: Rect2i) -> void:
 	var p := _pen(canvas, span)
 	var w := span.size.x * SUB
 	var yb := float(span.size.y * SUB - SLAB)
+	var hall: Array = ["e6dac2", "b8a27c", "d8d0c4", "a8a0a8", "c8ad6a"]  # the mock-up's escalator hall
+	for f: int in 2:
+		Scenes.shell_room(p, 0, f * FLOOR, w, f, hall)
 	if TransportLook.flips(span):
 		p.flip_around(w * 0.5)
 	var top_off := 24.0
@@ -167,4 +193,20 @@ static func car(canvas: Object, car_rect: Rect2i, load: int, people: Array) -> v
 	p.R(w * 0.5, 2, 1, h - 4, Color("d0bd88"))
 	p.GR(w * 0.5 - 6.0, 2, 12, 2, Color("fffbe8"))
 	p.R(2, h - 4, w - 4, 2, Color("6a6070"))
-	TransportLook.draw_riders(canvas, car_rect, load, people)
+	riders(canvas, car_rect, load, people)
+
+
+## Up to five riders as Detailed figures (detail_people.gd) inside a car rect, laid out as Classic's: three in
+## front, two behind in the gaps, a few pixels higher. `people` only varies who they are.
+static func riders(canvas: Object, rect: Rect2i, load: int, people: Array) -> void:
+	var usable := rect.size.x - 4 - VC.FIGURE_W
+	var feet := rect.end.y - 1
+	var shown := mini(load, TransportLook.RIDERS_SHOWN)
+	for back: bool in [true, false]:
+		for n: int in shown:
+			if (n % 2 == 1) != back:
+				continue
+			var slot := n / 2
+			var fx := rect.position.x + 2 + (usable * (2 * slot + 1) / 4 if back else usable * slot / 2)
+			var who := {"id": 17 * (n + 1) + people.size() * 5 + rect.position.x, "still": true, "dir": 1 if n % 2 == 0 else -1}
+			DetailPeople.walker(canvas, fx, feet - (3 if back else 0), who, DetailPeople.WALK, 0)

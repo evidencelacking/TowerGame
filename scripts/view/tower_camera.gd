@@ -4,6 +4,7 @@ extends Camera2D
 ## steps, always clamped so the view never leaves the tower's world.
 
 const ViewConsts := preload("res://scripts/view/view_consts.gd")
+const GraphicsStyle := preload("res://scripts/view/graphics_style.gd")
 ## Whole numbers only, so a native pixel (10.2) is always a whole number of screen pixels.
 const ZOOM_STEPS: Array[int] = [1, 2, 3, 4, 6]
 const START_ZOOM_INDEX := 1  ## Zoom 2: a floor is 48 px, a figure about 14 px, at 1080p.
@@ -76,8 +77,17 @@ func zoom_out() -> void:
 
 
 func set_zoom_index(index: int) -> void:
+	var from := _zoom_index
 	_zoom_index = clampi(index, 0, ZOOM_STEPS.size() - 1)
+	if not allowed(ZOOM_STEPS[_zoom_index]):  # step over it, in the direction of travel
+		_zoom_index = clampi(_zoom_index + (-1 if index < from else 1), 0, ZOOM_STEPS.size() - 1)
 	_apply()
+
+
+## Whether a zoom is offered in the style in use. Detailed draws at 2x density, so its canvas shows at
+## zoom / 2: a whole number at 2, 4 and 6 but 1.5 at zoom 3, which cannot be sharp or even, so it is skipped (#307).
+static func allowed(zoom_value: int) -> bool:
+	return zoom_value != 3 or GraphicsStyle.current().density() == 1
 
 
 ## Zoom one step (+1 / -1) keeping the world point under the cursor fixed.
@@ -141,6 +151,8 @@ func _apply() -> void:
 
 
 func _process(delta: float) -> void:
+	if not allowed(ZOOM_STEPS[_zoom_index]):  # the style changed to Detailed while at zoom 3: go in a step
+		set_zoom_index(_zoom_index + 1)
 	var dir: Vector2 = Vector2.ZERO
 	dir.x = Input.get_axis(&"ui_left", &"ui_right")
 	dir.y = Input.get_axis(&"ui_up", &"ui_down")

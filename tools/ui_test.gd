@@ -284,18 +284,51 @@ func _graphics_cases() -> void:
 	var found := picker != null and renderer != null
 	var live := false
 	var back := false
+	var skin_on := false
+	var skin_off := false
+	var zoom_ok := false
+	var filter_ok := false
 	if found:
+		var button := _toolbar.find_child("Graphics", true, false) as Button
+		var classic_fill := (button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color
+		_save_shot("graphics_classic")
 		picker.select(1)
 		picker.item_selected.emit(1)
 		await _frames(2)
 		live = ViewSettingsScript.detailed_graphics and renderer._seen_style == GraphicsStyleScript.for_detailed(true)
+		# The G Lit skin (#307): wood buttons, slate panels; and Detailed skips the odd zoom 3, where its 2x canvas would be blurred.
+		skin_on = UiSkin.is_on() and (button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color == UiSkin.WOOD
+		_save_shot("graphics_detailed")
+		_camera.set_zoom_index(2)
+		await _frames(2)
+		zoom_ok = _camera.zoom.x == 4.0
+		filter_ok = renderer._static_sprite.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST
+		_camera.set_zoom_index(0)
+		await _frames(2)
+		filter_ok = filter_ok and renderer._static_sprite.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR
 		picker.select(0)
 		picker.item_selected.emit(0)
 		await _frames(2)
 		back = not ViewSettingsScript.detailed_graphics and renderer._seen_style == GraphicsStyleScript.for_detailed(false)
+		skin_off = not UiSkin.is_on() and (button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color == classic_fill
+		filter_ok = filter_ok and renderer._static_sprite.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST
 	ViewSettingsScript.set_detailed_graphics(was)
 	_record("graphics.toggle", "graphics", "Graphics: Detailed then Classic from the toolbar switches the renderer's style", "-", found and live and back,
 		"picker found %s, Detailed live %s, Classic back %s" % [str(found), str(live), str(back)])
+	_record("graphics.skin", "graphics", "Detailed gives the toolbar the G Lit skin; Classic restores the original theme", "-", found and skin_on and skin_off,
+		"skin on in Detailed %s, off again in Classic %s" % [str(skin_on), str(skin_off)])
+	_record("graphics.zoom", "graphics", "Detailed skips zoom 3 and filters only at zoom 1 (a 2x canvas shows crisp at even zooms)", "-", found and zoom_ok and filter_ok,
+		"zoom 3 went to 4 %s, filter linear at zoom 1 and nearest at 4 and in Classic %s" % [str(zoom_ok), str(filter_ok)])
+
+
+## Saves the window as shots_dir/NAME.png when the tester runs in a window (a record of how a style looks).
+func _save_shot(shot_name: String) -> void:
+	if _headless or _shots_dir == "":
+		return
+	DirAccess.make_dir_recursive_absolute(_shots_dir)
+	var image := root.get_texture().get_image()
+	if image != null:
+		image.save_png("%s/%s.png" % [_shots_dir, shot_name])
 
 
 ## Synergy overlay (#294): the toolbar's Synergies switch turns the overlay on and off live, in Classic and in
