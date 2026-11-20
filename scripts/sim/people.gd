@@ -118,6 +118,20 @@ func remove_room(room: int) -> int:
 	return removed
 
 
+## Removes one person by index (they leave town, retire from the tower, ...). Ids are not reused.
+func remove_person(i: int) -> void:
+	var b := i * FIELDS
+	var kept: Array[int] = []
+	kept.append_array(_data.slice(0, b))
+	kept.append_array(_data.slice(b + FIELDS))
+	_data = kept
+
+
+## Moves a person's home to another room (a couple moving in together).
+func set_home(i: int, room: int) -> void:
+	_data[i * FIELDS + _HOME] = room
+
+
 ## How many people work in this room.
 func workers_in(room: int) -> int:
 	var n := 0
