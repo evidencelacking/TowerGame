@@ -94,7 +94,8 @@ const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
 const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar"]
-## Rooms two floors tall. Their grid run is on the lower (deeper) floor under the room's id, and the
+## Rooms two floors tall, underground (recycling) or above ground (a kind whose placement is not underground,
+## #328; see _check_place_tall). Their grid run is on the lower (deeper) floor under the room's id, and the
 ## upper floor is a second grid occupant under id + 1 that is not a room of its own (see room_of).
 const TALL_KINDS: Array[String] = ["recycling"]
 const FIRST_ID := 1000  ## Room occupant ids start here, clear of ids given to PLACE commands.
@@ -264,9 +265,15 @@ func place_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at
 func _check_place_tall(grid: GridScript, floors: FloorsScript, kind: String, floor_number: int, x_left: int) -> Dictionary:
 	var result := {"reason": OK, "cost": 0, "floor_units": 0}
 	var upper := floor_above(floor_number)
-	if floor_number > -2:
+	var underground: bool = CatalogueScript.field(kind, "placement") == CatalogueScript.PLACE_UNDERGROUND
+	if underground and floor_number > -2:
 		result["reason"] = NOT_UNDERGROUND
 		return result
+	if not underground:
+		var above_reason := _tall_above_ground_reason(kind, floor_number)
+		if above_reason != OK:
+			result["reason"] = above_reason
+			return result
 	var width: int = CatalogueScript.field(kind, "width")
 	if x_left < 0 or x_left + width > GridScript.WIDTH_UNITS:
 		result["reason"] = OFF_TOWER
@@ -277,6 +284,7 @@ func _check_place_tall(grid: GridScript, floors: FloorsScript, kind: String, flo
 	var new_units := 0
 	var upper_new := 0
 	var upper_supported := 0
+	var lower_supported := 0
 	for level in [upper, floor_number]:
 		for column in range(x_left, x_left + width):
 			if grid.cell_at(level, column) != GridScript.EMPTY:
@@ -290,19 +298,45 @@ func _check_place_tall(grid: GridScript, floors: FloorsScript, kind: String, flo
 			new_units += 1
 			if level == upper:
 				upper_new += 1
-				if floors.has_floor(floor_above(upper), column):
+				if underground and floors.has_floor(floor_above(upper), column):
 					upper_supported += 1
+			elif not underground and floors.has_floor(floor_number - 1, column):
+				lower_supported += 1  # above ground the lower floor rests on the floor below it
 	result["floor_units"] = new_units
 	result["cost"] = CatalogueScript.cost(kind) + new_units * CatalogueScript.FLOOR_COST_PER_UNIT
-	if upper_new > 0 and upper_supported == 0:
-		result["reason"] = NOTHING_BELOW
-		return result
-	if upper_supported < upper_new:
-		result["reason"] = OVERHANG
-		return result
+	if underground:
+		if upper_new > 0 and upper_supported == 0:
+			result["reason"] = NOTHING_BELOW
+			return result
+		if upper_supported < upper_new:
+			result["reason"] = OVERHANG
+			return result
+	else:  # the upper floor rests on the lower one, which this placement fills, so only the lower needs support
+		var lower_new := new_units - upper_new
+		if lower_new > 0 and lower_supported == 0:
+			result["reason"] = NOTHING_BELOW
+			return result
+		if lower_supported < lower_new:
+			result["reason"] = OVERHANG
+			return result
+		if kind == "casino" and _has_kind(kind):
+			result["reason"] = ONE_CASINO
+			return result
 	if _has_kind(kind) and not _touches_centre(grid, kind, floor_number, x_left, width):
 		result["reason"] = NOT_TOUCHING
 	return result
+
+
+## Why a two-floor room cannot stand on lower floor floor_number above ground, or OK: the lower floor
+## cannot be the lobby floor or underground, and the upper must be a real floor below the top.
+func _tall_above_ground_reason(_kind: String, floor_number: int) -> int:
+	if floor_number == 1:
+		return LOBBY_FLOOR
+	if floor_number < 1:
+		return BELOW_GROUND
+	if floor_above(floor_number) == 0:  # the top floor has no floor above it
+		return BAD_FLOOR
+	return OK
 
 
 ## The highest floor above ground that holds a room, or 0 for a tower with none (#318).
@@ -310,7 +344,10 @@ func highest_room_floor(grid: GridScript) -> int:
 	var top := 0
 	for id in _kind_of:
 		if grid.has_occupant(id):
-			top = maxi(top, grid.run_of(id)[0])
+			var run_top: int = grid.run_of(id)[0]
+			if TALL_KINDS.has(kind_of(id)) and floor_above(run_top) > run_top:
+				run_top = floor_above(run_top)
+			top = maxi(top, run_top)
 	return top
 
 
