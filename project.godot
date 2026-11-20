@@ -1,5 +1,10 @@
 ; Engine configuration file.
-; Prefer editing settings in the Godot editor; it rewrites this file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
@@ -17,7 +22,6 @@ DisplaySettings="*res://scripts/view/display_settings.gd"
 
 window/size/viewport_width=1920
 window/size/viewport_height=1080
-window/size/resizable=true
 window/size/window_width_override=1280
 window/size/window_height_override=720
 
