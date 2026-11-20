@@ -76,6 +76,15 @@ const MEALS: Array = [
 	[DECK_NIGHT, DECK_WINDOW, DECK_NIGHT_PERCENT, "observation_deck"],
 	[CASINO_EVENING, CASINO_EVENING_WINDOW, CASINO_PERCENT, "casino"],
 	[CASINO_LATE, CASINO_LATE_WINDOW, CASINO_LATE_PERCENT, "casino"],
+	[CAFE_MORNING, CAFE_MORNING_WINDOW, CAFE_MORNING_PERCENT, "cafe"],
+	[CAFE_BREAK, CAFE_BREAK_WINDOW, CAFE_BREAK_PERCENT, "cafe"],
+	[PIZZA_LUNCH, PIZZA_LUNCH_WINDOW, PIZZA_PERCENT, "pizza"],
+	[SUSHI_LUNCH, PIZZA_LUNCH_WINDOW, SUSHI_LUNCH_PERCENT, "sushi"],
+	[PIZZA_EVENING, PIZZA_EVENING_WINDOW, PIZZA_PERCENT, "pizza"],
+	[BAR_EARLY, BAR_WINDOW, BAR_EARLY_PERCENT, "bar"],
+	[SUSHI_EVENING, PIZZA_EVENING_WINDOW, SUSHI_EVENING_PERCENT, "sushi"],
+	[FINE_EVENING, FINE_WINDOW, FINE_PERCENT, "fine_dining"],
+	[BAR_LATE, BAR_WINDOW, BAR_LATE_PERCENT, "bar"],
 ]
 
 ## Our own kinds (M13, #291), all unverified tunables. A gym is busy before work, at the break and
@@ -139,6 +148,37 @@ const CASINO_STAKE := 400
 const CASINO_WIN_PERCENT := 45
 const CASINO_INCIDENT_PERCENT := 10
 const CASINO_INCIDENT_COST := 15000
+## The restaurant family (#323, our own design, unverified): five kinds beside fast food and the restaurant. Waves by kind; the
+## cafe serves everyone in the morning, pizza everyone at noon and early evening, sushi and the bar adults, fine dining adults
+## at dinner (and 40 percent of hotel guests). Every distinct kind of the family in the tower beyond the first adds
+## DINING_MIX_PERCENT to the family's sales, up to DINING_MIX_CAP.
+const DINING_FAMILY: Array[String] = ["cafe", "pizza", "sushi", "fine_dining", "bar"]
+const DINING_MIX_PERCENT := 4
+const DINING_MIX_CAP := 16
+const FINE_GUEST_PERCENT := 40
+const CAFE_MORNING := 450  ## 07:30.
+const CAFE_MORNING_WINDOW := 90
+const CAFE_MORNING_PERCENT := 12
+const CAFE_BREAK := 630  ## 10:30.
+const CAFE_BREAK_WINDOW := 30
+const CAFE_BREAK_PERCENT := 8
+const PIZZA_LUNCH := 720  ## 12:00.
+const PIZZA_LUNCH_WINDOW := 90
+const PIZZA_EVENING := 1080  ## 18:00.
+const PIZZA_EVENING_WINDOW := 120
+const PIZZA_PERCENT := 20
+const SUSHI_LUNCH := 720  ## 12:00.
+const SUSHI_LUNCH_PERCENT := 12
+const SUSHI_EVENING := 1140  ## 19:00.
+const SUSHI_EVENING_PERCENT := 18
+const FINE_EVENING := 1140  ## 19:00.
+const FINE_WINDOW := 180
+const FINE_PERCENT := 12
+const BAR_EARLY := 1080  ## 18:00.
+const BAR_LATE := 1260  ## 21:00.
+const BAR_WINDOW := 180
+const BAR_EARLY_PERCENT := 10
+const BAR_LATE_PERCENT := 14
 const WHO_ADULTS := "adults"
 const WHO_ALL := "all"
 const WHO_CHILDREN := "children"
@@ -173,6 +213,7 @@ const METRO_VISITORS: Dictionary = {
 ## all day and into the night (unlike VISITORS, which stop after dark), more at sunset and after dark.
 const CITY_VISITORS: Dictionary = {
 	"observation_deck": [[0, 6, 10, 10, 18, 12], [0, 10, 16, 16, 28, 18]],
+	"fine_dining": [[0, 0, 0, 0, 4, 0], [0, 0, 0, 0, 8, 0]],  # city VIPs, dinner only
 	"casino": [[0, 0, 0, 0, 8, 6], [0, 0, 0, 0, 14, 10]],  # the city gambles after dark (#319)
 }
 ## Days a shop stays vacant after its renter leaves before a new renter takes it (if reachable).
@@ -240,6 +281,32 @@ const PROFILES: Dictionary = {
 		"seats": 60, "linger_minutes": 60, "grade_cap": 60, "grade_a": 45, "grade_b": 25, "who": WHO_ADULTS,
 		"tiers": [[0, -6000], [30, 2000], [60, 8000], [120, 15000]],
 		"food": ["Blackjack", "Roulette", "Poker", "Slot machines", "Baccarat"],
+	},
+	# The restaurant family (#323): the empty-day loss is the staff at $1,000 a day.
+	"cafe": {
+		"seats": 16, "linger_minutes": 25, "grade_cap": 30, "grade_a": 22, "grade_b": 12,
+		"tiers": [[0, -2000], [12, 1500], [25, 3000], [45, 4500]],
+		"food": ["Espresso", "Pastries", "Tea", "Brunch", "Smoothies"],
+	},
+	"pizza": {
+		"seats": 24, "linger_minutes": 40, "grade_cap": 40, "grade_a": 28, "grade_b": 16,
+		"tiers": [[0, -3000], [15, 2500], [30, 5000], [55, 7500]],
+		"food": ["Margherita", "Pepperoni", "Calzone", "Deep dish", "Garlic bread"],
+	},
+	"sushi": {
+		"seats": 20, "linger_minutes": 45, "grade_cap": 40, "grade_a": 26, "grade_b": 16, "who": WHO_ADULTS,
+		"tiers": [[0, -4000], [15, 3500], [25, 6500], [45, 10000]],
+		"food": ["Nigiri", "Maki", "Sashimi", "Ramen", "Tempura"],
+	},
+	"fine_dining": {
+		"seats": 20, "linger_minutes": 90, "grade_cap": 40, "grade_a": 24, "grade_b": 14, "who": WHO_ADULTS,
+		"tiers": [[0, -8000], [10, 5000], [20, 11000], [40, 20000]],
+		"food": ["Tasting menu", "Prime steak", "Fresh lobster", "Wine pairing", "Chef's table"],
+	},
+	"bar": {
+		"seats": 30, "linger_minutes": 60, "grade_cap": 40, "grade_a": 28, "grade_b": 16, "who": WHO_ADULTS,
+		"tiers": [[0, -3000], [15, 3000], [30, 6000], [50, 9000]],
+		"food": ["Craft beer", "Cocktails", "Whiskey", "Wine bar", "Quiz night"],
 	},
 	# Clinic (#291): 6 consulting seats, 20 minute visits; only the unwell (low mood) come.
 	"clinic": {
@@ -310,6 +377,17 @@ func visitors_inside(minute: int) -> int:
 	return _visitors_in if minute < _visitors_until else 0
 
 
+## The sales bonus percent the restaurant family earns for variety: DINING_MIX_PERCENT for each distinct kind of the
+## family in the tower beyond the first, up to DINING_MIX_CAP (0 for none or one kind).
+static func dining_mix_percent(rooms: RoomsScript) -> int:
+	var kinds: Dictionary = {}
+	for id in rooms.room_ids():
+		var kind := rooms.kind_of(id)
+		if DINING_FAMILY.has(kind):
+			kinds[kind] = true
+	return mini(DINING_MIX_CAP, maxi(0, kinds.size() - 1) * DINING_MIX_PERCENT)
+
+
 ## Forgets a room that was bulldozed or replaced.
 func remove_room(room: int) -> void:
 	_today.erase(room)
@@ -330,6 +408,15 @@ static func income_for(kind: String, customers: int) -> int:
 		if customers >= tier[0]:
 			income = tier[1]
 	return income
+
+
+## The percent of a hotel guest's chance to come to this kind: the restaurant takes them all, the casino and fine dining a share.
+static func _guest_percent(kind: String) -> int:
+	if kind == "casino":
+		return CASINO_GUEST_PERCENT
+	if kind == "fine_dining":
+		return FINE_GUEST_PERCENT
+	return GUEST_PERCENT
 
 
 static func seats_per_meal(kind: String, window: int) -> int:
@@ -430,8 +517,8 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		if who == WHO_LOW_MOOD and people.mood_of(i) >= CLINIC_MOOD_BELOW:
 			continue
 		var home := people.home_of(i)
-		var guest := (kind == "restaurant" or kind == "casino") and home != PeopleScript.NONE and rooms.has_room(home) and HotelScript.is_hotel_kind(rooms.kind_of(home))
-		if rng.next_below(100) >= ((GUEST_PERCENT if kind == "restaurant" else CASINO_GUEST_PERCENT) if guest else percent):
+		var guest := (kind == "restaurant" or kind == "casino" or kind == "fine_dining") and home != PeopleScript.NONE and rooms.has_room(home) and HotelScript.is_hotel_kind(rooms.kind_of(home))
+		if rng.next_below(100) >= (_guest_percent(kind) if guest else percent):
 			continue
 		var shop: int = shops[rng.next_below(shops.size())]
 		if int(served.get(shop, 0)) < seats_per_meal(rooms.kind_of(shop), window):
@@ -471,6 +558,8 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 			_casino_incident(rooms, ledger, messages, at_tick, id, customers_today(id), rng)
 		if amount > 0:  # gardens feed restaurants (synergy.gd)
 			amount += amount * SynergyScript.sales_percent(rooms.kind_of(id), grid.run_of(id), sources) / 100
+		if amount > 0 and DINING_FAMILY.has(rooms.kind_of(id)):  # a varied dining scene draws more
+			amount += amount * dining_mix_percent(rooms) / 100
 		ledger.shop_sales(at_tick, amount, id)
 		net += amount
 	var counts: Dictionary = {}
