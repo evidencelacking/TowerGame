@@ -38,6 +38,8 @@ const CLINIC_COLOR := Color(0.88, 0.94, 0.94)
 const NIGHTCLUB_COLOR := Color(0.36, 0.20, 0.52)
 const COWORKING_COLOR := Color(0.86, 0.80, 0.62)
 const DECK_COLOR := Color(0.40, 0.66, 0.84)
+const GROCERY_COLOR := Color(0.52, 0.72, 0.42)
+const DELI_COLOR := Color(0.88, 0.70, 0.40)
 const CAFE_COLOR := Color(0.70, 0.52, 0.36)
 const PIZZA_COLOR := Color(0.86, 0.42, 0.30)
 const SUSHI_COLOR := Color(0.88, 0.52, 0.56)
@@ -58,7 +60,7 @@ const PEST_COLOR := Color(0.85, 0.10, 0.10)
 const SHADE := Color(0, 0, 0, 0.45)
 const INK := Color(0.10, 0.08, 0.08)
 
-const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar"]
+const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli"]
 
 
 static func handles(kind: String) -> bool:
@@ -83,6 +85,8 @@ static func base_color(kind: String) -> Color:
 		"nightclub": return NIGHTCLUB_COLOR
 		"coworking": return COWORKING_COLOR
 		"observation_deck": return DECK_COLOR
+		"grocery": return GROCERY_COLOR
+		"deli": return DELI_COLOR
 		"cafe": return CAFE_COLOR
 		"pizza": return PIZZA_COLOR
 		"sushi": return SUSHI_COLOR
