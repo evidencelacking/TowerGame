@@ -44,6 +44,7 @@ const SUSHI_COLOR := Color(0.88, 0.52, 0.56)
 const FINE_DINING_COLOR := Color(0.50, 0.20, 0.30)
 const BAR_COLOR := Color(0.30, 0.34, 0.52)
 const CASINO_COLOR := Color(0.62, 0.12, 0.20)
+const POOL_COLOR := Color(0.28, 0.66, 0.78)
 const RECYCLING_COLOR := Color(0.45, 0.65, 0.40)
 const IDLE_TINT := Color(0.52, 0.55, 0.50)
 const RUBBISH_COLOR := Color(0.45, 0.33, 0.20, 0.85)
@@ -58,7 +59,10 @@ const PEST_COLOR := Color(0.85, 0.10, 0.10)
 const SHADE := Color(0, 0, 0, 0.45)
 const INK := Color(0.10, 0.08, 0.08)
 
-const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar"]
+const SPLASH_FRAME_TICKS := 2  ## Sim ticks per frame of the cannonball; PoolLife.SPLASH_TICKS / this frames in all.
+const SPLASH_FRAMES := 5
+const PoolLifeScript := preload("res://scripts/sim/pool_life.gd")
+const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "pool"]
 
 
 static func handles(kind: String) -> bool:
@@ -89,6 +93,7 @@ static func base_color(kind: String) -> Color:
 		"fine_dining": return FINE_DINING_COLOR
 		"bar": return BAR_COLOR
 		"casino": return CASINO_COLOR
+		"pool": return POOL_COLOR
 		"parking_ramp": return RAMP_COLOR
 		"parking_space": return SPACE_COLOR
 	return Color(0.85, 0.2, 0.85)
@@ -132,7 +137,27 @@ static func describe(tower: Tower, room_id: int, broken: Variant = null) -> Dict
 		if cut_off.has(id):
 			state = BROKEN
 			color = color.darkened(0.35)
-	return {"kind": kind, "state": state, "color": color, "fill": fill}
+	var out := {"kind": kind, "state": state, "color": color, "fill": fill}
+	if kind == PoolLifeScript.KIND:
+		out.merge(_pool_life(tower, id))
+	return out
+
+
+## The pool's moving parts for one frame (#328), from the clock and the room id, as the sim (pool_life.gd) has them: the
+## swimmers in the water, whether it is shut for cleaning, whether the lifeguard is in her chair and the cannonball, as
+## its splash frame (0 to SPLASH_FRAMES - 1, or -1) and the board place it left from. "anim" is all of it in one array,
+## which the renderer compares to know when to repaint a pool.
+static func _pool_life(tower: Tower, id: int) -> Dictionary:
+	var minute: int = tower.clock.minute_of_day()
+	var keeps: bool = PoolLifeScript.has_housekeeping(tower.rooms)
+	var swimmers := PoolLifeScript.swimmers(tower.commerce.customers_today(id), minute, keeps)
+	var cleaning := PoolLifeScript.is_cleaning(minute, keeps)
+	var guard := PoolLifeScript.lifeguard_on_duty(minute)
+	var age := PoolLifeScript.cannonball_age(id, tower.tick) if PoolLifeScript.is_open(minute, keeps) and swimmers > 0 else -1
+	var frame := age / SPLASH_FRAME_TICKS if age >= 0 else -1
+	var place := PoolLifeScript.jump_place(id, tower.tick) if age >= 0 else 0
+	return {"swimmers": swimmers, "cleaning": cleaning, "guard": guard, "splash": frame, "place": place,
+		"anim": [swimmers, cleaning, guard, frame, place]}
 
 
 ## Paints one room's run into rect (native pixels in the canvas item). id may be either half of a
@@ -182,6 +207,8 @@ static func draw_marks(canvas: Object, look: Dictionary, rect: Rect2i, upper: bo
 			canvas.draw_rect(Rect2i(interior.position.x + 6 + n * maxi((interior.size.x - 12) / 3, 4), interior.position.y + 15 + (n % 2) * 3, 2, 2), p["ink"])
 	if kind == "recycling" and int(look["fill"]) > 0:
 		_rubbish(canvas, interior, int(look["fill"]), upper)
+	if kind == PoolLifeScript.KIND:
+		_pool_marks(canvas, look, interior, upper, p)
 
 
 ## A joined suite (#276): one lit space over rect, the union of its rooms, drawn from the kind's suite
@@ -241,6 +268,68 @@ static func _box(canvas: Object, r: Rect2i, color: Color, mode: int, outline: Co
 		canvas.draw_rect(r, color, false, 1.0)
 	else:
 		canvas.draw_rect(r, color)
+
+
+## The pool's moving parts over its drawn room (#328), for both looks, in world pixels inside the half's interior. Lower
+## half: swimmers' heads in the basin, the lifeguard in her chair, the springboard's jumper and the splash, and a drained
+## basin with a sign while it is cleaned. Upper half: spray from a splash, flung up past the floor.
+static func _pool_marks(canvas: Object, look: Dictionary, interior: Rect2i, upper: bool, p: Dictionary) -> void:
+	var x := interior.position.x
+	var y := interior.position.y
+	var white: Color = p["white"]
+	var skin: Color = p["skin"]
+	var frame: int = look["splash"]
+	var jump_x := x + 26 + 12 * int(look["place"])
+	if upper:
+		if frame >= 2:  # droplets thrown up past the slab, over where the jumper went in
+			for d in 3:
+				canvas.draw_rect(Rect2i(jump_x + 8 + 3 * d - 2 * (frame - 2), y + 26 - 2 * d - (frame - 2), 1, 1), white)
+		return
+	if look["cleaning"]:  # drained: bare tiles, a yellow "closed" sign and a bucket
+		canvas.draw_rect(Rect2i(x + 22, y + 14, 122, 16), Color(0.66, 0.72, 0.74))
+		for k in 6:
+			canvas.draw_rect(Rect2i(x + 22 + k * 22, y + 14, 1, 16), Color(0.50, 0.57, 0.60))
+		canvas.draw_rect(Rect2i(x + 80, y + 6, 14, 8), p["gold"])
+		canvas.draw_rect(Rect2i(x + 82, y + 9, 10, 2), p["red"])
+		canvas.draw_rect(Rect2i(x + 86, y + 14, 2, 4), p["ink"])
+		canvas.draw_rect(Rect2i(x + 112, y + 26, 4, 4), p["gold"])
+	else:
+		var heads: Array = p["people"]
+		for i in int(look["swimmers"]):  # heads in the water: a cap, a face, an arm reaching
+			var hx := x + 28 + (i * 17) % 104
+			var hy := y + 15 + (i % 3) * 4
+			canvas.draw_rect(Rect2i(hx, hy, 3, 1), heads[i % heads.size()])
+			canvas.draw_rect(Rect2i(hx, hy + 1, 3, 2), skin)
+			canvas.draw_rect(Rect2i(hx + 3, hy + 1, 3, 1), white)
+	var seat_x: int = x + interior.size.x - 28
+	if look["guard"]:  # the lifeguard in the tall chair, a red top and a whistle's glint
+		canvas.draw_rect(Rect2i(seat_x, y + 10, 4, 6), p["red"])
+		canvas.draw_rect(Rect2i(seat_x, y + 6, 4, 4), skin)
+		canvas.draw_rect(Rect2i(seat_x + 1, y + 11, 1, 1), white)
+	if frame < 0:
+		return
+	match frame:
+		0:  # on the end of the board, ready
+			canvas.draw_rect(Rect2i(jump_x, y + 5, 4, 8), p["red"])
+			canvas.draw_rect(Rect2i(jump_x, y + 2, 4, 3), skin)
+		1:  # up and tucking
+			canvas.draw_rect(Rect2i(jump_x + 4, y + 1, 5, 5), p["red"])
+			canvas.draw_rect(Rect2i(jump_x + 5, y, 3, 2), skin)
+		2:  # the cannonball, over the water, coming down
+			canvas.draw_rect(Rect2i(jump_x + 9, y + 6, 5, 5), p["red"])
+			canvas.draw_rect(Rect2i(jump_x + 10, y + 5, 3, 2), skin)
+		3:  # in: a tall white column
+			canvas.draw_rect(Rect2i(jump_x + 12, y + 3, 3, 12), white)
+			canvas.draw_rect(Rect2i(jump_x + 9, y + 8, 2, 6), white)
+			canvas.draw_rect(Rect2i(jump_x + 16, y + 8, 2, 6), white)
+			canvas.draw_rect(Rect2i(jump_x + 11, y + 1, 1, 1), white)
+			canvas.draw_rect(Rect2i(jump_x + 15, y, 1, 1), white)
+		4:  # it falls back and rings outward
+			canvas.draw_rect(Rect2i(jump_x + 8, y + 11, 11, 3), white)
+			canvas.draw_rect(Rect2i(jump_x + 5, y + 13, 17, 1), white)
+			canvas.draw_rect(Rect2i(jump_x + 7, y + 6, 1, 1), white)
+			canvas.draw_rect(Rect2i(jump_x + 19, y + 7, 1, 1), white)
+			canvas.draw_rect(Rect2i(jump_x + 13, y + 9, 1, 1), white)
 
 
 ## Rubbish rising over both halves of a recycling centre (fill is thousandths of capacity); interior is

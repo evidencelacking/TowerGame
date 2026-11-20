@@ -15,7 +15,7 @@ const QUALITY_MAX := 300  ## The grade bar's full scale (Grades quality runs 0 t
 ## Bar colours by grade: A blue, B yellow, C red (the three colours of the reference).
 const GRADE_COLORS: Array[Color] = [Color(0.25, 0.65, 0.95), Color(0.95, 0.80, 0.20), Color(0.85, 0.15, 0.15)]
 ## Kinds graded by customers (food and shops) rather than stress.
-const CUSTOMER_KINDS: Array[String] = ["restaurant", "fast_food", "retail", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar"]
+const CUSTOMER_KINDS: Array[String] = ["restaurant", "fast_food", "retail", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "pool"]
 
 
 ## The floor number of a world-space y, or 0 if outside the tower.

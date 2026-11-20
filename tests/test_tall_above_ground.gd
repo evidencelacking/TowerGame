@@ -1,6 +1,6 @@
 extends RefCounted
-## Two-floor rooms above ground (#328 step 1). No catalogue kind is tall above ground yet, so the
-## placement check is called directly with a wide above-ground kind (casino, 40 wide). Recycling must
+## Two-floor rooms above ground (#328 step 1). The pool (#328 step 2) is the first tall kind above
+## ground (see test_pool.gd); here the placement check is called directly with a wide kind (casino, 40 wide). Recycling must
 ## behave exactly as before, and room_of / is_tall_upper must not care which side of the ground.
 
 const TowerSim := preload("res://scripts/sim/tower.gd")

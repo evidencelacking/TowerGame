@@ -39,7 +39,7 @@ const RESCUE_COST := 500000  ## Fire rescue, dollars (decided 2026-11-10).
 
 ## Kinds whose upkeep is a guess: only the $10,000 per elevator (local shaft) is in the reference.
 const UPKEEP_UNVERIFIED: Array[String] = [
-	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp", "metro", "observation_deck", "casino",
+	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp", "metro", "observation_deck", "casino", "pool",
 ]
 
 const PLACE_ANYWHERE := 0  ## Above or below ground.
@@ -63,7 +63,7 @@ const IDS: Array[String] = [
 	"express_shaft", "express_car", "hotel_twin", "hotel_suite", "restaurant", "retail",
 	"movie_theatre", "party_hall", "medical", "recycling", "parking_ramp", "parking_space",
 	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino",
-	"cafe", "pizza", "sushi", "fine_dining", "bar",
+	"cafe", "pizza", "sushi", "fine_dining", "bar", "pool",
 ]
 
 const _ROWS: Dictionary = {
@@ -177,7 +177,7 @@ const _ROWS: Dictionary = {
 	# Observation deck (#318, our own kind): a landmark like the cathedral, one per tower, on the top floor only
 	# (rooms.gd), 32 wide, star 4. Dearer than the nightclub, cheaper than the cathedral; every number a tunable.
 	# Casino (#319, our own kind): one per tower, 40 wide, star 4, open evening to early morning. The issue asked for
-	# two floors; the tall-room code is basement-only (rooms.gd TALL_KINDS), so it is one wide floor for now.
+	# two floors; tall rooms now work above ground (#328, rooms.gd TALL_KINDS), so making it two is a later step; it is one wide floor for now.
 	"casino": {"upkeep": 10000, "staff": 6, "width": 40, "height": 1, "cost": 1200000, "per_unit": false, "star": 4,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
@@ -199,6 +199,12 @@ const _ROWS: Dictionary = {
 		"limit_group": "", "limit_scope": "tower"},
 	"bar": {"staff": 3, "width": 14, "height": 1, "cost": 140000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# The swimming pool (#328, our own design): two floors tall above ground (rooms.gd TALL_KINDS), a diving board below
+	# and a viewing gallery above. Between the daycare (80k) and the observation deck (800k): the height is the cost.
+	# Four staff, one of them the lifeguard (names.gd). Every number a tunable.
+	"pool": {"upkeep": 6000, "staff": 4, "width": 24, "height": 2, "cost": 700000, "per_unit": false, "star": 3,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 }
 
