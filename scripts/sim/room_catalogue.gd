@@ -29,6 +29,8 @@ extends RefCounted
 ##   upkeep         quarterly running cost in dollars (see running_costs.gd); absent means free (stairs).
 ##                  Charged per shaft for elevators, per room otherwise, once for the ground lobby.
 ##                  All tunable (owner ruling); the kinds in UPKEEP_UNVERIFIED are guesses.
+##   staff          workers a room employs (our own kinds: gym, daycare, clinic, ...). Their wages are folded into
+##                  the shop's empty-day loss in commerce.gd; names.gd gives them job titles. All tunable.
 ##   capacity       passengers per car (car rows only; 0 elsewhere).
 ##   limit_scope    "tower", or "shaft" for elevator cars (limit is cars per shaft).
 
@@ -60,7 +62,7 @@ const IDS: Array[String] = [
 	"service_shaft", "service_car", "hotel_single", "housekeeping", "security", "escalator",
 	"express_shaft", "express_car", "hotel_twin", "hotel_suite", "restaurant", "retail",
 	"movie_theatre", "party_hall", "medical", "recycling", "parking_ramp", "parking_space",
-	"metro", "cathedral",
+	"metro", "cathedral", "gym", "daycare", "clinic",
 ]
 
 const _ROWS: Dictionary = {
@@ -148,6 +150,17 @@ const _ROWS: Dictionary = {
 		"limit_group": "", "limit_scope": "tower"},
 	"cathedral": {"width": 32, "height": 1, "cost": 3000000, "per_unit": false, "star": 5,
 		"removable": false, "placement": PLACE_FLOOR_100, "limit": 1,
+		"limit_group": "", "limit_scope": "tower"},
+	# Our own kinds (M13, #291; not in the reference, every number a tunable). Sized and priced between
+	# fast food (100k, 16 wide, star 1) and the restaurant (200k, 24 wide, star 3).
+	"gym": {"staff": 4, "width": 16, "height": 1, "cost": 120000, "per_unit": false, "star": 2,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"daycare": {"staff": 3, "width": 12, "height": 1, "cost": 80000, "per_unit": false, "star": 2,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"clinic": {"staff": 3, "width": 12, "height": 1, "cost": 200000, "per_unit": false, "star": 3,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 }
 

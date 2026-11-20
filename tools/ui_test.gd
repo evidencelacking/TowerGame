@@ -120,7 +120,7 @@ func _structure_cases() -> void:
 
 func _room_cases() -> void:
 	var x := 140
-	for kind: String in ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "hotel_single", "hotel_twin", "hotel_suite"]:
+	for kind: String in ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic"]:
 		await _room_case(kind, 2, x)
 		x += CatalogueScript.field(kind, "width")
 	await _room_case("parking_ramp", -1, 200)

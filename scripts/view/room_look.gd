@@ -32,6 +32,9 @@ const RESTAURANT_COLOR := Color(0.62, 0.20, 0.28)
 const RETAIL_COLOR := Color(0.60, 0.85, 0.55)
 const SECURITY_COLOR := Color(0.30, 0.42, 0.68)
 const MEDICAL_COLOR := Color(0.93, 0.96, 0.96)
+const GYM_COLOR := Color(0.28, 0.72, 0.70)
+const DAYCARE_COLOR := Color(0.94, 0.44, 0.72)
+const CLINIC_COLOR := Color(0.88, 0.94, 0.94)
 const RECYCLING_COLOR := Color(0.45, 0.65, 0.40)
 const IDLE_TINT := Color(0.52, 0.55, 0.50)
 const RUBBISH_COLOR := Color(0.45, 0.33, 0.20, 0.85)
@@ -46,7 +49,7 @@ const PEST_COLOR := Color(0.85, 0.10, 0.10)
 const SHADE := Color(0, 0, 0, 0.45)
 const INK := Color(0.10, 0.08, 0.08)
 
-const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space"]
+const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic"]
 
 
 static func handles(kind: String) -> bool:
@@ -65,6 +68,9 @@ static func base_color(kind: String) -> Color:
 		"security": return SECURITY_COLOR
 		"medical": return MEDICAL_COLOR
 		"recycling": return RECYCLING_COLOR
+		"gym": return GYM_COLOR
+		"daycare": return DAYCARE_COLOR
+		"clinic": return CLINIC_COLOR
 		"parking_ramp": return RAMP_COLOR
 		"parking_space": return SPACE_COLOR
 	return Color(0.85, 0.2, 0.85)
