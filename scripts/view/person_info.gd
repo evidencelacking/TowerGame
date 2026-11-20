@@ -4,6 +4,7 @@ extends RefCounted
 const VC := preload("res://scripts/view/view_consts.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const NamesScript := preload("res://scripts/sim/names.gd")
+const MoodScript := preload("res://scripts/sim/mood.gd")
 
 const BAND_NAMES: Array[String] = ["Calm", "Uneasy", "Angry"]
 const OUTSIDE := "outside"
@@ -24,7 +25,7 @@ static func room_label(tower: Object, room: int) -> String:
 	return "%s, floor %s" % [kind.capitalize().replace("_", " "), "B%d" % -floor_number if floor_number < 0 else str(floor_number)]
 
 
-## The person at index i: {"id", "name", "age", "age_name", "title", "from", "to", "stress", "band", "band_name", "renamed"}.
+## The person at index i: {"id", "name", "mood", "mood_reasons", "age", "age_name", "title", "from", "to", "stress", "band", "band_name", "renamed"}.
 ## From is the room they left (or are in); to is the room they are heading for.
 static func describe(tower: Object, i: int) -> Dictionary:
 	var people: PeopleScript = tower.people
@@ -38,6 +39,7 @@ static func describe(tower: Object, i: int) -> Dictionary:
 	var age: int = NamesScript.age_band(seed_value, id)
 	var title: String = NamesScript.title_for(seed_value, id, kind)
 	return {
+		"mood": people.mood_of(i), "mood_reasons": tower.mood_factors(i),
 		"age": age, "age_name": NamesScript.BAND_NAMES[age], "title": title,
 		"id": id, "name": tower.names.name_of(id), "renamed": tower.names.is_renamed(id),
 		"from": room_label(tower, here), "to": room_label(tower, people.goal_room(i)),
@@ -52,7 +54,19 @@ static func lines_for(info: Dictionary) -> Array[String]:
 		"From: %s" % info["from"],
 		"To: %s" % info["to"],
 		"Stress: %d (%s)" % [info["stress"], info["band_name"]],
+		mood_line(info),
 	]
+
+
+## "Mood: 62 (travel waits -17, room grade -25)": the mood and its two biggest reasons.
+static func mood_line(info: Dictionary) -> String:
+	var parts: Array[String] = []
+	for factor: Array in info["mood_reasons"]:
+		if parts.size() >= 2:
+			break
+		parts.append("%s %+d" % [MoodScript.REASON_NAMES[factor[0]], factor[1]])
+	var text := "Mood: %d" % info["mood"]
+	return text if parts.is_empty() else "%s (%s)" % [text, ", ".join(parts)]
 
 
 ## Centre of a figure in world pixels (matches TowerRenderer._draw_people, floor top row plus the feet offset).

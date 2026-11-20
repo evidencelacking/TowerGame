@@ -22,6 +22,7 @@ const GradesScript := preload("res://scripts/sim/grades.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
+const MoodScript := preload("res://scripts/sim/mood.gd")
 
 ## Minute of the day whose period start runs the evaluation, once per day: 21:00, the start of
 ## the night period, taken as the manual's "rest period" (owner ruling 2026-11-14: the rest
@@ -79,7 +80,8 @@ func evaluate(rooms: RoomsScript, people: PeopleScript, grades: GradesScript, gr
 	var entry_x := floors.lobby_span()[0] if floors.has_lobby() else 0
 	for id in ids:
 		if graded.get(id, -1) == GradesScript.GRADE_A and (FRIEND_PERCENT >= 100 or rng.next_below(100) < FRIEND_PERCENT):
-			var friend := _vacancy_near(rooms, people, grid, floors, tenancy, id, entry_x)
+			var reach := FRIEND_REACH + (MoodScript.FRIEND_REACH_BONUS if MoodScript.room_average(people, id) >= MoodScript.HIGH_FROM else 0)
+			var friend := _vacancy_near(rooms, people, grid, floors, tenancy, id, entry_x, reach)
 			if friend != 0:
 				_fill(rooms, people, grid, ledger, messages, rng, at_tick, friend)
 	# Then C tenants leave.
@@ -104,13 +106,35 @@ func evaluate(rooms: RoomsScript, people: PeopleScript, grades: GradesScript, gr
 			messages.add(at_tick, MessagesScript.CONDO_REFUND, price)
 
 
+## Mood (12.2): after the grade rule, a household whose mood has been low for MOOD_LEAVE_DAYS days
+## in a row gives notice, and leaves just as a C tenant does (condos refund the sale price).
+func evaluate_moods(rooms: RoomsScript, people: PeopleScript, grid: GridScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:
+	var ids := rooms.room_ids()
+	ids.sort()
+	for id in ids:
+		var kind := rooms.kind_of(id)
+		if not _occupied(rooms, people, id) or not MoodScript.gave_notice(people, id):
+			continue
+		if kind == "condo":
+			var price := CatalogueScript.cost(kind)
+			rooms.set_sold(id, false)
+			people.remove_room(id)
+			ledger.payout(at_tick, price, id)
+			_left(rooms, grid, messages, at_tick, id)
+			messages.add(at_tick, MessagesScript.CONDO_REFUND, price)
+		else:
+			_red_days.erase(id)
+			people.remove_room(id)
+			_left(rooms, grid, messages, at_tick, id)
+
+
 ## The nearest vacant unit of the same kind and floor within FRIEND_REACH cells that the lobby
 ## reaches (ties: lowest id), or 0.
-func _vacancy_near(rooms: RoomsScript, people: PeopleScript, grid: GridScript, floors: FloorsScript, tenancy: TenancyScript, id: int, entry_x: int) -> int:
+func _vacancy_near(rooms: RoomsScript, people: PeopleScript, grid: GridScript, floors: FloorsScript, tenancy: TenancyScript, id: int, entry_x: int, reach: int = FRIEND_REACH) -> int:
 	var run := grid.run_of(id)
 	var kind := rooms.kind_of(id)
 	var best := 0
-	var best_gap := FRIEND_REACH + 1
+	var best_gap := reach + 1
 	var ids := rooms.room_ids()
 	ids.sort()
 	for other in ids:

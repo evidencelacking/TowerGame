@@ -69,10 +69,10 @@ static func run(check: Callable) -> void:
 		# B changes nothing.
 		var b := _pair(kind)
 		_stress(b, B_STRESS)
-		var hash_before := b.state_hash()
+		var before := [b.rooms.state_ints(), b.ledger.state_ints(), b.messages.state_ints(), b.people.count()]  # mood moves on the day; tenancy and money must not
 		check.call(b.grade(b.rooms.room_ids()[0]) == Grades.GRADE_B, "%s: the tenants are B" % kind)
 		b.evaluate_tenants()
-		check.call(b.state_hash() == hash_before and b.people.count() == per, "%s: B changes nothing" % kind)
+		check.call(before == [b.rooms.state_ints(), b.ledger.state_ints(), b.messages.state_ints(), b.people.count()] and b.people.count() == per, "%s: B changes nothing" % kind)
 
 	# A condo that is C leaves at the evaluation: vacant, refunded, not paying.
 	var c := _pair("condo")
