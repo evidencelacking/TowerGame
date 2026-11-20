@@ -10,6 +10,7 @@ extends GraphicsStyle
 const DetailRooms := preload("res://scripts/view/detail_rooms.gd")
 const DetailExterior := preload("res://scripts/view/detail_exterior.gd")
 const Palette := preload("res://scripts/view/palette.gd")
+const DetailTransport := preload("res://scripts/view/detail_transport.gd")
 const DetailPeople := preload("res://scripts/view/detail_people.gd")
 
 
@@ -35,11 +36,11 @@ func suite(canvas: Object, kind: String, rect: Rect2i, id: int) -> void:
 	DetailRooms.draw(canvas, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), true, false, id, true)
 
 
-func recipe(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bool) -> void:
+func recipe(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bool, upper: bool = false) -> void:
 	if not DetailRooms.handles(kind):
-		super.recipe(canvas, kind, rect, hue, lit)
+		super.recipe(canvas, kind, rect, hue, lit, upper)
 		return
-	DetailRooms.draw(canvas, kind, rect, hue, lit)
+	DetailRooms.draw(canvas, kind, rect, hue, lit, upper)
 
 
 func exterior(canvas: Object, rects: Array[Rect2i], daylight: int) -> void:
@@ -68,3 +69,25 @@ func activity(canvas: Object, x: int, feet: int, act: int, frame: int, shirt: Co
 		super.activity(canvas, x, feet, act, frame, shirt, skin, prop, white)
 		return
 	DetailPeople.resting(canvas, x, feet, who, act, frame)
+
+
+func link(canvas: Object, kind: String, span: Rect2i) -> void:
+	if kind == "stairs":
+		DetailTransport.stairs(canvas, span)
+	else:
+		DetailTransport.escalator(canvas, span)
+
+
+func belt(canvas: Object, span: Rect2i, tick: int, _hue: Color) -> void:
+	DetailTransport.belt(canvas, span, tick)
+
+
+func shaft(canvas: Object, rect: Rect2i, color: Color, caps: Array[Rect2i], door_rows: Array[int], see_through: bool) -> void:
+	DetailTransport.shaft(canvas, rect, color, caps, door_rows, see_through)
+
+
+func car(canvas: Object, shaft_rect: Rect2i, car_rect: Rect2i, level: float, step: int, load: int, _color: Color, people: Array, lamp: Color, floor_bottom_of: Callable) -> void:
+	DetailTransport.arrival(canvas, shaft_rect, level, floor_bottom_of)
+	DetailTransport.car(canvas, car_rect, load, people)
+	var y := car_rect.position.y
+	TransportLook.draw_door_gap(canvas, Rect2i(car_rect.position.x - 3, y - 3, car_rect.size.x + 6, VC.CELL_H), y - 3 + VC.CELL_H - VC.SLAB_H, TransportLook.door_open(level, step), lamp)

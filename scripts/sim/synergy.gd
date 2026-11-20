@@ -62,6 +62,7 @@ const RULES: Array = [
 	["casino", "hotel_single", MOOD, 2, 10, ANY],
 	["casino", "hotel_twin", MOOD, 2, 10, ANY],
 	["casino", "hotel_suite", MOOD, 2, 10, ANY],
+	["bar", "condo", MOOD, -3, 2, ANY],
 	["nightclub", "condo", MOOD, -6, 2, ANY],
 	["nightclub", "hotel_single", MOOD, -6, 2, ANY],
 	["nightclub", "hotel_twin", MOOD, -6, 2, ANY],

@@ -151,7 +151,7 @@ static func _the_rest(check: Callable, classic: GraphicsStyle, detailed: Graphic
 			style.link(rec, kind, span)
 			var direct := Recorder.new()
 			TransportLook.draw_link(direct, kind, span)
-			check.call(not rec.calls.is_empty() and rec.calls == direct.calls, "graphics: %s draws %s" % [label, kind])
+			check.call(not rec.calls.is_empty() and (rec.calls == direct.calls) == (style == classic), "graphics: %s draws %s (Classic as TransportLook does, Detailed in its own look)" % [label, kind])
 		for see_through: bool in [false, true]:
 			var rec := Recorder.new()
 			style.shaft(rec, shaft_rect, Palette.hue("shaft"), caps, doors, see_through)

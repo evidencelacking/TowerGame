@@ -206,8 +206,10 @@ static func _restaurant(p: Object, w: float, yt: float, fy: float, seats: Array,
 				_windows(p, 24.0, w - 24.0, 100.0, yt, 36.0, night, id, true, cloth)
 				Furnish.chalkboard(p, w * 0.5, yt + 8.0, 40.0, 28.0)
 			else:
-				_windows(p, 20.0, w - 120.0, 120.0, yt, 48.0, night, id, true, cloth)
-				Furnish.bar(p, w - 84.0, yt, fy, 72.0, lit)
+				_windows(p, 20.0, w - 128.0, 120.0, yt, 48.0, night, id, true, cloth)
+				Furnish.chalkboard(p, 114.0, yt + 8.0, 28.0, 22.0)  # the menu, between the windows
+				Furnish.bar(p, w - 100.0, yt, fy, 88.0, lit)
+				Scenes.plant(p, w - 8.0, fy, 22.0, Color("7a5a8a"))
 			for g: Array in groups(seats):
 				if g.size() == 2:
 					var c0: float = g[0]

@@ -16,7 +16,7 @@ const TowerSim := preload("res://scripts/sim/tower.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const RendererScript := preload("res://scripts/view/tower_renderer.gd")
-const RoomLook := preload("res://scripts/view/room_look.gd")
+const GraphicsStyle := preload("res://scripts/view/graphics_style.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const ViewSettings := preload("res://scripts/view/view_settings.gd")
@@ -90,7 +90,7 @@ class LitRenderer:
 			var kind: String = entry[0]
 			var width := int(CatalogueScript.field(kind, "width")) * VC.CELL_W
 			var rect := Rect2i(int(entry[2]) * VC.CELL_W, VC.floor_to_row(int(entry[1])) * VC.CELL_H, width, VC.CELL_H)
-			RoomLook.draw_recipe(canvas, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), all_lit, bool(entry[3]))
+			GraphicsStyle.current().recipe(canvas, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), all_lit, bool(entry[3]))
 
 
 func _initialize() -> void:
