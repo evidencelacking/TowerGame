@@ -81,7 +81,7 @@ static func run(check: Callable) -> void:
 	var balance := m.ledger.balance
 	m.life.daily(m)
 	check.call(m.people.home_of(m.people.index_of(other)) == first_condo, "life: the partner moves into the condo with room")
-	check.call(not m.rooms.is_sold(second) and m.ledger.balance == balance, "life: the emptied condo is vacant and nothing is refunded")
+	check.call(not m.rooms.is_sold(second) and m.ledger.balance == balance - CatalogueScript.cost("condo"), "life: the emptied condo is vacant and the sale price is refunded")
 	check.call(m.evaluation._vacant(m.rooms, m.people, second), "life: the freed condo can be sold again under the normal rules")
 	check.call(m.life.story(0)[1] == LifeScript.MOVE_IN and m.life.story(0)[4] == first_condo, "life: the move is logged with the new home")
 	# A full condo cannot take them: the one with room does, and the other keeps its sale.
@@ -146,7 +146,7 @@ static func run(check: Callable) -> void:
 	n.life.daily(n)
 	check.call(n.life.story(0)[3] == -1 and n.people.index_of(0) == -1, "life: with no condo place the retiree simply leaves")
 
-	# The last resident of a sold condo retiring vacates it, with no refund; a condo with others stays sold.
+	# The last resident of a sold condo retiring vacates it, with the refund; a condo with others stays sold.
 	var last_senior := _seed_for([ADULT, ADULT, ADULT, ADULT, ADULT, ADULT, SENIOR])
 	check.call(last_senior >= 0, "life: a seed with a senior seventh person exists")
 	var rr := TestEvaluation._pair("office")
@@ -160,7 +160,7 @@ static func run(check: Callable) -> void:
 	rr.life.retire_stay_percent = 0
 	var rr_balance := rr.ledger.balance
 	rr.life.daily(rr)
-	check.call(rr.people.index_of(resident) == -1 and not rr.rooms.is_sold(home_condo) and rr.ledger.balance == rr_balance, "life: the last resident retiring vacates the sold condo with no refund")
+	check.call(rr.people.index_of(resident) == -1 and not rr.rooms.is_sold(home_condo) and rr.ledger.balance == rr_balance - CatalogueScript.cost("condo"), "life: the last resident retiring vacates the sold condo and refunds the price")
 	check.call(rr.evaluation._vacant(rr.rooms, rr.people, home_condo), "life: the vacated condo can be sold again")
 
 	# Leaving town: low mood for days, and only then.
@@ -176,7 +176,7 @@ static func run(check: Callable) -> void:
 	check.call(l.life.story(0)[1] == LifeScript.LEFT_TOWN and l.life.story(0)[2] == 0 and l.life.partner_of(1) == -1, "life: it is logged and the couple ends")
 	var lcondo: int = l.rooms.room_ids()[0]
 	check.call(l.rooms.is_sold(lcondo), "life: a condo with residents left is still sold after one leaves town")
-	# The last resident leaving town vacates the sold condo, no refund.
+	# The last resident leaving town vacates the sold condo, refunded.
 	var lt := TestEvaluation._pair("condo")
 	var lt_condo: int = lt.rooms.room_ids()[0]
 	for id in [2, 1]:
@@ -186,8 +186,10 @@ static func run(check: Callable) -> void:
 	_only(lt.life, "leave_percent")
 	var lt_balance := lt.ledger.balance
 	lt.life.daily(lt)
-	check.call(lt.people.count() == 0 and not lt.rooms.is_sold(lt_condo) and lt.ledger.balance == lt_balance, "life: the last resident leaving town vacates the condo with no refund")
+	check.call(lt.people.count() == 0 and not lt.rooms.is_sold(lt_condo) and lt.ledger.balance == lt_balance - CatalogueScript.cost("condo"), "life: the last resident leaving town vacates the condo and refunds the price")
 	check.call(lt.evaluation._vacant(lt.rooms, lt.people, lt_condo), "life: the condo vacated by leaving town can be sold again")
+	lt.evaluation._fill(lt.rooms, lt.people, lt.grid, lt.ledger, lt.messages, lt.rng, lt.tick, lt_condo)
+	check.call(lt.ledger.balance == lt_balance and lt.rooms.is_sold(lt_condo), "life: vacate then resell nets zero")
 	var rate_check := LifeScript.RETIRE_PER_100000 * 7 * 400 / 10000
 	check.call(rate_check >= 9 and rate_check <= 11 and LifeScript.new().retire_per_100000 == LifeScript.RETIRE_PER_100000, "life: retirement is about 1 in 400 workers a week (%d tenths of a worker per 400 workers a week)" % rate_check)
 

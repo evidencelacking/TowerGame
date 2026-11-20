@@ -5,14 +5,14 @@ extends RefCounted
 ## once per eligible candidate, in id order, so a run is the same everywhere.
 ##   COUPLE      two uncoupled adults who work in the same office or live in the same condo pair up
 ##   MOVE_IN     a couple living in two condos moves into one that has room; the other is freed
-##               (vacant again, NO refund; it can be sold again under the normal rules)
+##               (vacant again, the sale price refunded as when an owner leaves; it can be sold again)
 ##   CHILD       a couple sharing a condo with a free place gains a child (young, title Child)
 ##   PROMOTION   an adult office worker gets a senior title and a mood lift
 ##   RETIREMENT  a senior office worker leaves the office (the office hires a replacement, so it never
 ##               drains); maybe takes a condo place as a resident
 ##   LEFT_TOWN   someone whose mood has stayed low leaves town
-## When the last resident of a sold condo leaves town or retires, the condo is vacated (no refund) so
-## it can be sold again.
+## When the last resident of a sold condo leaves town or retires, the condo is vacated and the sale price
+## refunded (the reference's owner-leaves rule), so vacate and resell nets zero.
 ## Saved: couples (pairs of ids), children, promoted ids, and a ring log of the last LOG_MAX
 ## stories as tick, kind, a, b, room (people ids, -1 for none). Percentages are per day per
 ## candidate and are instance fields (set from the RATE constants below, the one place to tune them)
@@ -222,19 +222,23 @@ func move_in(t: Object) -> void:
 			_freed(t, ha, hb, a, b)
 
 
-## Logs a move-in and, if the condo they left has nobody now, vacates it (no refund).
+## Logs a move-in and, if the condo they left has nobody now, vacates it and refunds the sale price.
 func _freed(t: Object, old: int, target: int, a: int, b: int) -> void:
 	_record(t.tick, MOVE_IN, a, b, target)
 	_vacate_if_empty(t, old)
 
 
-## A sold condo with no residents left is vacated, with no refund, so it can be sold again.
+## A sold condo with no residents left is vacated and its sale price refunded, as when an owner
+## leaves (Evaluation), so it can be sold again and vacate-then-resell nets zero.
 func _vacate_if_empty(t: Object, room: int) -> void:
 	if room == PeopleScript.NONE or t.rooms.kind_of(room) != "condo" or not t.rooms.is_sold(room) or _residents(t.people, room) > 0:
 		return
 	var run: Array[int] = t.grid.run_of(room)
+	var price: int = CatalogueScript.cost("condo")
 	t.rooms.set_sold(room, false)
+	t.ledger.payout(t.tick, price, room)
 	t.messages.add(t.tick, MessagesScript.TENANT_LEFT, CatalogueScript.IDS.find("condo"), run[0] if not run.is_empty() else 0)
+	t.messages.add(t.tick, MessagesScript.CONDO_REFUND, price)
 
 
 func have_children(t: Object) -> void:
