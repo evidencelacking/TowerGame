@@ -39,6 +39,7 @@ const EXPECTED: Array = [
 	["nightclub", 250000, 4, true, 0, ""],
 	["coworking", 150000, 3, true, 0, ""],
 	["observation_deck", 800000, 4, true, 0, ""],
+	["casino", 1200000, 4, true, 0, ""],
 ]
 
 

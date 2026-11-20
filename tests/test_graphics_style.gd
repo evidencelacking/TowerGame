@@ -69,7 +69,7 @@ static func _rooms(check: Callable, classic: GraphicsStyle, detailed: GraphicsSt
 	for kind: String in RoomLook.KINDS:
 		if BASEMENT.has(kind):
 			continue
-		t.floors.fill_span(floor_number, 100, 131)
+		t.floors.fill_span(floor_number, 100, 139)
 		ids[kind] = TestPests._room(t, kind, floor_number, 100)
 		floor_number += 1
 	t.floors.fill_span(-1, 90, 131)

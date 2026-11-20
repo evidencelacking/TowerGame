@@ -14,7 +14,7 @@ const BATCH_1: Array[String] = ["lobby", "office", "condo", "hotel_single", "hot
 const BATCH_2: Array[String] = ["fast_food", "restaurant", "retail", "movie_theatre", "party_hall", "medical", "security", "recycling", "parking_ramp", "parking_space", "metro", "cathedral"]
 
 
-const BATCH_3: Array[String] = ["gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck"]
+const BATCH_3: Array[String] = ["gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino"]
 
 
 static func run(check: Callable) -> void:

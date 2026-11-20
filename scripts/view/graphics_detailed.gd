@@ -8,6 +8,7 @@ extends GraphicsStyle
 ## are shared data that this style reports doubled (density 2), which is where its furniture stands.
 
 const DetailRooms := preload("res://scripts/view/detail_rooms.gd")
+const DetailExterior := preload("res://scripts/view/detail_exterior.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const DetailTransport := preload("res://scripts/view/detail_transport.gd")
 const DetailPeople := preload("res://scripts/view/detail_people.gd")
@@ -40,6 +41,18 @@ func recipe(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bool, u
 		super.recipe(canvas, kind, rect, hue, lit, upper)
 		return
 	DetailRooms.draw(canvas, kind, rect, hue, lit, upper)
+
+
+func exterior(canvas: Object, rects: Array[Rect2i], daylight: int) -> void:
+	DetailExterior.shell(canvas, rects, daylight)
+
+
+func street(canvas: Object, daylight: int, world_w: int, ground_y: int, built: Dictionary) -> void:
+	DetailExterior.street(canvas, daylight, world_w, ground_y, built)
+
+
+func skyline(canvas: Object, p: Dictionary, daylight: int, raining: bool, stars: int, depth: int, world_w: int, ground_y: int) -> void:
+	DetailExterior.skyline(canvas, p, daylight, raining, stars, depth, world_w, ground_y)
 
 
 ## People (#304): every figure has a look of its own, from its id, age and job (detail_people.gd). Without
