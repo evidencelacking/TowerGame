@@ -74,6 +74,7 @@ func _ready() -> void:
 	_static_sprite = _sprite_of(_static_view)
 	_dynamic_layer = _make_layer(size, _paint_dynamic)
 	_dynamic_view = _dynamic_layer.get_parent()
+	add_child(SynergyOverlay.new())  # the synergy filter (#294), above the layers; idle while off
 	_apply_density()
 	queue_redraw()
 

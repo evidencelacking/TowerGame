@@ -100,6 +100,7 @@ const TestDemands := preload("res://tests/test_demands.gd")
 const TestSecurity := preload("res://tests/test_security.gd")
 const TestMedical := preload("res://tests/test_medical.gd")
 const TestDemoMode := preload("res://tests/test_demo_mode.gd")
+const TestSynergyLook := preload("res://tests/test_synergy_look.gd")
 
 var failures := 0
 
@@ -206,6 +207,7 @@ func _initialize() -> void:
 	TestSecurity.run(check)
 	TestMedical.run(check)
 	TestDemoMode.run(check)
+	TestSynergyLook.run(check)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 
