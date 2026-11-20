@@ -5,14 +5,18 @@ extends RefCounted
 ## once per eligible candidate, in id order, so a run is the same everywhere.
 ##   COUPLE      two uncoupled adults who work in the same office or live in the same condo pair up
 ##   MOVE_IN     a couple living in two condos moves into one that has room; the other is freed
-##               (vacant again, the sale price refunded, as when a tenant leaves)
+##               (vacant again, NO refund; it can be sold again under the normal rules)
 ##   CHILD       a couple sharing a condo with a free place gains a child (young, title Child)
 ##   PROMOTION   an adult office worker gets a senior title and a mood lift
-##   RETIREMENT  a senior office worker leaves the office; maybe takes a condo place as a resident
+##   RETIREMENT  a senior office worker leaves the office (the office hires a replacement, so it never
+##               drains); maybe takes a condo place as a resident
 ##   LEFT_TOWN   someone whose mood has stayed low leaves town
+## When the last resident of a sold condo leaves town or retires, the condo is vacated (no refund) so
+## it can be sold again.
 ## Saved: couples (pairs of ids), children, promoted ids, and a ring log of the last LOG_MAX
 ## stories as tick, kind, a, b, room (people ids, -1 for none). Percentages are per day per
-## candidate and are instance fields so tests can force them. All unverified and tunable.
+## candidate and are instance fields (set from the RATE constants below, the one place to tune them)
+## so tests can force them. All unverified and tunable.
 
 const NamesScript := preload("res://scripts/sim/names.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
@@ -34,13 +38,22 @@ const STORY_INTS := 5
 const PROMOTION_MOOD := 10
 const LEAVE_LOW_DAYS := 2  ## Days of low mood before someone may leave town.
 
-var couple_percent: int = 3
-var move_in_percent: int = 20
-var child_percent: int = 3
-var promotion_percent: int = 1
-var retire_percent: int = 4
-var leave_percent: int = 20
-var retire_stay_percent: int = 50  ## Chance a retiree stays on as a resident when a condo has a place.
+## Rates: every tunable chance in one place.
+const COUPLE_PERCENT := 3  ## Per day, per room with two uncoupled adults.
+const MOVE_IN_PERCENT := 20  ## Per day, per couple living apart.
+const CHILD_PERCENT := 3  ## Per day, per couple sharing a condo with a free place.
+const PROMOTION_PERCENT := 1  ## Per day, per adult office worker.
+const RETIRE_PER_100000 := 36  ## Per day, per senior office worker: about 1 in 400 per week.
+const LEAVE_PERCENT := 20  ## Per day, per person who has been low long enough.
+const RETIRE_STAY_PERCENT := 50  ## Chance a retiree stays on as a resident when a condo has a place.
+
+var couple_percent: int = COUPLE_PERCENT
+var move_in_percent: int = MOVE_IN_PERCENT
+var child_percent: int = CHILD_PERCENT
+var promotion_percent: int = PROMOTION_PERCENT
+var retire_per_100000: int = RETIRE_PER_100000
+var leave_percent: int = LEAVE_PERCENT
+var retire_stay_percent: int = RETIRE_STAY_PERCENT
 
 var _couples: Array[int] = []  ## Flat pairs of person ids, lower id first.
 var _kids: Array[int] = []
@@ -209,17 +222,19 @@ func move_in(t: Object) -> void:
 			_freed(t, ha, hb, a, b)
 
 
-## Logs a move-in and, if the condo they left has nobody now, frees it: vacant, price refunded.
+## Logs a move-in and, if the condo they left has nobody now, vacates it (no refund).
 func _freed(t: Object, old: int, target: int, a: int, b: int) -> void:
 	_record(t.tick, MOVE_IN, a, b, target)
-	if _residents(t.people, old) > 0:
+	_vacate_if_empty(t, old)
+
+
+## A sold condo with no residents left is vacated, with no refund, so it can be sold again.
+func _vacate_if_empty(t: Object, room: int) -> void:
+	if room == PeopleScript.NONE or t.rooms.kind_of(room) != "condo" or not t.rooms.is_sold(room) or _residents(t.people, room) > 0:
 		return
-	var run: Array[int] = t.grid.run_of(old)
-	var price: int = CatalogueScript.cost("condo")
-	t.rooms.set_sold(old, false)
-	t.ledger.payout(t.tick, price, old)
+	var run: Array[int] = t.grid.run_of(room)
+	t.rooms.set_sold(room, false)
 	t.messages.add(t.tick, MessagesScript.TENANT_LEFT, CatalogueScript.IDS.find("condo"), run[0] if not run.is_empty() else 0)
-	t.messages.add(t.tick, MessagesScript.CONDO_REFUND, price)
 
 
 func have_children(t: Object) -> void:
@@ -258,12 +273,15 @@ func retire(t: Object) -> void:
 	for i in t.people.count():
 		var work: int = t.people.work_of(i)
 		if work != PeopleScript.NONE and t.rooms.kind_of(work) == "office" and age_band_of(t, t.people.id_at(i)) == NamesScript.BAND_SENIOR:
-			if t.rng.next_below(100) < retire_percent:
+			if t.rng.next_below(100000) < retire_per_100000:
 				chosen.append(t.people.id_at(i))
 	for id in chosen:
 		var i: int = t.people.index_of(id)
 		var office: int = t.people.work_of(i)
+		var home: int = t.people.home_of(i)
 		t.people.remove_person(i)
+		_vacate_if_empty(t, home)
+		t.people.add_person(PeopleScript.NONE, office, t.rng)  # the office hires to fill the seat
 		var stays := -1
 		if t.rng.next_below(100) < retire_stay_percent:
 			var ids: Array[int] = t.rooms.room_ids()
@@ -284,7 +302,9 @@ func leave_town(t: Object) -> void:
 		var i: int = t.people.index_of(id)
 		var room := MoodScript.room_of(t.people, i)
 		var partner := partner_of(id)
+		var home: int = t.people.home_of(i)
 		t.people.remove_person(i)
+		_vacate_if_empty(t, home)
 		_record(t.tick, LEFT_TOWN, id, partner, room)
 	_prune(t.people)
 

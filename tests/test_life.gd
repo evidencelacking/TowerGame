@@ -13,7 +13,7 @@ const TestEvaluation := preload("res://tests/test_evaluation.gd")
 const YOUNG := NamesScript.BAND_YOUNG
 const ADULT := NamesScript.BAND_ADULT
 const SENIOR := NamesScript.BAND_SENIOR
-const FIELDS: Array[String] = ["couple_percent", "move_in_percent", "child_percent", "promotion_percent", "retire_percent", "leave_percent"]
+const FIELDS: Array[String] = ["couple_percent", "move_in_percent", "child_percent", "promotion_percent", "retire_per_100000", "leave_percent"]
 
 
 ## A name seed under which person ids 0, 1, 2 ... have the given age bands, or -1 if none is found.
@@ -28,10 +28,11 @@ static func _seed_for(bands: Array[int]) -> int:
 	return -1
 
 
-## Every event off except the one named (a percentage field of LifeScript), which is certain.
+## Every event off except the one named (a rate field of LifeScript), which is certain.
 static func _only(life: LifeScript, field: String) -> void:
 	for each in FIELDS:
-		life.set(each, 100 if each == field else 0)
+		var certain := 100000 if each == "retire_per_100000" else 100
+		life.set(each, certain if each == field else 0)
 
 
 static func _kind_count(life: LifeScript, kind: int) -> int:
@@ -80,7 +81,8 @@ static func run(check: Callable) -> void:
 	var balance := m.ledger.balance
 	m.life.daily(m)
 	check.call(m.people.home_of(m.people.index_of(other)) == first_condo, "life: the partner moves into the condo with room")
-	check.call(not m.rooms.is_sold(second) and m.ledger.balance == balance - CatalogueScript.cost("condo"), "life: the emptied condo is vacant and the price paid back (a payout)")
+	check.call(not m.rooms.is_sold(second) and m.ledger.balance == balance, "life: the emptied condo is vacant and nothing is refunded")
+	check.call(m.evaluation._vacant(m.rooms, m.people, second), "life: the freed condo can be sold again under the normal rules")
 	check.call(m.life.story(0)[1] == LifeScript.MOVE_IN and m.life.story(0)[4] == first_condo, "life: the move is logged with the new home")
 	# A full condo cannot take them: the one with room does, and the other keeps its sale.
 	var f := TestEvaluation._pair("condo")
@@ -130,19 +132,36 @@ static func run(check: Callable) -> void:
 	var condo := _last_room(r)
 	check.call(r.rooms.kind_of(condo) == "condo", "life: the condo for the retiree is placed")
 	r.rooms.set_sold(condo, true)
-	_only(r.life, "retire_percent")
+	_only(r.life, "retire_per_100000")
 	r.life.retire_stay_percent = 100
 	var office: int = r.rooms.room_ids()[0]
 	var workers := r.people.workers_in(office)
 	r.life.daily(r)
-	check.call(r.people.index_of(0) == -1 and r.people.workers_in(office) == workers - 1, "life: the senior retires out of the office, others stay")
+	check.call(r.people.index_of(0) == -1 and r.people.workers_in(office) == workers, "life: the senior retires and the office hires a replacement to fill the seat")
 	var story := r.life.story(0)
 	check.call(story[1] == LifeScript.RETIREMENT and story[2] == 0 and story[3] != -1 and r.people.home_of(r.people.index_of(story[3])) == condo, "life: the retiree stays on as a resident of the condo")
 	var n := TestEvaluation._pair("office")
 	n.names.name_seed = senior_seed
-	_only(n.life, "retire_percent")
+	_only(n.life, "retire_per_100000")
 	n.life.daily(n)
 	check.call(n.life.story(0)[3] == -1 and n.people.index_of(0) == -1, "life: with no condo place the retiree simply leaves")
+
+	# The last resident of a sold condo retiring vacates it, with no refund; a condo with others stays sold.
+	var last_senior := _seed_for([ADULT, ADULT, ADULT, ADULT, ADULT, ADULT, SENIOR])
+	check.call(last_senior >= 0, "life: a seed with a senior seventh person exists")
+	var rr := TestEvaluation._pair("office")
+	rr.names.name_seed = last_senior
+	rr.rooms.place_room(rr.grid, rr.floors, rr.ledger, 0, CatalogueScript.IDS.find("condo"), 3, 135)
+	var home_condo := _last_room(rr)
+	rr.rooms.set_sold(home_condo, true)
+	var resident: int = rr.people.add_person(home_condo, rr.rooms.room_ids()[0], rr.rng)
+	check.call(resident == 6 and rr.people.workers_in(rr.rooms.room_ids()[0]) == 7, "life: the senior is the only resident of the condo and works in the office")
+	_only(rr.life, "retire_per_100000")
+	rr.life.retire_stay_percent = 0
+	var rr_balance := rr.ledger.balance
+	rr.life.daily(rr)
+	check.call(rr.people.index_of(resident) == -1 and not rr.rooms.is_sold(home_condo) and rr.ledger.balance == rr_balance, "life: the last resident retiring vacates the sold condo with no refund")
+	check.call(rr.evaluation._vacant(rr.rooms, rr.people, home_condo), "life: the vacated condo can be sold again")
 
 	# Leaving town: low mood for days, and only then.
 	var l := TestEvaluation._pair("condo")
@@ -155,6 +174,22 @@ static func run(check: Callable) -> void:
 	l.life.daily(l)
 	check.call(l.people.index_of(0) == -1 and l.people.index_of(1) != -1 and l.people.index_of(2) != -1, "life: only the person with enough low days leaves town")
 	check.call(l.life.story(0)[1] == LifeScript.LEFT_TOWN and l.life.story(0)[2] == 0 and l.life.partner_of(1) == -1, "life: it is logged and the couple ends")
+	var lcondo: int = l.rooms.room_ids()[0]
+	check.call(l.rooms.is_sold(lcondo), "life: a condo with residents left is still sold after one leaves town")
+	# The last resident leaving town vacates the sold condo, no refund.
+	var lt := TestEvaluation._pair("condo")
+	var lt_condo: int = lt.rooms.room_ids()[0]
+	for id in [2, 1]:
+		lt.people.remove_person(lt.people.index_of(id))
+	lt.people.set_mood(0, 5)
+	lt.people.set_low_days(0, LifeScript.LEAVE_LOW_DAYS)
+	_only(lt.life, "leave_percent")
+	var lt_balance := lt.ledger.balance
+	lt.life.daily(lt)
+	check.call(lt.people.count() == 0 and not lt.rooms.is_sold(lt_condo) and lt.ledger.balance == lt_balance, "life: the last resident leaving town vacates the condo with no refund")
+	check.call(lt.evaluation._vacant(lt.rooms, lt.people, lt_condo), "life: the condo vacated by leaving town can be sold again")
+	var rate_check := LifeScript.RETIRE_PER_100000 * 7 * 400 / 10000
+	check.call(rate_check >= 9 and rate_check <= 11 and LifeScript.new().retire_per_100000 == LifeScript.RETIRE_PER_100000, "life: retirement is about 1 in 400 workers a week (%d tenths of a worker per 400 workers a week)" % rate_check)
 
 	# The log keeps only the last LOG_MAX stories.
 	var ring := LifeScript.new()
