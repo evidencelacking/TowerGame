@@ -43,10 +43,34 @@ static func run(check: Callable) -> void:
 	check.call(differs > 40, "names: a different seed names people differently")
 	check.call(NamesScript.generated(-5, 0).split(" ").size() == 2, "names: a negative seed still gives a first and last name")
 
+	var dupes := 0
+	var all: Dictionary = {}
+	var bands: Array[int] = [0, 0, 0]
+	var kinds: Array[String] = ["office", "condo", "restaurant", "fast_food", "retail", "hotel_single"]
+	var titles_ok := true
+	for id in 2000:
+		var n := NamesScript.generated(9, id)
+		if all.has(n):
+			dupes += 1
+		all[n] = true
+		var band := NamesScript.age_band(9, id)
+		bands[band] += 1
+		for kind in kinds:
+			var title := NamesScript.title_for(9, id, kind)
+			if title == "" or not (NamesScript.TITLES[kind][band] as Array).has(title):
+				titles_ok = false
+	check.call(dupes <= 40, "names: at most 2 percent duplicates among 2000 people (%d)" % dupes)
+	check.call(NamesScript.age_band(9, 5) == NamesScript.age_band(9, 5) and NamesScript.title_for(9, 5, "office") == NamesScript.title_for(9, 5, "office"), "identity: same seed and id give the same band and title")
+	check.call(bands[0] > 300 and bands[1] > 800 and bands[2] > 200, "identity: all three age bands occur in sensible shares")
+	check.call(titles_ok, "identity: every title comes from its room kind and the person's age band")
+	check.call(NamesScript.title_for(9, 1, "lobby") == "", "identity: a kind without jobs has no title")
+
 	var t := _fixture()
 	check.call(t.people.count() == 3, "fixture: three residents")
 	var name0 := t.names.name_of(t.people.id_at(0))
 	check.call(name0 == NamesScript.generated(7, t.people.id_at(0)), "names: a person's name is the generated one until renamed")
+	var shown := PersonInfo.describe(t, 0)
+	check.call(shown["title"] != "" and PersonInfo.lines_for(shown)[0].contains(shown["age_name"].to_lower()), "person window: title and age band are shown")
 	check.call(TowerSim.new(7).save()["names"] == [7, 0], "names: generated names are not saved, only the seed")
 
 	# Picking: nearest figure within the radius, whatever the zoom.
@@ -91,9 +115,9 @@ static func run(check: Callable) -> void:
 
 	# Bands and outside.
 	t.people.set_stress(0, 100)
-	check.call("(Uneasy)" in PersonInfo.lines_for(PersonInfo.describe(t, 0))[2], "describe: stress 100 reads uneasy")
+	check.call("(Uneasy)" in PersonInfo.lines_for(PersonInfo.describe(t, 0))[3], "describe: stress 100 reads uneasy")
 	t.people.set_stress(0, 200)
-	check.call("(Angry)" in PersonInfo.lines_for(PersonInfo.describe(t, 0))[2], "describe: stress 200 reads angry")
+	check.call("(Angry)" in PersonInfo.lines_for(PersonInfo.describe(t, 0))[3], "describe: stress 200 reads angry")
 	TestCondos._at(t, 10 * 60, 1)  # residents are out at work
 	check.call(PersonInfo.describe(t, 0)["to"] == "outside", "describe: a resident heading to work is going to outside")
 	check.call(PersonInfo.room_label(t, -1) == "outside", "describe: no room reads outside")

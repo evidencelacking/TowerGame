@@ -15,6 +15,8 @@ var tower: TowerSim = null
 var ghost: Ghost = null  ## Read for the active build tool.
 var person_id: int = -1  ## The person shown, or -1 when closed.
 var panel: InfoPanel
+var camera: TowerCamera = null  ## Followed when the Follow button is on (#289).
+var follow_button: Button
 var _view := PeopleView.new()
 var _shown_tick: int = -1
 
@@ -32,11 +34,21 @@ func _init() -> void:
 	panel.offset_right = -16.0
 	panel.rename_submitted.connect(rename)
 	add_child(panel)
+	follow_button = Button.new()
+	follow_button.name = "FollowButton"
+	follow_button.text = "Follow"
+	follow_button.toggle_mode = true
+	follow_button.focus_mode = Control.FOCUS_NONE
+	follow_button.toggled.connect(set_following)
+	panel.add_control(follow_button)
 
 
-func bind(tower_value: TowerSim, ghost_value: Ghost) -> void:
+func bind(tower_value: TowerSim, ghost_value: Ghost, camera_value: TowerCamera = null) -> void:
 	tower = tower_value
 	ghost = ghost_value
+	camera = camera_value
+	if camera != null:
+		camera.follow_stopped.connect(_on_follow_stopped)
 
 
 func is_open() -> bool:
@@ -62,7 +74,43 @@ func open_person(id: int) -> void:
 	_refresh(true)
 
 
+## Turns following on or off: while on, the camera keeps the shown person centred as they move.
+func set_following(on: bool) -> void:
+	if follow_button.button_pressed != on:
+		follow_button.set_pressed_no_signal(on)
+	if camera == null:
+		return
+	if on and is_open():
+		_push_follow_target()
+	else:
+		camera.stop_follow()
+
+
+func is_following() -> bool:
+	return camera != null and camera.is_following()
+
+
+## Points the camera at the shown person now: their drawn spot, or the car they ride; if neither is known
+## it keeps its last target.
+func _push_follow_target() -> void:
+	var at := PersonInfo.center_of(_view.figures(tower), person_id)
+	if at == Vector2.INF:  # inside a car: follow the car
+		at = PersonInfo.car_center(tower, person_id)
+	if at == Vector2.INF and not camera.is_following():  # waiting or out of sight: hold the view, keep following
+		at = camera.position
+	if at != Vector2.INF:
+		camera.follow(at)
+
+
+## The camera's pan ended the follow: the button follows suit.
+func _on_follow_stopped() -> void:
+	follow_button.set_pressed_no_signal(false)
+
+
 func close() -> void:
+	if camera != null:
+		camera.stop_follow()
+	follow_button.set_pressed_no_signal(false)
 	person_id = -1
 	panel.visible = false
 
@@ -87,7 +135,11 @@ func _refresh(reset_field: bool) -> void:
 		return
 	_shown_tick = tower.tick
 	var info := PersonInfo.describe(tower, i)
-	panel.show_info(info["name"], PersonInfo.lines_for(info), info["name"], reset_field)
+	var lines := PersonInfo.lines_for(info)
+	lines.append_array(PersonInfo.plan_lines(tower, i))
+	panel.show_info(info["name"], lines, info["name"], reset_field)
+	if is_following():
+		_push_follow_target()
 
 
 func _input(event: InputEvent) -> void:

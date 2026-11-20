@@ -44,6 +44,20 @@ hotel, food, stairs, one shaft with a car, and people. Day on top, night below.
 | D32 | `art_d32.tscn` | D at 32 px per floor with detailed furniture and 4x9 figures (the renderer now draws 6x16) (`floor_h`, `detail` on the scene). |
 | D40 | `art_d40.tscn` | The same detail at 40 px per floor, to judge how tall a floor needs to be. |
 
+### Detailed directions (M15, issue #300)
+
+Double density (16 px per column, 64 px per floor), one tower slice with lobby, office, condo,
+restaurant, stairs, escalator, elevator shaft and car, and 12x32 people with faces. All drawn by code
+(`mockups/detail_drawer.gd` on `detail_prims.gd`), original art. N or Space toggles day and night.
+
+| Direction | Scene | Look |
+|---|---|---|
+| E | `art_e.tscn` | Illustrated: smooth anti-aliased shapes, gradients, soft shadows, rounded forms. |
+| F | `art_f.tscn` | Rich pixel: crisp 2x pixel art, ordered dithering, selective outlines, 3-tone furniture. |
+| G | `art_g.tscn` | Lit: F's shapes with Godot 2D lighting, so lamps and windows glow at night. |
+
+Captures: `docs/mockups/art_e_day.png` ... `art_g_night.png`, made with `-- --capture=docs/mockups`.
+
 Launch (PowerShell): `python D:\Claude\TowerGame\tools\play.py --scene res://mockups/art_a.tscn`.
 Captures: `docs/mockups/art_<x>_day.png` and `_night.png`, made by running a scene windowed with
 `-- --capture=<dir>`. Headless Godot has no renderer, so capture needs a window.

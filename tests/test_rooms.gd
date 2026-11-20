@@ -75,6 +75,18 @@ static func run(check: Callable) -> void:
 	check.call(_room(support, OFFICE, 2, 105) == RoomsScript.OVERHANG, "a room hanging past the floor below is refused")
 	check.call(_room(support, OFFICE, 3, 100) == RoomsScript.NOTHING_BELOW, "floor 3 over an unbuilt floor 2 is refused")
 
+	# Basements rest on the floor above, for every kind (#284).
+	var basement := _tower()
+	basement.floors.fill_span(1, 100, 160)  # floor 1 built across the span (test setup only)
+	for kind in ["retail", "restaurant"]:
+		check.call(basement.rooms.check_place(basement.grid, basement.floors, kind, -1, 100)["reason"] == RoomsScript.OK, "%s on B1 rests on floor 1 above it" % kind)
+	basement.floors.fill_span(-1, 100, 160)
+	check.call(basement.rooms.check_place(basement.grid, basement.floors, "retail", -2, 100)["reason"] == RoomsScript.OK, "retail on B2 rests on B1 above it")
+	check.call(basement.rooms.check_place(basement.grid, basement.floors, "retail", -3, 100)["reason"] == RoomsScript.NOTHING_BELOW, "retail on B3 with no B2 above is refused")
+	var bare := _tower()
+	check.call(bare.rooms.check_place(bare.grid, bare.floors, "retail", -2, 100)["reason"] == RoomsScript.NOTHING_BELOW, "B2 with no B1 above is refused")
+	check.call(bare.rooms.check_place(bare.grid, bare.floors, "retail", -1, 300)["reason"] == RoomsScript.NOTHING_BELOW, "B1 with no floor 1 above it is refused")
+
 	# check_place is pure and agrees with placing.
 	var before := support.state_hash()
 	var preview := support.rooms.check_place(support.grid, support.floors, "office", 2, 100)

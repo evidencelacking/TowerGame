@@ -25,6 +25,7 @@ const PeopleViewScript := preload("res://scripts/view/people_view.gd")
 const ViewSettingsScript := preload("res://scripts/view/view_settings.gd")
 const GraphicsStyleScript := preload("res://scripts/view/graphics_style.gd")
 const PersonInfo := preload("res://scripts/view/person_info.gd")
+const TowerCameraScript := preload("res://scripts/view/tower_camera.gd")
 const EXPECTED_PATH := "res://tools/ui_expected.json"
 const WAIT_FRAMES := 3  ## Frames after an input before the view has caught up.
 const SETTLE_TICKS := 6  ## Sim ticks after a click: commands are due the tick after they are queued.
@@ -314,6 +315,22 @@ func _window_cases() -> void:
 	await _frames(1)
 	_finish_case("window.person", "windows", "Click a person: the person window opens (after %d ticks)" % waited, {},
 		person_window.person_id == figure["id"], "PersonWindow.person_id is %d, clicked %d" % [person_window.person_id, figure["id"]])
+	# Follow (#289): pan away, press Follow, and the camera returns to the person and stays on them.
+	_camera.pan_by_screen(Vector2(300, 200))
+	await _frames(2)
+	var follow_button: Button = person_window.follow_button
+	var button_at := follow_button.get_global_rect().get_center()
+	await _move(button_at)
+	await _click_at(button_at)
+	await _frames(40)
+	var want := TowerCameraScript.view_position(PersonInfo.figure_center(figure), root.get_visible_rect().size, int(_camera.zoom.x), VC.world_rect())
+	var near := _camera.position.distance_to(want) <= 2.0
+	_finish_case("window.follow", "windows", "Press Follow: the camera centres on the person", {},
+		person_window.is_following() and near, "following %s, camera at %s, wanted %s" % [str(person_window.is_following()), str(_camera.position), str(want)])
+	_camera.pan_by_screen(Vector2(40, 0))
+	await _frames(1)
+	_finish_case("window.follow_stop", "windows", "Panning stops following", {},
+		not person_window.is_following() and not follow_button.button_pressed, "still following after a pan")
 	_driver.set_paused(false)
 
 
