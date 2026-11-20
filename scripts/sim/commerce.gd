@@ -64,6 +64,11 @@ const MEALS: Array = [
 	[DAYCARE_DROP_OFF, DAYCARE_WINDOW, DAYCARE_PERCENT, "daycare"],
 	[CLINIC_MORNING, CLINIC_WINDOW, CLINIC_PERCENT, "clinic"],
 	[CLINIC_AFTERNOON, CLINIC_WINDOW, CLINIC_PERCENT, "clinic"],
+	[CLUB_EVENING, CLUB_WINDOW, CLUB_EVENING_PERCENT, "nightclub"],
+	[CLUB_LATE, CLUB_WINDOW, CLUB_LATE_PERCENT, "nightclub"],
+	[COWORK_EARLY, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
+	[COWORK_MID, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
+	[COWORK_LATE, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
 ]
 
 ## Our own kinds (M13, #291), all unverified tunables. A gym is busy before work, at the break and
@@ -87,6 +92,21 @@ const CLINIC_AFTERNOON := 930  ## 15:30.
 const CLINIC_WINDOW := 120
 const CLINIC_PERCENT := 40
 const CLINIC_MOOD_BELOW := 60
+## Batch 2 (#292), also unverified tunables. A nightclub is open 21:00 to 03:00: two waves of adults (21:00 to
+## midnight, midnight to 03:00); takings after 23:00 are settled with the next day's. Co-working is an office
+## rented by the desk, on weekdays only: three waves of adults arrive (07:30, 09:00, 10:30) and stay the day, so it
+## fills gradually; each wave takes up to its seats, ten desks, so thirty desks in all.
+const CLUB_EVENING := 1260  ## 21:00.
+const CLUB_LATE := 0  ## 00:00.
+const CLUB_WINDOW := 180
+const CLUB_EVENING_PERCENT := 25
+const CLUB_LATE_PERCENT := 12
+const COWORK_EARLY := 450  ## 07:30.
+const COWORK_MID := 540  ## 09:00.
+const COWORK_LATE := 630  ## 10:30.
+const COWORK_WINDOW := 120
+const COWORK_PERCENT := 6
+const WHO_ADULTS := "adults"
 const WHO_ALL := "all"
 const WHO_CHILDREN := "children"
 const WHO_LOW_MOOD := "low_mood"
@@ -148,6 +168,18 @@ const PROFILES: Dictionary = {
 		"seats": 12, "linger_minutes": 480, "grade_cap": 12, "grade_a": 10, "grade_b": 6, "who": WHO_CHILDREN, "weekdays": true,
 		"tiers": [[0, -3000], [6, 1500], [10, 3500], [12, 5000]],
 		"food": ["Toddlers", "Story time", "Playgroup", "Art room", "Nap room"],
+	},
+	# Nightclub (#292): 60 places, 90 minute stays, adults only; the 5 staff make an empty night lose $8,000.
+	"nightclub": {
+		"seats": 60, "linger_minutes": 90, "grade_cap": 40, "grade_a": 30, "grade_b": 18, "who": WHO_ADULTS,
+		"tiers": [[0, -8000], [20, 5000], [35, 9000], [60, 15000]],
+		"food": ["Disco", "Live band", "Karaoke", "Jazz night", "DJ set"],
+	},
+	# Co-working (#292): ten desks per arrival wave, a day-long stay, adults, weekdays only.
+	"coworking": {
+		"seats": 10, "linger_minutes": 480, "grade_cap": 30, "grade_a": 20, "grade_b": 10, "who": WHO_ADULTS, "weekdays": true,
+		"tiers": [[0, -3000], [8, 2500], [16, 5000], [30, 8000]],
+		"food": ["Hot desks", "Quiet room", "Meeting pods", "Studio", "Open floor"],
 	},
 	# Clinic (#291): 6 consulting seats, 20 minute visits; only the unwell (low mood) come.
 	"clinic": {
@@ -316,6 +348,8 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		if people.location_of(i) == PeopleScript.NONE and people.trip_state(i) == PeopleScript.TRIP_IDLE:
 			continue  # outside the tower
 		if who == WHO_CHILDREN and (life == null or not life.is_child(people.id_at(i))):
+			continue
+		if who == WHO_ADULTS and life != null and life.is_child(people.id_at(i)):
 			continue
 		if who == WHO_LOW_MOOD and people.mood_of(i) >= CLINIC_MOOD_BELOW:
 			continue

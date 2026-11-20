@@ -62,7 +62,7 @@ const IDS: Array[String] = [
 	"service_shaft", "service_car", "hotel_single", "housekeeping", "security", "escalator",
 	"express_shaft", "express_car", "hotel_twin", "hotel_suite", "restaurant", "retail",
 	"movie_theatre", "party_hall", "medical", "recycling", "parking_ramp", "parking_space",
-	"metro", "cathedral", "gym", "daycare", "clinic",
+	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking",
 ]
 
 const _ROWS: Dictionary = {
@@ -160,6 +160,14 @@ const _ROWS: Dictionary = {
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"clinic": {"staff": 3, "width": 12, "height": 1, "cost": 200000, "per_unit": false, "star": 3,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# Batch 2 (#292). The nightclub is the party hall's bigger, louder cousin (100k, 24 wide, star 3): dearer, with
+	# a bar crew, and a star higher. Co-working is an office (40k, 9 wide) rented by the desk: dearer and wider.
+	"nightclub": {"staff": 5, "width": 24, "height": 1, "cost": 250000, "per_unit": false, "star": 4,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"coworking": {"staff": 2, "width": 16, "height": 1, "cost": 150000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 }
