@@ -296,6 +296,7 @@ Bonus kinds like the cathedral, everyday shops, bigger homes and a real transit 
 | 16.6 | Restaurant types: cafe, pizza, sushi, fine dining, bar | Tests | #323 |
 | 16.7 | Entertainment: movie theatre end to end, bowling, arcade | Tests | #324 |
 | 16.8 | Transit: station at star 3 and a city-connection bonus | Tests | #325 |
+| 16.9 | Swimming pool: indoor, two floors, slide, diving board, animated water | Tests; owner approves by eye | #328 |
 
 ## M11 Full game
 
