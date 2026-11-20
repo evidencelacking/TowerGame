@@ -9,7 +9,9 @@ const SkyLook := preload("res://scripts/view/sky_look.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 const GraphicsStyle := preload("res://scripts/view/graphics_style.gd")
+const DetailExterior := preload("res://scripts/view/detail_exterior.gd")
 
+const SLICE_W := 400  ## World pixels of skyline per slice.
 const STREET := -1  ## `depth` of the street layer; 0 and 1 are the far and near skylines.
 
 var depth: int = 0
@@ -17,6 +19,7 @@ var factor: float = 1.0
 var stars: int = 1
 var daylight: int = SkyLook.FULL
 var raining: bool = false
+var slice: Vector2i = Vector2i.ZERO  ## A skyline slice paints only the blocks starting in this x range (from, to); ZERO paints them all.
 var built: Dictionary = {}  ## Columns of floor 1 with floor units: the street leaves these clear.
 
 
@@ -33,4 +36,6 @@ func _draw() -> void:
 	if depth == STREET:
 		style.street(self, daylight, world_w, ground_y, built)
 	else:
+		DetailExterior.window = slice
 		style.skyline(self, Palette.get_palette(), daylight, raining, stars, depth, world_w, ground_y)
+		DetailExterior.window = Vector2i.ZERO
