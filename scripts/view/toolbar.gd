@@ -9,6 +9,7 @@ const TowerSim := preload("res://scripts/sim/tower.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const HudScript := preload("res://scripts/view/hud.gd")
+const TransportLook := preload("res://scripts/view/transport_look.gd")
 
 ## Category -> item ids, in display order. Catalogue ids here cover CatalogueScript.IDS exactly
 ## once (a test checks); bulldoze and replace are player tools, not catalogue rows.
@@ -47,6 +48,7 @@ var _category_buttons: Array[Button] = []
 var _category_lists: Array[VBoxContainer] = []  ## One item list per category; only the open one shows.
 var _item_buttons: Dictionary = {}  ## item id -> Button
 var _open_category: int = -1
+var _see_through: CheckButton  ## "Elevators see-through" (#272): a view option, not saved in the tower.
 var _shown_stars: int = -1
 var _shown_tool: String = "?"
 var _new_items: Array[String] = []  ## Items a promotion just opened; marked until picked (#167).
@@ -88,7 +90,27 @@ func _ready() -> void:
 			item.pressed.connect(select.bind(id))
 			list.add_child(item)
 			_item_buttons[id] = item
+	TransportLook.load_setting()
+	_see_through = CheckButton.new()
+	_see_through.name = "SeeThrough"
+	_see_through.text = "Elevators see-through (V)"
+	_see_through.tooltip_text = "Draw elevator shafts as an outline so the rooms behind them show. View only."
+	_see_through.focus_mode = Control.FOCUS_NONE
+	_see_through.button_pressed = TransportLook.see_through
+	_see_through.toggled.connect(_on_see_through_toggled)
+	row.add_child(_see_through)
 	_refresh()
+
+
+func _on_see_through_toggled(on: bool) -> void:
+	TransportLook.set_see_through(on)
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key != null and key.pressed and not key.echo and key.keycode == KEY_V and not key.ctrl_pressed and not key.alt_pressed:
+		_see_through.button_pressed = not _see_through.button_pressed
+		get_viewport().set_input_as_handled()
 
 
 func bind(value: PlacementGhost) -> void:

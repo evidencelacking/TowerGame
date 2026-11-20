@@ -60,7 +60,7 @@ static func run(check: Callable) -> void:
 	check.call(_resize(t, base, 3, 8) == RoomsScript.OVER_SHAFT, "an overlapping shaft refuses a resize")
 	TestRooms._send(t, Command.BUILD_FLOOR, [41, 100, 131] as Array[int])
 	TestRooms._room(t, CatalogueScript.IDS.find("office"), 10, 100)
-	check.call(_resize(t, base, 6, 9) == RoomsScript.OVERLAPS_ROOM, "a room on the new machine room cell refuses a resize")
+	check.call(_resize(t, base, 6, 9) == RoomsScript.OK, "a room on the new machine room cell does not refuse a resize (#272)")
 	check.call(_resize(t, base, 6, 10) == RoomsScript.OK and _resize(t, base, 6, 8) == RoomsScript.OK, "a shaft may grow through a room (links sit in front of rooms)")
 
 	# Stops.
