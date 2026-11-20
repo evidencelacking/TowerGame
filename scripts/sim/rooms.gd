@@ -195,7 +195,7 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 		if floors.has_floor(floor_number, column):
 			continue
 		new_units += 1
-		if floors.has_floor(floor_above(floor_number) if parking else floor_number - 1, column):  # basements rest on the floor above
+		if floors.has_floor(floor_above(floor_number) if floor_number < 0 else floor_number - 1, column):  # basements rest on the floor above
 			supported += 1
 	if new_units > 0 and supported == 0:
 		result["reason"] = NOTHING_BELOW
