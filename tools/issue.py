@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -151,9 +152,18 @@ def merge_problems(data, has_main):
     return problems
 
 
+MERGEABLE_WAIT = 120  # seconds merge waits for GitHub to decide mergeable
+MERGEABLE_STEP = 5
+
+
 def merge(pr):
     fields = "state,isDraft,baseRefName,title,body,statusCheckRollup,mergeable,headRefOid,files"
     data = json.loads(gh("pr", "view", str(pr), "--json", fields))
+    waited = 0
+    while data.get("mergeable") == "UNKNOWN" and waited < MERGEABLE_WAIT:  # GitHub is still working it out
+        time.sleep(MERGEABLE_STEP)
+        waited += MERGEABLE_STEP
+        data = json.loads(gh("pr", "view", str(pr), "--json", fields))
     fetched = subprocess.run(["git", "fetch", "-q", "origin", "main", data["headRefOid"]], cwd=ROOT)
     # Fetching main by name also updates origin/main.
     has_main = fetched.returncode == 0 and subprocess.run(
