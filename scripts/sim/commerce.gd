@@ -30,6 +30,7 @@ const HotelScript := preload("res://scripts/sim/hotel.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
+const SynergyScript := preload("res://scripts/sim/synergy.gd")
 
 ## Meal times (minute of day), windows (minutes a meal lasts) and the percent of people inside
 ## the tower who buy. All tunable.
@@ -346,11 +347,14 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 	var open := _open_shops(floors, rooms, grid, tenancy)
 	var net := 0
 	var sellers := 0
+	var sources := SynergyScript.others_of(grid, rooms)
 	for id in open:
 		if not has_sales(rooms.kind_of(id)):
 			continue
 		sellers += 1
 		var amount := income_for(rooms.kind_of(id), customers_today(id))
+		if amount > 0:  # gardens feed restaurants (synergy.gd)
+			amount += amount * SynergyScript.sales_percent(rooms.kind_of(id), grid.run_of(id), sources) / 100
 		ledger.shop_sales(at_tick, amount, id)
 		net += amount
 	var counts: Dictionary = {}
