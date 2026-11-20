@@ -24,6 +24,7 @@ extends RefCounted
 
 const VC := preload("res://scripts/view/view_consts.gd")
 const Batch2 := preload("res://scripts/view/recipes_batch_2.gd")
+const Batch3 := preload("res://scripts/view/recipes_batch_3.gd")
 const Variants := preload("res://scripts/view/recipes_variants.gd")
 
 const INTERIOR_H: int = VC.CELL_H - VC.SLAB_H  ## Usable rows above the floor slab.
@@ -305,6 +306,7 @@ static func _build() -> Dictionary:
 			[4, 2, 14, 1, "lamp"]], "spots": [[18, 30], [36, 30]]}],
 	}
 	out.merge(Batch2.build())
+	out.merge(Batch3.build())
 	var extra: Dictionary = Variants.build()
 	for kind: String in extra:
 		(out[kind] as Dictionary)["variants"] = extra[kind]
