@@ -372,7 +372,7 @@ func _draw_links(canvas: CanvasItem) -> void:
 func _draw_belts(canvas: CanvasItem) -> void:
 	for run: Array in _link_runs:
 		if run[0] == "escalator":
-			TransportLook.draw_belt(canvas, run[1], tower.tick, Palette.hue("escalator"))
+			GraphicsStyle.current().belt(canvas, run[1], tower.tick, Palette.hue("escalator"))
 
 
 ## One link in its two-floor rect, drawn without a background (transport_look.gd) so the room behind shows.
