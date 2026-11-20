@@ -18,6 +18,14 @@ const PALETTES: Dictionary = {
 	"hotel": ["d8c0b8", "9a6e5c", "a89a88", "988a78", "eee4dc"],
 	"service": ["c6d2cc", "86a096", "7a8aa0", "6a7a92", "a8b8b0"],
 	"lobby": ["eadfc8", "b99f74", "e8e2d8", "b0aaa8", "c9a85c"],
+	"fast_food": ["e8b45a", "b8453c", "d8d0c0", "c0b8a8", "f4ecd8"],
+	"restaurant": ["cf6b50", "7a3a2e", "8a5a38", "74482e", "f0dcc0"],
+	"retail": ["cfe0c8", "6f9a78", "d8d4c8", "c4c0b4", "f2eee0"],
+	"security": ["b8c4d8", "4a5a7a", "5a6070", "4c5262", "8a98b4"],
+	"medical": ["eef2f2", "9ac8c8", "dcdcdc", "c8d4d4", "ffffff"],
+	"recycling": ["b4c4a0", "5a7a48", "7a7870", "6a6860", "9aaa88"],
+	"parking_ramp": ["9a9aa6", "6a6a78", "5a5a64", "50505a", "c8c0a0"],
+	"parking_space": ["9a9aa6", "6a6a78", "5a5a64", "50505a", "c8c0a0"],
 }
 
 

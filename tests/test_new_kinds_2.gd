@@ -39,7 +39,7 @@ static func _serve(t: TowerSim, kind: String, day: int, window: int) -> void:
 
 
 static func run(check: Callable) -> void:
-	check.call(Catalogue.IDS.size() == 33 and Catalogue.IDS.find("nightclub") == 31 and Catalogue.IDS.find("coworking") == 32, "kinds 2: nightclub and co-working follow the clinic")
+	check.call(Catalogue.IDS.size() == 35 and Catalogue.IDS.find("nightclub") == 31 and Catalogue.IDS.find("coworking") == 32, "kinds 2: nightclub and co-working follow the clinic")
 	for kind: String in KINDS:
 		var row: Dictionary = Catalogue.row(kind)
 		check.call(not row.is_empty() and int(row["staff"]) >= 2 and int(row["cost"]) > 0 and int(row["width"]) >= 8, "%s: has cost, width and staff" % kind)

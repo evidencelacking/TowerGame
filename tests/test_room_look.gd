@@ -21,7 +21,7 @@ static func run(check: Callable) -> void:
 	for kind in kinds:  # one floor each, so no kind runs out of width
 		if BASEMENT.has(kind):
 			continue
-		t.floors.fill_span(floor_number, 100, 131)
+		t.floors.fill_span(floor_number, 100, 139)
 		ids[kind] = TestPests._room(t, kind, floor_number, 100)
 		floor_number += 1
 	t.floors.fill_span(-1, 90, 131)  # B1 under the lobby; the underground kinds sit here and below

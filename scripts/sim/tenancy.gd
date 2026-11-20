@@ -53,7 +53,6 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 				people.add_person(id, PeopleScript.NONE, rng)
 
 
-## True if the lobby's route reaches the room (used by Evaluation for friends).
 ## True when the tower has a metro station that people can reach from the ground lobby (#325).
 func transit_linked(floors: FloorsScript, rooms: RoomsScript, grid: GridScript) -> bool:
 	if not floors.has_lobby():
@@ -65,6 +64,7 @@ func transit_linked(floors: FloorsScript, rooms: RoomsScript, grid: GridScript) 
 	return false
 
 
+## True if the lobby's route reaches the room (used by Evaluation for friends).
 func reachable(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, id: int, entry_x: int) -> bool:
 	return _reachable(floors, rooms, grid, id, entry_x)
 

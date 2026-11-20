@@ -13,6 +13,10 @@ const Clock := preload("res://scripts/sim/clock.gd")
 const TestNewKinds := preload("res://tests/test_new_kinds.gd")
 const TestEvaluation := preload("res://tests/test_evaluation.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
+const ToolbarScript := preload("res://scripts/view/toolbar.gd")
+const TestCondos := preload("res://tests/test_condos.gd")
+const TestTenancy := preload("res://tests/test_tenancy.gd")
+const Ledger := preload("res://scripts/sim/ledger.gd")
 
 const DAY_TICKS := 2550
 
@@ -94,6 +98,33 @@ static func run(check: Callable) -> void:
 		counts.append(s.commerce.customers_today(shop))
 	var base := Commerce.visitors_for("fast_food", period, Clock.WD1)
 	check.call(counts[0] == base and counts[1] == base and counts[2] == mini(base + extra, Commerce.seats_per_meal("fast_food", 60)), "metro: only a linked station adds visitors (%s, base %d, extra %d)" % [str(counts), base, extra])
+
+	# The tower itself: the rent bonus follows a linked station, and a condo sells for 10 percent more in the tick.
+	var plain_tower := _tower()
+	var linked_tower := _tower()
+	_station(plain_tower, -1, 100)
+	_station(linked_tower, -1, 100)
+	_link(linked_tower, 100)
+	check.call(plain_tower.rent_bonus_percent() == 0 and linked_tower.rent_bonus_percent() == 15, "metro: the tower's rent bonus is 15 percent only with a linked station (%d, %d)" % [plain_tower.rent_bonus_percent(), linked_tower.rent_bonus_percent()])
+	var prices: Array[int] = []
+	for linked: bool in [false, true]:
+		var s := TestCondos._tower()
+		var station := _station(s, -1, 100)
+		assert(station == 0, "the station places beside the condo tower, refusal %d" % station)
+		if linked:
+			_link(s, 100)
+		TestTenancy._link(s)
+		TestCondos._at(s, 10 * 60, 0)
+		for line: Array in s.ledger.lines:
+			if line[2] == Ledger.SALE:
+				prices.append(line[1])
+	check.call(prices == [Catalogue.cost("condo"), Catalogue.cost("condo") * 110 / 100], "metro: a condo sells for 10 percent more with a linked station (%s)" % str(prices))
+
+	# The star gate: locked in the toolbar and the ghost at 2 stars, open at 3.
+	check.call(ToolbarScript.item_state("metro", 2)["locked"] and not ToolbarScript.item_state("metro", 3)["locked"], "metro: locked at star 2, open at star 3")
+	var locked_text: String = Ghost.evaluate(plain_tower, "metro", -1, 200, 2)["text"]
+	var open_text: String = Ghost.evaluate(plain_tower, "metro", -1, 200, 3)["text"]
+	check.call(locked_text != open_text, "metro: the ghost says the star gate at star 2 (%s)" % locked_text)
 
 	# Save and load, and a whole day with a station replays the same.
 	var copy := TowerSim.new(1, 1)
