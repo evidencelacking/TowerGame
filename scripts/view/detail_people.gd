@@ -1,6 +1,6 @@
 extends RefCounted
 ## Detailed people (#304): the G Lit mock-up's figures (mockups/detail_drawer.gd person(), _head(),
-## sleeper(), _zzz()) ported to the sub-pixel pen. A standing figure is 12 by 32 sub-pixels, which is the
+## sleeper(), _zzz()) ported to the Prims pen. A standing figure is 12 by 32 sub-pixels, which is the
 ## same box as Classic's FIGURE_W by FIGURE_H native pixels, so rooms, spots and picking are unchanged.
 ## Everything is drawn from a figure's id and its state (who), never from the clock or a random draw, so
 ## the same person looks the same on every machine and every frame; animation takes a frame number from
@@ -10,7 +10,7 @@ extends RefCounted
 ## band), "shirt" (stress colour when band is not 0), "dir" (-1 or 1), "still" (standing, not walking)}.
 ## Coordinates below are sub-pixels from the figure's left edge and feet row: x 0 to 12, up is negative.
 
-const Pen := preload("res://scripts/view/detail_pen.gd")
+const Pen := preload("res://scripts/view/detail_prims.gd")
 const ActivityLook := preload("res://scripts/view/activity_look.gd")
 const NamesScript := preload("res://scripts/sim/names.gd")
 
@@ -359,7 +359,7 @@ static func _zzz(pen: Object, x: float, y: float, count: int) -> void:
 		var zx := x + float(i) * 7.0
 		var zy := y - float(i) * 6.0
 		var w := roundi(s)
-		pen.E(roundi(zx), roundi(zy), w, 1, col)
-		pen.E(roundi(zx), roundi(zy + s), w, 1, col)
+		pen.GR(roundi(zx), roundi(zy), w, 1, col)
+		pen.GR(roundi(zx), roundi(zy + s), w, 1, col)
 		for k in w:
-			pen.E(roundi(zx + s - float(k)), roundi(zy + float(k)), 1, 1, col)
+			pen.GR(roundi(zx + s - float(k)), roundi(zy + float(k)), 1, 1, col)
