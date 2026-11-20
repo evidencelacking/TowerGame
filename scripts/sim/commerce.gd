@@ -31,6 +31,7 @@ const RentScript := preload("res://scripts/sim/rent.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
 const SynergyScript := preload("res://scripts/sim/synergy.gd")
+const PoolLifeScript := preload("res://scripts/sim/pool_life.gd")
 
 ## Meal times (minute of day), windows (minutes a meal lasts) and the percent of people inside
 ## the tower who buy. All tunable.
@@ -82,6 +83,9 @@ const MEALS: Array = [
 	[DELI_LATE, DELI_LATE_WINDOW, DELI_LATE_PERCENT, "deli"],
 	[CASINO_EVENING, CASINO_EVENING_WINDOW, CASINO_PERCENT, "casino"],
 	[CASINO_LATE, CASINO_LATE_WINDOW, CASINO_LATE_PERCENT, "casino"],
+	[POOL_EARLY, POOL_WINDOW, POOL_EARLY_PERCENT, "pool"],
+	[POOL_LUNCH, POOL_WINDOW, POOL_LUNCH_PERCENT, "pool"],
+	[POOL_EVENING, POOL_EVENING_WINDOW, POOL_EVENING_PERCENT, "pool"],
 	[CAFE_MORNING, CAFE_MORNING_WINDOW, CAFE_MORNING_PERCENT, "cafe"],
 	[CAFE_BREAK, CAFE_BREAK_WINDOW, CAFE_BREAK_PERCENT, "cafe"],
 	[PIZZA_LUNCH, PIZZA_LUNCH_WINDOW, PIZZA_PERCENT, "pizza"],
@@ -174,6 +178,22 @@ const CASINO_STAKE := 400
 const CASINO_WIN_PERCENT := 45
 const CASINO_INCIDENT_PERCENT := 10
 const CASINO_INCIDENT_COST := 15000
+## The swimming pool (#328, our own design, unverified): three waves (early lengths, lunchtime, after work), the
+## evening one the longest and busiest; hotel guests swim far more often than residents (POOL_GUEST_PERCENT). Each
+## swimmer pays POOL_ENTRY at the door and the day's takings are that less POOL_WAGES for the four staff, so an empty
+## day loses the wages and the pool pays its way from POOL_WAGES / POOL_ENTRY swimmers. The daily cleaning
+## (pool_life.gd) closes it, and a wave that starts while it is shut does not happen.
+const POOL_EARLY := 390  ## 06:30.
+const POOL_LUNCH := 720  ## 12:00.
+const POOL_EVENING := 1050  ## 17:30.
+const POOL_WINDOW := 60
+const POOL_EVENING_WINDOW := 150
+const POOL_EARLY_PERCENT := 6
+const POOL_LUNCH_PERCENT := 10
+const POOL_EVENING_PERCENT := 16
+const POOL_GUEST_PERCENT := 30
+const POOL_ENTRY := 120
+const POOL_WAGES := 4000
 ## The restaurant family (#323, our own design, unverified): five kinds beside fast food and the restaurant. Waves by kind; the
 ## cafe serves everyone in the morning, pizza everyone at noon and early evening, sushi and the bar adults, fine dining adults
 ## at dinner (and 40 percent of hotel guests). Every distinct kind of the family in the tower beyond the first adds
@@ -225,6 +245,7 @@ const SHOP_EVENING_PERCENT := 25
 const VISITORS: Dictionary = {
 	"fast_food": [[0, 4, 12, 4, 0, 0], [0, 6, 20, 10, 0, 0]],
 	"restaurant": [[0, 0, 0, 0, 6, 0], [0, 0, 0, 0, 14, 0]],
+	"pool": [[2, 0, 4, 0, 6, 0], [4, 0, 10, 0, 12, 0]],  # the neighbourhood swims at the waves (#328)
 	"retail": [[0, 0, 4, 0, 6, 0], [0, 0, 14, 0, 24, 0]],
 }
 ## The metro station (#325, our own design): while the tower is linked to a station, these visitors arrive in
@@ -346,6 +367,13 @@ const PROFILES: Dictionary = {
 		"tiers": [[0, -3000], [15, 3000], [30, 6000], [50, 9000]],
 		"food": ["Craft beer", "Cocktails", "Whiskey", "Wine bar", "Quiz night"],
 	},
+	# Pool (#328): 40 swimmers a wave, hour-long swims, everyone. The takings are the entry money (see POOL_ENTRY), so
+	# the tiers hold only the empty-day loss that the staff cost.
+	"pool": {
+		"seats": 40, "linger_minutes": 60, "grade_cap": 60, "grade_a": 45, "grade_b": 25,
+		"tiers": [[0, -4000]],
+		"food": ["Lap lanes", "Diving board", "Family swim", "Water aerobics", "Night swim"],
+	},
 	# Clinic (#291): 6 consulting seats, 20 minute visits; only the unwell (low mood) come.
 	"clinic": {
 		"seats": 6, "linger_minutes": 20, "grade_cap": 20, "grade_a": 16, "grade_b": 8, "who": WHO_LOW_MOOD,
@@ -454,6 +482,8 @@ static func _guest_percent(kind: String) -> int:
 		return CASINO_GUEST_PERCENT
 	if kind == "fine_dining":
 		return FINE_GUEST_PERCENT
+	if kind == "pool":
+		return POOL_GUEST_PERCENT
 	return GUEST_PERCENT
 
 
@@ -543,6 +573,8 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		return
 	if day == Clock.WE and bool(PROFILES[kind].get("weekdays", false)):
 		return
+	if kind == PoolLifeScript.KIND and PoolLifeScript.is_cleaning(at_minute, PoolLifeScript.has_housekeeping(rooms)):
+		return  # the pool is drained and being scrubbed: nobody swims
 	var who: String = PROFILES[kind].get("who", WHO_ALL)
 	var served: Dictionary = {}  # this meal, per shop
 	for i in people.count():
@@ -557,7 +589,7 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		var home := people.home_of(i)
 		if who == WHO_RESIDENTS and not (home != PeopleScript.NONE and rooms.has_room(home) and (rooms.kind_of(home) == "condo" or HotelScript.is_hotel_kind(rooms.kind_of(home)))):
 			continue
-		var guest := (kind == "restaurant" or kind == "casino" or kind == "fine_dining") and home != PeopleScript.NONE and rooms.has_room(home) and HotelScript.is_hotel_kind(rooms.kind_of(home))
+		var guest := (kind == "restaurant" or kind == "casino" or kind == "fine_dining" or kind == "pool") and home != PeopleScript.NONE and rooms.has_room(home) and HotelScript.is_hotel_kind(rooms.kind_of(home))
 		if rng.next_below(100) >= (_guest_percent(kind) if guest else percent):
 			continue
 		var shop: int = shops[rng.next_below(shops.size())]
@@ -596,6 +628,8 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 		if rooms.kind_of(id) == "casino":
 			amount = casino_takings(customers_today(id), rng)
 			_casino_incident(rooms, ledger, messages, at_tick, id, customers_today(id), rng)
+		if rooms.kind_of(id) == PoolLifeScript.KIND:
+			amount = pool_takings(customers_today(id))
 		if amount > 0:  # gardens feed restaurants (synergy.gd)
 			amount += amount * SynergyScript.sales_percent(rooms.kind_of(id), grid.run_of(id), sources) / 100
 		if amount > 0 and DINING_FAMILY.has(rooms.kind_of(id)):  # a varied dining scene draws more
@@ -610,6 +644,11 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 	_today.clear()
 	if sellers > 0:
 		messages.add(at_tick, MessagesScript.DAILY_SALES, net, sellers)
+
+
+## The pool's takings for a day with this many swimmers: the entry money less the staff's wages (negative when empty).
+static func pool_takings(swimmers: int) -> int:
+	return swimmers * POOL_ENTRY - POOL_WAGES
 
 
 ## The casino's takings for a day with this many gamblers: each stakes CASINO_STAKE and wins with probability

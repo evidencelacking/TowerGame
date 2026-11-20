@@ -113,6 +113,38 @@ static func build() -> Dictionary:
 			"spots": [[3, 28]]}],
 		"spots": [[-18, 28, "r"]],
 	}
+	# Swimming pool (#328), two floors tall. Lower: a basin of water with lane ropes, a springboard over it, a lifeguard's chair
+	# under an umbrella and a lifebuoy. Upper: a glass roof under bunting, the high-dive tower and a viewing gallery. The
+	# swimmers, the guard and the cannonball are marks (room_look.gd), which stay inside the basin and on the board drawn here.
+	out["pool"] = {
+		"hue": "service", "look": "full",
+		"fixed": [
+			[22, 14, 122, 16, "window"], [22, 14, 122, 1, "white"], [16, 14, 4, 16, "furn"], [17, 13, 38, 2, "wood"],
+			[24, 14, 1, 10, "gold"], [28, 14, 1, 10, "gold"],
+			[-30, 16, 14, 2, "red", "r"], [-29, 18, 2, 12, "furn", "r"], [-19, 18, 2, 12, "furn", "r"], [-30, 10, 2, 6, "red", "r"],
+			[-34, 3, 20, 2, "red", "r"], [-28, 3, 6, 2, "white", "r"], [-23, 5, 1, 11, "furn", "r"],
+			[-12, 8, 8, 8, "red", "r"], [-10, 10, 4, 4, "white", "r"],
+		],
+		"repeats": [
+			{"pad": 22, "every": 8, "lo": 0, "hi": 4, "reserve": 48, "shapes": [[0, 20, 4, 1, "red"], [0, 25, 4, 1, "red"]]},
+			{"pad": 12, "every": 40, "lo": 0, "hi": 12, "reserve": 20, "shapes": [[0, 2, 12, 1, "lamp"]]},
+		],
+		"spots": [[4, 30], [-10, 30, "r"]],
+		"upper": {
+			"fixed": [
+				[0, 3, 0, 1, "ink"], [18, 8, 0, 8, "window"], [23, 8, 5, 22, "furn"], [15, 7, 27, 2, "wood"], [15, 2, 1, 5, "furn"], [15, 2, 10, 1, "furn"],
+				[-95, 19, 94, 2, "furn", "r"], [-60, 14, 3, 2, "lamp", "r"], [-30, 14, 3, 2, "lamp", "r"],
+				[-30, 26, 14, 4, "wood", "r"], [-58, 26, 14, 4, "wood", "r"], [-86, 26, 14, 4, "wood", "r"],
+			],
+			"repeats": [
+				{"pad": 2, "every": 16, "lo": 0, "hi": 8, "shapes": [[0, 4, 8, 3, "red"]]},
+				{"pad": 10, "every": 16, "lo": 0, "hi": 8, "shapes": [[0, 4, 8, 3, "gold"]]},
+				{"pad": 18, "every": 36, "lo": 0, "hi": 2, "shapes": [[0, 8, 2, 8, "furn"]]},
+				{"pad": 98, "every": 8, "lo": 0, "hi": 1, "reserve": 4, "shapes": [[0, 21, 1, 9, "furn"]]},
+			],
+			"spots": [[-24, 30, "r"], [-52, 30, "r"], [-80, 30, "r"]],
+		},
+	}
 	# Cafe: a coffee counter with a machine and cups, small round tables, a lamp over each.
 	out["cafe"] = {
 		"hue": "food", "look": "full",
