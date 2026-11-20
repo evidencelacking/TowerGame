@@ -15,6 +15,7 @@ const FloorsScript := preload("res://scripts/sim/floors.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const GridScript := preload("res://scripts/sim/grid.gd")
+const SynergyScript := preload("res://scripts/sim/synergy.gd")
 const ElevatorTools := preload("res://scripts/view/elevator_tools.gd")
 const DragScript := preload("res://scripts/view/drag_gesture.gd")
 
@@ -53,7 +54,8 @@ const ROOM_TEXT: Dictionary = {
 	RoomsScript.NOT_UNDERGROUND: "Needs two basement floors (B2 or deeper)",
 	RoomsScript.NOT_TOUCHING: "Must touch another recycling centre",
 	RoomsScript.TALL_REPLACE: "Bulldoze first, then build it",
-	RoomsScript.NOT_BASEMENT: "Parking goes below ground",
+	RoomsScript.NOT_BASEMENT: "Parking and the metro station go below ground",
+	RoomsScript.ONE_STATION: "The tower already has its metro station",
 	RoomsScript.NOT_CHAINED: "Must touch the ramp or a working space",
 	RoomsScript.RAMP_COLUMN: "Ramps share one column",
 	RoomsScript.RAMP_NOT_UNDER_LOBBY: "The first ramp goes on B1 under the lobby",
@@ -221,6 +223,11 @@ static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: in
 			AutoFill.apply(t, out, levels, x_left, out["width"])
 			if not out["valid"]:
 				out["text"] = reason_text("rooms", RoomsScript.SHORT_OF_FUNDS)
+			elif RoomsScript.PLACEABLE.has(tool_id):  ## Synergies (#293): what the neighbours gain or lose.
+				var effects: Array[String] = []
+				for entry: Dictionary in SynergyScript.preview_at(t.grid, t.rooms, tool_id, floor_number, x_left):
+					effects.append(SynergyScript.text_of(entry))
+				out["effects"] = effects
 	return out
 
 
@@ -337,6 +344,8 @@ static func lines_for(tool_id: String, verdict: Dictionary) -> Array[String]:
 		lines.append(verdict["text"])
 	if verdict.get("hint", "") != "":
 		lines.append(verdict["hint"])
+	for effect: String in verdict.get("effects", []):
+		lines.append(effect)
 	if verdict["permanent"]:
 		lines.append(PERMANENT_TEXT)
 	return lines

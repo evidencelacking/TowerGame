@@ -27,6 +27,10 @@ func _ready() -> void:
 		_tower.enqueue(Tower.Command.make(_tower.tick + 1, Tower.Command.DEBUG_UNLOCK_ALL, [1] as Array[int]))
 	var renderer: TowerRenderer = $TowerRenderer
 	renderer.set_tower(_tower)
+	var thoughts := ThoughtLayer.new()
+	thoughts.name = "ThoughtLayer"
+	add_child(thoughts)
+	thoughts.bind(_tower, renderer)
 	($PlacementGhost as PlacementGhost).set_tower(_tower)
 	($MessageLog as MessageLog).set_tower(_tower)
 	($Toolbar as Toolbar).bind($PlacementGhost as PlacementGhost)

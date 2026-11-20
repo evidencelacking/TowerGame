@@ -30,6 +30,7 @@ const HotelScript := preload("res://scripts/sim/hotel.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
+const SynergyScript := preload("res://scripts/sim/synergy.gd")
 
 ## Meal times (minute of day), windows (minutes a meal lasts) and the percent of people inside
 ## the tower who buy. All tunable.
@@ -57,7 +58,58 @@ const MEALS: Array = [
 	[DINNER, DINNER_WINDOW, DINNER_PERCENT, "restaurant"],
 	[SHOP_LUNCH, SHOP_LUNCH_WINDOW, SHOP_LUNCH_PERCENT, "retail"],
 	[SHOP_EVENING, SHOP_EVENING_WINDOW, SHOP_EVENING_PERCENT, "retail"],
+	[GYM_EARLY, GYM_EARLY_WINDOW, GYM_EARLY_PERCENT, "gym"],
+	[GYM_BREAK, GYM_BREAK_WINDOW, GYM_BREAK_PERCENT, "gym"],
+	[GYM_EVENING, GYM_EVENING_WINDOW, GYM_EVENING_PERCENT, "gym"],
+	[DAYCARE_DROP_OFF, DAYCARE_WINDOW, DAYCARE_PERCENT, "daycare"],
+	[CLINIC_MORNING, CLINIC_WINDOW, CLINIC_PERCENT, "clinic"],
+	[CLINIC_AFTERNOON, CLINIC_WINDOW, CLINIC_PERCENT, "clinic"],
+	[CLUB_EVENING, CLUB_WINDOW, CLUB_EVENING_PERCENT, "nightclub"],
+	[CLUB_LATE, CLUB_WINDOW, CLUB_LATE_PERCENT, "nightclub"],
+	[COWORK_EARLY, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
+	[COWORK_MID, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
+	[COWORK_LATE, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
 ]
+
+## Our own kinds (M13, #291), all unverified tunables. A gym is busy before work, at the break and
+## after work. A daycare takes the children of the tower's households on weekdays only, for the working
+## day. A clinic sees people whose mood is below CLINIC_MOOD_BELOW (an event, a bad room) twice a day.
+## WHO names who may draw a visit: everyone inside, children, or low-mood people.
+const GYM_EARLY := 420  ## 07:00.
+const GYM_EARLY_WINDOW := 60
+const GYM_EARLY_PERCENT := 8
+const GYM_BREAK := 720  ## 12:00.
+const GYM_BREAK_WINDOW := 60
+const GYM_BREAK_PERCENT := 10
+const GYM_EVENING := 1080  ## 18:00.
+const GYM_EVENING_WINDOW := 120
+const GYM_EVENING_PERCENT := 15
+const DAYCARE_DROP_OFF := 480  ## 08:00; the children stay until the evening.
+const DAYCARE_WINDOW := 60
+const DAYCARE_PERCENT := 80
+const CLINIC_MORNING := 570  ## 09:30.
+const CLINIC_AFTERNOON := 930  ## 15:30.
+const CLINIC_WINDOW := 120
+const CLINIC_PERCENT := 40
+const CLINIC_MOOD_BELOW := 60
+## Batch 2 (#292), also unverified tunables. A nightclub is open 21:00 to 03:00: two waves of adults (21:00 to
+## midnight, midnight to 03:00); takings after 23:00 are settled with the next day's. Co-working is an office
+## rented by the desk, on weekdays only: three waves of adults arrive (07:30, 09:00, 10:30) and stay the day, so it
+## fills gradually; each wave takes up to its seats, ten desks, so thirty desks in all.
+const CLUB_EVENING := 1260  ## 21:00.
+const CLUB_LATE := 0  ## 00:00.
+const CLUB_WINDOW := 180
+const CLUB_EVENING_PERCENT := 25
+const CLUB_LATE_PERCENT := 12
+const COWORK_EARLY := 450  ## 07:30.
+const COWORK_MID := 540  ## 09:00.
+const COWORK_LATE := 630  ## 10:30.
+const COWORK_WINDOW := 120
+const COWORK_PERCENT := 6
+const WHO_ADULTS := "adults"
+const WHO_ALL := "all"
+const WHO_CHILDREN := "children"
+const WHO_LOW_MOOD := "low_mood"
 
 ## Retail (#153): shoppers come at lunch and after work (percent of people inside who shop).
 const SHOP_LUNCH := 750  ## 12:30.
@@ -75,6 +127,14 @@ const VISITORS: Dictionary = {
 	"fast_food": [[0, 4, 12, 4, 0, 0], [0, 6, 20, 10, 0, 0]],
 	"restaurant": [[0, 0, 0, 0, 6, 0], [0, 0, 0, 0, 14, 0]],
 	"retail": [[0, 0, 4, 0, 6, 0], [0, 0, 14, 0, 24, 0]],
+}
+## The metro station (#325, our own design): while the tower is linked to a station, these visitors arrive in
+## addition to VISITORS, per shop kind and clock period, on a weekday and on the weekend. Commuters fill the
+## morning and evening, shoppers the middle of the day; they enter by the ground lobby like the rest.
+const METRO_VISITORS: Dictionary = {
+	"fast_food": [[0, 6, 14, 6, 4, 0], [0, 4, 12, 8, 6, 0]],
+	"restaurant": [[0, 0, 2, 2, 8, 2], [0, 0, 4, 4, 14, 4]],
+	"retail": [[0, 0, 6, 4, 10, 0], [0, 0, 14, 10, 20, 0]],
 }
 ## Days a shop stays vacant after its renter leaves before a new renter takes it (if reachable).
 const RELET_DAYS := 3
@@ -104,6 +164,36 @@ const PROFILES: Dictionary = {
 		"seats": 40, "linger_minutes": 15, "grade_cap": 30, "grade_a": 21, "grade_b": 15, "sales": false,
 		"tiers": [[0, 0]],
 		"food": ["Books", "Clothes", "Toys", "Shoes", "Jewellery", "Flowers", "Gifts", "Music", "Games", "Electronics", "Sports"],
+	},
+	# Gym (#291): 20 machines, 45 minute sessions; the 4 staff make an empty gym lose $4,000 a day.
+	"gym": {
+		"seats": 20, "linger_minutes": 45, "grade_cap": 30, "grade_a": 25, "grade_b": 15,
+		"tiers": [[0, -4000], [15, 2000], [25, 4000], [45, 6500]],
+		"food": ["Weights", "Spin class", "Yoga", "Boxing", "Swimming"],
+	},
+	# Daycare (#291): 12 places for the working day (a long linger), children only, weekdays only.
+	"daycare": {
+		"seats": 12, "linger_minutes": 480, "grade_cap": 12, "grade_a": 10, "grade_b": 6, "who": WHO_CHILDREN, "weekdays": true,
+		"tiers": [[0, -3000], [6, 1500], [10, 3500], [12, 5000]],
+		"food": ["Toddlers", "Story time", "Playgroup", "Art room", "Nap room"],
+	},
+	# Nightclub (#292): 60 places, 90 minute stays, adults only; the 5 staff make an empty night lose $8,000.
+	"nightclub": {
+		"seats": 60, "linger_minutes": 90, "grade_cap": 40, "grade_a": 30, "grade_b": 18, "who": WHO_ADULTS,
+		"tiers": [[0, -8000], [20, 5000], [35, 9000], [60, 15000]],
+		"food": ["Disco", "Live band", "Karaoke", "Jazz night", "DJ set"],
+	},
+	# Co-working (#292): ten desks per arrival wave, a day-long stay, adults, weekdays only.
+	"coworking": {
+		"seats": 10, "linger_minutes": 480, "grade_cap": 30, "grade_a": 20, "grade_b": 10, "who": WHO_ADULTS, "weekdays": true,
+		"tiers": [[0, -3000], [8, 2500], [16, 5000], [30, 8000]],
+		"food": ["Hot desks", "Quiet room", "Meeting pods", "Studio", "Open floor"],
+	},
+	# Clinic (#291): 6 consulting seats, 20 minute visits; only the unwell (low mood) come.
+	"clinic": {
+		"seats": 6, "linger_minutes": 20, "grade_cap": 20, "grade_a": 16, "grade_b": 8, "who": WHO_LOW_MOOD,
+		"tiers": [[0, -5000], [8, 2500], [16, 6000], [30, 9000]],
+		"food": ["Check-ups", "Vaccines", "Physio", "Dental", "Eye tests"],
 	},
 }
 
@@ -135,6 +225,14 @@ static func visitors_for(kind: String, period: int, day: int) -> int:
 	if not VISITORS.has(kind) or period < 1 or period > Clock.PERIODS:
 		return 0
 	var by_day: Array = VISITORS[kind]
+	return int(by_day[1 if day == Clock.WE else 0][period - 1])
+
+
+## Extra visitors a metro station sends for this kind's meal in a period; 0 for kinds it does not feed.
+static func metro_visitors_for(kind: String, period: int, day: int) -> int:
+	if not METRO_VISITORS.has(kind) or period < 1 or period > Clock.PERIODS:
+		return 0
+	var by_day: Array = METRO_VISITORS[kind]
 	return int(by_day[1 if day == Clock.WE else 0][period - 1])
 
 
@@ -220,7 +318,7 @@ func grade_input(rooms: RoomsScript, room: int) -> int:
 
 
 ## Called once per tick after the clock. Serves meals and settles the day on the minute they pass.
-func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, tenancy: TenancyScript, rng: Object, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:
+func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, tenancy: TenancyScript, rng: Object, ledger: LedgerScript, messages: MessagesScript, at_tick: int, life: Object = null) -> void:
 	var minute := clock.minute_of_day()
 	if minute == _last_minute:
 		return
@@ -231,7 +329,7 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 		return
 	for meal: Array in MEALS:
 		if _crossed(prev, minute, meal[0]):
-			_serve(meal[3], meal[1], meal[2], floors, rooms, grid, people, tenancy, rng, clock.day_of_week(), meal[0])
+			_serve(meal[3], meal[1], meal[2], floors, rooms, grid, people, tenancy, rng, clock.day_of_week(), meal[0], life)
 	if _crossed(prev, minute, SETTLE_MINUTE):
 		_visitors_in = 0
 		_visitors_until = 0
@@ -251,17 +349,26 @@ func _open_shops(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, ten
 	return shops
 
 
-func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, tenancy: TenancyScript, rng: Object, day: int, at_minute: int) -> void:
+func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, tenancy: TenancyScript, rng: Object, day: int, at_minute: int, life: Object = null) -> void:
 	var shops: Array[int] = []
 	for id in _open_shops(floors, rooms, grid, tenancy):
 		if rooms.kind_of(id) == kind:
 			shops.append(id)
 	if shops.is_empty():
 		return
+	if day == Clock.WE and bool(PROFILES[kind].get("weekdays", false)):
+		return
+	var who: String = PROFILES[kind].get("who", WHO_ALL)
 	var served: Dictionary = {}  # this meal, per shop
 	for i in people.count():
 		if people.location_of(i) == PeopleScript.NONE and people.trip_state(i) == PeopleScript.TRIP_IDLE:
 			continue  # outside the tower
+		if who == WHO_CHILDREN and (life == null or not life.is_child(people.id_at(i))):
+			continue
+		if who == WHO_ADULTS and life != null and life.is_child(people.id_at(i)):
+			continue
+		if who == WHO_LOW_MOOD and people.mood_of(i) >= CLINIC_MOOD_BELOW:
+			continue
 		var home := people.home_of(i)
 		var guest := kind == "restaurant" and home != PeopleScript.NONE and rooms.has_room(home) and HotelScript.is_hotel_kind(rooms.kind_of(home))
 		if rng.next_below(100) >= (GUEST_PERCENT if guest else percent):
@@ -272,6 +379,8 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 			_today[shop] = customers_today(shop) + 1
 	# Visitors from outside (#154).
 	var arriving := visitors_for(kind, period_of_minute(at_minute), day)
+	if METRO_VISITORS.has(kind) and tenancy.transit_linked(floors, rooms, grid):
+		arriving += metro_visitors_for(kind, period_of_minute(at_minute), day)
 	var came := 0
 	for v in arriving:
 		var shop: int = shops[rng.next_below(shops.size())]
@@ -290,11 +399,14 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 	var open := _open_shops(floors, rooms, grid, tenancy)
 	var net := 0
 	var sellers := 0
+	var sources := SynergyScript.others_of(grid, rooms)
 	for id in open:
 		if not has_sales(rooms.kind_of(id)):
 			continue
 		sellers += 1
 		var amount := income_for(rooms.kind_of(id), customers_today(id))
+		if amount > 0:  # gardens feed restaurants (synergy.gd)
+			amount += amount * SynergyScript.sales_percent(rooms.kind_of(id), grid.run_of(id), sources) / 100
 		ledger.shop_sales(at_tick, amount, id)
 		net += amount
 	var counts: Dictionary = {}

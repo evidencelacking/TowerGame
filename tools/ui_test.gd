@@ -19,6 +19,7 @@ const GridScript := preload("res://scripts/sim/grid.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const ToolbarScript := preload("res://scripts/view/toolbar.gd")
+const SynergyLookScript := preload("res://scripts/view/synergy_look.gd")
 const GhostScript := preload("res://scripts/view/placement_ghost.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const PeopleViewScript := preload("res://scripts/view/people_view.gd")
@@ -88,6 +89,7 @@ func _run_all() -> void:
 	await _behind_cases()
 	await _fill_cases()
 	await _graphics_cases()
+	await _synergy_cases()
 
 
 func _toolbar_cases() -> void:
@@ -124,9 +126,18 @@ func _room_cases() -> void:
 	for kind: String in ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "hotel_single", "hotel_twin", "hotel_suite"]:
 		await _room_case(kind, 2, x)
 		x += CatalogueScript.field(kind, "width")
+	x = 160
+	for kind: String in ["gym", "daycare", "clinic"]:  # on floor 3, over the rooms of floor 2
+		await _room_case(kind, 3, x)
+		x += CatalogueScript.field(kind, "width")
+	x = 160
+	for kind: String in ["nightclub", "coworking"]:  # on floor 4, over the new kinds of floor 3
+		await _room_case(kind, 4, x)
+		x += CatalogueScript.field(kind, "width")
 	await _room_case("parking_ramp", -1, 200)
 	await _room_case("parking_space", -1, 204)
 	await _room_case("recycling", -2, 210)
+	await _room_case("metro", -1, 232)
 	for kind: String in CatalogueScript.IDS:
 		if kind in RoomsScript.PLACEABLE or kind in ["lobby", "floor", "stairs", "escalator"]:
 			continue
@@ -278,6 +289,34 @@ func _graphics_cases() -> void:
 	ViewSettingsScript.set_detailed_graphics(was)
 	_record("graphics.toggle", "graphics", "Graphics: Detailed then Classic from the toolbar switches the renderer's style", "-", found and live and back,
 		"picker found %s, Detailed live %s, Classic back %s" % [str(found), str(live), str(back)])
+
+
+## Synergy overlay (#294): the toolbar's Synergies switch turns the overlay on and off live, in Classic and in
+## Detailed. (That reading changes nothing in the tower is in tests/test_synergy_look.gd: here the sim runs.)
+func _synergy_cases() -> void:
+	var button := _toolbar.find_child("Synergies", true, false) as CheckButton
+	var renderer := _main.find_child("TowerRenderer", true, false)
+	var overlay: Node = null
+	if renderer != null:
+		for child: Node in renderer.get_children():
+			if child is SynergyOverlay:
+				overlay = child
+	var was := ViewSettingsScript.detailed_graphics
+	var found := button != null and overlay != null
+	var results: Array[bool] = []
+	if found:
+		for detailed: bool in [false, true]:
+			ViewSettingsScript.set_detailed_graphics(detailed)
+			await _frames(2)
+			button.button_pressed = true
+			await _frames(2)
+			var shown: bool = SynergyLookScript.on and overlay._shown_on
+			button.button_pressed = false
+			await _frames(2)
+			results.append(shown and not SynergyLookScript.on and not overlay._shown_on)
+	ViewSettingsScript.set_detailed_graphics(was)
+	_record("synergy.toggle", "synergy", "Synergies from the toolbar shows and hides the overlay in Classic and Detailed", "-", found and results.size() == 2 and not results.has(false),
+		"switch and overlay found %s, results %s" % [str(found), str(results)])
 
 
 func _window_cases() -> void:

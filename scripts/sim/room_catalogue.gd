@@ -29,6 +29,8 @@ extends RefCounted
 ##   upkeep         quarterly running cost in dollars (see running_costs.gd); absent means free (stairs).
 ##                  Charged per shaft for elevators, per room otherwise, once for the ground lobby.
 ##                  All tunable (owner ruling); the kinds in UPKEEP_UNVERIFIED are guesses.
+##   staff          workers a room employs (our own kinds: gym, daycare, clinic, ...). Their wages are folded into
+##                  the shop's empty-day loss in commerce.gd; names.gd gives them job titles. All tunable.
 ##   capacity       passengers per car (car rows only; 0 elsewhere).
 ##   limit_scope    "tower", or "shaft" for elevator cars (limit is cars per shaft).
 
@@ -37,7 +39,7 @@ const RESCUE_COST := 500000  ## Fire rescue, dollars (decided 2026-11-10).
 
 ## Kinds whose upkeep is a guess: only the $10,000 per elevator (local shaft) is in the reference.
 const UPKEEP_UNVERIFIED: Array[String] = [
-	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp",
+	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp", "metro",
 ]
 
 const PLACE_ANYWHERE := 0  ## Above or below ground.
@@ -60,7 +62,7 @@ const IDS: Array[String] = [
 	"service_shaft", "service_car", "hotel_single", "housekeeping", "security", "escalator",
 	"express_shaft", "express_car", "hotel_twin", "hotel_suite", "restaurant", "retail",
 	"movie_theatre", "party_hall", "medical", "recycling", "parking_ramp", "parking_space",
-	"metro", "cathedral",
+	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking",
 ]
 
 const _ROWS: Dictionary = {
@@ -143,11 +145,33 @@ const _ROWS: Dictionary = {
 	"parking_space": {"width": 4, "height": 1, "cost": 3000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_CHAIN, "limit": 512,
 		"limit_group": "parking_shops", "limit_scope": "tower"},
-	"metro": {"width": 32, "height": 3, "cost": 1000000, "per_unit": false, "star": 4,
-		"removable": false, "placement": PLACE_BOTTOM_B10, "limit": 1,
+	# The metro station (#325). The reference has a 3 floor station at B8-B10 from star 4; ours is a single
+	# basement floor, 32 wide, on any basement floor, from star 3 (the owner wants transit earlier). One per tower
+	# and permanent. Cost as in the reference; the upkeep is our own tunable.
+	"metro": {"upkeep": 8000, "width": 32, "height": 1, "cost": 1000000, "per_unit": false, "star": 3,
+		"removable": false, "placement": PLACE_UNDERGROUND, "limit": 1,
 		"limit_group": "", "limit_scope": "tower"},
 	"cathedral": {"width": 32, "height": 1, "cost": 3000000, "per_unit": false, "star": 5,
 		"removable": false, "placement": PLACE_FLOOR_100, "limit": 1,
+		"limit_group": "", "limit_scope": "tower"},
+	# Our own kinds (M13, #291; not in the reference, every number a tunable). Sized and priced between
+	# fast food (100k, 16 wide, star 1) and the restaurant (200k, 24 wide, star 3).
+	"gym": {"staff": 4, "width": 16, "height": 1, "cost": 120000, "per_unit": false, "star": 2,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"daycare": {"staff": 3, "width": 12, "height": 1, "cost": 80000, "per_unit": false, "star": 2,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"clinic": {"staff": 3, "width": 12, "height": 1, "cost": 200000, "per_unit": false, "star": 3,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# Batch 2 (#292). The nightclub is the party hall's bigger, louder cousin (100k, 24 wide, star 3): dearer, with
+	# a bar crew, and a star higher. Co-working is an office (40k, 9 wide) rented by the desk: dearer and wider.
+	"nightclub": {"staff": 5, "width": 24, "height": 1, "cost": 250000, "per_unit": false, "star": 4,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"coworking": {"staff": 2, "width": 16, "height": 1, "cost": 150000, "per_unit": false, "star": 3,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 }
 

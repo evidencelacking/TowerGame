@@ -8,6 +8,8 @@ const DetailRooms := preload("res://scripts/view/detail_rooms.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
+const DetailLight := preload("res://scripts/view/detail_light.gd")
+const SkyLook := preload("res://scripts/view/sky_look.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const TestPests := preload("res://tests/test_pests.gd")
 
@@ -48,6 +50,7 @@ static func run(check: Callable) -> void:
 	_suites(check)
 	_placed(check, classic, detailed)
 	_spots(check)
+	_lighting(check)
 
 
 ## Every kind, every variant, in use and empty, at the kind's width and wider: draws and stays in its rect.
@@ -130,7 +133,8 @@ static func _placed(check: Callable, classic: GraphicsStyle, detailed: GraphicsS
 	check.call(dirty.rects != clean.rects, "detailed: a dirty hotel room looks different from a clean one")
 
 
-## Spots at density 2: the shared recipe spots doubled, inside the room, and at furniture.
+## Spots at density 2: the shared recipe spots doubled and inside the room, and the Detailed furniture drawn
+## where they are: a piece of furniture (a rect under 40 world px wide, standing on the floor) spans each spot.
 static func _spots(check: Callable) -> void:
 	var detailed := GraphicsStyle.for_detailed(true)
 	var doubled := true
@@ -143,27 +147,59 @@ static func _spots(check: Callable) -> void:
 			var base := RoomRecipes.spots(kind, width, variant)
 			var wide := detailed.spots(kind, width, variant)
 			doubled = doubled and wide.size() == base.size()
-			var shapes: Array = RoomRecipes.layout(kind, width, false, variant)["shapes"]
+			var rect := Rect2i(0, 0, width, VC.CELL_H)
+			var rec := Recorder.new()
+			# an id that picks this variant
+			var id := 0
+			for candidate: int in IDS_TRIED:
+				if RoomRecipes.variant_for(kind, candidate) == variant:
+					id = candidate
+					break
+			DetailRooms.draw(rec, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), true, false, id)
 			for i: int in base.size():
 				doubled = doubled and wide[i] == base[i] * 2
 				inside = inside and wide[i].x >= 0 and wide[i].x + 2 * VC.FIGURE_W <= width * 2 and wide[i].y - 2 * VC.FIGURE_H >= 0 and wide[i].y <= (VC.CELL_H - VC.SLAB_H) * 2
-				if kind != "lobby" and kind != "housekeeping" and not _at_furniture(shapes, base[i]):
+				if kind != "lobby" and not _at_furniture(rec.rects, base[i]):
 					at_furniture = false
 					failures.append("%s v%d spot %s" % [kind, variant, str(base[i])])
 	check.call(doubled, "detailed: every batch 1 spot is the shared spot at twice the pixels")
 	check.call(inside, "detailed: every batch 1 spot, doubled, holds a doubled figure inside the room")
-	check.call(at_furniture, "detailed: people at office, condo and hotel spots stand or sleep at furniture %s" % str(failures))
+	check.call(at_furniture, "detailed: people at office, condo, hotel and housekeeping spots are at furniture %s" % str(failures))
 
 
-## Whether a figure standing at a spot is at some furniture shape: within REACH px of it sideways (a person
-## at a desk sits on it, one by a window or a sofa end stands beside it) and the shape reaches down to the feet.
-static func _at_furniture(shapes: Array, spot: Vector2i) -> bool:
-	for shape: Array in shapes:
-		var role: String = shape[4]
-		if role == "window" or role == "lamp":
+## Whether a drawn piece of furniture (narrow, resting on the floor) lies under the figure at a spot (world pixels).
+static func _at_furniture(rects: Array[Rect2], spot: Vector2i) -> bool:
+	var centre := float(spot.x) + VC.FIGURE_W * 0.5
+	for r: Rect2 in rects:
+		if r.size.x > 40.0 or r.size.y < 2.0 or r.end.y < float(spot.y) - 8.0 or r.end.y > float(VC.CELL_H):
 			continue
-		var x: int = shape[0]
-		var bottom: int = (shape[1] as int) + (shape[3] as int)
-		if x < spot.x + VC.FIGURE_W + REACH and x + (shape[2] as int) > spot.x - REACH and bottom >= spot.y - 10:
+		if r.position.x - REACH <= centre and r.end.x + REACH >= centre:
 			return true
 	return false
+
+
+## Night is lighting (#305): lit rooms record glows inside their own rect only at night, empty ones none
+## (a sleeper's bedside lamp aside), and the ambient colour follows the sky.
+static func _lighting(check: Callable) -> void:
+	var saved := SkyLook.daylight
+	var rect := Rect2i(160, 320, 128, 32)
+	var hue := Palette.hue("condo")
+	SkyLook.daylight = SkyLook.FULL
+	DetailLight.clear()
+	DetailRooms.draw(Recorder.new(), "condo", rect, hue, true)
+	check.call(DetailLight.lights.is_empty(), "detailed: no lights are recorded by day")
+	SkyLook.daylight = 0
+	DetailLight.clear()
+	DetailRooms.draw(Recorder.new(), "condo", rect, hue, false)
+	check.call(DetailLight.lights.is_empty(), "detailed: an empty room casts no light at night")
+	DetailRooms.draw(Recorder.new(), "hotel_single", Rect2i(160, 320, 32, 32), hue, false, false, 0, false, true)
+	check.call(DetailLight.lights.size() == 1, "detailed: a sleeper's room has only its bedside lamp lit")
+	DetailLight.clear()
+	DetailRooms.draw(Recorder.new(), "condo", rect, hue, true)
+	var inside := not DetailLight.lights.is_empty()
+	for light: Array in DetailLight.lights:
+		inside = inside and Rect2(rect).encloses(light[0])
+	check.call(inside, "detailed: a lit room records glows clipped to its own rect")
+	check.call(DetailLight.ambient(0).get_luminance() < DetailLight.ambient(SkyLook.FULL).get_luminance() and DetailLight.intensity(SkyLook.FULL) == 0.0 and DetailLight.intensity(0) == 1.0, "detailed: ambient darkens and lights strengthen as the sky goes dark")
+	DetailLight.clear()
+	SkyLook.daylight = saved

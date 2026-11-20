@@ -54,6 +54,7 @@ const NO_SUCH_CAR := 52  ## Send car: there is no such car.
 const BAD_CALL := 53  ## Place call: the direction is not UP or DOWN, or no car can go that way from the floor.
 const OVERLAPS_LINK := 54  ## Stairs, escalator or shaft: another link (stairs, escalator or shaft) is in the way.
 const NO_FLOOR_FOR_ESCALATOR := 55  ## Escalator: one of the two floors is not built under the escalator.
+const ONE_STATION := 73  ## Metro: the tower already has its one station.
 const NOT_UNDERGROUND := 60  ## A basement-only room (recycling) needs every one of its floors below ground.
 const NOT_TOUCHING := 61  ## Recycling: a new centre must touch an existing centre.
 const TALL_REPLACE := 62  ## Replace cannot put a two-floor room (recycling) in; bulldoze and place it.
@@ -89,7 +90,7 @@ const EXPRESS_CAR_CAPACITY := 36  ## People an express car holds (owner ruling 2
 const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
-const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite"]
+const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro"]
 ## Rooms two floors tall. Their grid run is on the lower (deeper) floor under the room's id, and the
 ## upper floor is a second grid occupant under id + 1 that is not a room of its own (see room_of).
 const TALL_KINDS: Array[String] = ["recycling"]
@@ -164,7 +165,14 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 		return result
 	if TALL_KINDS.has(kind):
 		return _check_place_tall(grid, floors, kind, floor_number, x_left)
-	if floor_number < 0 and not parking and CatalogueScript.field(kind, "placement") != CatalogueScript.PLACE_ANYWHERE:
+	if kind == "metro":  # one station, in a basement (#325)
+		if floor_number > 0:
+			result["reason"] = NOT_BASEMENT
+			return result
+		if _has_kind(kind):
+			result["reason"] = ONE_STATION
+			return result
+	elif floor_number < 0 and not parking and CatalogueScript.field(kind, "placement") != CatalogueScript.PLACE_ANYWHERE:
 		result["reason"] = BELOW_GROUND
 		return result
 	if floor_number == 1:
