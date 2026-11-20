@@ -13,6 +13,7 @@ const Rooms := preload("res://scripts/sim/rooms.gd")
 const NoiseScript := preload("res://scripts/sim/noise.gd")
 const Synergy := preload("res://scripts/sim/synergy.gd")
 const TestNewKinds := preload("res://tests/test_new_kinds.gd")
+const TestEvaluation := preload("res://tests/test_evaluation.gd")
 
 const KINDS: Array[String] = ["nightclub", "coworking"]
 
@@ -94,6 +95,33 @@ static func run(check: Callable) -> void:
 	check.call(near == -6, "nightclub: the condo's neighbours factor is -6 (%d)" % near)
 	var fresh := TowerSim.new(42, 100000000)
 	check.call(Synergy.mood_delta("condo", [3, 124, 16], Synergy.others_of(fresh.grid, fresh.rooms)) == 0, "nightclub: no club, no harm")
+
+	# The midnight wave belongs to the next day: the 23:00 settle credits the evening wave, then clears the count.
+	var day := _tower()
+	var day_club := TestNewKinds._room(day, "nightclub")
+	TestNewKinds._inside(day, 40, 90)
+	_serve(day, "nightclub", Clock.WD1, 180)
+	check.call(day.commerce.customers_today(day_club) == 40, "nightclub: the evening wave serves 40")
+	day.commerce._settle(day.floors, day.rooms, day.grid, day.tenancy, day.ledger, day.messages, 0)
+	check.call(day.commerce.customers_last_day(day_club) == 40 and day.commerce.customers_today(day_club) == 0, "nightclub: the 23:00 settle credits the evening wave and starts a new day")
+	_serve(day, "nightclub", Clock.WD2, 180)
+	check.call(day.commerce.customers_today(day_club) == 40 and day.commerce.customers_last_day(day_club) == 40, "nightclub: the midnight wave counts toward the next day, not the one settled")
+
+	# Through the real tick: a day with a nightclub next door lowers a condo resident's mood below the same day without.
+	var moods: Array[int] = []
+	for with_club: bool in [false, true]:
+		var m := TestEvaluation._pair("condo")
+		if with_club:
+			m.floors.fill_span(3, 100, 170)
+			var refusal := m.rooms.place_room(m.grid, m.floors, m.ledger, 0, Catalogue.IDS.find("nightclub"), 3, 140)
+			assert(refusal == 0, "the club places beside the condos, refusal %d" % refusal)
+		for i in m.people.count():
+			m.people.set_mood(i, 100)
+		m.clock.set_to_tick(0)
+		for n in TestNewKinds.DAY_TICKS:
+			m.step()
+		moods.append(m.people.mood_of(0))
+	check.call(moods[1] < moods[0], "nightclub: after a day the condo resident is less happy than without the club (%s)" % str(moods))
 
 	# Save and load keep the day's counts, and the same state gives the same hash.
 	var copy := TowerSim.new(1, 1)
