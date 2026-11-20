@@ -127,7 +127,7 @@ const DECK_NIGHT_PERCENT := 6
 ## The casino (#319): open 20:00 to 05:00 in two waves of adults; hotel guests gamble far more often than the
 ## tower's other people (CASINO_GUEST_PERCENT). Every gambler stakes CASINO_STAKE on an even bet he wins
 ## CASINO_WIN_PERCENT of the time, so the house keeps 10 percent of the stakes in the long run: the takings at
-## settlement are the seeded results of the day's bets (integers), less the wages. Unverified tunables.
+## settlement are the seeded results of the day's bets (integers); the staff are paid by the upkeep. Unverified tunables.
 const CASINO_EVENING := 1200  ## 20:00.
 const CASINO_EVENING_WINDOW := 240
 const CASINO_LATE := 0  ## 00:00; counts for the next day, like the nightclub's second wave.
@@ -137,7 +137,6 @@ const CASINO_LATE_PERCENT := 8
 const CASINO_GUEST_PERCENT := 35
 const CASINO_STAKE := 400
 const CASINO_WIN_PERCENT := 45
-const CASINO_WAGE := 6000
 const CASINO_INCIDENT_PERCENT := 10
 const CASINO_INCIDENT_COST := 15000
 const WHO_ADULTS := "adults"
@@ -485,7 +484,7 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 
 
 ## The casino's takings for a day with this many gamblers: each stakes CASINO_STAKE and wins with probability
-## CASINO_WIN_PERCENT (the house pays the stake, otherwise keeps it), less the wages. Seeded: it draws from the
+## CASINO_WIN_PERCENT (the house pays the stake, otherwise keeps it), with the staff paid by the room's upkeep. Seeded: it draws from the
 ## tower's rng. Without an rng (a bare call) it is the long-run expectation.
 static func casino_takings(customers: int, rng: Object) -> int:
 	var net := 0
@@ -494,7 +493,7 @@ static func casino_takings(customers: int, rng: Object) -> int:
 	else:
 		for gambler in customers:
 			net += -CASINO_STAKE if rng.next_below(100) < CASINO_WIN_PERCENT else CASINO_STAKE
-	return net - CASINO_WAGE
+	return net
 
 
 ## A tower with a casino and no security office gets the occasional incident (a brawl, a cheat, a theft): 10

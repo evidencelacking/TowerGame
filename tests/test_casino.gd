@@ -82,10 +82,11 @@ static func run(check: Callable) -> void:
 	var seeded_a := Commerce.casino_takings(200, SimRng.new(7))
 	var seeded_b := Commerce.casino_takings(200, SimRng.new(7))
 	check.call(seeded_a == seeded_b, "casino: the same seed gives the same night (%d)" % seeded_a)
-	check.call(Commerce.casino_takings(0, SimRng.new(7)) == -Commerce.CASINO_WAGE, "casino: an empty night loses the wages")
-	var edge := Commerce.casino_takings(5000, SimRng.new(3)) + Commerce.CASINO_WAGE
-	check.call(edge > 0 and edge < 5000 * Commerce.CASINO_STAKE, "casino: over a long run the house keeps part of the stakes (%d)" % edge)
-	check.call(Commerce.casino_takings(100, null) == 100 * 40 - Commerce.CASINO_WAGE, "casino: the bare expectation is 10 percent of the stakes")
+	check.call(Commerce.casino_takings(0, SimRng.new(7)) == 0, "casino: an empty night takes nothing (the upkeep pays the staff)")
+	var stakes := 50000 * Commerce.CASINO_STAKE
+	var edge := Commerce.casino_takings(50000, SimRng.new(3))
+	check.call(edge > stakes * 9 / 100 and edge < stakes * 11 / 100, "casino: over 50,000 bets the house keeps about 10 percent of the stakes (%d of %d)" % [edge, stakes])
+	check.call(Commerce.casino_takings(100, null) == 100 * 40, "casino: the bare expectation is 10 percent of the stakes")
 	var balance := t.ledger.balance
 	_settle(t)
 	check.call(t.ledger.balance != balance, "casino: settlement credits the bets' result")
@@ -101,6 +102,14 @@ static func run(check: Callable) -> void:
 			_serve(tower, 1200, Clock.WD1)
 			_settle(tower)
 	check.call(_incidents(bare) > 0 and _incidents(guarded) == 0, "casino: incidents only without security (%d, %d)" % [_incidents(bare), _incidents(guarded)])
+
+	# The incident rate: about one night in ten with gamblers and no security office.
+	var rate_rng := SimRng.new(5)
+	var before := _incidents(bare)
+	for night in 1000:
+		bare.commerce._casino_incident(bare.rooms, bare.ledger, bare.messages, bare.tick, TestNewKinds._room(bare, "casino"), 10, rate_rng)
+	var hits := _incidents(bare) - before
+	check.call(hits > 60 and hits < 140, "casino: about 10 percent of 1,000 nights have an incident (%d)" % hits)
 
 	# Neighbours: condos and offices lose mood within 3 floors, hotels gain within 10.
 	var sources := Synergy.others_of(t.grid, t.rooms)
