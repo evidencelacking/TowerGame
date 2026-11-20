@@ -22,6 +22,8 @@ const ToolbarScript := preload("res://scripts/view/toolbar.gd")
 const GhostScript := preload("res://scripts/view/placement_ghost.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const PeopleViewScript := preload("res://scripts/view/people_view.gd")
+const ViewSettingsScript := preload("res://scripts/view/view_settings.gd")
+const GraphicsStyleScript := preload("res://scripts/view/graphics_style.gd")
 const PersonInfo := preload("res://scripts/view/person_info.gd")
 const TowerCameraScript := preload("res://scripts/view/tower_camera.gd")
 const EXPECTED_PATH := "res://tools/ui_expected.json"
@@ -84,6 +86,7 @@ func _run_all() -> void:
 	await _window_cases()
 	await _behind_cases()
 	await _fill_cases()
+	await _graphics_cases()
 
 
 func _toolbar_cases() -> void:
@@ -251,6 +254,29 @@ func _fill_cases() -> void:
 	await _drag_case("fill.shaft", "fill", "local_shaft", 146, 3, 146, 4,
 		func() -> bool: return _shaft_span(146, 3, 4) and _tower.floors.has_floor(3, 140) and _tower.floors.has_floor(4, 143),
 		"Drag a shaft at columns 144 to 147 over floors 3 to 4, beside floor ending at column 139: the gap fills")
+
+
+## Graphics setting (#301): choosing Detailed in the toolbar switches the style the renderer draws with, live,
+## and Classic switches it back. The saved setting is restored afterwards.
+func _graphics_cases() -> void:
+	var picker := _toolbar.find_child("Graphics", true, false) as OptionButton
+	var renderer := _main.find_child("TowerRenderer", true, false)
+	var was := ViewSettingsScript.detailed_graphics
+	var found := picker != null and renderer != null
+	var live := false
+	var back := false
+	if found:
+		picker.select(1)
+		picker.item_selected.emit(1)
+		await _frames(2)
+		live = ViewSettingsScript.detailed_graphics and renderer._seen_style == GraphicsStyleScript.for_detailed(true)
+		picker.select(0)
+		picker.item_selected.emit(0)
+		await _frames(2)
+		back = not ViewSettingsScript.detailed_graphics and renderer._seen_style == GraphicsStyleScript.for_detailed(false)
+	ViewSettingsScript.set_detailed_graphics(was)
+	_record("graphics.toggle", "graphics", "Graphics: Detailed then Classic from the toolbar switches the renderer's style", "-", found and live and back,
+		"picker found %s, Detailed live %s, Classic back %s" % [str(found), str(live), str(back)])
 
 
 func _window_cases() -> void:

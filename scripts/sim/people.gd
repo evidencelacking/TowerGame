@@ -41,6 +41,8 @@ const TRIP_MOVING := 2  ## Routing has the person in transit.
 const TRIP_RIDING := 3  ## Waiting for or riding an elevator; trips.gd ends it when they alight (#95).
 
 const STRESS_MAX := 300
+const MOOD_MAX := 100
+const MOOD_START := 75  ## A new person arrives fairly content.
 ## Stress bands (3.6, docs/gameplay-reference.md): under 80 calm, 80 to 120 uneasy, over 120 angry.
 const BAND_CALM := 0
 const BAND_UNEASY := 1
@@ -48,7 +50,7 @@ const BAND_ANGRY := 2
 const UNEASY_FROM := 80  ## Stress at or above this is uneasy.
 const ANGRY_OVER := 120  ## Stress above this is angry.
 
-const FIELDS := 12  ## Per person: id, home, work, offset, goal, trip_state, location, stress, trip_left, trip_total, trip_from, trip_leg.
+const FIELDS := 14  ## Per person: id, home, work, offset, goal, trip_state, location, stress, trip_left, trip_total, trip_from, trip_leg, mood, low_days.
 const _ID := 0
 const _HOME := 1
 const _WORK := 2
@@ -60,6 +62,8 @@ const _STRESS := 7
 const _TRIP_LEFT := 8  ## Minutes of travel left while moving; while idle, minutes before a given-up trip is retried.
 const _TRIP_TOTAL := 9  ## Minutes the current trip takes in all (for drawing).
 const _TRIP_FROM := 10  ## Room the current trip started in, or NONE for outside (for drawing).
+const _MOOD := 12  ## 0 to MOOD_MAX; moves once a day (mood.gd).
+const _LOW_DAYS := 13  ## Consecutive days the mood has been low (mood.gd).
 const _TRIP_LEG := 11  ## Route leg the person is on: the first leg of the walking stretch, or the elevator leg.
 
 var _next_id: int = 0
@@ -79,7 +83,7 @@ func add_person(home: int, work: int, rng: Object) -> int:
 	var start := home if home != NONE else work
 	var goal := DEST_HOME if home != NONE else DEST_WORK
 	var offset: int = rng.next_below(ARRIVAL_SPREAD + 1)
-	_data.append_array([id, home, work, offset, goal, TRIP_IDLE, start, 0, 0, 0, NONE, 0] as Array[int])
+	_data.append_array([id, home, work, offset, goal, TRIP_IDLE, start, 0, 0, 0, NONE, 0, MOOD_START, 0] as Array[int])
 	return id
 
 
@@ -94,7 +98,7 @@ func add_guest(room: int, rng: Object) -> int:
 	var id := _next_id
 	_next_id += 1
 	var offset: int = rng.next_below(ARRIVAL_SPREAD + 1)
-	_data.append_array([id, room, NONE, offset, DEST_HOME, TRIP_REQUESTED, NONE, 0, 0, 0, NONE, 0] as Array[int])
+	_data.append_array([id, room, NONE, offset, DEST_HOME, TRIP_REQUESTED, NONE, 0, 0, 0, NONE, 0, MOOD_START, 0] as Array[int])
 	return id
 
 
@@ -112,6 +116,20 @@ func remove_room(room: int) -> int:
 			kept.append_array(_data.slice(b, b + FIELDS))
 	_data = kept
 	return removed
+
+
+## Removes one person by index (they leave town, retire from the tower, ...). Ids are not reused.
+func remove_person(i: int) -> void:
+	var b := i * FIELDS
+	var kept: Array[int] = []
+	kept.append_array(_data.slice(0, b))
+	kept.append_array(_data.slice(b + FIELDS))
+	_data = kept
+
+
+## Moves a person's home to another room (a couple moving in together).
+func set_home(i: int, room: int) -> void:
+	_data[i * FIELDS + _HOME] = room
 
 
 ## How many people work in this room.
@@ -195,6 +213,24 @@ static func band_of(stress: int) -> int:
 
 func stress_band(i: int) -> int:
 	return band_of(stress_of(i))
+
+
+func mood_of(i: int) -> int:
+	return _data[i * FIELDS + _MOOD]
+
+
+## Sets mood, clamped to 0 to MOOD_MAX.
+func set_mood(i: int, value: int) -> void:
+	_data[i * FIELDS + _MOOD] = clampi(value, 0, MOOD_MAX)
+
+
+## Consecutive days this person's mood has been low.
+func low_days_of(i: int) -> int:
+	return _data[i * FIELDS + _LOW_DAYS]
+
+
+func set_low_days(i: int, days: int) -> void:
+	_data[i * FIELDS + _LOW_DAYS] = maxi(0, days)
 
 
 func trip_left(i: int) -> int:
@@ -363,6 +399,8 @@ static func valid_ints(ints: Array) -> bool:
 		if ints[b + _GOAL] < DEST_HOME or ints[b + _GOAL] > DEST_AWAY or ints[b + _TRIP] < TRIP_IDLE or ints[b + _TRIP] > TRIP_RIDING:
 			return false
 		if ints[b + _OFFSET] < 0 or ints[b + _OFFSET] > ARRIVAL_SPREAD or ints[b + _STRESS] < 0 or ints[b + _STRESS] > STRESS_MAX:
+			return false
+		if ints[b + _MOOD] < 0 or ints[b + _MOOD] > MOOD_MAX or ints[b + _LOW_DAYS] < 0:
 			return false
 		if ints[b + _TRIP_LEFT] < 0 or ints[b + _TRIP_TOTAL] < 0 or ints[b + _TRIP_LEG] < 0:
 			return false

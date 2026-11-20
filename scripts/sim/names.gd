@@ -86,10 +86,11 @@ static func age_band(seed_value: int, id: int) -> int:
 
 
 ## The job title for a seed, person id and the kind of room they work or live in ("" if the kind has none).
-static func title_for(seed_value: int, id: int, kind: String) -> String:
+## band, when not -1, replaces the id's own age band (a promotion reads as a senior title).
+static func title_for(seed_value: int, id: int, kind: String, band: int = -1) -> String:
 	if not TITLES.has(kind):
 		return ""
-	var list: Array = (TITLES[kind] as Array)[age_band(seed_value, id)]
+	var list: Array = (TITLES[kind] as Array)[age_band(seed_value, id) if band < 0 else band]
 	return list[(_mix(seed_value ^ _mix(id + 0x7777)) & 0x7FFFFFFF) % list.size()]
 
 
