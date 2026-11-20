@@ -4,17 +4,53 @@ extends RefCounted
 ## it is never saved; only the player's renames are. Integers only: a rename is stored as code
 ## points. Our own name lists, original to this game.
 
-const FIRST: Array[String] = [
-	"Ada", "Bram", "Cora", "Dov", "Edda", "Finn", "Gale", "Hana", "Ivo", "Juno", "Kit", "Lena",
-	"Milo", "Nell", "Orrin", "Pia", "Quin", "Rhea", "Sol", "Tove", "Una", "Vik", "Wren", "Xia",
-	"Yuri", "Zeke", "Bea", "Cal", "Dina", "Eli", "Fay", "Gus",
+## Names are two or three invented syllables each, so 2,000 people almost never share one.
+const FIRST_START: Array[String] = [
+	"Al", "Be", "Ca", "Do", "El", "Fi", "Ga", "Ha", "Io", "Ju", "Ka", "Le", "Mi", "Ne", "Or", "Pa",
+	"Qu", "Ri", "So", "Ta", "Ul", "Ve", "Wi", "Yo", "Zan", "Bri", "Cle", "Dra", "Fen", "Gri", "Tam", "Sef",
 ]
-const LAST: Array[String] = [
-	"Ashby", "Birch", "Calder", "Dunmore", "Ellery", "Fenwick", "Garrow", "Hollis", "Ingram",
-	"Jessup", "Kestrel", "Lowry", "Marlow", "Norcross", "Oakes", "Pryor", "Quill", "Rowan",
-	"Sable", "Thorne", "Upshaw", "Vance", "Wick", "Yarrow", "Ames", "Brandt", "Crane", "Dale",
-	"Evers", "Flint", "Grove", "Hart",
+const FIRST_END: Array[String] = [
+	"na", "ra", "lo", "mi", "vin", "dra", "ne", "to", "ric", "sa", "lin", "ko", "ber", "dan", "la", "mon",
+	"ta", "del", "ven", "sie", "ro", "bel", "nik", "una", "ras", "ty", "ken", "mar", "lou", "pha", "zi", "ek",
 ]
+const LAST_START: Array[String] = [
+	"Ash", "Birk", "Cal", "Dun", "Ell", "Fen", "Gar", "Hol", "Ing", "Jes", "Kes", "Low", "Mar", "Nor",
+	"Oak", "Pry", "Row", "Sab", "Tho", "Van", "Wil", "Yar", "Brand", "Crane", "Dale", "Ever", "Flin",
+	"Gro", "Har", "Lin", "Pell", "Stan",
+]
+const LAST_END: Array[String] = [
+	"by", "ford", "der", "more", "ery", "wick", "row", "lis", "ham", "sup", "trel", "ry", "ton", "well",
+	"ley", "gate", "dale", "croft", "son", "shaw", "mont", "field", "wood", "stead", "ner", "ling", "wyn", "cott",
+]
+const LAST_MID: Array[String] = ["", "", "", "en", "er", "ing", "or", "al"]  ## Mostly none: a short surname.
+
+const BAND_YOUNG := 0
+const BAND_ADULT := 1
+const BAND_SENIOR := 2
+const BAND_NAMES: Array[String] = ["Young", "Adult", "Senior"]
+## Out of 100: below YOUNG_PERCENT is young, below YOUNG_PERCENT + ADULT_PERCENT adult, else senior.
+const YOUNG_PERCENT := 25
+const ADULT_PERCENT := 55
+
+## Job titles by room kind and age band (young, adult, senior). A kind not listed has none.
+const TITLES: Dictionary = {
+	"office": [
+		["Clerk", "Junior Analyst", "Assistant", "Intern"],
+		["Analyst", "Accountant", "Manager", "Designer", "Engineer", "Planner"],
+		["Director", "Senior Manager", "Senior Analyst", "Partner"],
+	],
+	"fast_food": [["Cashier", "Fry Cook", "Runner"], ["Cook", "Shift Lead", "Counter Server"], ["Manager", "Head Cook"]],
+	"restaurant": [["Busser", "Dishwasher", "Server"], ["Cook", "Server", "Host", "Sous Chef"], ["Head Chef", "Floor Captain", "Manager"]],
+	"retail": [["Stocker", "Cashier", "Sales Assistant"], ["Sales Associate", "Buyer", "Shopkeeper"], ["Store Manager", "Senior Buyer"]],
+	"medical": [["Orderly", "Trainee Nurse"], ["Nurse", "Technician", "Doctor"], ["Senior Doctor", "Head Nurse"]],
+	"security": [["Junior Guard"], ["Guard", "Patrol Officer"], ["Chief of Security"]],
+	"housekeeping": [["Trainee Maid"], ["Housekeeper", "Linen Porter"], ["Head Housekeeper"]],
+	"condo": [["Student", "Apprentice", "Young Professional"], ["Resident", "Commuter", "Homeowner"], ["Retiree", "Pensioner", "Elder"]],
+	"hotel_single": [["Backpacker", "Guest"], ["Guest", "Traveller"], ["Guest", "Retired Traveller"]],
+	"hotel_twin": [["Guest", "Backpacker"], ["Guest", "Traveller"], ["Guest", "Retired Traveller"]],
+	"hotel_suite": [["Guest"], ["Guest", "Executive Guest"], ["Guest", "Honoured Guest"]],
+}
+
 const MAX_LENGTH := 16  ## Longest rename, in characters.
 const FIRST_CODE := 32  ## Renames use printable ASCII only: space to tilde.
 const LAST_CODE := 126
@@ -35,9 +71,26 @@ static func _mix(x: int) -> int:
 ## The generated name for a seed and person id: always the same pair.
 static func generated(seed_value: int, id: int) -> String:
 	var h := _mix(seed_value ^ _mix(id))
-	var first := (h & 0x7FFFFFFF) % FIRST.size()
-	var last := ((h >> 32) & 0x7FFFFFFF) % LAST.size()
-	return "%s %s" % [FIRST[first], LAST[last]]
+	var h2 := _mix(h)
+	var first := FIRST_START[(h & 0x7FFFFFFF) % FIRST_START.size()] + FIRST_END[((h >> 8) & 0x7FFFFFFF) % FIRST_END.size()]
+	var last := LAST_START[(h2 & 0x7FFFFFFF) % LAST_START.size()] + LAST_MID[((h2 >> 8) & 0x7FFFFFFF) % LAST_MID.size()] + LAST_END[((h2 >> 16) & 0x7FFFFFFF) % LAST_END.size()]
+	return "%s %s" % [first, last]
+
+
+## The age band (BAND_YOUNG, BAND_ADULT or BAND_SENIOR) for a seed and person id: always the same.
+static func age_band(seed_value: int, id: int) -> int:
+	var roll := (_mix(seed_value ^ _mix(id + 0x5151)) & 0x7FFFFFFF) % 100
+	if roll < YOUNG_PERCENT:
+		return BAND_YOUNG
+	return BAND_ADULT if roll < YOUNG_PERCENT + ADULT_PERCENT else BAND_SENIOR
+
+
+## The job title for a seed, person id and the kind of room they work or live in ("" if the kind has none).
+static func title_for(seed_value: int, id: int, kind: String) -> String:
+	if not TITLES.has(kind):
+		return ""
+	var list: Array = (TITLES[kind] as Array)[age_band(seed_value, id)]
+	return list[(_mix(seed_value ^ _mix(id + 0x7777)) & 0x7FFFFFFF) % list.size()]
 
 
 ## The name to show: the player's rename if there is one, else the generated name.

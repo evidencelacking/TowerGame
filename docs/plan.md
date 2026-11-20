@@ -228,6 +228,43 @@ something, the view shows it. Animation reads sim state only and adds no saved s
 | 10.11 | Sound: ambience, UI, elevator, crowd, events (original or licensed) | Licence per file | #247 |
 | 10.12 | Settings: resolution, full screen, UI scale, volume, keys, starting funds | Persist | #248 |
 
+## Our own: M12 to M14
+
+Owner (2026-11-19): the game plays close to the genre but rudimentary; the last phase makes it ours.
+M12 and M13 start now, ahead of M11; M14 is the headline feature once they land. All of it is our own
+design (nothing here comes from the original), deterministic in `scripts/sim`, every rule tested.
+
+### M12 Living tower: people with stories
+
+| ID | Task | Done when | Issue |
+|---|---|---|---|
+| 12.1 | Identity: every person has a name, age band and job title, derived from id and tower seed by our own syllable tables (no saved state) | Same person, same name; tests || #285 |
+| 12.2 | Mood 0-100 per person from waits, noise, room grade, crowding and events; drives stay or leave in place of raw stress; shown in the person window | Tests; save bump || #286 |
+| 12.3 | Life events: couples form, move in together, a child joins the household, promotions, retirements, leaving town; rare, seeded, per day | Tests; save bump || #287 |
+| 12.4 | Tower news: a ticker of life and tower events with names; click a story to jump to the person or room | Works || #288 |
+| 12.5 | Follow a person: the camera tracks them; the person window shows their day plan and recent stories | Works || #289 |
+| 12.6 | Thought icons: small mood and need icons over people (waiting too long, noisy, happy, hungry) | Owner approves by eye || #290 |
+
+### M13 Neighbourhoods and synergies
+
+| ID | Task | Done when | Issue |
+|---|---|---|---|
+| 13.1 | New kinds batch 1: gym, daycare, clinic (cost, size, star, staff, recipe) | Tests || #291 |
+| 13.2 | New kinds batch 2: rooftop garden, nightclub, co-working | Tests || #292 |
+| 13.3 | Synergies: each kind boosts or harms neighbours within a reach (daycare lifts condo demand, gym lifts office mood, clinic speeds recovery, garden feeds restaurants, nightclub earns at night but annoys condos); integers, deterministic; the ghost previews the effect | Tests || #293 |
+| 13.4 | Synergy overlay: a map filter showing boosts and harms per room | Works || #294 |
+| 13.5 | Districts: a cluster of rooms that boost each other is named and gets a district bonus | Tests || #295 |
+| 13.6 | Joined suites, step 2: a suite is one tenant with rent and staff scaled by width; merge and split | Tests; save bump | #276 |
+
+### M14 Twin towers and sky bridges (headline, after M12 and M13)
+
+| ID | Task | Done when | Issue |
+|---|---|---|---|
+| 14.1 | A second tower on the lot, built and run like the first | Tests |  |
+| 14.2 | Sky bridges between the towers at sky-lobby floors | Tests |  |
+| 14.3 | Routing, rents and evaluation across both towers | Tests |  |
+| 14.4 | The skyline and city around the towers grow with the star rating | Owner approves by eye |  |
+
 ## M11 Full game
 
 | ID | Task | Done when | Issue |
