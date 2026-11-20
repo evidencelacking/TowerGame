@@ -1,6 +1,7 @@
 class_name TowerRenderer
 extends Node2D
 const VC := preload("res://scripts/view/view_consts.gd")
+const Suites := preload("res://scripts/view/suites.gd")
 const PeopleView := preload("res://scripts/view/people_view.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const RoomLook := preload("res://scripts/view/room_look.gd")
@@ -283,7 +284,19 @@ func _draw_lobby(canvas: CanvasItem) -> void:
 
 func _draw_rooms(canvas: CanvasItem) -> void:
 	var broken: Array[int] = Parking.broken_ids(tower.rooms, tower.grid)  # cut-off parking is crossed out
-	for run: Array in _room_runs:
+	var entries := Suites.entries_for(tower, _room_runs, Suites.tenanted_rooms(tower))  # neighbours of one kind, both in use, draw as one suite (#276)
+	var joined: Dictionary = {}  # run index -> true for rooms drawn inside a suite
+	for group: Array[int] in Suites.groups(entries):
+		var first: Array = _room_runs[group[0]]
+		var bounds := Suites.span(entries, group)
+		var floor_rect: Rect2i = first[2]
+		RoomLook.draw_suite(canvas, entries[group[0]]["kind"], Rect2i(bounds[0], floor_rect.position.y, bounds[1], floor_rect.size.y), first[0])
+		for index: int in group:
+			joined[index] = true
+	for index: int in _room_runs.size():
+		if joined.has(index):
+			continue
+		var run: Array = _room_runs[index]
 		RoomLook.draw(canvas, tower, run[0], run[2], broken, _in_use.has(run[1]), _asleep.has(run[1]) and not _in_use.has(run[1]))
 
 
@@ -325,25 +338,14 @@ func _shown_at(figure: Dictionary) -> Vector2:
 ## phase choose the frame: walking alternates legs apart and together every half column, stairs
 ## lift one leg and bob, an escalator rider stands with legs together.
 func _draw_figure(canvas: CanvasItem, x: int, feet: int, shirt: Color, band: int, skin: Color, pose: int = 0, phase: int = 0) -> void:
-	var head_h := maxi(FIGURE_H / 3, 2)
-	var leg_h := maxi(FIGURE_H / 4, 1)
 	var bob := 1 if pose == PeopleView.POSE_STAIRS and phase % 2 == 1 else 0
 	var top := feet - FIGURE_H - bob
-	var legs := shirt.darkened(0.4)
-	canvas.draw_rect(Rect2i(x, top, FIGURE_W, head_h), skin)  # head
-	canvas.draw_rect(Rect2i(x, top + head_h, FIGURE_W, FIGURE_H - head_h - leg_h), shirt)  # body
-	var leg_y := feet - leg_h - bob
 	var apart := (pose == PeopleView.POSE_WALK and phase % 2 == 0) or pose == PeopleView.POSE_STAIRS
-	var raised_left := pose == PeopleView.POSE_STAIRS and phase < 2
-	var raised_right := pose == PeopleView.POSE_STAIRS and phase >= 2
-	if apart:
-		canvas.draw_rect(Rect2i(x, leg_y - (1 if raised_left else 0), 1, leg_h), legs)
-		canvas.draw_rect(Rect2i(x + FIGURE_W - 1, leg_y - (1 if raised_right else 0), 1, leg_h), legs)
-	else:  # together, under the middle
-		canvas.draw_rect(Rect2i(x + FIGURE_W / 2, leg_y, 1, leg_h), legs)
-		canvas.draw_rect(Rect2i(x + (FIGURE_W - 1) / 2, leg_y, 1, leg_h), legs)
+	var raised_left := 1 if pose == PeopleView.POSE_STAIRS and phase < 2 else 0
+	var raised_right := 1 if pose == PeopleView.POSE_STAIRS and phase >= 2 else 0
+	ActivityLook.draw_person(canvas, x, feet - bob, shirt, skin, apart, raised_left, raised_right)
 	for mark in PeopleView.marks_of(band):  # shape cue: one dot uneasy, two angry
-		canvas.draw_rect(Rect2i(x + mark * 2 - 2, top - 2, 1, 1), shirt)
+		canvas.draw_rect(Rect2i(x + mark * 2 - 1, top - 2, 1, 1), shirt)
 
 
 ## Fire and smoke, guards on their way, the rescue craft and the threat search (event_look.gd); each draws

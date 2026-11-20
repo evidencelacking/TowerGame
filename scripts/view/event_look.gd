@@ -94,7 +94,7 @@ static func draw_guards(canvas: Object, tower: Object, tick: int) -> void:
 		var from_row := VC.floor_to_row(office_run[0])
 		var to_row := VC.floor_to_row(floors[0])
 		for n in GUARDS_SHOWN:
-			var x := roundi(lerpf(from_x, target.position.x + target.size.x / 2.0, progress)) + n * 6
+			var x := roundi(lerpf(from_x, target.position.x + target.size.x / 2.0, progress)) + n * (VC.FIGURE_W + 1)
 			var row := lerpf(from_row, to_row, progress)
 			var feet := roundi((row + 1.0) * VC.CELL_H) - 3 - ((tick / 2 + n) % 2)  # a step bob
 			_guard(canvas, x, feet, uniform, p)
@@ -102,12 +102,13 @@ static func draw_guards(canvas: Object, tower: Object, tick: int) -> void:
 
 ## One guard: a dark cap over a skin face, a uniform body, a white badge.
 static func _guard(canvas: Object, x: int, feet: int, uniform: Color, p: Dictionary) -> void:
-	canvas.draw_rect(Rect2i(x, feet - VC.FIGURE_H, VC.FIGURE_W, 1), p["ink"])
-	canvas.draw_rect(Rect2i(x, feet - VC.FIGURE_H + 1, VC.FIGURE_W, 2), p["skin"])
-	canvas.draw_rect(Rect2i(x, feet - VC.FIGURE_H + 3, VC.FIGURE_W, 4), uniform)
-	canvas.draw_rect(Rect2i(x + 1, feet - VC.FIGURE_H + 4, 1, 1), p["white"])
-	canvas.draw_rect(Rect2i(x, feet - 2, 1, 2), uniform.darkened(0.4))
-	canvas.draw_rect(Rect2i(x + VC.FIGURE_W - 1, feet - 2, 1, 2), uniform.darkened(0.4))
+	var top := feet - VC.FIGURE_H
+	canvas.draw_rect(Rect2i(x, top, VC.FIGURE_W, 2), p["ink"])  # cap
+	canvas.draw_rect(Rect2i(x + 1, top + 2, VC.FIGURE_W - 2, 3), p["skin"])
+	canvas.draw_rect(Rect2i(x, top + 5, VC.FIGURE_W, 6), uniform)
+	canvas.draw_rect(Rect2i(x + 1, top + 6, 2, 2), p["white"])  # badge
+	canvas.draw_rect(Rect2i(x + 1, feet - 5, 2, 5), uniform.darkened(0.4))
+	canvas.draw_rect(Rect2i(x + VC.FIGURE_W - 3, feet - 5, 2, 5), uniform.darkened(0.4))
 
 
 ## The rescue craft: while one is on its way (Fire.rescue_at) and within RESCUE_FLIGHT_TICKS of arriving, a

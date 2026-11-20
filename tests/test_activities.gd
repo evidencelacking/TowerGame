@@ -10,6 +10,7 @@ const People := preload("res://scripts/sim/people.gd")
 const PeopleView := preload("res://scripts/view/people_view.gd")
 const ActivityLook := preload("res://scripts/view/activity_look.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
+const TransportLook := preload("res://scripts/view/transport_look.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
 
@@ -62,6 +63,17 @@ static func run(check: Callable) -> void:
 							bad.append("%s %s draws outside its box %s" % [kind, A.NAMES[act], str(call[0])])
 	check.call(bad.is_empty(), "activity: poses stay inside the room (%s)" % str(bad.slice(0, 3)))
 	check.call(drew_all, "activity: every activity draws something")
+
+	# Figures keep to the one pair of constants, and riders fit inside the narrowest car.
+	check.call(VC.FIGURE_H * 2 >= VC.CELL_H - 4 and VC.FIGURE_H * 2 <= VC.CELL_H + 4, "figures are about half a floor tall")
+	var car := Rect2i(3, 3, int(CatalogueScript.field("local_car", "width")) * VC.CELL_W - 6, VC.CELL_H - VC.SLAB_H - 3)
+	var car_rec := Recorder.new()
+	TransportLook.draw_riders(car_rec, car, 5, [Color.RED, Color.BLUE] as Array)
+	var riders_fit := true
+	for call: Array in car_rec.calls:
+		var r: Rect2i = call[0]
+		riders_fit = riders_fit and car.encloses(r)
+	check.call(riders_fit, "elevator car: five riders fit inside the narrowest car")
 
 	# The same moment draws the same.
 	var rec_a := Recorder.new()

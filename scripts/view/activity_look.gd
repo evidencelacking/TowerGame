@@ -27,10 +27,16 @@ const SLEEP_TO := 360  ## 6:00
 const FRAME_TICKS := 8  ## Ticks per animation frame.
 const FOOD_KINDS: Array[String] = ["fast_food", "restaurant"]
 const SEATED: Array[int] = [WORKING, LUNCH, EATING]
-## Width of any pose box and its height by pose; a prop reaches one column past the body.
+## Pose boxes, all derived from VC.FIGURE_W and VC.FIGURE_H. A prop or a forward leg reaches two
+## columns past the body; a seated figure is two rows shorter than a standing one; a sleeper lies
+## as long as a standing figure is tall, a third as thick, and sits on the bed a little above the floor.
 const BOX_W := VC.FIGURE_W + 2
+const SEAT_H := VC.FIGURE_H - 2
+const HEAD_H := VC.FIGURE_H / 3  ## Hair row and face.
+const LEG_H := VC.FIGURE_H / 3
 const LYING_W := VC.FIGURE_H
-const LYING_H := 5
+const LYING_H := VC.FIGURE_H / 3
+const LYING_UP := VC.FIGURE_H * 9 / 16  ## Top of a sleeper above the feet row (on the mattress).
 
 
 static func is_night(minute: int) -> bool:
@@ -68,9 +74,9 @@ static func frame(id: int, tick: int) -> int:
 ## The box a pose takes, with its left edge at x and its feet at `feet`.
 static func body_rect(act: int, x: int, feet: int) -> Rect2i:
 	if act == SLEEPING:
-		return Rect2i(x, feet - 10, LYING_W, LYING_H)
+		return Rect2i(x, feet - LYING_UP, LYING_W, LYING_H)
 	if SEATED.has(act):
-		return Rect2i(x, feet - 8, BOX_W, 8)
+		return Rect2i(x, feet - SEAT_H, BOX_W, SEAT_H)
 	return Rect2i(x, feet - VC.FIGURE_H, BOX_W, VC.FIGURE_H)
 
 
@@ -78,17 +84,17 @@ static func body_rect(act: int, x: int, feet: int) -> Rect2i:
 ## is drawn, moved so the whole pose lies inside a room width_px wide. Returns the pose's origin
 ## (left edge, feet row) in room pixels.
 static func place(act: int, spot: Vector2i, width_px: int) -> Vector2i:
-	var x := spot.x - (3 if act == SLEEPING else 0)
+	var x := spot.x - (LYING_W / 2 if act == SLEEPING else 0)
 	var rect := body_rect(act, x, spot.y)
 	x = clampi(x, 0, maxi(width_px - rect.size.x, 0))
-	return Vector2i(x, clampi(spot.y, rect.size.y, RoomRecipes.INTERIOR_H))
+	return Vector2i(x, clampi(spot.y, -body_rect(act, 0, 0).position.y, RoomRecipes.INTERIOR_H))
 
 
 ## The spot a person uses: rooms hand out their spots in turn (`turn` counts people already placed
 ## there), sleepers take the first (the bed), standing activities the next one over. With no recipe
 ## spot the figure stands on the floor by column, as before.
-static func spot_for(kind: String, width_px: int, id: int, turn: int, act: int) -> Vector2i:
-	var spots := RoomRecipes.spots(kind, width_px)
+static func spot_for(kind: String, width_px: int, id: int, turn: int, act: int, variant: int = 0) -> Vector2i:
+	var spots := RoomRecipes.spots(kind, width_px, variant)
 	if spots.is_empty():
 		var columns := maxi(width_px / VC.CELL_W, 1)
 		return Vector2i((id % columns) * VC.CELL_W + (VC.CELL_W - VC.FIGURE_W) / 2, VC.CELL_H - 3)
@@ -98,44 +104,68 @@ static func spot_for(kind: String, width_px: int, id: int, turn: int, act: int) 
 	return spots[(turn + shift + kind.length()) % spots.size()]
 
 
+## A standing figure, FIGURE_W x FIGURE_H with its feet at `feet`: a hair line and face (one dark dot
+## for the eye), a shirt with a darker belt line, and two legs. apart spreads the legs to the body's
+## edges (mid-stride) instead of tucking them under it; lift_l and lift_r raise a foot by that many rows.
+## Shared by walkers, queues and car riders so every figure looks alike.
+static func draw_person(canvas: Object, x: int, feet: int, shirt: Color, skin: Color, apart: bool = false, lift_l: int = 0, lift_r: int = 0) -> void:
+	var hair := skin.darkened(0.65)
+	var top := feet - VC.FIGURE_H
+	var legs := shirt.darkened(0.4)
+	var head_x := x + 1
+	var head_w := VC.FIGURE_W - 2
+	canvas.draw_rect(Rect2i(head_x, top, head_w, 1), hair)
+	canvas.draw_rect(Rect2i(head_x, top + 1, head_w, HEAD_H - 1), skin)
+	canvas.draw_rect(Rect2i(x + VC.FIGURE_W - 2, top + 2, 1, 1), hair)  # an eye, facing right
+	var body_h := VC.FIGURE_H - HEAD_H - LEG_H
+	canvas.draw_rect(Rect2i(x, top + HEAD_H, VC.FIGURE_W, body_h), shirt)
+	canvas.draw_rect(Rect2i(x, top + HEAD_H + body_h - 1, VC.FIGURE_W, 1), legs)  # belt
+	var lx := x if apart else x + 1
+	var rx := x + VC.FIGURE_W - 2 if apart else x + VC.FIGURE_W - 3
+	canvas.draw_rect(Rect2i(lx, feet - LEG_H - lift_l, 2, LEG_H), legs)
+	canvas.draw_rect(Rect2i(rx, feet - LEG_H - lift_r, 2, LEG_H), legs)
+
+
 ## Paints one figure; canvas needs only draw_rect, so tests can pass a recorder. x is the left edge of
 ## the pose box and feet the floor row, in the canvas's pixels.
 static func draw(canvas: Object, x: int, feet: int, act: int, ph: int, shirt: Color, skin: Color, prop: Color, white: Color) -> void:
 	var legs := shirt.darkened(0.4)
+	var hair := skin.darkened(0.65)
+	var fw := VC.FIGURE_W
 	if act == SLEEPING:
-		var top := feet - 10 + (1 if ph % 4 >= 2 else 0)  # breathing: the blanket rises and falls
-		canvas.draw_rect(Rect2i(x, top + 1, 3, 3), skin)
-		canvas.draw_rect(Rect2i(x + 3, top + 1, LYING_W - 3, 3), shirt)
-		canvas.draw_rect(Rect2i(x + 3, top + 1, LYING_W - 3, 1), white)
+		var top := feet - LYING_UP + (1 if ph % 4 >= 2 else 0)  # breathing: the blanket rises and falls
+		var head_w := LYING_H - 1
+		canvas.draw_rect(Rect2i(x, top + 1, head_w, LYING_H - 2), skin)
+		canvas.draw_rect(Rect2i(x, top + 1, 1, LYING_H - 2), hair)
+		canvas.draw_rect(Rect2i(x + head_w, top + 1, LYING_W - head_w, LYING_H - 2), shirt)
+		canvas.draw_rect(Rect2i(x + head_w, top + 1, LYING_W - head_w, 1), white)
 		return
 	if SEATED.has(act):
-		var top := feet - 8
-		canvas.draw_rect(Rect2i(x, top, VC.FIGURE_W, 3), skin)
-		canvas.draw_rect(Rect2i(x, top + 3, VC.FIGURE_W, 3), shirt)
-		canvas.draw_rect(Rect2i(x, top + 6, VC.FIGURE_W + 2, 1), legs)
-		canvas.draw_rect(Rect2i(x + VC.FIGURE_W + 1, top + 7, 1, 1), legs)
-		var hand_y := top + 4 + (ph % 2)  # typing, or fork to mouth
+		var top := feet - SEAT_H
+		canvas.draw_rect(Rect2i(x + 1, top, fw - 2, 1), hair)
+		canvas.draw_rect(Rect2i(x + 1, top + 1, fw - 2, HEAD_H - 1), skin)
+		canvas.draw_rect(Rect2i(x + fw - 2, top + 2, 1, 1), hair)
+		canvas.draw_rect(Rect2i(x, top + HEAD_H, fw, 5), shirt)
+		canvas.draw_rect(Rect2i(x, top + HEAD_H + 5, BOX_W, 2), legs)  # thighs, forward
+		canvas.draw_rect(Rect2i(x + BOX_W - 2, top + HEAD_H + 7, 2, 2), legs)  # shins, down
+		var hand_y := top + HEAD_H + 1 + (ph % 2)  # typing, or fork to mouth
 		if act == WORKING:
-			canvas.draw_rect(Rect2i(x + VC.FIGURE_W, hand_y, 1, 1), skin)
+			canvas.draw_rect(Rect2i(x + fw, hand_y, 2, 1), skin)
 		else:
-			canvas.draw_rect(Rect2i(x + VC.FIGURE_W, hand_y - (2 if ph % 2 == 1 else 0), 1, 1), skin)
-			canvas.draw_rect(Rect2i(x + VC.FIGURE_W + 1, hand_y - (2 if ph % 2 == 1 else 0), 1, 1), prop)
+			var lift := 2 if ph % 2 == 1 else 0
+			canvas.draw_rect(Rect2i(x + fw, hand_y - lift, 1, 1), skin)
+			canvas.draw_rect(Rect2i(x + fw + 1, hand_y - lift, 1, 2), prop)
 		return
-	var head_h := maxi(VC.FIGURE_H / 3, 2)
-	var leg_h := maxi(VC.FIGURE_H / 4, 1)
 	var top := feet - VC.FIGURE_H
-	canvas.draw_rect(Rect2i(x, top, VC.FIGURE_W, head_h), skin)
-	canvas.draw_rect(Rect2i(x, top + head_h, VC.FIGURE_W, VC.FIGURE_H - head_h - leg_h), shirt)
 	var tap := act == QUEUEING and ph % 2 == 1
-	canvas.draw_rect(Rect2i(x, feet - leg_h, 1, leg_h), legs)
-	canvas.draw_rect(Rect2i(x + VC.FIGURE_W - 1, feet - leg_h - (1 if tap else 0), 1, leg_h), legs)
+	draw_person(canvas, x, feet, shirt, skin, true, 0, 1 if tap else 0)
 	match act:
 		BREAK:  # a cup with steam
-			canvas.draw_rect(Rect2i(x + VC.FIGURE_W, top + 5, 2, 2), white)
-			canvas.draw_rect(Rect2i(x + VC.FIGURE_W + (ph % 2), top + 3, 1, 1), white)
+			canvas.draw_rect(Rect2i(x + fw, top + 8, 2, 3), white)
+			canvas.draw_rect(Rect2i(x + fw + (ph % 2), top + 5, 1, 2), white)
 		SHOPPING:  # a bag
-			canvas.draw_rect(Rect2i(x + VC.FIGURE_W, top + 5, 2, 3), prop)
+			canvas.draw_rect(Rect2i(x + fw, top + 8, 2, 5), prop)
 		CLEANING:  # a broom swinging
 			var sweep := ph % 2
-			canvas.draw_rect(Rect2i(x + VC.FIGURE_W + sweep, top + 2, 1, VC.FIGURE_H - 3), prop)
-			canvas.draw_rect(Rect2i(x + VC.FIGURE_W + sweep - 1, feet - 1, 2, 1), prop)
+			canvas.draw_rect(Rect2i(x + fw + sweep, top + 4, 1, VC.FIGURE_H - 5), prop)
+			canvas.draw_rect(Rect2i(x + fw + sweep - 1, feet - 1, 2, 1), prop)

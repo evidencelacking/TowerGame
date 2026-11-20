@@ -6,8 +6,8 @@ extends RefCounted
 
 const CELL_W := 8  ## Native pixels per floor-unit column.
 const CELL_H := 32  ## Native pixels per floor.
-const FIGURE_W := 4  ## A standing figure, native pixels; sized here so it can grow in one place.
-const FIGURE_H := 9
+const FIGURE_W := 6  ## A standing figure, native pixels: about half a floor tall. Every pose derives from this pair.
+const FIGURE_H := 16
 const SLAB_H := 2  ## The floor slab along the bottom of each floor, inside its CELL_H.
 const GridScript := preload("res://scripts/sim/grid.gd")
 

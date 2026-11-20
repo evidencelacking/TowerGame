@@ -11,6 +11,8 @@ const HotelScript := preload("res://scripts/sim/hotel.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 const ActivityLook := preload("res://scripts/view/activity_look.gd")
+const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
+const Suites := preload("res://scripts/view/suites.gd")
 
 ## Colour per stress band: calm black, uneasy pink, angry red.
 const BAND_COLORS: Array[Color] = [Color(0.05, 0.05, 0.05), Color(1.0, 0.45, 0.70), Color(0.85, 0.08, 0.08)]
@@ -98,7 +100,7 @@ static func _leg_weight(leg: Dictionary) -> int:
 func figures(tower: Object) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var people: PeopleScript = tower.people
-	var turns: Dictionary = {}  # room id -> people placed there so far, so each takes the next spot
+	var pending: Array[Array] = []  # resting people, placed once every room's use is known
 	var minute: int = tower.clock.minute_of_day()
 	for i in people.count():
 		var band := people.stress_band(i)
@@ -118,20 +120,54 @@ func figures(tower: Object) -> Array[Dictionary]:
 		var kind: String = tower.rooms.kind_of(room)
 		var staying: bool = tower.hotel.is_hotel(room) and tower.hotel.state_of(room) == HotelScript.STAYING
 		var act := ActivityLook.classify(kind, people.work_of(i) == room, people.goal_of(i), staying, minute, people.trip_state(i) == PeopleScript.TRIP_REQUESTED)
-		var turn: int = turns.get(room, 0)
-		turns[room] = turn + 1
-		out.append(_resting(run, people.id_at(i), kind, act, turn, band, column))
+		pending.append([out.size(), run, people.id_at(i), kind, act, band, column, room])
+		out.append({})  # filled in below, once the suites are known
+	_place_resting(out, pending, Suites.tenanted_rooms(tower))
 	out.append_array(_cleaners(tower))
 	return out
 
 
+## Places the resting figures: each takes the next spot of its room, or of its suite when neighbouring
+## rooms of one kind are all in use and draw as one (#276). pending holds [index in out, run, id, kind, act,
+## band, column, room] per resting person; the suites come from the same rule the renderer draws by.
+static func _place_resting(out: Array[Dictionary], pending: Array[Array], tenanted: Dictionary) -> void:
+	var rooms: Dictionary = {}  # room id -> its entry for Suites.groups
+	for item: Array in pending:
+		var run: Array[int] = item[1]
+		var room: int = item[7]
+		var entry: Dictionary = rooms.get(room, {"key": VC.floor_to_row(run[0]), "x": run[1] * VC.CELL_W, "w": run[2] * VC.CELL_W, "kind": item[3], "in_use": false, "room": room})
+		entry["in_use"] = tenanted.has(room)
+		rooms[room] = entry
+	var entries: Array = rooms.values()
+	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["key"] < b["key"] or (a["key"] == b["key"] and a["x"] < b["x"]))
+	var suite_of: Dictionary = {}  # room id -> [left px, width px, first room of the suite]
+	for group: Array[int] in Suites.groups(entries):
+		var bounds := Suites.span(entries, group)
+		for index: int in group:
+			suite_of[(entries[index] as Dictionary)["room"]] = [bounds[0], bounds[1], (entries[group[0]] as Dictionary)["room"]]
+	var turns: Dictionary = {}  # room (or a suite's first room) -> people placed there so far
+	for item: Array in pending:
+		var room: int = item[7]
+		var suite: Array = suite_of.get(room, [])
+		var seat: int = suite[2] if not suite.is_empty() else room
+		var turn: int = turns.get(seat, 0)
+		turns[seat] = turn + 1
+		out[item[0]] = _resting(item[1], item[2], item[3], item[4], turn, item[5], item[6], room, suite)
+
+
 ## A resting figure of a run [floor, column, width, ...] doing `act`, placed on a spot of its room.
-static func _resting(run: Array[int], id: int, kind: String, act: int, turn: int, band: int, column: int) -> Dictionary:
-	var width_px := run[2] * VC.CELL_W
-	var at := ActivityLook.place(act, ActivityLook.spot_for(kind, width_px, id, turn, act), width_px)
+static func _resting(run: Array[int], id: int, kind: String, act: int, turn: int, band: int, column: int, room: int = 0, suite: Array = []) -> Dictionary:
+	var width_px: int = run[2] * VC.CELL_W
+	var origin: int = run[1] * VC.CELL_W
+	var variant := RoomRecipes.variant_for(kind, room)
+	if not suite.is_empty():  # one space across the joined rooms: its width, its left edge, its recipe
+		origin = suite[0]
+		width_px = suite[1]
+		variant = RoomRecipes.SUITE
+	var at := ActivityLook.place(act, ActivityLook.spot_for(kind, width_px, id, turn, act, variant), width_px)
 	var row_top := VC.floor_to_row(run[0]) * VC.CELL_H
 	return {"id": id, "floor": run[0], "x": column, "fx": float(column), "frow": float(VC.floor_to_row(run[0])),
-		"pose": POSE_WALK, "band": band, "moving": false, "act": act, "px": run[1] * VC.CELL_W + at.x, "pfeet": row_top + at.y}
+		"pose": POSE_WALK, "band": band, "moving": false, "act": act, "px": origin + at.x, "pfeet": row_top + at.y}
 
 
 ## A housekeeper in each dirty hotel room one has claimed (on the way to it or cleaning it; the sim keeps
@@ -144,7 +180,7 @@ func _cleaners(tower: Object) -> Array[Dictionary]:
 		var run: Array[int] = tower.grid.run_of(room)
 		if run.is_empty():
 			continue
-		var cleaner := _resting(run, room, tower.rooms.kind_of(room), ActivityLook.CLEANING, 1, 0, run[1])
+		var cleaner := _resting(run, room, tower.rooms.kind_of(room), ActivityLook.CLEANING, 1, 0, run[1], room)
 		cleaner["staff"] = true  # not a person: the id is the room's, so a click must not open a person window
 		out.append(cleaner)
 	return out
