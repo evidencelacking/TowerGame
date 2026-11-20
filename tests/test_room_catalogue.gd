@@ -40,6 +40,11 @@ const EXPECTED: Array = [
 	["coworking", 150000, 3, true, 0, ""],
 	["observation_deck", 800000, 4, true, 0, ""],
 	["casino", 1200000, 4, true, 0, ""],
+	["cafe", 90000, 2, true, 0, ""],
+	["pizza", 120000, 2, true, 0, ""],
+	["sushi", 180000, 3, true, 0, ""],
+	["fine_dining", 300000, 4, true, 0, ""],
+	["bar", 140000, 3, true, 0, ""],
 ]
 
 

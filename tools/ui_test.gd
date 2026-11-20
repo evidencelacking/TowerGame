@@ -139,6 +139,11 @@ func _room_cases() -> void:
 	await _room_case("recycling", -2, 210)
 	await _room_case("metro", -1, 232)
 	await _room_case("observation_deck", 5, 160)  # the top floor of the test tower
+	await _room_case("cafe", 6, 160)
+	await _room_case("pizza", 6, 172)
+	await _room_case("fine_dining", 7, 160)
+	await _room_case("sushi", 8, 160)
+	await _room_case("bar", 9, 160)
 	await _room_case("casino", 3, 220)
 	for kind: String in CatalogueScript.IDS:
 		if kind in RoomsScript.PLACEABLE or kind in ["lobby", "floor", "stairs", "escalator"]:
