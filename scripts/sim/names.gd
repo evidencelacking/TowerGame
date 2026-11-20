@@ -48,6 +48,7 @@ const TITLES: Dictionary = {
 	"nightclub": [["Cloakroom Attendant", "Glass Collector"], ["Barman", "Bouncer", "DJ"], ["Head Barman", "Club Manager"]],
 	"grocery": [["Shelf Stocker", "Bagger"], ["Cashier", "Produce Clerk"], ["Store Manager", "Head Grocer"]],
 	"deli": [["Counter Hand", "Dishwasher"], ["Sandwich Maker", "Deli Clerk"], ["Deli Owner", "Head Counter"]],
+	"casino": [["Chip Runner", "Coat Check"], ["Croupier", "Pit Boss", "Cashier"], ["Floor Manager", "Casino Director"]],
 	"observation_deck": [["Ticket Clerk", "Telescope Attendant"], ["Guide", "Deck Host"], ["Deck Manager", "Head of Visitor Experience"]],
 	"coworking": [["Front Desk Assistant", "Trainee Host"], ["Community Host", "Events Coordinator"], ["Space Manager", "Head of Community"]],
 	"clinic": [["Receptionist", "Trainee Nurse"], ["Nurse", "GP", "Physiotherapist"], ["Senior GP", "Practice Manager"]],

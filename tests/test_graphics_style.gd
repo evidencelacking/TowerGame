@@ -16,6 +16,7 @@ const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const TestPests := preload("res://tests/test_pests.gd")
 
 const TestDetailedBatch1 := preload("res://tests/test_detailed_batch1.gd")
+const TestDetailedBatch2 := preload("res://tests/test_detailed_batch2.gd")
 const BASEMENT: Array[String] = ["recycling", "parking_ramp", "parking_space"]
 
 
@@ -57,6 +58,7 @@ static func run(check: Callable) -> void:
 	_the_rest(check, classic, detailed)
 	_spots(check, classic, detailed)
 	TestDetailedBatch1.run(check)
+	TestDetailedBatch2.run(check)
 
 
 ## Placed rooms in every state they are drawn in, through the full room path.
@@ -67,7 +69,7 @@ static func _rooms(check: Callable, classic: GraphicsStyle, detailed: GraphicsSt
 	for kind: String in RoomLook.KINDS:
 		if BASEMENT.has(kind):
 			continue
-		t.floors.fill_span(floor_number, 100, 131)
+		t.floors.fill_span(floor_number, 100, 139)
 		ids[kind] = TestPests._room(t, kind, floor_number, 100)
 		floor_number += 1
 	t.floors.fill_span(-1, 90, 131)
@@ -149,7 +151,7 @@ static func _the_rest(check: Callable, classic: GraphicsStyle, detailed: Graphic
 			style.link(rec, kind, span)
 			var direct := Recorder.new()
 			TransportLook.draw_link(direct, kind, span)
-			check.call(not rec.calls.is_empty() and rec.calls == direct.calls, "graphics: %s draws %s" % [label, kind])
+			check.call(not rec.calls.is_empty() and (rec.calls == direct.calls) == (style == classic), "graphics: %s draws %s (Classic as TransportLook does, Detailed in its own look)" % [label, kind])
 		for see_through: bool in [false, true]:
 			var rec := Recorder.new()
 			style.shaft(rec, shaft_rect, Palette.hue("shaft"), caps, doors, see_through)

@@ -40,6 +40,7 @@ const COWORKING_COLOR := Color(0.86, 0.80, 0.62)
 const DECK_COLOR := Color(0.40, 0.66, 0.84)
 const GROCERY_COLOR := Color(0.52, 0.72, 0.42)
 const DELI_COLOR := Color(0.88, 0.70, 0.40)
+const CASINO_COLOR := Color(0.62, 0.12, 0.20)
 const RECYCLING_COLOR := Color(0.45, 0.65, 0.40)
 const IDLE_TINT := Color(0.52, 0.55, 0.50)
 const RUBBISH_COLOR := Color(0.45, 0.33, 0.20, 0.85)
@@ -54,7 +55,7 @@ const PEST_COLOR := Color(0.85, 0.10, 0.10)
 const SHADE := Color(0, 0, 0, 0.45)
 const INK := Color(0.10, 0.08, 0.08)
 
-const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "grocery", "deli"]
+const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "grocery", "deli"]
 
 
 static func handles(kind: String) -> bool:
@@ -81,6 +82,7 @@ static func base_color(kind: String) -> Color:
 		"observation_deck": return DECK_COLOR
 		"grocery": return GROCERY_COLOR
 		"deli": return DELI_COLOR
+		"casino": return CASINO_COLOR
 		"parking_ramp": return RAMP_COLOR
 		"parking_space": return SPACE_COLOR
 	return Color(0.85, 0.2, 0.85)
