@@ -57,6 +57,11 @@ var _checked_tick: int = -1000000
 var _floor_rects: Array[Rect2i] = []  ## Runs of built floor units, one row tall; rebuilt when the layout changes.
 var _room_runs: Array[Array] = []  ## [id, owning room id, rect] per placed room run.
 var _link_runs: Array[Array] = []  ## [kind, two-floor rect] per stairs or escalator.
+const CANVAS_GRAIN: Vector2i = Vector2i(128, 128)  ## Canvas edges snap to this many native pixels, so growing the tower reallocates rarely.
+const CANVAS_PAD: Vector2i = Vector2i(64, 64)  ## Room around the built tower for shaft caps, cars and figures at the edge.
+const ZOOM_SHARP_ABOVE: float = 1.5  ## Detailed is filtered (an exact 2x2 average) below this camera zoom, point-sampled at or above it.
+
+var _canvas: Rect2i = Rect2i(0, 0, 128, 128)  ## The part of the world the two canvases cover, in native pixels (#307).
 var _static_view: SubViewport = null
 var _static_layer: Node2D = null
 var _static_sprite: Sprite2D = null
@@ -71,7 +76,7 @@ func _ready() -> void:
 	ViewSettings.load_settings()
 	_seen_style = GraphicsStyle.current()
 	_seen_see_through = TransportLook.see_through
-	var size := Vector2i(VC.world_rect().size)
+	var size := _canvas.size
 	_static_layer = _make_layer(size, _paint_static)
 	_static_view = _static_layer.get_parent()
 	_static_sprite = _sprite_of(_static_view)
@@ -120,13 +125,55 @@ func _sprite_of(view: SubViewport) -> Sprite2D:
 ## paints in native pixels and lands as before.
 func _apply_density() -> void:
 	var density := GraphicsStyle.current().density()
-	_static_view.size = Vector2i(VC.world_rect().size) * density
+	_canvas = _canvas_bounds()
+	_static_view.size = _canvas.size * density
 	_static_layer.scale = Vector2(density, density)
+	_static_layer.position = -Vector2(_canvas.position * density)
 	_static_sprite.scale = Vector2(1.0 / density, 1.0 / density)
+	_static_sprite.position = Vector2(_canvas.position)
 	_dynamic_view.size = _static_view.size  # people are drawn at the style's density too (#304)
 	_dynamic_layer.scale = _static_layer.scale
+	_dynamic_layer.position = _static_layer.position
 	_dynamic_sprite.scale = _static_sprite.scale
+	_dynamic_sprite.position = _static_sprite.position
 	_apply_ambient()
+
+
+## The world rect the canvases need (#307): the built floors, rooms and links, padded and snapped out to
+## CANVAS_GRAIN, inside the world. A Detailed canvas holds 4 native pixels per world pixel and costs memory
+## in step with its area, so a small or short tower no longer pays for all 110 floors by 400 columns.
+## Nothing is drawn outside the built tower except the sky and ground, which are flat rects on this node.
+func _canvas_bounds() -> Rect2i:
+	var world := Rect2i(VC.world_rect())
+	var used := Rect2i()
+	var first := true
+	var groups: Array = [_floor_rects]
+	for run: Array in _room_runs:
+		groups.append([run[2]])
+	for run: Array in _link_runs:
+		groups.append([run[1]])
+	for group: Array in groups:
+		for rect: Rect2i in group:
+			used = rect if first else used.merge(rect)
+			first = false
+	if first:
+		return Rect2i(Vector2i.ZERO, CANVAS_GRAIN).intersection(world)
+	var low := used.position - CANVAS_PAD
+	var high := used.end + CANVAS_PAD
+	low = Vector2i(floori(float(low.x) / CANVAS_GRAIN.x) * CANVAS_GRAIN.x, floori(float(low.y) / CANVAS_GRAIN.y) * CANVAS_GRAIN.y)
+	high = Vector2i(ceili(float(high.x) / CANVAS_GRAIN.x) * CANVAS_GRAIN.x, ceili(float(high.y) / CANVAS_GRAIN.y) * CANVAS_GRAIN.y)
+	return Rect2i(low, high - low).intersection(world)
+
+
+## Detailed at zoom 1 shows a 2x canvas at half size: point sampling would drop every other pixel, but
+## linear sampling lands exactly between texels there and averages each 2x2 block. At even zooms the scale is
+## a whole number, so nearest stays crisp. (The camera skips zoom 3 in Detailed, where the scale would be 1.5.)
+func _follow_zoom() -> void:
+	var detailed := GraphicsStyle.current().density() > 1
+	var filter := CanvasItem.TEXTURE_FILTER_LINEAR if detailed and get_canvas_transform().get_scale().x < ZOOM_SHARP_ABOVE else CanvasItem.TEXTURE_FILTER_NEAREST
+	if _static_sprite.texture_filter != filter:
+		_static_sprite.texture_filter = filter
+		_dynamic_sprite.texture_filter = filter
 
 
 ## Detailed lights the world instead of painting it dark (#305): by night the static canvas is multiplied by
@@ -147,6 +194,7 @@ func _process(delta: float) -> void:
 		return
 	_since_tick += delta
 	_follow_sky()
+	_follow_zoom()
 	var new_tick := tower.tick != _seen_tick
 	if _elevators.observe(tower):
 		_tick_len = maxf(_since_tick, 0.001)
@@ -158,6 +206,8 @@ func _process(delta: float) -> void:
 		_seen_occupants = occupants
 		_people_view.route_cache.clear()
 		_rebuild_runs()
+		if _canvas != _canvas_bounds():
+			_apply_density()
 	if new_tick or layout_changed:
 		_remember_positions()
 		_figures = _people_view.figures(tower)
