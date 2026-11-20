@@ -141,8 +141,8 @@ static func _widen_tests(check: Callable) -> void:
 	check.call(_lobby(r, 1, 112, 115, 1) == FloorsScript.LOBBY_GAPPED, "a gapped drag is refused")
 	check.call(_lobby(r, 2, 110, 115, 1) == FloorsScript.LOBBY_BAD_FLOOR, "a drag on another floor is refused")
 	r.floors.mark_shaft(1, 111)
-	check.call(_lobby(r, 1, 105, 112, 1) == FloorsScript.OVER_SHAFT, "a drag across a shaft is refused")
-	check.call(r.ledger.balance == funds and r.floors.lobby_span() == ([100, 109, 1] as Array[int]), "refused widenings change nothing")
+	check.call(_lobby(r, 1, 105, 112, 1) == FloorsScript.OK, "a lobby drag may cross a shaft (#272)")
+	check.call(r.ledger.balance < funds and r.floors.lobby_span() == ([100, 112, 1] as Array[int]), "the widening built the lobby behind the shaft")
 	# Floors above never block widening, and floor 2 can then be wider than the old lobby.
 	var up := Harness.make(1)
 	_lobby(up, 1, 100, 109, 1)

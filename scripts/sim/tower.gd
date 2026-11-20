@@ -389,9 +389,9 @@ func _run_systems() -> void:
 	fire.tick(clock, events, grid, people, messages, tick)
 	threat.tick(events, grid, messages, tick)
 	if not fire.burning_rooms().is_empty():
-		mood.note_event(MoodScript.FIRE_SHOCK)
+		mood.note_event(MoodScript.FIRE_SHOCK, people)
 	if threat.is_active():
-		mood.note_event(MoodScript.THREAT_SHOCK)
+		mood.note_event(MoodScript.THREAT_SHOCK, people)
 	for id in fire.take_destroyed() + threat.take_destroyed():
 		destroy_room(id)
 	if EvaluationScript.is_due(clock):
@@ -454,15 +454,15 @@ func promote_stars() -> void:
 ## Grades every tenanted office and condo: A brings a friend, C leaves (see Evaluation). Runs once
 ## a day (Evaluation.EVALUATE_MINUTE); public so tests can call it.
 func evaluate_tenants() -> void:
-	mood.update(rooms, grid, grades, people)
+	mood.update(rooms, grid, floors, grades, people)
 	evaluation.evaluate(rooms, people, grades, grid, floors, tenancy, ledger, messages, rng, tick)
-	evaluation.evaluate_moods(rooms, people, grid, ledger, messages, tick)
+	evaluation.evaluate_moods(rooms, people, grades, grid, ledger, messages, tick)
 	commerce.evaluate(floors, rooms, grid, tenancy, rent, messages, tick)
 
 
 ## A person's mood factors as [reason, change] pairs, worst first, for the view. Read-only.
 func mood_factors(i: int) -> Array[Array]:
-	return mood.factors(rooms, grid, grades, people, MoodScript.floor_counts(people, grid), i)
+	return mood.factors(rooms, grid, grades, people, MoodScript.floor_counts(people, grid, floors), i)
 
 
 ## Quality score 0 to 300 of a graded room (office, condo, hotel), or -1. Read-only, for the view.

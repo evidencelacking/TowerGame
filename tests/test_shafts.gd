@@ -46,7 +46,8 @@ static func run(check: Callable) -> void:
 	# Overlap and missing floors.
 	funds = t.ledger.balance
 	check.call(_shaft(t, 5, 8, 102) == RoomsScript.OVER_SHAFT, "overlapping a shaft is refused")
-	check.call(TestRooms._room(t, 5, 3, 100) == RoomsScript.OVER_SHAFT, "a room cannot sit on a shaft")
+	check.call(TestRooms._room(t, 5, 3, 100) == RoomsScript.OK, "a room may sit behind a shaft (#272)")
+	funds = t.ledger.balance
 	check.call(_shaft(t, 50, 51, 104) == RoomsScript.NO_FLOOR_FOR_SHAFT, "a floor with nothing to rest on is refused")
 	check.call(_shaft(t, 50, 51, 300) == RoomsScript.NO_FLOOR_FOR_SHAFT, "no floor at all is refused")
 	check.call(_shaft(t, 1, 2, 398) == RoomsScript.OFF_TOWER, "a shaft past the tower width is refused")

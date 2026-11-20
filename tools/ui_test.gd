@@ -23,6 +23,7 @@ const GhostScript := preload("res://scripts/view/placement_ghost.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const PeopleViewScript := preload("res://scripts/view/people_view.gd")
 const PersonInfo := preload("res://scripts/view/person_info.gd")
+const TowerCameraScript := preload("res://scripts/view/tower_camera.gd")
 const EXPECTED_PATH := "res://tools/ui_expected.json"
 const WAIT_FRAMES := 3  ## Frames after an input before the view has caught up.
 const SETTLE_TICKS := 6  ## Sim ticks after a click: commands are due the tick after they are queued.
@@ -81,6 +82,8 @@ func _run_all() -> void:
 	await _zoom2_cases()
 	await _bulldoze_cases()
 	await _window_cases()
+	await _behind_cases()
+	await _fill_cases()
 
 
 func _toolbar_cases() -> void:
@@ -219,6 +222,37 @@ func _bulldoze_cases() -> void:
 		func() -> bool: return _link_kind(1, 100) == "", "Bulldoze the lowest stairs")
 
 
+## Rooms behind transport (#272): a room goes behind a shaft, stairs and an escalator, and bulldoze
+## takes the transport in front first, then the room. Floors 8 to 10 at columns 100 to 120 are free.
+func _behind_cases() -> void:
+	await _drag_case("behind.shaft.place", "behind", "local_shaft", 102, 8, 102, 9,
+		func() -> bool: return _shaft_span(102, 8, 9), "Drag a shaft over floors 8 to 9, columns 100 to 103")
+	await _room_case("office", 8, 100, "behind.shaft.room")
+	await _click_case("behind.shaft.bulldoze_front", "behind", GhostScript.BULLDOZE, 8, 101,
+		func() -> bool: return _shaft_at(8, 101).is_empty() and _kind_at(8, 101) == "office", "Bulldoze at the shaft takes the shaft, not the office")
+	await _click_case("behind.shaft.bulldoze_room", "behind", GhostScript.BULLDOZE, 8, 101,
+		func() -> bool: return _kind_at(8, 101) == "", "A second bulldoze takes the office behind")
+	await _room_case("office", 9, 100, "behind.stairs.room")
+	await _click_case("behind.stairs.place", "behind", "stairs", 8, 102,
+		func() -> bool: return _link_kind(8, 100) == "stairs" and _kind_at(9, 100) == "office", "Stairs over floors 8 to 9 in front of the office")
+	await _click_case("behind.stairs.bulldoze_front", "behind", GhostScript.BULLDOZE, 9, 101,
+		func() -> bool: return _link_kind(8, 100) == "" and _kind_at(9, 101) == "office", "Bulldoze takes the stairs first")
+	await _room_case("retail", 9, 112, "behind.escalator.room")
+	await _click_case("behind.escalator.place", "behind", "escalator", 9, 116,
+		func() -> bool: return _link_kind(9, 112) == "escalator" and _kind_at(9, 112) == "retail", "An escalator in front of the shop on floor 9")
+	await _click_case("behind.escalator.bulldoze_front", "behind", GhostScript.BULLDOZE, 9, 114,
+		func() -> bool: return _link_kind(9, 112) == "" and _kind_at(9, 112) == "retail", "Bulldoze takes the escalator first")
+	await _click_case("behind.escalator.bulldoze_room", "behind", GhostScript.BULLDOZE, 9, 114,
+		func() -> bool: return _kind_at(9, 112) == "", "A second bulldoze takes the shop behind")
+
+
+## Auto-fill floor (#273): a shaft dragged a few cells off the floor edge closes the gap on each of its floors.
+func _fill_cases() -> void:
+	await _drag_case("fill.shaft", "fill", "local_shaft", 146, 3, 146, 4,
+		func() -> bool: return _shaft_span(146, 3, 4) and _tower.floors.has_floor(3, 140) and _tower.floors.has_floor(4, 143),
+		"Drag a shaft at columns 144 to 147 over floors 3 to 4, beside floor ending at column 139: the gap fills")
+
+
 func _window_cases() -> void:
 	await _key(KEY_ESCAPE)
 	var room_window: Node = _main.get_node("RoomWindow")
@@ -255,6 +289,22 @@ func _window_cases() -> void:
 	await _frames(1)
 	_finish_case("window.person", "windows", "Click a person: the person window opens (after %d ticks)" % waited, {},
 		person_window.person_id == figure["id"], "PersonWindow.person_id is %d, clicked %d" % [person_window.person_id, figure["id"]])
+	# Follow (#289): pan away, press Follow, and the camera returns to the person and stays on them.
+	_camera.pan_by_screen(Vector2(300, 200))
+	await _frames(2)
+	var follow_button: Button = person_window.follow_button
+	var button_at := follow_button.get_global_rect().get_center()
+	await _move(button_at)
+	await _click_at(button_at)
+	await _frames(40)
+	var want := TowerCameraScript.view_position(PersonInfo.figure_center(figure), root.get_visible_rect().size, int(_camera.zoom.x), VC.world_rect())
+	var near := _camera.position.distance_to(want) <= 2.0
+	_finish_case("window.follow", "windows", "Press Follow: the camera centres on the person", {},
+		person_window.is_following() and near, "following %s, camera at %s, wanted %s" % [str(person_window.is_following()), str(_camera.position), str(want)])
+	_camera.pan_by_screen(Vector2(40, 0))
+	await _frames(1)
+	_finish_case("window.follow_stop", "windows", "Panning stops following", {},
+		not person_window.is_following() and not follow_button.button_pressed, "still following after a pan")
 	_driver.set_paused(false)
 
 
