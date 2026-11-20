@@ -67,7 +67,7 @@ static func run(check: Callable) -> void:
 	# Shaft in the way.
 	var shaft_tower := _tower()
 	shaft_tower.floors.mark_shaft(2, 104)
-	check.call(_room(shaft_tower, OFFICE, 2, 100) == RoomsScript.OVER_SHAFT, "a room over a shaft is refused")
+	check.call(_room(shaft_tower, OFFICE, 2, 100) == RoomsScript.OK, "a room may stand behind a shaft (#272)")
 
 	# Support: nothing below, and an overhang.
 	var support := _tower()

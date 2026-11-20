@@ -42,6 +42,7 @@ var _static_tick: int = -1000000
 var _since_tick: float = 0.0  ## Seconds since the sim last ticked.
 var _tick_len: float = 1.0 / 30.0  ## Seconds the last tick took; cars slide over this long.
 var _seen_revision: int = -1
+var _seen_see_through: bool = false
 var _seen_occupants: int = -1
 var _figures: Array[Dictionary] = []
 var _from: Dictionary = {}  ## Person id -> Vector2(column, row) at the previous tick, to glide from.
@@ -59,6 +60,8 @@ var _dynamic_layer: Node2D = null
 
 
 func _ready() -> void:
+	TransportLook.load_setting()
+	_seen_see_through = TransportLook.see_through
 	var size := Vector2i(VC.world_rect().size)
 	_static_layer = _make_layer(size, _paint_static)
 	_static_view = _static_layer.get_parent()
@@ -111,6 +114,9 @@ func _process(delta: float) -> void:
 			if figure["moving"]:
 				_has_moving = true
 				break
+	if TransportLook.see_through != _seen_see_through:  ## The view option changed: repaint the shafts.
+		_seen_see_through = TransportLook.see_through
+		layout_changed = true
 	var dirty := layout_changed or tower.tick - _static_tick >= STATIC_REFRESH_TICKS or tower.tick < _static_tick
 	if not dirty and (tower.tick - _checked_tick >= IN_USE_CHECK_TICKS or tower.tick < _checked_tick):
 		_checked_tick = tower.tick
@@ -392,7 +398,11 @@ func _draw_shafts(canvas: CanvasItem) -> void:
 		var rect := Rect2i((shaft["x"] as int) * VC.CELL_W, top_row * VC.CELL_H, (shaft["width"] as int) * VC.CELL_W, (bottom_row - top_row + 1) * VC.CELL_H)
 		TransportLook.draw_shaft_body(canvas, rect, shaft_color)
 		for machine: int in Tower.RoomsScript.machine_floors(shaft["bottom"], shaft["top"]):  # the machine-room caps (#228)
-			canvas.draw_rect(Rect2i(rect.position.x, VC.floor_to_row(machine) * VC.CELL_H, rect.size.x, VC.CELL_H - VC.SLAB_H), shaft_color.lightened(0.15))
+			var cap := Rect2i(rect.position.x, VC.floor_to_row(machine) * VC.CELL_H, rect.size.x, VC.CELL_H - VC.SLAB_H)
+			if TransportLook.see_through:
+				canvas.draw_rect(cap, shaft_color.lightened(0.4), false, 1.0)
+			else:
+				canvas.draw_rect(cap, shaft_color.lightened(0.15))
 		for floor_number: int in shaft["stops"]:
 			TransportLook.draw_doors(canvas, rect, _floor_bottom(floor_number), shaft_color)
 		for floor_number: int in shaft["disabled"]:

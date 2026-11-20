@@ -99,21 +99,20 @@ static func run(check: Callable) -> void:
 	# Rooms and machine rooms keep apart, whichever comes first.
 	var r := TestShafts._tall()
 	_office(r, 4, 100)
-	check.call(TestShafts._shaft(r, 5, 6, 100) == RoomsScript.OVERLAPS_ROOM and r.rooms.shaft_count() == 0, "a room on a machine room cell blocks the shaft")
-	check.call(TestShafts._shaft(r, 4, 6, 100) == RoomsScript.OK, "a room on a floor the shaft spans is fine (links sit in front)")
-	check.call(_office(r, 7, 100) == RoomsScript.MACHINE_ROOM, "a room cannot be placed on the machine room above")
+	check.call(TestShafts._shaft(r, 5, 6, 100) == RoomsScript.OK, "a shaft may put its machine room in front of a room (#272)")
+	check.call(_office(r, 7, 100) == RoomsScript.OK, "a room may be built behind the machine room above (#272)")
 	var rooms_before := r.rooms.room_count()
-	check.call(_office(r, 7, 96) == RoomsScript.MACHINE_ROOM and r.rooms.room_count() == rooms_before, "a room that reaches into a machine room cell is refused")
-	check.call(_office(r, 7, 104) == RoomsScript.OK, "a room beside the machine room is fine")
+	check.call(_office(r, 7, 96) == RoomsScript.OVERLAPS_ROOM and r.rooms.room_count() == rooms_before, "a room that reaches into a built room is still refused")
+	check.call(_office(r, 7, 112) == RoomsScript.OK, "a room beside the machine room is fine")
 	check.call(TestShafts._shaft(r, 8, 9, 100) == RoomsScript.OVERLAPS_LINK, "another shaft cannot share a machine room cell")
 
 	# The lobby is a room too: a machine room cannot be in it.
 	var l := TestShafts._tall()
-	check.call(TestShafts._shaft(l, 2, 4, 100) == RoomsScript.OVERLAPS_LOBBY, "a shaft starting above the lobby has no place for its machine room")
+	check.call(TestShafts._shaft(l, 2, 4, 100) == RoomsScript.OK, "a shaft starting above the lobby puts its machine room in front of the lobby (#272)")
 
 	# A save keeps the machine rooms, and bulldozing the shaft frees them.
 	var u := TowerSim.new(0)
 	check.call(u.load_state(r.save()) and u.state_hash() == r.state_hash(), "a tower with machine rooms saves and loads exactly")
-	check.call(_office(u, 7, 100) == RoomsScript.MACHINE_ROOM, "a loaded tower keeps its machine rooms")
+	check.call(u.rooms.machine_room_at(7, 100), "a loaded tower keeps its machine rooms")
 	TestRooms._send(r, Command.BULLDOZE, [5, 100] as Array[int])
 	check.call(r.rooms.shaft_count() == 0 and not r.rooms.machine_room_at(7, 100) and not r.rooms.machine_room_at(3, 100), "bulldozing the shaft frees its machine rooms")

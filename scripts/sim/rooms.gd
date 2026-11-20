@@ -6,7 +6,7 @@ extends RefCounted
 ## into RoomCatalogue.IDS. Only kinds in PLACEABLE can be placed for now; add a kind there once
 ## its rules are built. Rent and "condo sold once" (M3+) come later.
 ## Rules: floor 2 or higher (floor 1 is the lobby floor, basements are refused; UNVERIFIED: the
-## reference only says "above ground"), no overlap with another room, the lobby or a shaft, inside
+## reference only says "above ground"), no overlap with another room or the lobby (a shaft, stairs or escalator in front is fine: #272), inside
 ## the tower width, and every new floor unit under the room needs a floor directly below it (the
 ## same no-overhang rule as Floors). The room pays its price plus FLOOR_COST_PER_UNIT for each
 ## unit of floor under it that is not built yet, in one charge, and builds those units.
@@ -192,12 +192,6 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 		if floors.has_lobby_at(floor_number, column):
 			result["reason"] = OVERLAPS_LOBBY
 			return result
-		if floors.has_shaft(floor_number, column):
-			result["reason"] = OVER_SHAFT
-			return result
-		if machine_room_at(floor_number, column):
-			result["reason"] = MACHINE_ROOM
-			return result
 		if floors.has_floor(floor_number, column):
 			continue
 		new_units += 1
@@ -269,12 +263,6 @@ func _check_place_tall(grid: GridScript, floors: FloorsScript, kind: String, flo
 				return result
 			if floors.has_lobby_at(level, column):
 				result["reason"] = OVERLAPS_LOBBY
-				return result
-			if floors.has_shaft(level, column):
-				result["reason"] = OVER_SHAFT
-				return result
-			if machine_room_at(level, column):
-				result["reason"] = MACHINE_ROOM
 				return result
 			if floors.has_floor(level, column):
 				continue
@@ -579,7 +567,7 @@ static func machine_floors(bottom: int, top: int) -> Array[int]:
 	return out
 
 
-## True when a shaft's machine room stands on the cell. Rooms and links keep off it.
+## True when a shaft's machine room stands on the cell. Links keep off it; rooms may stand behind it (#272).
 func machine_room_at(floor_number: int, column: int) -> bool:
 	for shaft: int in _shafts:
 		var info: Array = _shafts[shaft]
@@ -603,7 +591,7 @@ static func _floor_at_offset(bottom: int, offset: int) -> int:
 ## Checks a shaft: kind is a catalogue id with the shaft placement, bottom and top are floor
 ## numbers (inclusive). Returns {"reason", "cost", "span", "floor_units"}. Needs 1 to 30 floors
 ## (express: any height), fewer than 24 shafts, a machine room cell above the top and below the
-## bottom (see machine_floors) free of rooms and links, nothing else in the way (rooms on the
+## bottom (see machine_floors) free of links (rooms and the lobby may stand behind, #272), nothing else in the way (rooms on the
 ## shaft's own floors are fine, as for stairs), and floor to rest on. Floor units missing under
 ## the shaft or its machine rooms are built at FLOOR_COST_PER_UNIT each, which the cost includes
 ## (with the shaft's price when priced; a resize passes false). A missing unit with nothing to
@@ -654,12 +642,6 @@ func check_place_shaft(grid: GridScript, floors: FloorsScript, kind: String, bot
 				return result
 			if links.cell_at(machine, column) != GridScript.EMPTY or machine_room_at(machine, column):
 				result["reason"] = OVERLAPS_LINK
-				return result
-			if grid.cell_at(machine, column) != GridScript.EMPTY:
-				result["reason"] = OVERLAPS_ROOM
-				return result
-			if floors.has_lobby_at(machine, column):
-				result["reason"] = OVERLAPS_LOBBY
 				return result
 	var cells: Array[int] = []
 	cells.append_array(stops)
