@@ -46,6 +46,7 @@ const THREAT_NOTICE := 48  ## An anonymous notice: a device is hidden in the tow
 const THREAT_PAID := 49  ## The owner paid and it ended.
 const THREAT_FOUND := 50  ## a: floor. Guards found the device in time.
 const THREAT_EXPLODED := 51  ## a: lowest floor, b: highest floor destroyed.
+const CASINO_INCIDENT := 52  ## a: casino room id. A brawl or a cheat with no security office to stop it (#319).
 const ROOM_DIRTY := 34  ## a: room id. Hotel guests checked out; the room needs cleaning (#147).
 
 const CAP := 500  ## Entries kept; the oldest drop first.
