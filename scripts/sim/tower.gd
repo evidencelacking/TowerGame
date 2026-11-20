@@ -10,6 +10,7 @@ const Rng := preload("res://scripts/sim/sim_rng.gd")
 const Clock := preload("res://scripts/sim/clock.gd")
 const Grid := preload("res://scripts/sim/grid.gd")
 const LedgerScript := preload("res://scripts/sim/ledger.gd")
+const SynergyScript := preload("res://scripts/sim/synergy.gd")
 const FinanceScript := preload("res://scripts/sim/finance.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
@@ -370,7 +371,8 @@ func _run_systems() -> void:
 	housekeeping.tick(clock, floors, grid)
 	recycling.tick(clock, population())
 	if clock.day_started:  # rent comes in daily (#261); the quarter's last day pays the remainder
-		rent.collect(rooms, people, ledger, tick, clock.quarter_started)
+		var rent_bonus := SynergyScript.rent_percent(SynergyScript.others_of(grid, rooms, tenancy.transit_linked(floors, rooms, grid)))
+		rent.collect(rooms, people, ledger, tick, clock.quarter_started, rent_bonus)
 		commerce.collect_rent(rooms, rent, ledger, tick, clock.quarter_started)
 	if clock.quarter_started:
 		var rent_income := _quarter_rent()

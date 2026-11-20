@@ -39,7 +39,7 @@ const RESCUE_COST := 500000  ## Fire rescue, dollars (decided 2026-11-10).
 
 ## Kinds whose upkeep is a guess: only the $10,000 per elevator (local shaft) is in the reference.
 const UPKEEP_UNVERIFIED: Array[String] = [
-	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp",
+	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp", "metro",
 ]
 
 const PLACE_ANYWHERE := 0  ## Above or below ground.
@@ -145,8 +145,11 @@ const _ROWS: Dictionary = {
 	"parking_space": {"width": 4, "height": 1, "cost": 3000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_CHAIN, "limit": 512,
 		"limit_group": "parking_shops", "limit_scope": "tower"},
-	"metro": {"width": 32, "height": 3, "cost": 1000000, "per_unit": false, "star": 4,
-		"removable": false, "placement": PLACE_BOTTOM_B10, "limit": 1,
+	# The metro station (#325). The reference has a 3 floor station at B8-B10 from star 4; ours is a single
+	# basement floor, 32 wide, on any basement floor, from star 3 (the owner wants transit earlier). One per tower
+	# and permanent. Cost as in the reference; the upkeep is our own tunable.
+	"metro": {"upkeep": 8000, "width": 32, "height": 1, "cost": 1000000, "per_unit": false, "star": 3,
+		"removable": false, "placement": PLACE_UNDERGROUND, "limit": 1,
 		"limit_group": "", "limit_scope": "tower"},
 	"cathedral": {"width": 32, "height": 1, "cost": 3000000, "per_unit": false, "star": 5,
 		"removable": false, "placement": PLACE_FLOOR_100, "limit": 1,
