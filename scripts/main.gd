@@ -1,6 +1,7 @@
 extends Node
 ## Entry scene. For now it only shows a sky-colour background.
 
+const ViewSettingsScript := preload("res://scripts/view/view_settings.gd")
 const SKY := Color(0.53, 0.78, 0.95)
 
 ## The tower the HUD's SimDriver steps: the view must draw this one, not a copy.
@@ -9,6 +10,7 @@ const SKY := Color(0.53, 0.78, 0.95)
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(SKY)
+	UiSkin.apply(ViewSettingsScript.detailed_graphics)  # the toolbar's _ready has loaded the saved setting
 	var demo := DemoMode.active()
 	if demo:
 		# Demo mode (#262): a fresh tower with a huge balance, the top rating, everything unlocked.

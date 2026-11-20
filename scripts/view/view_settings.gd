@@ -32,6 +32,7 @@ static func set_auto_fill(value: bool) -> void:
 
 static func set_detailed_graphics(value: bool) -> void:
 	detailed_graphics = value
+	UiSkin.apply(value)  # the toolbar and windows take the G Lit skin with the Detailed art (#307)
 	var config := ConfigFile.new()
 	config.load(SETTINGS_PATH)
 	config.set_value(SECTION, KEY_DETAILED, value)

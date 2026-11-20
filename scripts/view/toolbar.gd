@@ -20,6 +20,7 @@ const CATEGORIES: Array = [
 	["Elevators", ["local_shaft", "local_car", "service_shaft", "service_car", "express_shaft", "express_car"]],
 	["Rooms", ["office", "condo", "hotel_single", "hotel_twin", "hotel_suite", "coworking"]],
 	["Commerce", ["fast_food", "restaurant", "retail", "movie_theatre", "party_hall", "nightclub", "casino", "grocery", "deli"]],
+	["Dining", ["cafe", "pizza", "sushi", "fine_dining", "bar"]],
 	["Services", ["housekeeping", "security", "medical", "recycling", "clinic"]],
 	["Community", ["gym", "daycare"]],
 	["Parking", ["parking_ramp", "parking_space"]],

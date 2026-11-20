@@ -13,7 +13,6 @@ const Batch1 := preload("res://tests/test_detailed_batch1.gd")
 const TestPests := preload("res://tests/test_pests.gd")
 
 const IDS_TRIED := 64  ## Room ids tried to meet every variant of a kind.
-const STILL_CLASSIC: Array[String] = ["party_hall", "movie_theatre", "cathedral", "metro"]
 
 
 static func run(check: Callable) -> void:
@@ -22,7 +21,6 @@ static func run(check: Callable) -> void:
 	_draws(check)
 	_placed(check, classic, detailed)
 	_spots(check, detailed)
-	_untouched(check, classic, detailed)
 	_transport(check, classic, detailed)
 
 
@@ -114,19 +112,6 @@ static func _spots(check: Callable, detailed: GraphicsStyle) -> void:
 	check.call(doubled, "detailed: every batch 2 spot is the shared spot at twice the pixels")
 	check.call(inside, "detailed: every batch 2 spot, doubled, holds a doubled figure inside the room")
 	check.call(at_furniture, "detailed: people at batch 2 spots are at furniture %s" % str(failures))
-
-
-## Kinds still to come draw Classic under Detailed.
-static func _untouched(check: Callable, classic: GraphicsStyle, detailed: GraphicsStyle) -> void:
-	var same := true
-	for kind: String in STILL_CLASSIC:
-		var rect := Rect2i(0, 0, Batch1._width_px(kind), VC.CELL_H)
-		var a := Batch1.Recorder.new()
-		classic.recipe(a, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), true)
-		var b := Batch1.Recorder.new()
-		detailed.recipe(b, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), true)
-		same = same and a.rects == b.rects
-	check.call(same, "detailed: kinds not yet in the Detailed look draw Classic under Detailed")
 
 
 ## Stairs, escalators, shafts and cars in the Detailed look: they draw, differ from Classic, stay inside

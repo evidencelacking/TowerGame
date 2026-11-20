@@ -63,6 +63,7 @@ const IDS: Array[String] = [
 	"express_shaft", "express_car", "hotel_twin", "hotel_suite", "restaurant", "retail",
 	"movie_theatre", "party_hall", "medical", "recycling", "parking_ramp", "parking_space",
 	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino",
+	"cafe", "pizza", "sushi", "fine_dining", "bar",
 	"grocery", "deli",
 ]
 
@@ -189,6 +190,22 @@ const _ROWS: Dictionary = {
 		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"deli": {"staff": 1, "width": 8, "height": 1, "cost": 60000, "per_unit": false, "star": 1,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# The restaurant family (#323, our own design): five kinds beside fast food and the restaurant, each with its own hours, audience and price.
+	"cafe": {"staff": 2, "width": 12, "height": 1, "cost": 90000, "per_unit": false, "star": 2,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"pizza": {"staff": 3, "width": 16, "height": 1, "cost": 120000, "per_unit": false, "star": 2,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"sushi": {"staff": 3, "width": 16, "height": 1, "cost": 180000, "per_unit": false, "star": 3,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"fine_dining": {"staff": 5, "width": 20, "height": 1, "cost": 300000, "per_unit": false, "star": 4,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"bar": {"staff": 3, "width": 14, "height": 1, "cost": 140000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 }

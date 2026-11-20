@@ -113,4 +113,79 @@ static func build() -> Dictionary:
 			"spots": [[3, 28]]}],
 		"spots": [[-18, 28, "r"]],
 	}
+	# Cafe: a coffee counter with a machine and cups, small round tables, a lamp over each.
+	out["cafe"] = {
+		"hue": "food", "look": "full",
+		"fixed": [
+			[-30, 21, 22, 9, "furn", "r"],
+			[-29, 16, 20, 5, "white", "r"],
+			[-28, 12, 6, 4, "lamp", "r"],
+			[-14, 8, 8, 1, "gold", "r"],
+		],
+		"repeats": [{"pad": 6, "every": 24, "lo": 0, "hi": 18, "reserve": 30, "shapes": [
+			[0, 22, 10, 2, "furn"], [4, 24, 2, 6, "furn"], [2, 29, 6, 1, "furn"], [0, 6, 2, 10, "furn"],
+			[3, 8, 5, 3, "lamp"], [3, 8, 5, 3, "furn"], [8, 16, 2, 2, "accent"], [5, 18, 3, 3, "gold"]],
+			"spots": [[4, 28]]}],
+		"spots": [[-14, 28, "r"]],
+	}
+	# Pizzeria: a brick oven with a glow, a long counter and checked tables.
+	out["pizza"] = {
+		"hue": "food", "look": "full",
+		"fixed": [
+			[-34, 12, 14, 18, "furn", "r"],
+			[-31, 18, 8, 8, "lamp", "r"],
+			[-33, 11, 16, 2, "red", "r"],
+			[-16, 22, 18, 8, "furn", "r"],
+		],
+		"repeats": [{"pad": 6, "every": 24, "lo": 0, "hi": 18, "reserve": 30, "shapes": [
+			[0, 22, 12, 2, "red"], [1, 24, 2, 6, "furn"], [9, 24, 2, 6, "furn"], [0, 6, 2, 10, "furn"],
+			[3, 8, 6, 3, "lamp"], [3, 8, 6, 3, "furn"], [2, 17, 8, 1, "white"], [4, 29, 4, 1, "furn"]],
+			"spots": [[4, 28]]}],
+		"spots": [[-14, 28, "r"]],
+	}
+	# Sushi bar: a long wooden counter with stools and a fish case behind it.
+	out["sushi"] = {
+		"hue": "dining", "look": "full",
+		"fixed": [
+			[-34, 21, 30, 3, "furn", "r"],
+			[-33, 14, 28, 6, "white", "r"],
+			[-32, 15, 26, 3, "lamp", "r"],
+			[-34, 8, 4, 2, "red", "r"],
+		],
+		"repeats": [{"pad": 6, "every": 24, "lo": 0, "hi": 18, "reserve": 30, "shapes": [
+			[0, 24, 14, 2, "furn"], [2, 26, 1, 4, "furn"], [6, 26, 1, 4, "furn"], [11, 26, 1, 4, "furn"],
+			[0, 6, 2, 12, "furn"], [3, 7, 8, 3, "lamp"], [3, 7, 8, 3, "furn"], [4, 12, 6, 2, "gold"]],
+			"spots": [[4, 28]]}],
+		"spots": [[-14, 28, "r"]],
+	}
+	# Fine dining: white tablecloths, tall candle lamps and a wine wall.
+	out["fine_dining"] = {
+		"hue": "dining", "look": "full",
+		"fixed": [
+			[-34, 6, 30, 14, "furn", "r"],
+			[-33, 7, 28, 12, "gold", "r"],
+			[-30, 8, 3, 8, "red", "r"],
+			[-22, 8, 3, 8, "red", "r"],
+		],
+		"repeats": [{"pad": 6, "every": 24, "lo": 0, "hi": 18, "reserve": 30, "shapes": [
+			[0, 24, 12, 2, "white"], [5, 26, 2, 4, "furn"], [3, 29, 6, 1, "furn"], [0, 6, 2, 14, "furn"],
+			[5, 14, 1, 10, "lamp"], [4, 12, 3, 3, "lamp"], [8, 16, 3, 3, "gold"], [3, 20, 7, 1, "white"]],
+			"spots": [[4, 28]]}],
+		"spots": [[-14, 28, "r"]],
+	}
+	# Bar: a long counter, a back shelf of bottles and neon over the stools.
+	out["bar"] = {
+		"hue": "party", "look": "full",
+		"fixed": [
+			[-34, 22, 32, 8, "furn", "r"],
+			[-33, 8, 30, 3, "furn", "r"],
+			[-32, 12, 28, 6, "gold", "r"],
+			[-30, 6, 12, 1, "red", "r"],
+		],
+		"repeats": [{"pad": 6, "every": 24, "lo": 0, "hi": 18, "reserve": 30, "shapes": [
+			[0, 22, 14, 2, "furn"], [2, 24, 2, 6, "furn"], [10, 24, 2, 6, "furn"], [0, 6, 2, 12, "furn"],
+			[3, 8, 8, 2, "lamp"], [3, 8, 8, 2, "furn"], [4, 14, 6, 3, "accent"], [4, 29, 6, 1, "furn"]],
+			"spots": [[4, 28]]}],
+		"spots": [[-14, 28, "r"]],
+	}
 	return out
