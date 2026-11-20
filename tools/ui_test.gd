@@ -142,13 +142,11 @@ func _room_cases() -> void:
 	await _room_case("cafe", 6, 160)
 	await _room_case("pizza", 6, 172)
 	await _room_case("fine_dining", 7, 160)
-	await _room_case("sushi", 8, 160)
-	await _room_case("bar", 9, 160)
+	await _room_case("grocery", 8, 160)  # over the fine dining room, which is as wide
+	await _room_case("sushi", 9, 160)
+	await _room_case("bar", 10, 160)
+	await _room_case("deli", 11, 160)
 	await _room_case("casino", 3, 220)
-	x = 160
-	for kind: String in ["grocery", "deli"]:  # on floor 6, over the top-floor deck
-		await _room_case(kind, 6, x)
-		x += CatalogueScript.field(kind, "width")
 	for kind: String in CatalogueScript.IDS:
 		if kind in RoomsScript.PLACEABLE or kind in ["lobby", "floor", "stairs", "escalator"]:
 			continue
