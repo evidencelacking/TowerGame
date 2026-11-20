@@ -56,6 +56,8 @@ const ROOM_TEXT: Dictionary = {
 	RoomsScript.TALL_REPLACE: "Bulldoze first, then build it",
 	RoomsScript.NOT_BASEMENT: "Parking and the metro station go below ground",
 	RoomsScript.ONE_STATION: "The tower already has its metro station",
+	RoomsScript.NOT_TOP: "The observation deck goes on the top floor, with no room above it",
+	RoomsScript.ONE_DECK: "The tower already has its observation deck",
 	RoomsScript.NOT_CHAINED: "Must touch the ramp or a working space",
 	RoomsScript.RAMP_COLUMN: "Ramps share one column",
 	RoomsScript.RAMP_NOT_UNDER_LOBBY: "The first ramp goes on B1 under the lobby",

@@ -68,4 +68,15 @@ static func build() -> Dictionary:
 			"spots": [[23, 30]]}],
 		"spots": [[-10, 30, "r"]],
 	}
+	# Observation deck: a glass wall with a railing along the front, telescopes on stands, the city skyline below.
+	out["observation_deck"] = {
+		"hue": "office", "look": "full",
+		"fixed": [
+			[4, 4, 12, 1, "lamp"], [-70, 14, 24, 10, "furn", "r"], [-40, 10, 14, 14, "furn", "r"], [-20, 16, 20, 8, "furn", "r"],
+		],
+		"repeats": [{"pad": 8, "every": 34, "lo": 0, "hi": 27, "reserve": 40, "shapes": [
+			[0, 6, 2, 20, "white"], [4, 16, 3, 10, "furn"], [4, 12, 8, 4, "lamp"], [9, 14, 4, 2, "furn"]],
+			"spots": [[14, 28]]}],
+		"spots": [[-10, 28, "r"]],
+	}
 	return out
