@@ -102,8 +102,10 @@ func figures(tower: Object) -> Array[Dictionary]:
 	var people: PeopleScript = tower.people
 	var pending: Array[Array] = []  # resting people, placed once every room's use is known
 	var minute: int = tower.clock.minute_of_day()
+	var looks: Dictionary = {}  # person id -> {"age", "child", "job"}, for the Detailed figures (#304)
 	for i in people.count():
 		var band := people.stress_band(i)
+		looks[people.id_at(i)] = {"age": tower.life.age_band_of(tower, people.id_at(i)), "child": tower.life.is_child(people.id_at(i)), "job": tower.rooms.kind_of(people.work_of(i))}
 		if people.trip_state(i) == PeopleScript.TRIP_RIDING:
 			continue  # queued at a shaft or riding: elevator_view draws the queue and the car's load
 		if people.trip_state(i) == PeopleScript.TRIP_MOVING:
@@ -123,6 +125,9 @@ func figures(tower: Object) -> Array[Dictionary]:
 		pending.append([out.size(), run, people.id_at(i), kind, act, band, column, room])
 		out.append({})  # filled in below, once the suites are known
 	_place_resting(out, pending, Suites.tenanted_rooms(tower))
+	for figure: Dictionary in out:
+		if not figure.is_empty():
+			figure.merge(looks.get(figure["id"], {}), true)
 	out.append_array(_cleaners(tower))
 	return out
 
@@ -181,6 +186,9 @@ func _cleaners(tower: Object) -> Array[Dictionary]:
 		if run.is_empty():
 			continue
 		var cleaner := _resting(run, room, tower.rooms.kind_of(room), ActivityLook.CLEANING, 1, 0, run[1], room)
+		cleaner["age"] = 1  # Names.BAND_ADULT
+		cleaner["child"] = false
+		cleaner["job"] = "housekeeping"
 		cleaner["staff"] = true  # not a person: the id is the room's, so a click must not open a person window
 		out.append(cleaner)
 	return out

@@ -10,6 +10,7 @@ extends GraphicsStyle
 const DetailRooms := preload("res://scripts/view/detail_rooms.gd")
 const DetailExterior := preload("res://scripts/view/detail_exterior.gd")
 const Palette := preload("res://scripts/view/palette.gd")
+const DetailPeople := preload("res://scripts/view/detail_people.gd")
 
 
 func density() -> int:
@@ -51,3 +52,19 @@ func street(canvas: Object, daylight: int, world_w: int, ground_y: int, built: D
 
 func skyline(canvas: Object, p: Dictionary, daylight: int, raining: bool, stars: int, depth: int, world_w: int, ground_y: int) -> void:
 	DetailExterior.skyline(canvas, p, daylight, raining, stars, depth, world_w, ground_y)
+
+
+## People (#304): every figure has a look of its own, from its id, age and job (detail_people.gd). Without
+## a `who` (a caller that knows nothing of the person) this falls back to Classic's anonymous figure.
+func person(canvas: Object, x: int, feet: int, shirt: Color, skin: Color, apart: bool, lift_l: int, lift_r: int, who: Dictionary = {}, pose: int = 0, walk: int = 0) -> void:
+	if who.is_empty():
+		super.person(canvas, x, feet, shirt, skin, apart, lift_l, lift_r)
+		return
+	DetailPeople.walker(canvas, x, feet, who, pose, walk)
+
+
+func activity(canvas: Object, x: int, feet: int, act: int, frame: int, shirt: Color, skin: Color, prop: Color, white: Color, who: Dictionary = {}) -> void:
+	if who.is_empty():
+		super.activity(canvas, x, feet, act, frame, shirt, skin, prop, white)
+		return
+	DetailPeople.resting(canvas, x, feet, who, act, frame)
