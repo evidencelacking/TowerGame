@@ -17,8 +17,8 @@ const ViewSettings := preload("res://scripts/view/view_settings.gd")
 const CATEGORIES: Array = [
 	["Structure", ["lobby", "floor", "stairs", "escalator"]],
 	["Elevators", ["local_shaft", "local_car", "service_shaft", "service_car", "express_shaft", "express_car"]],
-	["Rooms", ["office", "condo", "hotel_single", "hotel_twin", "hotel_suite"]],
-	["Commerce", ["fast_food", "restaurant", "retail", "movie_theatre", "party_hall"]],
+	["Rooms", ["office", "condo", "hotel_single", "hotel_twin", "hotel_suite", "coworking"]],
+	["Commerce", ["fast_food", "restaurant", "retail", "movie_theatre", "party_hall", "nightclub"]],
 	["Services", ["housekeeping", "security", "medical", "recycling", "clinic"]],
 	["Community", ["gym", "daycare"]],
 	["Parking", ["parking_ramp", "parking_space"]],

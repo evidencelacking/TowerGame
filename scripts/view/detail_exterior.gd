@@ -44,13 +44,12 @@ static func darkness(dl: int) -> float:
 
 ## Brick edges down both ends of every run of floor units, and a roof on every stretch with nothing above.
 static func shell(canvas: Object, rects: Array[Rect2i], dl: int) -> void:
-	var dark := darkness(dl)
-	var night := is_night(dl)
+	var night := is_night(dl)  # the renderer darkens the static canvas itself (#305), so no tint here
 	for rect: Rect2i in rects:
-		_edges(Pen.new(canvas, Vector2(rect.position), dark, night), rect.size.x * 2, rect.size.y * 2)
+		_edges(Pen.new(canvas, Vector2(rect.position), 0.0, night), rect.size.x * 2, rect.size.y * 2)
 	for run: Array in roof_runs(rects):
 		var at := Vector2(int(run[0]), int(run[1]))
-		_roof(Pen.new(canvas, at, dark, night), int(run[2]) * 2, int(run[0]) / VC.CELL_W, int(run[1]) / VC.CELL_H, int(run[3]))
+		_roof(Pen.new(canvas, at, 0.0, night), int(run[2]) * 2, int(run[0]) / VC.CELL_W, int(run[1]) / VC.CELL_H, int(run[3]))
 
 
 ## The exposed tops: one [x, y, width, rank] (world pixels) per stretch of a floor run with no floor unit
@@ -106,7 +105,7 @@ static func _roof(pen: Pen, w: int, col: int, row: int, rank: int) -> void:
 		pen.R(lx, -8, 2, 2, Color("e8e2d0"))
 		if pen.night:
 			pen.GR(lx, -8, 2, 2, WARM)
-			pen.pool(lx + 1, -6, 9, 4, WARM, 0.5)
+			pen.glow(lx + 1, -6, 9, 4, WARM, 0.5)
 	if w >= 96 and seed_a < 0.34:
 		var x := 14 + int(Pen.hn(col, row + 9) * float(w - 62))
 		pen.R(x + 3, -13, 2, 8, RAIL)
@@ -135,7 +134,7 @@ static func _roof(pen: Pen, w: int, col: int, row: int, rank: int) -> void:
 		pen.R(ax - 1, tip - 4, 4, 4, Color("c83a30"))
 		if pen.night:
 			pen.GR(ax - 1, tip - 4, 4, 4, Color("ff3a2a"))
-			pen.pool(ax + 1, tip - 2, 9, 9, Color("ff3a2a"), 0.7)
+			pen.glow(ax + 1, tip - 2, 9, 9, Color("ff3a2a"), 0.7)
 
 
 # ---------------------------------------------------------------- street
@@ -172,6 +171,13 @@ static func street(canvas: Object, dl: int, world_w: int, ground_y: int, built: 
 					_walkers(pen, x * 2, slot)
 
 
+## A dithered pool of lamp light on the road or sidewalk. The street layer sits behind the lit world, so its
+## light is painted, not added.
+static func _pool(pen: Pen, cx: float, cy: float, rx: float, ry: float, c: Color, strength: float) -> void:
+	if pen.night:
+		pen.soft_ell(cx, cy, rx, ry, c, strength, true, 2)
+
+
 static func _blocked(built: Dictionary, from_x: int, to_x: int) -> bool:
 	for c: int in range(floori(float(from_x) / VC.CELL_W), floori(float(to_x) / VC.CELL_W) + 1):
 		if built.has(c):
@@ -196,7 +202,7 @@ static func _streetlight(pen: Pen, x: int) -> void:
 	pen.item(x - 6, -50, 12, 5, Color("5a5260"), 2)
 	if pen.night:
 		pen.GR(x - 5, -46, 10, 2, WARM)
-		pen.pool(x, 6, 30, 5, WARM, 0.5)
+		_pool(pen, x, 6, 30, 5, WARM, 0.5)
 		pen.GW(x - 18, -44, 36, 50, WARM)
 	else:
 		pen.R(x - 5, -46, 10, 2, Color("e8e2d0"))
@@ -216,7 +222,7 @@ static func _car(pen: Pen, x: int, slot: int) -> void:
 	if pen.night:
 		pen.GR(x + 38, cy - 6, 3, 3, Color("fff2b0"))
 		pen.GR(x - 1, cy - 6, 2, 3, Color("ff4030"))
-		pen.pool(x + 52, cy - 3, 20, 4, WARM, 0.45)
+		_pool(pen, x + 52, cy - 3, 20, 4, WARM, 0.45)
 
 
 static func _walkers(pen: Pen, x: int, slot: int) -> void:

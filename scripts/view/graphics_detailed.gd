@@ -23,7 +23,7 @@ func room(canvas: Object, tower: Tower, id: int, rect: Rect2i, broken: Variant, 
 		super.room(canvas, tower, id, rect, broken, lit, dark)
 		return
 	var shown := RoomLook.appearance(look, lit, dark)
-	DetailRooms.draw(canvas, kind, rect, shown[0], shown[1], tower.rooms.is_tall_upper(id), id)
+	DetailRooms.draw(canvas, kind, rect, shown[0], shown[1], tower.rooms.is_tall_upper(id), id, false, dark)
 	RoomLook.draw_marks(canvas, look, rect, tower.rooms.is_tall_upper(id))
 
 
