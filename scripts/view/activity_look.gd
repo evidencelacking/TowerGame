@@ -93,8 +93,8 @@ static func place(act: int, spot: Vector2i, width_px: int) -> Vector2i:
 ## The spot a person uses: rooms hand out their spots in turn (`turn` counts people already placed
 ## there), sleepers take the first (the bed), standing activities the next one over. With no recipe
 ## spot the figure stands on the floor by column, as before.
-static func spot_for(kind: String, width_px: int, id: int, turn: int, act: int) -> Vector2i:
-	var spots := RoomRecipes.spots(kind, width_px)
+static func spot_for(kind: String, width_px: int, id: int, turn: int, act: int, variant: int = 0) -> Vector2i:
+	var spots := RoomRecipes.spots(kind, width_px, variant)
 	if spots.is_empty():
 		var columns := maxi(width_px / VC.CELL_W, 1)
 		return Vector2i((id % columns) * VC.CELL_W + (VC.CELL_W - VC.FIGURE_W) / 2, VC.CELL_H - 3)

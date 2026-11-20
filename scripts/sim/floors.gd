@@ -103,9 +103,6 @@ func check_span(floor_number: int, x_start: int, x_end: int) -> Dictionary:
 		if _has(floor_number, column, LOBBY):
 			result["reason"] = OCCUPIED_BY_LOBBY
 			return result
-		if has_shaft(floor_number, column):
-			result["reason"] = OVER_SHAFT
-			return result
 		if has_floor(floor_number, column):
 			continue
 		new_units += 1
@@ -265,9 +262,6 @@ func check_lobby(floor_number: int, x_start: int, x_end: int, height: int, grid:
 			continue
 		new_columns += 1
 		for level in range(1, height + 1):
-			if has_shaft(level, column):
-				result["reason"] = OVER_SHAFT
-				return result
 			if not has_floor(level, column):
 				new_units += 1
 	if new_columns == 0:
