@@ -20,7 +20,7 @@ const RoomsScript := preload("res://scripts/sim/rooms.gd")
 ## Noise a source makes right beside a room (distance 0). Offices, commercial, communal.
 const SOURCES: Dictionary = {
 	"office": 3, "fast_food": 4, "restaurant": 5, "retail": 3,
-	"movie_theatre": 6, "party_hall": 8, "nightclub": 9,
+	"movie_theatre": 6, "party_hall": 8, "nightclub": 9, "deli": 2,
 }
 ## Kinds that can be disturbed: residential and hotel rooms.
 const SENSITIVE: Array[String] = ["condo", "hotel_single", "hotel_twin", "hotel_suite"]

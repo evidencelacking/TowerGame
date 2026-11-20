@@ -63,6 +63,7 @@ const IDS: Array[String] = [
 	"express_shaft", "express_car", "hotel_twin", "hotel_suite", "restaurant", "retail",
 	"movie_theatre", "party_hall", "medical", "recycling", "parking_ramp", "parking_space",
 	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck",
+	"grocery", "deli",
 ]
 
 const _ROWS: Dictionary = {
@@ -177,6 +178,13 @@ const _ROWS: Dictionary = {
 	# (rooms.gd), 32 wide, star 4. Dearer than the nightclub, cheaper than the cathedral; every number a tunable.
 	"observation_deck": {"upkeep": 6000, "staff": 2, "width": 32, "height": 1, "cost": 800000, "per_unit": false, "star": 4,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# Everyday shops (#322, our own design). A grocery serves the tower's households; a deli is the small early-and-late shop.
+	"grocery": {"staff": 3, "width": 20, "height": 1, "cost": 180000, "per_unit": false, "star": 2,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"deli": {"staff": 1, "width": 8, "height": 1, "cost": 60000, "per_unit": false, "star": 1,
+		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 }
 

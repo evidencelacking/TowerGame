@@ -79,4 +79,27 @@ static func build() -> Dictionary:
 			"spots": [[14, 28]]}],
 		"spots": [[-10, 28, "r"]],
 	}
+	# Grocery: rows of shelving with produce crates in front, a checkout counter at the back.
+	out["grocery"] = {
+		"hue": "shop", "look": "full",
+		"fixed": [
+			[-64, 20, 20, 10, "furn", "r"], [-62, 16, 16, 4, "gold", "r"], [-26, 22, 18, 8, "furn", "r"], [-24, 18, 14, 4, "lamp", "r"],
+		],
+		"repeats": [{"pad": 8, "every": 30, "lo": 0, "hi": 24, "reserve": 40, "shapes": [
+			[0, 8, 18, 2, "furn"], [0, 14, 18, 2, "furn"], [0, 20, 18, 2, "furn"], [2, 24, 4, 4, "green"], [8, 24, 4, 4, "red"], [14, 24, 4, 4, "gold"]],
+			"spots": [[10, 28]]}],
+		"spots": [[-40, 28, "r"]],
+	}
+	# Deli: a long counter with a glass case, hanging lamps and a menu board.
+	out["deli"] = {
+		"hue": "food", "look": "full",
+		"fixed": [
+			[-30, 21, 26, 9, "furn", "r"], [-29, 15, 24, 6, "white", "r"], [-28, 16, 22, 4, "lamp", "r"],
+			[-30, 5, 12, 6, "furn", "r"], [-14, 6, 8, 1, "gold", "r"], [-14, 8, 8, 1, "gold", "r"],
+		],
+		"repeats": [{"pad": 4, "every": 16, "lo": 0, "hi": 12, "reserve": 20, "shapes": [
+			[0, 8, 3, 18, "furn"], [4, 8, 3, 18, "furn"], [0, 14, 7, 2, "gold"], [0, 20, 7, 2, "gold"]],
+			"spots": [[3, 28]]}],
+		"spots": [[-18, 28, "r"]],
+	}
 	return out

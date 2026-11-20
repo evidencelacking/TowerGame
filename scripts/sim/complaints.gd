@@ -30,11 +30,14 @@ const NOISE := 1
 const DISTANCE := 2
 const RENT := 3
 const UNREACHED := 4
+const NO_GROCERY := 5
 
 ## Priority order of the reasons: first match is the main one.
-const PRIORITY: Array[int] = [NOISE, DISTANCE, RENT, UNREACHED]
+const PRIORITY: Array[int] = [NOISE, DISTANCE, RENT, UNREACHED, NO_GROCERY]
 
 const NOISE_FROM := 3  ## Noise level at or above this is a complaint (unverified, tunable).
+## A tower with this many condos and no grocery store gives every condo a complaint (#322, our own design, tunable).
+const GROCERY_NEEDED_FROM := 10
 const DISTANCE_FROM := PeopleScript.UNEASY_FROM  ## Travel stress at or above this is a complaint (unverified, tunable).
 
 var _grades: GradesScript
@@ -74,7 +77,21 @@ func has_reason(room: int, reason: int) -> bool:
 			return _rent.stress_offset(_rooms, room) > 0
 		UNREACHED:
 			return hotel != null and hotel.unreached(room)
+		NO_GROCERY:
+			return _rooms.kind_of(room) == "condo" and lacks_grocery()
 	return false
+
+
+## True when the tower has enough condos to want a grocery store and has none.
+func lacks_grocery() -> bool:
+	var condos := 0
+	for id in _rooms.room_ids():
+		var kind := _rooms.kind_of(id)
+		if kind == "grocery":
+			return false
+		if kind == "condo":
+			condos += 1
+	return condos >= GROCERY_NEEDED_FROM
 
 
 ## Every reason that applies, most important first. Empty for a content or ungraded room.
@@ -103,4 +120,6 @@ static func label(reason: int) -> String:
 			return "Rent too high"
 		UNREACHED:
 			return "Guests could not reach the room"
+		NO_GROCERY:
+			return "No grocery store in the tower"
 	return ""
