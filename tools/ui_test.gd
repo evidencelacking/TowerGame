@@ -84,6 +84,7 @@ func _run_all() -> void:
 	await _zoom2_cases()
 	await _bulldoze_cases()
 	await _window_cases()
+	await _news_cases()
 	await _behind_cases()
 	await _fill_cases()
 	await _graphics_cases()
@@ -340,6 +341,27 @@ func _window_cases() -> void:
 	_finish_case("window.follow_stop", "windows", "Panning stops following", {},
 		not person_window.is_following() and not follow_button.button_pressed, "still following after a pan")
 	_driver.set_paused(false)
+
+
+## News ticker (#288): a story appears on the strip, and clicking it opens that person's window.
+func _news_cases() -> void:
+	await _key(KEY_ESCAPE)
+	var ticker: Node = _main.get_node("NewsTicker")
+	var person_window: Node = _main.get_node("PersonWindow")
+	if _tower.people.count() == 0:
+		_record("news.click", "windows", "Click a news story: the person's window opens", "-", false, "no people to tell a story about", "SKIP")
+		return
+	var id: int = _tower.people.id_at(0)
+	_tower.life._record(_tower.tick, 3, id, -1, -1)  # a promotion story, planted by the harness
+	await _frames(2)
+	var button: Button = ticker.story_buttons[0]
+	var shows := button.text.contains(_tower.names.name_of(id))
+	await _move(button.get_global_rect().get_center())
+	await _click_at(button.get_global_rect().get_center())
+	await _frames(2)
+	_finish_case("news.click", "windows", "Click a news story: the person's window opens", {},
+		shows and person_window.person_id == id, "story text '%s', PersonWindow.person_id is %d, wanted %d" % [button.text, person_window.person_id, id])
+	await _key(KEY_ESCAPE)
 
 
 # ---------------------------------------------------------------- case runners
