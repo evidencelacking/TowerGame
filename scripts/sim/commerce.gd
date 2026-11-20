@@ -69,6 +69,13 @@ const MEALS: Array = [
 	[COWORK_EARLY, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
 	[COWORK_MID, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
 	[COWORK_LATE, COWORK_WINDOW, COWORK_PERCENT, "coworking"],
+	[DECK_MORNING, DECK_WINDOW, DECK_PERCENT, "observation_deck"],
+	[DECK_NOON, DECK_WINDOW, DECK_PERCENT, "observation_deck"],
+	[DECK_AFTERNOON, DECK_WINDOW, DECK_PERCENT, "observation_deck"],
+	[DECK_SUNSET, DECK_WINDOW, DECK_SUNSET_PERCENT, "observation_deck"],
+	[DECK_NIGHT, DECK_WINDOW, DECK_NIGHT_PERCENT, "observation_deck"],
+	[CASINO_EVENING, CASINO_EVENING_WINDOW, CASINO_PERCENT, "casino"],
+	[CASINO_LATE, CASINO_LATE_WINDOW, CASINO_LATE_PERCENT, "casino"],
 ]
 
 ## Our own kinds (M13, #291), all unverified tunables. A gym is busy before work, at the break and
@@ -106,6 +113,32 @@ const COWORK_MID := 540  ## 09:00.
 const COWORK_LATE := 630  ## 10:30.
 const COWORK_WINDOW := 120
 const COWORK_PERCENT := 6
+## The observation deck (#318): open all day, five waves, busiest at sunset and after dark (admission is the
+## shop's takings). Unverified tunables.
+const DECK_MORNING := 540  ## 09:00.
+const DECK_NOON := 750  ## 12:30.
+const DECK_AFTERNOON := 930  ## 15:30.
+const DECK_SUNSET := 1110  ## 18:30.
+const DECK_NIGHT := 1260  ## 21:00.
+const DECK_WINDOW := 90
+const DECK_PERCENT := 3
+const DECK_SUNSET_PERCENT := 8
+const DECK_NIGHT_PERCENT := 6
+## The casino (#319): open 20:00 to 05:00 in two waves of adults; hotel guests gamble far more often than the
+## tower's other people (CASINO_GUEST_PERCENT). Every gambler stakes CASINO_STAKE on an even bet he wins
+## CASINO_WIN_PERCENT of the time, so the house keeps 10 percent of the stakes in the long run: the takings at
+## settlement are the seeded results of the day's bets (integers); the staff are paid by the upkeep. Unverified tunables.
+const CASINO_EVENING := 1200  ## 20:00.
+const CASINO_EVENING_WINDOW := 240
+const CASINO_LATE := 0  ## 00:00; counts for the next day, like the nightclub's second wave.
+const CASINO_LATE_WINDOW := 300
+const CASINO_PERCENT := 10
+const CASINO_LATE_PERCENT := 8
+const CASINO_GUEST_PERCENT := 35
+const CASINO_STAKE := 400
+const CASINO_WIN_PERCENT := 45
+const CASINO_INCIDENT_PERCENT := 10
+const CASINO_INCIDENT_COST := 15000
 const WHO_ADULTS := "adults"
 const WHO_ALL := "all"
 const WHO_CHILDREN := "children"
@@ -135,6 +168,12 @@ const METRO_VISITORS: Dictionary = {
 	"fast_food": [[0, 6, 14, 6, 4, 0], [0, 4, 12, 8, 6, 0]],
 	"restaurant": [[0, 0, 2, 2, 8, 2], [0, 0, 4, 4, 14, 4]],
 	"retail": [[0, 0, 6, 4, 10, 0], [0, 0, 14, 10, 20, 0]],
+}
+## The observation deck (#318): visitors from the city, per clock period on a weekday and on the weekend. They come
+## all day and into the night (unlike VISITORS, which stop after dark), more at sunset and after dark.
+const CITY_VISITORS: Dictionary = {
+	"observation_deck": [[0, 6, 10, 10, 18, 12], [0, 10, 16, 16, 28, 18]],
+	"casino": [[0, 0, 0, 0, 8, 6], [0, 0, 0, 0, 14, 10]],  # the city gambles after dark (#319)
 }
 ## Days a shop stays vacant after its renter leaves before a new renter takes it (if reachable).
 const RELET_DAYS := 3
@@ -189,6 +228,19 @@ const PROFILES: Dictionary = {
 		"tiers": [[0, -3000], [8, 2500], [16, 5000], [30, 8000]],
 		"food": ["Hot desks", "Quiet room", "Meeting pods", "Studio", "Open floor"],
 	},
+	# Observation deck (#318): 50 places, 30 minute visits, everyone; the 2 staff make an empty day lose $2,000.
+	"observation_deck": {
+		"seats": 50, "linger_minutes": 30, "grade_cap": 40, "grade_a": 35, "grade_b": 20,
+		"tiers": [[0, -2000], [20, 3000], [40, 6000], [80, 10000]],
+		"food": ["Telescopes", "City view", "Sunset deck", "Night skyline", "Photo spot"],
+	},
+	# Casino (#319): 60 places, hour-long sessions, adults only. Its takings come from the bets (see CASINO_STAKE);
+	# the tiers only grade it and price an empty night (the wages).
+	"casino": {
+		"seats": 60, "linger_minutes": 60, "grade_cap": 60, "grade_a": 45, "grade_b": 25, "who": WHO_ADULTS,
+		"tiers": [[0, -6000], [30, 2000], [60, 8000], [120, 15000]],
+		"food": ["Blackjack", "Roulette", "Poker", "Slot machines", "Baccarat"],
+	},
 	# Clinic (#291): 6 consulting seats, 20 minute visits; only the unwell (low mood) come.
 	"clinic": {
 		"seats": 6, "linger_minutes": 20, "grade_cap": 20, "grade_a": 16, "grade_b": 8, "who": WHO_LOW_MOOD,
@@ -233,6 +285,14 @@ static func metro_visitors_for(kind: String, period: int, day: int) -> int:
 	if not METRO_VISITORS.has(kind) or period < 1 or period > Clock.PERIODS:
 		return 0
 	var by_day: Array = METRO_VISITORS[kind]
+	return int(by_day[1 if day == Clock.WE else 0][period - 1])
+
+
+## Visitors from the city for a kind that draws them (the observation deck) in a period; 0 for other kinds.
+static func city_visitors_for(kind: String, period: int, day: int) -> int:
+	if not CITY_VISITORS.has(kind) or period < 1 or period > Clock.PERIODS:
+		return 0
+	var by_day: Array = CITY_VISITORS[kind]
 	return int(by_day[1 if day == Clock.WE else 0][period - 1])
 
 
@@ -333,7 +393,7 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 	if _crossed(prev, minute, SETTLE_MINUTE):
 		_visitors_in = 0
 		_visitors_until = 0
-		_settle(floors, rooms, grid, tenancy, ledger, messages, at_tick)
+		_settle(floors, rooms, grid, tenancy, ledger, messages, at_tick, rng)
 
 
 static func _crossed(prev: int, now: int, at: int) -> bool:
@@ -344,7 +404,7 @@ func _open_shops(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, ten
 	var shops: Array[int] = []
 	var entry_x := floors.lobby_span()[0]
 	for id in rooms.room_ids():
-		if is_shop(rooms.kind_of(id)) and not is_vacant(id) and tenancy.reachable(floors, rooms, grid, id, entry_x):
+		if is_shop(rooms.kind_of(id)) and not is_vacant(id) and not rooms.is_closed_up(grid, id) and tenancy.reachable(floors, rooms, grid, id, entry_x):
 			shops.append(id)
 	return shops
 
@@ -370,8 +430,8 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		if who == WHO_LOW_MOOD and people.mood_of(i) >= CLINIC_MOOD_BELOW:
 			continue
 		var home := people.home_of(i)
-		var guest := kind == "restaurant" and home != PeopleScript.NONE and rooms.has_room(home) and HotelScript.is_hotel_kind(rooms.kind_of(home))
-		if rng.next_below(100) >= (GUEST_PERCENT if guest else percent):
+		var guest := (kind == "restaurant" or kind == "casino") and home != PeopleScript.NONE and rooms.has_room(home) and HotelScript.is_hotel_kind(rooms.kind_of(home))
+		if rng.next_below(100) >= ((GUEST_PERCENT if kind == "restaurant" else CASINO_GUEST_PERCENT) if guest else percent):
 			continue
 		var shop: int = shops[rng.next_below(shops.size())]
 		if int(served.get(shop, 0)) < seats_per_meal(rooms.kind_of(shop), window):
@@ -381,6 +441,7 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 	var arriving := visitors_for(kind, period_of_minute(at_minute), day)
 	if METRO_VISITORS.has(kind) and tenancy.transit_linked(floors, rooms, grid):
 		arriving += metro_visitors_for(kind, period_of_minute(at_minute), day)
+	arriving += city_visitors_for(kind, period_of_minute(at_minute), day)
 	var came := 0
 	for v in arriving:
 		var shop: int = shops[rng.next_below(shops.size())]
@@ -395,7 +456,7 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		_visitors_until = maxi(_visitors_until, at_minute + window)
 
 
-func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy: TenancyScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:
+func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy: TenancyScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int, rng: Object = null) -> void:
 	var open := _open_shops(floors, rooms, grid, tenancy)
 	var net := 0
 	var sellers := 0
@@ -405,6 +466,9 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 			continue
 		sellers += 1
 		var amount := income_for(rooms.kind_of(id), customers_today(id))
+		if rooms.kind_of(id) == "casino":
+			amount = casino_takings(customers_today(id), rng)
+			_casino_incident(rooms, ledger, messages, at_tick, id, customers_today(id), rng)
 		if amount > 0:  # gardens feed restaurants (synergy.gd)
 			amount += amount * SynergyScript.sales_percent(rooms.kind_of(id), grid.run_of(id), sources) / 100
 		ledger.shop_sales(at_tick, amount, id)
@@ -417,6 +481,32 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 	_today.clear()
 	if sellers > 0:
 		messages.add(at_tick, MessagesScript.DAILY_SALES, net, sellers)
+
+
+## The casino's takings for a day with this many gamblers: each stakes CASINO_STAKE and wins with probability
+## CASINO_WIN_PERCENT (the house pays the stake, otherwise keeps it), with the staff paid by the room's upkeep. Seeded: it draws from the
+## tower's rng. Without an rng (a bare call) it is the long-run expectation.
+static func casino_takings(customers: int, rng: Object) -> int:
+	var net := 0
+	if rng == null:
+		net = customers * CASINO_STAKE * (100 - 2 * CASINO_WIN_PERCENT) / 100
+	else:
+		for gambler in customers:
+			net += -CASINO_STAKE if rng.next_below(100) < CASINO_WIN_PERCENT else CASINO_STAKE
+	return net
+
+
+## A tower with a casino and no security office gets the occasional incident (a brawl, a cheat, a theft): 10
+## percent of the nights with gamblers, costing the casino $15,000 in damages and a message. Seeded.
+func _casino_incident(rooms: RoomsScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int, id: int, customers: int, rng: Object) -> void:
+	if rng == null or customers == 0:
+		return
+	for other in rooms.room_ids():
+		if rooms.kind_of(other) == "security":
+			return
+	if rng.next_below(100) < CASINO_INCIDENT_PERCENT:
+		ledger.payout(at_tick, CASINO_INCIDENT_COST, id)
+		messages.add(at_tick, MessagesScript.CASINO_INCIDENT, id)
 
 
 ## One day's rent from every leased retail shop (income, like office rent; see Rent.day_share).

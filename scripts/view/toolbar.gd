@@ -19,11 +19,11 @@ const CATEGORIES: Array = [
 	["Structure", ["lobby", "floor", "stairs", "escalator"]],
 	["Elevators", ["local_shaft", "local_car", "service_shaft", "service_car", "express_shaft", "express_car"]],
 	["Rooms", ["office", "condo", "hotel_single", "hotel_twin", "hotel_suite", "coworking"]],
-	["Commerce", ["fast_food", "restaurant", "retail", "movie_theatre", "party_hall", "nightclub"]],
+	["Commerce", ["fast_food", "restaurant", "retail", "movie_theatre", "party_hall", "nightclub", "casino"]],
 	["Services", ["housekeeping", "security", "medical", "recycling", "clinic"]],
 	["Community", ["gym", "daycare"]],
 	["Parking", ["parking_ramp", "parking_space"]],
-	["Landmarks", ["metro", "cathedral"]],
+	["Landmarks", ["metro", "cathedral", "observation_deck"]],
 	["Tools", [Ghost.BULLDOZE, Ghost.REPLACE]],
 ]
 const TOOL_STAR: int = 1  ## Bulldoze and replace are always available.

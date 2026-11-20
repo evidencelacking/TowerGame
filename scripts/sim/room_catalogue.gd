@@ -39,7 +39,7 @@ const RESCUE_COST := 500000  ## Fire rescue, dollars (decided 2026-11-10).
 
 ## Kinds whose upkeep is a guess: only the $10,000 per elevator (local shaft) is in the reference.
 const UPKEEP_UNVERIFIED: Array[String] = [
-	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp", "metro",
+	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp", "metro", "observation_deck", "casino",
 ]
 
 const PLACE_ANYWHERE := 0  ## Above or below ground.
@@ -62,7 +62,7 @@ const IDS: Array[String] = [
 	"service_shaft", "service_car", "hotel_single", "housekeeping", "security", "escalator",
 	"express_shaft", "express_car", "hotel_twin", "hotel_suite", "restaurant", "retail",
 	"movie_theatre", "party_hall", "medical", "recycling", "parking_ramp", "parking_space",
-	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking",
+	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino",
 ]
 
 const _ROWS: Dictionary = {
@@ -171,6 +171,16 @@ const _ROWS: Dictionary = {
 		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"coworking": {"staff": 2, "width": 16, "height": 1, "cost": 150000, "per_unit": false, "star": 3,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# Observation deck (#318, our own kind): a landmark like the cathedral, one per tower, on the top floor only
+	# (rooms.gd), 32 wide, star 4. Dearer than the nightclub, cheaper than the cathedral; every number a tunable.
+	# Casino (#319, our own kind): one per tower, 40 wide, star 4, open evening to early morning. The issue asked for
+	# two floors; the tall-room code is basement-only (rooms.gd TALL_KINDS), so it is one wide floor for now.
+	"casino": {"upkeep": 10000, "staff": 6, "width": 40, "height": 1, "cost": 1200000, "per_unit": false, "star": 4,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"observation_deck": {"upkeep": 6000, "staff": 2, "width": 32, "height": 1, "cost": 800000, "per_unit": false, "star": 4,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 }
