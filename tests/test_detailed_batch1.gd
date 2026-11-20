@@ -78,6 +78,37 @@ static func _draws(check: Callable) -> void:
 	check.call(all_variants, "detailed: the room ids tried reach every variant of every batch 1 kind")
 	check.call(drawn, "detailed: every batch 1 kind and variant draws, in use and empty")
 	check.call(inside, "detailed: a batch 1 room paints only inside its own rect")
+	_sky_lobby(check)
+
+
+## A sky lobby (#357): draws at narrow and wide widths for sky floors, inside its rect, and slices side by
+## side stay inside their x range and together hold at least what the whole paints.
+static func _sky_lobby(check: Callable) -> void:
+	var drawn := true
+	var inside := true
+	var sliced := true
+	for floor_number: int in [15, 30, 90]:
+		for width: int in [2 * VC.CELL_W, 20 * VC.CELL_W, 70 * VC.CELL_W]:
+			var rect := Rect2i(40, 96, width, VC.CELL_H)
+			var whole := Recorder.new()
+			DetailRooms.draw(whole, DetailRooms.SKY_LOBBY, rect, Palette.hue("lobby"), true, false, floor_number)
+			drawn = drawn and not whole.rects.is_empty()
+			inside = inside and _inside(whole.rects, Rect2(rect))
+			var parts := 0
+			var from := rect.position.x
+			while from < rect.end.x:
+				var to := mini(from + 192, rect.end.x)
+				var part := Recorder.new()
+				DetailRooms.window = Vector2i(from, to)
+				DetailRooms.draw(part, DetailRooms.SKY_LOBBY, rect, Palette.hue("lobby"), true, false, floor_number)
+				DetailRooms.window = Vector2i.ZERO
+				parts += part.rects.size()
+				sliced = sliced and _inside(part.rects, Rect2(from, rect.position.y, to - from, rect.size.y))
+				from = to
+			sliced = sliced and parts >= whole.rects.size()
+	check.call(drawn, "detailed: a sky lobby draws at every width")
+	check.call(inside, "detailed: a sky lobby paints only inside its own rect")
+	check.call(sliced, "detailed: sky lobby slices stay inside their x range and cover the whole")
 
 
 static func _suites(check: Callable) -> void:
