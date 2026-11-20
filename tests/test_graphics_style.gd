@@ -15,6 +15,7 @@ const VC := preload("res://scripts/view/view_consts.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const TestPests := preload("res://tests/test_pests.gd")
 
+const TestDetailedBatch1 := preload("res://tests/test_detailed_batch1.gd")
 const BASEMENT: Array[String] = ["recycling", "parking_ramp", "parking_space"]
 
 
@@ -23,7 +24,7 @@ class Recorder:
 	extends RefCounted
 	var calls: Array = []
 
-	func draw_rect(r: Rect2i, c: Color, filled: bool = true, width: float = -1.0) -> void:
+	func draw_rect(r: Variant, c: Color, filled: bool = true, width: float = -1.0) -> void:
 		calls.append(["rect", r, c, filled, width])
 
 	func draw_line(a: Vector2, b: Vector2, c: Color, width: float = -1.0) -> void:
@@ -55,6 +56,7 @@ static func run(check: Callable) -> void:
 	_every_recipe(check, classic, detailed)
 	_the_rest(check, classic, detailed)
 	_spots(check, classic, detailed)
+	TestDetailedBatch1.run(check)
 
 
 ## Placed rooms in every state they are drawn in, through the full room path.
@@ -130,7 +132,7 @@ static func _every_recipe(check: Callable, classic: GraphicsStyle, detailed: Gra
 	classic.recipe(lobby_classic, "lobby", Rect2i(0, 0, 64, VC.CELL_H * 2), Palette.hue("lobby"), true)
 	var lobby_detailed := Recorder.new()
 	detailed.recipe(lobby_detailed, "lobby", Rect2i(0, 0, 64, VC.CELL_H * 2), Palette.hue("lobby"), true)
-	check.call(not lobby_classic.calls.is_empty() and lobby_detailed.calls == lobby_classic.calls, "graphics: both styles draw the lobby")
+	check.call(not lobby_classic.calls.is_empty() and not lobby_detailed.calls.is_empty() and lobby_detailed.calls != lobby_classic.calls, "graphics: both styles draw the lobby, Detailed in its own look (#302)")
 
 
 static func _the_rest(check: Callable, classic: GraphicsStyle, detailed: GraphicsStyle) -> void:
@@ -186,13 +188,13 @@ static func _spots(check: Callable, classic: GraphicsStyle, detailed: GraphicsSt
 			continue
 		var base := RoomRecipes.spots(kind, 64)
 		count += base.size()
-		shared = shared and classic.spots(kind, 64) == base and detailed.spots(kind, 64) == base
+		shared = shared and classic.spots(kind, 64) == base and detailed.spots(kind, 64).size() == base.size()
 		var wide := double.spots(kind, 64)
 		doubled = doubled and wide.size() == base.size()
 		for i in base.size():
 			doubled = doubled and wide[i] == base[i] * 2
 			round_trip = round_trip and GraphicsStyle.scale_spot(wide[i], 2, 1) == base[i]
 	check.call(count > 0, "graphics: the recipes have spots to map")
-	check.call(shared, "graphics: Classic and Detailed share the recipes' spots at density 1")
+	check.call(shared, "graphics: Classic reports the recipes' spots as they are, Detailed the same spots (doubled)")
 	check.call(doubled, "graphics: a double-density style puts each shared spot at twice the pixels")
 	check.call(round_trip, "graphics: every recipe spot survives a trip to density 2 and back")

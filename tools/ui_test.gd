@@ -19,6 +19,7 @@ const GridScript := preload("res://scripts/sim/grid.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const ToolbarScript := preload("res://scripts/view/toolbar.gd")
+const SynergyLookScript := preload("res://scripts/view/synergy_look.gd")
 const GhostScript := preload("res://scripts/view/placement_ghost.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const PeopleViewScript := preload("res://scripts/view/people_view.gd")
@@ -84,9 +85,11 @@ func _run_all() -> void:
 	await _zoom2_cases()
 	await _bulldoze_cases()
 	await _window_cases()
+	await _news_cases()
 	await _behind_cases()
 	await _fill_cases()
 	await _graphics_cases()
+	await _synergy_cases()
 
 
 func _toolbar_cases() -> void:
@@ -290,6 +293,34 @@ func _graphics_cases() -> void:
 		"picker found %s, Detailed live %s, Classic back %s" % [str(found), str(live), str(back)])
 
 
+## Synergy overlay (#294): the toolbar's Synergies switch turns the overlay on and off live, in Classic and in
+## Detailed. (That reading changes nothing in the tower is in tests/test_synergy_look.gd: here the sim runs.)
+func _synergy_cases() -> void:
+	var button := _toolbar.find_child("Synergies", true, false) as CheckButton
+	var renderer := _main.find_child("TowerRenderer", true, false)
+	var overlay: Node = null
+	if renderer != null:
+		for child: Node in renderer.get_children():
+			if child is SynergyOverlay:
+				overlay = child
+	var was := ViewSettingsScript.detailed_graphics
+	var found := button != null and overlay != null
+	var results: Array[bool] = []
+	if found:
+		for detailed: bool in [false, true]:
+			ViewSettingsScript.set_detailed_graphics(detailed)
+			await _frames(2)
+			button.button_pressed = true
+			await _frames(2)
+			var shown: bool = SynergyLookScript.on and overlay._shown_on
+			button.button_pressed = false
+			await _frames(2)
+			results.append(shown and not SynergyLookScript.on and not overlay._shown_on)
+	ViewSettingsScript.set_detailed_graphics(was)
+	_record("synergy.toggle", "synergy", "Synergies from the toolbar shows and hides the overlay in Classic and Detailed", "-", found and results.size() == 2 and not results.has(false),
+		"switch and overlay found %s, results %s" % [str(found), str(results)])
+
+
 func _window_cases() -> void:
 	await _key(KEY_ESCAPE)
 	var room_window: Node = _main.get_node("RoomWindow")
@@ -343,6 +374,27 @@ func _window_cases() -> void:
 	_finish_case("window.follow_stop", "windows", "Panning stops following", {},
 		not person_window.is_following() and not follow_button.button_pressed, "still following after a pan")
 	_driver.set_paused(false)
+
+
+## News ticker (#288): a story appears on the strip, and clicking it opens that person's window.
+func _news_cases() -> void:
+	await _key(KEY_ESCAPE)
+	var ticker: Node = _main.get_node("NewsTicker")
+	var person_window: Node = _main.get_node("PersonWindow")
+	if _tower.people.count() == 0:
+		_record("news.click", "windows", "Click a news story: the person's window opens", "-", false, "no people to tell a story about", "SKIP")
+		return
+	var id: int = _tower.people.id_at(0)
+	_tower.life._record(_tower.tick, 3, id, -1, -1)  # a promotion story, planted by the harness
+	await _frames(2)
+	var button: Button = ticker.story_buttons[0]
+	var shows := button.text.contains(_tower.names.name_of(id))
+	await _move(button.get_global_rect().get_center())
+	await _click_at(button.get_global_rect().get_center())
+	await _frames(2)
+	_finish_case("news.click", "windows", "Click a news story: the person's window opens", {},
+		shows and person_window.person_id == id, "story text '%s', PersonWindow.person_id is %d, wanted %d" % [button.text, person_window.person_id, id])
+	await _key(KEY_ESCAPE)
 
 
 # ---------------------------------------------------------------- case runners

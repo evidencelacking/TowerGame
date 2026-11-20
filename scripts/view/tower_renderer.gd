@@ -9,6 +9,7 @@ const TransportLook := preload("res://scripts/view/transport_look.gd")
 const EventLook := preload("res://scripts/view/event_look.gd")
 const ActivityLook := preload("res://scripts/view/activity_look.gd")
 const SkyLook := preload("res://scripts/view/sky_look.gd")
+const DetailLight := preload("res://scripts/view/detail_light.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const GraphicsStyle := preload("res://scripts/view/graphics_style.gd")
 const ViewSettings := preload("res://scripts/view/view_settings.gd")
@@ -58,8 +59,11 @@ var _room_runs: Array[Array] = []  ## [id, owning room id, rect] per placed room
 var _link_runs: Array[Array] = []  ## [kind, two-floor rect] per stairs or escalator.
 var _static_view: SubViewport = null
 var _static_layer: Node2D = null
+var _static_sprite: Sprite2D = null
 var _dynamic_view: SubViewport = null
 var _dynamic_layer: Node2D = null
+var _dynamic_sprite: Sprite2D = null
+var _glow: Node2D = null  ## Detailed night lights, added on top of the world (#305).
 
 
 func _ready() -> void:
@@ -70,8 +74,14 @@ func _ready() -> void:
 	var size := Vector2i(VC.world_rect().size)
 	_static_layer = _make_layer(size, _paint_static)
 	_static_view = _static_layer.get_parent()
+	_static_sprite = _sprite_of(_static_view)
 	_dynamic_layer = _make_layer(size, _paint_dynamic)
 	_dynamic_view = _dynamic_layer.get_parent()
+	_dynamic_sprite = _sprite_of(_dynamic_view)
+	_glow = DetailLight.new()
+	add_child(_glow)
+	add_child(SynergyOverlay.new())  # the synergy filter (#294), above the layers; idle while off
+	_apply_density()
 	queue_redraw()
 
 
@@ -92,6 +102,43 @@ func _make_layer(size: Vector2i, painter: Callable) -> Node2D:
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(sprite)
 	return layer
+
+
+## The sprite that shows a layer's SubViewport.
+func _sprite_of(view: SubViewport) -> Sprite2D:
+	for child: Node in get_children():
+		if child is Sprite2D and (child as Sprite2D).texture == view.get_texture():
+			return child as Sprite2D
+	return null
+
+
+## Sizes the static canvas for the style in use (#302): Classic is one pixel per native pixel; a style at
+## density 2 gets a canvas twice as wide and tall, its layer scaled 2 so every Classic call still paints the
+## same world rect, and its sprite scaled a half so it covers the same world. Detailed rooms then paint in
+## half-pixel steps that land on whole pixels of the bigger canvas. The dynamic layer (people, cars) gets
+## the same treatment (#304), so Detailed people paint in half-pixel steps; everything else on it still
+## paints in native pixels and lands as before.
+func _apply_density() -> void:
+	var density := GraphicsStyle.current().density()
+	_static_view.size = Vector2i(VC.world_rect().size) * density
+	_static_layer.scale = Vector2(density, density)
+	_static_sprite.scale = Vector2(1.0 / density, 1.0 / density)
+	_dynamic_view.size = _static_view.size  # people are drawn at the style's density too (#304)
+	_dynamic_layer.scale = _static_layer.scale
+	_dynamic_sprite.scale = _static_sprite.scale
+	_apply_ambient()
+
+
+## Detailed lights the world instead of painting it dark (#305): by night the static canvas is multiplied by
+## the sky's ambient colour (people, who are on the dynamic canvas, by half of it) and the glow layer adds the
+## lit rooms' lights over it. Classic is left as it was.
+func _apply_ambient() -> void:
+	var detailed := GraphicsStyle.current().density() > 1
+	var ambient := DetailLight.ambient(SkyLook.daylight) if detailed else Color.WHITE
+	_static_sprite.modulate = ambient
+	_dynamic_sprite.modulate = Color.WHITE.lerp(ambient, 0.5)
+	_glow.visible = detailed
+	_glow.queue_redraw()
 
 
 ## Redraws what changed; the view never polls the whole tower.
@@ -124,6 +171,7 @@ func _process(delta: float) -> void:
 		layout_changed = true
 	if GraphicsStyle.current() != _seen_style:  ## Graphics Classic/Detailed changed: repaint everything.
 		_seen_style = GraphicsStyle.current()
+		_apply_density()
 		layout_changed = true
 		queue_redraw()
 	var dirty := layout_changed or tower.tick - _static_tick >= STATIC_REFRESH_TICKS or tower.tick < _static_tick
@@ -154,6 +202,7 @@ func _follow_sky() -> void:
 		return
 	SkyLook.daylight = step
 	_seen_rain = SkyLook.rain
+	_apply_ambient()
 	_static_tick = -1000000
 	queue_redraw()
 
@@ -241,8 +290,10 @@ func _rebuild_runs() -> void:
 func _paint_static(canvas: CanvasItem) -> void:
 	if tower == null:
 		return
+	DetailLight.clear()
 	for layer: String in STATIC_LAYERS:
 		call(layer, canvas)
+	_glow.queue_redraw()  # after the rooms have recorded their lights
 
 
 func _paint_dynamic(canvas: CanvasItem) -> void:
@@ -354,15 +405,33 @@ func _shown_at(figure: Dictionary) -> Vector2:
 ## Everything is sized from the figure constants so a bigger figure needs no change here. pose and
 ## phase choose the frame: walking alternates legs apart and together every half column, stairs
 ## lift one leg and bob, an escalator rider stands with legs together.
-func _draw_figure(canvas: CanvasItem, x: int, feet: int, shirt: Color, band: int, skin: Color, pose: int = 0, phase: int = 0) -> void:
+func _draw_figure(canvas: CanvasItem, x: int, feet: int, shirt: Color, band: int, skin: Color, pose: int = 0, phase: int = 0, who: Dictionary = {}, walk: int = 0) -> void:
 	var bob := 1 if pose == PeopleView.POSE_STAIRS and phase % 2 == 1 else 0
 	var top := feet - FIGURE_H - bob
 	var apart := (pose == PeopleView.POSE_WALK and phase % 2 == 0) or pose == PeopleView.POSE_STAIRS
 	var raised_left := 1 if pose == PeopleView.POSE_STAIRS and phase < 2 else 0
 	var raised_right := 1 if pose == PeopleView.POSE_STAIRS and phase >= 2 else 0
-	GraphicsStyle.current().person(canvas, x, feet - bob, shirt, skin, apart, raised_left, raised_right)
+	GraphicsStyle.current().person(canvas, x, feet - bob, shirt, skin, apart, raised_left, raised_right, who, pose, walk)
 	for mark in PeopleView.marks_of(band):  # shape cue: one dot uneasy, two angry
 		canvas.draw_rect(Rect2i(x + mark * 2 - 1, top - 2, 1, 1), shirt)
+
+
+## Who a figure is, for styles that draw people individually (#304): its id, age band, job and facing, and
+## the stress colour when it is not calm. Empty for a figure the view knows nothing about.
+func _who_of(figure: Dictionary, band: int, shirt: Color, facing: int) -> Dictionary:
+	var who := {"id": figure["id"], "age": figure.get("age", 1), "child": figure.get("child", false), "job": figure.get("job", ""), "band": band, "dir": facing}
+	if band != 0:
+		who["shirt"] = shirt
+	return who
+
+
+## Which way a walker faces: along its last move, to the right when it has not moved.
+func _facing_of(figure: Dictionary) -> int:
+	if _from.has(figure["id"]):
+		var dx: float = figure["fx"] - (_from[figure["id"]] as Vector2).x
+		if dx < -0.01:
+			return -1
+	return 1
 
 
 ## Fire and smoke, guards on their way, the rescue craft and the threat search (event_look.gd); each draws
@@ -374,6 +443,11 @@ func _draw_events(canvas: CanvasItem) -> void:
 	EventLook.draw_rescue(canvas, tower, tower.tick)
 
 
+## The figures drawn at the last tick, for layers that sit on top of the tower (thought icons).
+func figures() -> Array[Dictionary]:
+	return _figures
+
+
 func _draw_people(canvas: CanvasItem) -> void:
 	var skin: Color = Palette.get_palette()["skin"]
 	var types: Array = Palette.get_palette()["people"]
@@ -382,7 +456,7 @@ func _draw_people(canvas: CanvasItem) -> void:
 		if not figure["moving"]:  # resting: on a spot of its room, doing what the sim says
 			var rest_shirt: Color = types[(figure["id"] as int) % types.size()] if band == 0 else PeopleView.color_of(band)
 			var p := Palette.get_palette()
-			GraphicsStyle.current().activity(canvas, figure["px"], figure["pfeet"], figure["act"], ActivityLook.frame(figure["id"], tower.tick), rest_shirt, skin, p["gold"], p["white"])
+			GraphicsStyle.current().activity(canvas, figure["px"], figure["pfeet"], figure["act"], ActivityLook.frame(figure["id"], tower.tick), rest_shirt, skin, p["gold"], p["white"], _who_of(figure, band, rest_shirt, 1))
 			continue
 		var at := _shown_at(figure)
 		var x := roundi(at.x * VC.CELL_W) + (VC.CELL_W - FIGURE_W) / 2
@@ -394,7 +468,8 @@ func _draw_people(canvas: CanvasItem) -> void:
 		# A colour per type (a stand-in until the sim has types: the person's id); a stressed
 		# person wears the band colour instead, so the mood still reads at a glance.
 		var shirt: Color = types[(figure["id"] as int) % types.size()] if band == 0 else PeopleView.color_of(band)
-		_draw_figure(canvas, x, feet, shirt, band, skin, pose, phase)
+		var facing := _facing_of(figure)
+		_draw_figure(canvas, x, feet, shirt, band, skin, pose, phase, _who_of(figure, band, shirt, facing), int(at.x * 8.0) & 3)
 
 
 ## Each shaft across its span; a floor it stops at has doors and an indicator, a disabled one a red cross.
@@ -456,7 +531,8 @@ func _draw_queues(canvas: CanvasItem) -> void:
 		var edge: int = (queue["x"] as int) * VC.CELL_W if side < 0 else ((queue["x"] as int) + (queue["width"] as int)) * VC.CELL_W
 		for n: int in queue["shown"]:
 			var x := edge - (n + 1) * (FIGURE_W + 2) if side < 0 else edge + 2 + n * (FIGURE_W + 2)
-			_draw_figure(canvas, x, feet, ink.lightened(0.35), 0, skin)
+			var waiting := {"id": (queue["floor"] as int) * 31 + (queue["x"] as int) * 7 + n, "age": 1, "child": false, "job": "", "band": 0, "dir": 1 if side < 0 else -1, "still": true}
+			_draw_figure(canvas, x, feet, ink.lightened(0.35), 0, skin, 0, 0, waiting)
 		var label: String = queue["label"]
 		if label != "":
 			var shown_px: int = (queue["shown"] as int) * (FIGURE_W + 2)

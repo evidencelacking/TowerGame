@@ -94,12 +94,13 @@ func car(canvas: Object, shaft_rect: Rect2i, car_rect: Rect2i, level: float, ste
 
 
 ## A person walking or riding.
-func person(canvas: Object, x: int, feet: int, shirt: Color, skin: Color, apart: bool, lift_l: int, lift_r: int) -> void:
+## `who` and `pose`/`walk` (#304) describe the person for styles that give everyone a look of their own; Classic ignores them.
+func person(canvas: Object, x: int, feet: int, shirt: Color, skin: Color, apart: bool, lift_l: int, lift_r: int, _who: Dictionary = {}, _pose: int = 0, _walk: int = 0) -> void:
 	ActivityLook.draw_person(canvas, x, feet, shirt, skin, apart, lift_l, lift_r)
 
 
 ## A person resting on a recipe spot, doing an activity.
-func activity(canvas: Object, x: int, feet: int, act: int, frame: int, shirt: Color, skin: Color, prop: Color, white: Color) -> void:
+func activity(canvas: Object, x: int, feet: int, act: int, frame: int, shirt: Color, skin: Color, prop: Color, white: Color, _who: Dictionary = {}) -> void:
 	ActivityLook.draw(canvas, x, feet, act, frame, shirt, skin, prop, white)
 
 
