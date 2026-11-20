@@ -10,6 +10,8 @@ const EventLook := preload("res://scripts/view/event_look.gd")
 const ActivityLook := preload("res://scripts/view/activity_look.gd")
 const SkyLook := preload("res://scripts/view/sky_look.gd")
 const Palette := preload("res://scripts/view/palette.gd")
+const GraphicsStyle := preload("res://scripts/view/graphics_style.gd")
+const ViewSettings := preload("res://scripts/view/view_settings.gd")
 const PixelLayer := preload("res://scripts/view/pixel_layer.gd")
 ## Draws the tower on a low-resolution canvas (10.2). World space is native pixels (8 px per column,
 ## 24 px per floor, see view_consts.gd). The rooms, links, floors and shafts go into one SubViewport
@@ -43,6 +45,7 @@ var _since_tick: float = 0.0  ## Seconds since the sim last ticked.
 var _tick_len: float = 1.0 / 30.0  ## Seconds the last tick took; cars slide over this long.
 var _seen_revision: int = -1
 var _seen_see_through: bool = false
+var _seen_style: GraphicsStyle = null
 var _seen_occupants: int = -1
 var _figures: Array[Dictionary] = []
 var _from: Dictionary = {}  ## Person id -> Vector2(column, row) at the previous tick, to glide from.
@@ -61,6 +64,8 @@ var _dynamic_layer: Node2D = null
 
 func _ready() -> void:
 	TransportLook.load_setting()
+	ViewSettings.load_settings()
+	_seen_style = GraphicsStyle.current()
 	_seen_see_through = TransportLook.see_through
 	var size := Vector2i(VC.world_rect().size)
 	_static_layer = _make_layer(size, _paint_static)
@@ -117,6 +122,10 @@ func _process(delta: float) -> void:
 	if TransportLook.see_through != _seen_see_through:  ## The view option changed: repaint the shafts.
 		_seen_see_through = TransportLook.see_through
 		layout_changed = true
+	if GraphicsStyle.current() != _seen_style:  ## Graphics Classic/Detailed changed: repaint everything.
+		_seen_style = GraphicsStyle.current()
+		layout_changed = true
+		queue_redraw()
 	var dirty := layout_changed or tower.tick - _static_tick >= STATIC_REFRESH_TICKS or tower.tick < _static_tick
 	if not dirty and (tower.tick - _checked_tick >= IN_USE_CHECK_TICKS or tower.tick < _checked_tick):
 		_checked_tick = tower.tick
@@ -252,7 +261,7 @@ func _draw() -> void:
 	var left := -MARGIN
 	var width := world.size.x + 2 * MARGIN
 	var minute := tower.clock.minute_of_day() if tower != null else 12 * 60
-	SkyLook.draw(self, p, minute, SkyLook.daylight, SkyLook.rain, left, world.position.y - MARGIN, width, ground_y, world.size.x, VC.CELL_H)
+	GraphicsStyle.current().sky(self, p, minute, left, world.position.y - MARGIN, width, ground_y, world.size.x)
 	draw_rect(Rect2i(left, ground_y, width, world.size.y - ground_y + MARGIN), p["earth"])
 	draw_rect(Rect2i(left, ground_y, width, 3), p["ground"])
 
@@ -279,7 +288,7 @@ func _draw_lobby(canvas: CanvasItem) -> void:
 	if span.is_empty():
 		return
 	var rect := Rect2i(span[0] * VC.CELL_W, VC.floor_to_row(span[2]) * VC.CELL_H, (span[1] - span[0] + 1) * VC.CELL_W, span[2] * VC.CELL_H)
-	RoomLook.draw_recipe(canvas, "lobby", rect, Palette.hue("lobby"), true)
+	GraphicsStyle.current().recipe(canvas, "lobby", rect, Palette.hue("lobby"), true)
 
 
 func _draw_rooms(canvas: CanvasItem) -> void:
@@ -290,14 +299,14 @@ func _draw_rooms(canvas: CanvasItem) -> void:
 		var first: Array = _room_runs[group[0]]
 		var bounds := Suites.span(entries, group)
 		var floor_rect: Rect2i = first[2]
-		RoomLook.draw_suite(canvas, entries[group[0]]["kind"], Rect2i(bounds[0], floor_rect.position.y, bounds[1], floor_rect.size.y), first[0])
+		GraphicsStyle.current().suite(canvas, entries[group[0]]["kind"], Rect2i(bounds[0], floor_rect.position.y, bounds[1], floor_rect.size.y), first[0])
 		for index: int in group:
 			joined[index] = true
 	for index: int in _room_runs.size():
 		if joined.has(index):
 			continue
 		var run: Array = _room_runs[index]
-		RoomLook.draw(canvas, tower, run[0], run[2], broken, _in_use.has(run[1]), _asleep.has(run[1]) and not _in_use.has(run[1]))
+		GraphicsStyle.current().room(canvas, tower, run[0], run[2], broken, _in_use.has(run[1]), _asleep.has(run[1]) and not _in_use.has(run[1]))
 
 
 ## Stairs and escalators (the link layer) in front of the rooms: each spans its own floor and the one
@@ -310,7 +319,7 @@ func _draw_links(canvas: CanvasItem) -> void:
 
 ## One link in its two-floor rect, drawn without a background (transport_look.gd) so the room behind shows.
 func _draw_link(canvas: CanvasItem, _p: Dictionary, kind: String, span: Rect2i) -> void:
-	TransportLook.draw_link(canvas, kind, span)
+	GraphicsStyle.current().link(canvas, kind, span)
 
 
 ## Remembers where the moving figures were, so the next tick's positions can be glided to.
@@ -343,7 +352,7 @@ func _draw_figure(canvas: CanvasItem, x: int, feet: int, shirt: Color, band: int
 	var apart := (pose == PeopleView.POSE_WALK and phase % 2 == 0) or pose == PeopleView.POSE_STAIRS
 	var raised_left := 1 if pose == PeopleView.POSE_STAIRS and phase < 2 else 0
 	var raised_right := 1 if pose == PeopleView.POSE_STAIRS and phase >= 2 else 0
-	ActivityLook.draw_person(canvas, x, feet - bob, shirt, skin, apart, raised_left, raised_right)
+	GraphicsStyle.current().person(canvas, x, feet - bob, shirt, skin, apart, raised_left, raised_right)
 	for mark in PeopleView.marks_of(band):  # shape cue: one dot uneasy, two angry
 		canvas.draw_rect(Rect2i(x + mark * 2 - 1, top - 2, 1, 1), shirt)
 
@@ -365,7 +374,7 @@ func _draw_people(canvas: CanvasItem) -> void:
 		if not figure["moving"]:  # resting: on a spot of its room, doing what the sim says
 			var rest_shirt: Color = types[(figure["id"] as int) % types.size()] if band == 0 else PeopleView.color_of(band)
 			var p := Palette.get_palette()
-			ActivityLook.draw(canvas, figure["px"], figure["pfeet"], figure["act"], ActivityLook.frame(figure["id"], tower.tick), rest_shirt, skin, p["gold"], p["white"])
+			GraphicsStyle.current().activity(canvas, figure["px"], figure["pfeet"], figure["act"], ActivityLook.frame(figure["id"], tower.tick), rest_shirt, skin, p["gold"], p["white"])
 			continue
 		var at := _shown_at(figure)
 		var x := roundi(at.x * VC.CELL_W) + (VC.CELL_W - FIGURE_W) / 2
@@ -388,15 +397,13 @@ func _draw_shafts(canvas: CanvasItem) -> void:
 		var top_row := VC.floor_to_row(shaft["top"])
 		var bottom_row := VC.floor_to_row(shaft["bottom"])
 		var rect := Rect2i((shaft["x"] as int) * VC.CELL_W, top_row * VC.CELL_H, (shaft["width"] as int) * VC.CELL_W, (bottom_row - top_row + 1) * VC.CELL_H)
-		TransportLook.draw_shaft_body(canvas, rect, shaft_color)
+		var caps: Array[Rect2i] = []
 		for machine: int in Tower.RoomsScript.machine_floors(shaft["bottom"], shaft["top"]):  # the machine-room caps (#228)
-			var cap := Rect2i(rect.position.x, VC.floor_to_row(machine) * VC.CELL_H, rect.size.x, VC.CELL_H - VC.SLAB_H)
-			if TransportLook.see_through:
-				canvas.draw_rect(cap, shaft_color.lightened(0.4), false, 1.0)
-			else:
-				canvas.draw_rect(cap, shaft_color.lightened(0.15))
+			caps.append(Rect2i(rect.position.x, VC.floor_to_row(machine) * VC.CELL_H, rect.size.x, VC.CELL_H - VC.SLAB_H))
+		var door_rows: Array[int] = []
 		for floor_number: int in shaft["stops"]:
-			TransportLook.draw_doors(canvas, rect, _floor_bottom(floor_number), shaft_color)
+			door_rows.append(_floor_bottom(floor_number))
+		GraphicsStyle.current().shaft(canvas, rect, shaft_color, caps, door_rows, TransportLook.see_through)
 		for floor_number: int in shaft["disabled"]:
 			var top := VC.floor_to_row(floor_number) * VC.CELL_H
 			var red: Color = p["red"]
@@ -422,14 +429,11 @@ func _draw_cars(canvas: CanvasItem) -> void:
 	var t := clampf(_since_tick / _tick_len, 0.0, 1.0)
 	for car: Dictionary in _elevators.cars(tower, t):
 		var shaft_rect := Rect2i((car["x"] as int) * VC.CELL_W, 0, (car["width"] as int) * VC.CELL_W, VC.CELL_H)
-		TransportLook.draw_arrival(canvas, shaft_rect, car["level"], _level_bottom)
 		var x: int = (car["x"] as int) * VC.CELL_W + 3
 		var y := roundi(ElevatorView.level_to_y(car["level"], VC.CELL_H)) + 3
 		var w: int = (car["width"] as int) * VC.CELL_W - 6
 		var h := VC.CELL_H - VC.SLAB_H - 3
-		TransportLook.draw_car(canvas, Rect2i(x, y, w, h), car_color, car["load"], p["people"])
-		var lit: Color = p["lamp"]
-		TransportLook.draw_door_gap(canvas, Rect2i(x - 3, y - 3, w + 6, VC.CELL_H), y - 3 + VC.CELL_H - VC.SLAB_H, TransportLook.door_open(car["level"], car["step"]), lit)
+		GraphicsStyle.current().car(canvas, shaft_rect, Rect2i(x, y, w, h), car["level"], car["step"], car["load"], car_color, p["people"], p["lamp"], _level_bottom)
 
 
 ## Hall queues: people going up wait left of the shaft, going down right of it; a long queue shows

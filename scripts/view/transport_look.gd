@@ -48,7 +48,7 @@ static func flips(span: Rect2i) -> bool:
 
 
 ## One stairs or escalator in its two-floor rect; only the lower floor is drawn on.
-static func draw_link(canvas: CanvasItem, kind: String, span: Rect2i) -> void:
+static func draw_link(canvas: Object, kind: String, span: Rect2i) -> void:
 	var p := Palette.get_palette()
 	var hue := Palette.hue(kind)
 	var base_y := span.end.y - VC.SLAB_H  # the lower floor's surface
@@ -59,12 +59,12 @@ static func draw_link(canvas: CanvasItem, kind: String, span: Rect2i) -> void:
 
 
 ## A tread or rail segment: the colour on top over a dark line.
-static func _lit_line(canvas: CanvasItem, p: Dictionary, x: int, y: int, w: int, color: Color) -> void:
+static func _lit_line(canvas: Object, p: Dictionary, x: int, y: int, w: int, color: Color) -> void:
 	canvas.draw_rect(Rect2i(x, y, w, 1), color)
 	canvas.draw_rect(Rect2i(x, y + 1, w, 1), p["outline"])
 
 
-static func _draw_stairs(canvas: CanvasItem, p: Dictionary, hue: Color, span: Rect2i, base_y: int) -> void:
+static func _draw_stairs(canvas: Object, p: Dictionary, hue: Color, span: Rect2i, base_y: int) -> void:
 	var w := span.size.x
 	var flip := flips(span)
 	var steps := maxi(w / 4, 2)
@@ -89,7 +89,7 @@ static func _draw_stairs(canvas: CanvasItem, p: Dictionary, hue: Color, span: Re
 		prev_y = y
 
 
-static func _draw_escalator(canvas: CanvasItem, p: Dictionary, hue: Color, span: Rect2i, base_y: int) -> void:
+static func _draw_escalator(canvas: Object, p: Dictionary, hue: Color, span: Rect2i, base_y: int) -> void:
 	var w := span.size.x
 	var flip := flips(span)
 	var rail := (p["wall"] as Color).lightened(0.55)
@@ -107,7 +107,7 @@ static func _draw_escalator(canvas: CanvasItem, p: Dictionary, hue: Color, span:
 
 
 ## The shaft's back wall: centre seam and side edges over rect, as the shaft hue.
-static func draw_shaft_body(canvas: CanvasItem, rect: Rect2i, shaft_color: Color) -> void:
+static func draw_shaft_body(canvas: Object, rect: Rect2i, shaft_color: Color) -> void:
 	var edge := shaft_color.lightened(0.4)
 	if see_through:  ## An outline only, so the room behind shows (#272).
 		canvas.draw_rect(Rect2i(rect.position.x, rect.position.y, 1, rect.size.y), edge)
@@ -123,7 +123,7 @@ static func draw_shaft_body(canvas: CanvasItem, rect: Rect2i, shaft_color: Color
 
 ## Closed doors on a floor the shaft stops at (floor_bottom is the pixel row of its floor surface): a frame,
 ## a centre seam, door panels, and an indicator of lamps above (dark; draw_arrival lights it).
-static func draw_doors(canvas: CanvasItem, rect: Rect2i, floor_bottom: int, shaft_color: Color) -> void:
+static func draw_doors(canvas: Object, rect: Rect2i, floor_bottom: int, shaft_color: Color) -> void:
 	if see_through:  ## The shaft is only an outline: no doors in front of the room.
 		return
 	var door := shaft_color.lightened(0.55)
@@ -136,7 +136,7 @@ static func draw_doors(canvas: CanvasItem, rect: Rect2i, floor_bottom: int, shaf
 	_indicator(canvas, rect, floor_bottom, door)
 
 
-static func _indicator(canvas: CanvasItem, rect: Rect2i, floor_bottom: int, color: Color) -> void:
+static func _indicator(canvas: Object, rect: Rect2i, floor_bottom: int, color: Color) -> void:
 	var left := rect.position.x + rect.size.x / 2 - (PIPS * 4 - 2) / 2
 	for n in PIPS:
 		canvas.draw_rect(Rect2i(left + n * 4, floor_bottom - DOOR_H - 4, 2, 2), color)
@@ -144,7 +144,7 @@ static func _indicator(canvas: CanvasItem, rect: Rect2i, floor_bottom: int, colo
 
 ## Lights the indicator over the doors of the floor a car stands at (nothing while it is between floors).
 ## level is the car's floor level; floor_bottom_of maps a whole floor level to its surface row.
-static func draw_arrival(canvas: CanvasItem, rect: Rect2i, level: float, floor_bottom_of: Callable) -> void:
+static func draw_arrival(canvas: Object, rect: Rect2i, level: float, floor_bottom_of: Callable) -> void:
 	var nearest := roundi(level)
 	if absf(level - nearest) > ARRIVED_SLACK:
 		return
@@ -172,7 +172,7 @@ static func draw_door_gap(canvas: Object, rect: Rect2i, floor_bottom: int, open:
 
 
 ## A car: dark frame, body, ceiling lamp, centre doors, a rail, and up to five riders as small figures.
-static func draw_car(canvas: CanvasItem, rect: Rect2i, car_color: Color, load: int, people: Array) -> void:
+static func draw_car(canvas: Object, rect: Rect2i, car_color: Color, load: int, people: Array) -> void:
 	var p := Palette.get_palette()
 	canvas.draw_rect(rect.grow(1), p["outline"])
 	canvas.draw_rect(rect, car_color)

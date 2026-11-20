@@ -114,7 +114,7 @@ static func describe(tower: Tower, room_id: int, broken: Variant = null) -> Dict
 ## Paints one room's run into rect (native pixels in the canvas item). id may be either half of a
 ## recycling centre; each half is painted in its own rect. broken is as for describe(). lit is the
 ## in-use look: someone is there (the renderer works it out once per refresh); an empty room is dim.
-static func draw(canvas: CanvasItem, tower: Tower, id: int, rect: Rect2i, broken: Variant = null, lit: bool = false, dark: bool = false) -> void:
+static func draw(canvas: Object, tower: Tower, id: int, rect: Rect2i, broken: Variant = null, lit: bool = false, dark: bool = false) -> void:
 	var look := describe(tower, id, broken)
 	var kind: String = look["kind"]
 	var state: String = look["state"]
@@ -148,13 +148,13 @@ static func draw(canvas: CanvasItem, tower: Tower, id: int, rect: Rect2i, broken
 ## A joined suite (#276): one lit space over rect, the union of its rooms, drawn from the kind's suite
 ## recipe. The rooms lose their shared walls because only the leftmost wall is drawn. id is the first
 ## room's, for the colours that depend on it.
-static func draw_suite(canvas: CanvasItem, kind: String, rect: Rect2i, id: int) -> void:
+static func draw_suite(canvas: Object, kind: String, rect: Rect2i, id: int) -> void:
 	draw_recipe(canvas, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), true, false, id, true)
 
 
 ## The room body and recipe shapes in rect. A rect taller than a floor (the lobby) gets the recipe on its
 ## bottom floor and plain wall above. base is the room colour; lit picks the in-use or empty look.
-static func draw_recipe(canvas: CanvasItem, kind: String, rect: Rect2i, base: Color, lit: bool, upper: bool = false, id: int = 0, suite: bool = false) -> void:
+static func draw_recipe(canvas: Object, kind: String, rect: Rect2i, base: Color, lit: bool, upper: bool = false, id: int = 0, suite: bool = false) -> void:
 	var p := Palette.get_palette()
 	var mode: int = p["mode"]
 	var body := base if lit else base.darkened(SkyLook.dim_at(p["dim"], SkyLook.daylight))
@@ -194,7 +194,7 @@ static func _role_colors(p: Dictionary, base: Color, lit: bool, id: int) -> Dict
 
 ## A furniture box in the palette's style: outlined (A), edges only for furniture frames (B) or flat (C).
 ## Only a hollow shape (the "furn" role) is a frame in B; every other role is a solid fill.
-static func _box(canvas: CanvasItem, r: Rect2i, color: Color, mode: int, outline: Color, hollow: bool = true) -> void:
+static func _box(canvas: Object, r: Rect2i, color: Color, mode: int, outline: Color, hollow: bool = true) -> void:
 	if mode == Palette.MODE_OUTLINED:
 		canvas.draw_rect(r.grow(1), outline)
 		canvas.draw_rect(r, color)
@@ -206,14 +206,14 @@ static func _box(canvas: CanvasItem, r: Rect2i, color: Color, mode: int, outline
 
 ## Rubbish rising over both halves of a recycling centre (fill is thousandths of capacity); interior is
 ## the half's floor rows.
-static func _rubbish(canvas: CanvasItem, interior: Rect2i, fill: int, upper: bool) -> void:
+static func _rubbish(canvas: Object, interior: Rect2i, fill: int, upper: bool) -> void:
 	var level := interior.size.y * 2 * fill / 1000
 	var here := clampi(level - (interior.size.y if upper else 0), 0, interior.size.y)
 	if here > 0:
 		canvas.draw_rect(Rect2i(interior.position.x, interior.end.y - here, interior.size.x, here), RUBBISH_COLOR)
 
 
-static func _dashed_border(canvas: CanvasItem, interior: Rect2i, color: Color) -> void:
+static func _dashed_border(canvas: Object, interior: Rect2i, color: Color) -> void:
 	for x in range(interior.position.x, interior.end.x, 4):
 		var w := mini(2, interior.end.x - x)
 		canvas.draw_rect(Rect2i(x, interior.position.y, w, 1), color)
@@ -221,7 +221,7 @@ static func _dashed_border(canvas: CanvasItem, interior: Rect2i, color: Color) -
 
 
 ## Infested marker: a pest (body and legs) on a white badge, in the middle of the room.
-static func _bug(canvas: CanvasItem, c: Vector2i, p: Dictionary) -> void:
+static func _bug(canvas: Object, c: Vector2i, p: Dictionary) -> void:
 	canvas.draw_rect(Rect2i(c.x - 4, c.y - 4, 9, 9), p["white"])
 	canvas.draw_rect(Rect2i(c.x - 2, c.y - 2, 5, 5), p["ink"])
 	for dy in [-2, 0, 2]:
