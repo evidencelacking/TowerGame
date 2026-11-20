@@ -27,6 +27,10 @@ func _ready() -> void:
 		_tower.enqueue(Tower.Command.make(_tower.tick + 1, Tower.Command.DEBUG_UNLOCK_ALL, [1] as Array[int]))
 	var renderer: TowerRenderer = $TowerRenderer
 	renderer.set_tower(_tower)
+	var thoughts := ThoughtLayer.new()
+	thoughts.name = "ThoughtLayer"
+	add_child(thoughts)
+	thoughts.bind(_tower, renderer)
 	($PlacementGhost as PlacementGhost).set_tower(_tower)
 	($MessageLog as MessageLog).set_tower(_tower)
 	($Toolbar as Toolbar).bind($PlacementGhost as PlacementGhost)
@@ -44,6 +48,10 @@ func _ready() -> void:
 	room_window.name = "RoomWindow"
 	add_child(room_window)
 	room_window.bind(_tower, $PlacementGhost as PlacementGhost)
+	var news := NewsTicker.new()
+	news.name = "NewsTicker"
+	add_child(news)
+	news.bind(_tower, $TowerCamera as TowerCamera, person_window, room_window)
 	var elevator_window := ElevatorWindow.new()
 	elevator_window.name = "ElevatorWindow"
 	add_child(elevator_window)

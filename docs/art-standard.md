@@ -57,7 +57,7 @@ restaurant, stairs, escalator, elevator shaft and car, and 12x32 people with fac
 | G | `art_g.tscn` | Lit: F's shapes with Godot 2D lighting, so lamps and windows glow at night. |
 
 Direction G was chosen (#300). Detailed batch 1 (#302: lobby, office, condo, hotel rooms, housekeeping) is drawn by
-`scripts/view/detail_rooms.gd` on `detail_pen.gd`: the recipes' shapes doubled onto a half-pixel grid inside the same world
+`scripts/view/detail_rooms.gd` on `detail_prims.gd` and `detail_scenes.gd`, ported from the G Lit mock-up and placed from the recipes' spots, inside the same world
 rects, shown on a 2x static canvas (`TowerRenderer._apply_density`), so spots, camera and picking are unchanged. Use an even
 camera zoom to keep sub-pixels crisp. Captures: `docs/mockups/detailed_batch1_day.png` and `_night.png`
 (`tools/capture_recipes.gd set=1 detailed=1 time=35 zoom=4`; `time=2` for night).
