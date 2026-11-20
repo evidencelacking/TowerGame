@@ -10,6 +10,7 @@ const EventLook := preload("res://scripts/view/event_look.gd")
 const ActivityLook := preload("res://scripts/view/activity_look.gd")
 const SkyLook := preload("res://scripts/view/sky_look.gd")
 const DetailLight := preload("res://scripts/view/detail_light.gd")
+const DetailRooms := preload("res://scripts/view/detail_rooms.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const GraphicsStyle := preload("res://scripts/view/graphics_style.gd")
 const ViewSettings := preload("res://scripts/view/view_settings.gd")
@@ -42,7 +43,6 @@ var _people_view := PeopleView.new()
 var _elevators := ElevatorView.new()
 var _seen_tick: int = -1
 var _seen_rain: bool = false
-var _static_tick: int = -1000000
 var _since_tick: float = 0.0  ## Seconds since the sim last ticked.
 var _tick_len: float = 1.0 / 30.0  ## Seconds the last tick took; cars slide over this long.
 var _seen_revision: int = -1
@@ -63,12 +63,55 @@ const CANVAS_PAD: Vector2i = Vector2i(64, 64)  ## Room around the built tower fo
 const ZOOM_SHARP_ABOVE: float = 1.5  ## Detailed is filtered (an exact 2x2 average) below this camera zoom, point-sampled at or above it.
 
 var _canvas: Rect2i = Rect2i(0, 0, 128, 128)  ## The part of the world the two canvases cover, in native pixels (#307).
-var _static_view: SubViewport = null
-var _static_layer: Node2D = null
-var _static_sprite: Sprite2D = null
+const TILE: Vector2i = Vector2i(256, 128)  ## The static picture is shown through a grid of tiles this many native pixels across (#346).
+const TILE_PAD: int = 32  ## A piece marks the tiles within this distance of it for a fresh render, for glows that spill past a room.
+const REPAIR_BUDGET_US: int = 5000  ## Estimated script cost of the pieces repainted in one frame; at least one piece is always repainted.
+const UNKNOWN_PIECE_COST_US: int = 1500
+const TILE_RENDERS_PER_FRAME: int = 2  ## Tiles re-rendered per frame at most; the rest wait their turn.
+const FRAME_LAYERS: Array[String] = ["_draw_backdrop", "_draw_links", "_draw_floors", "_draw_shafts", "_draw_exterior"]
+const FRAME_Z: Dictionary = {"_draw_backdrop": 0, "_draw_links": 3, "_draw_floors": 4, "_draw_shafts": 5, "_draw_exterior": 6}
+const OUTDOOR_REDRAWS_PER_FRAME: int = 1  ## Skyline slices (or the street) redrawn per frame after the outdoors changed.
+const LOBBY_Z: int = 1
+const LOBBY_SLICE: int = 192  ## World pixels wide: the Detailed lobby is painted in slices this wide, one piece each, so no single repaint is long.
+const ROOM_Z: int = 2  ## Between the lobby and the links: the order of STATIC_LAYERS.
+
+
+## One retained piece of the static picture (#346): a canvas item that records its draw commands once and
+## keeps them until it is marked stale. A room (or a joined suite) is one piece; the floors, shafts, links,
+## lobby, backdrop and facade are one piece each. Repainting a piece costs only that piece's script time.
+class Piece extends RefCounted:
+	var node: Node2D = null
+	var rect: Rect2i = Rect2i()  ## World native pixels it paints in; the tiles it touches are rendered again after it repaints.
+	var stale: bool = true
+	var cost_us: int = 0  ## Script time of its last paint. 0 = never painted.
+	var sig: Array = []  ## The state it was last marked for (rooms): look state, fill, lit, dark.
+	var uid: int = 0  ## Owner id of the lights it records.
+	var layer_name: String = ""  ## A frame piece's painter method; empty for a room.
+	var runs: Array = []  ## A room piece's runs: [id, owner room, rect], one for a room or several for a suite.
+	var suite_kind: String = ""
+
+
+## One window onto the static world: a SubViewport sharing the world the pieces live in, looking at its rect.
+class Tile extends RefCounted:
+	var rect: Rect2i = Rect2i()
+	var view: SubViewport = null
+	var sprite: Sprite2D = null
+	var pending: bool = true  ## Needs a fresh render.
+
+
+var _world: SubViewport = null  ## Holds the pieces; never rendered itself. The tiles share its world.
+var _statics: Node2D = null
+var _tile_root: Node2D = null  ## Holds the tile sprites; carries the night ambient colour and the zoom filter.
+var _tiles: Array[Tile] = []
+var _frame_pieces: Array[Piece] = []
+var _room_pieces: Dictionary = {}  ## Key -> Piece, for the rooms and suites in the layout.
+var _next_uid: int = 1
+var _plan_broken: Array[int] = []
+var _frame_due: int = 0  ## Tick at which the frame pieces (shafts and so on) are marked stale again.
 var _dynamic_view: SubViewport = null
 var _dynamic_layer: Node2D = null
 var _outdoors: Array[Node2D] = []  ## The far and near skylines and the street (#306), behind everything else.
+var _outdoors_todo: Array[Node2D] = []  ## Outdoor layers waiting for their redraw.
 var _outdoors_key: Array = []  ## What the outdoors were last drawn for: stars, daylight, rain, density, layout.
 var _dynamic_sprite: Sprite2D = null
 var _glow: Node2D = null  ## Detailed night lights, added on top of the world (#305).
@@ -80,11 +123,18 @@ func _ready() -> void:
 	_seen_style = GraphicsStyle.current()
 	_seen_see_through = TransportLook.see_through
 	_make_outdoors()
-	var size := _canvas.size
-	_static_layer = _make_layer(size, _paint_static)
-	_static_view = _static_layer.get_parent()
-	_static_sprite = _sprite_of(_static_view)
-	_dynamic_layer = _make_layer(size, _paint_dynamic)
+	_world = SubViewport.new()
+	_world.size = Vector2i(2, 2)
+	_world.transparent_bg = true
+	_world.disable_3d = true
+	_world.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(_world)
+	_statics = Node2D.new()
+	_world.add_child(_statics)
+	_tile_root = Node2D.new()
+	_tile_root.name = "StaticTiles"
+	add_child(_tile_root)  # before the dynamic sprite, so the people draw over the rooms
+	_dynamic_layer = _make_layer(_canvas.size, _paint_dynamic)
 	_dynamic_view = _dynamic_layer.get_parent()
 	_dynamic_sprite = _sprite_of(_dynamic_view)
 	_glow = DetailLight.new()
@@ -97,12 +147,21 @@ func _ready() -> void:
 ## The skylines and the street (#306): drawn by the style, so Classic shows nothing. Added before the
 ## layer sprites, they sit in front of the sky and behind the rooms.
 func _make_outdoors() -> void:
+	var world_w := int(VC.world_rect().size.x)
+	var span := ExteriorLayer.SLICE_W
 	for spec: Array in [[0, 0.55], [1, 0.8], [ExteriorLayer.STREET, 1.0]]:
-		var layer: Node2D = ExteriorLayer.new()
-		layer.set("depth", spec[0])
-		layer.set("factor", spec[1])
-		add_child(layer)
-		_outdoors.append(layer)
+		var from := -2000 if spec[0] != ExteriorLayer.STREET else 0  # the skylines start at the street's left end
+		while true:  # a skyline is several slices, so a redraw of it can be spread over frames (#346); the street is one
+			var layer: Node2D = ExteriorLayer.new()
+			layer.set("depth", spec[0])
+			layer.set("factor", spec[1])
+			if spec[0] != ExteriorLayer.STREET:
+				layer.set("slice", Vector2i(from, from + span))
+			add_child(layer)
+			_outdoors.append(layer)
+			from += span
+			if spec[0] == ExteriorLayer.STREET or from >= world_w + 2000:
+				break
 
 
 ## Keeps the outdoors in step: skylines trail the camera, and everything redraws when the star rating, the
@@ -112,6 +171,8 @@ func _follow_outdoors() -> void:
 	var camera_x := camera.position.x if camera != null else VC.world_rect().size.x * 0.5
 	for layer: Node2D in _outdoors:
 		layer.call("follow", camera_x)
+	for _i: int in mini(OUTDOOR_REDRAWS_PER_FRAME, _outdoors_todo.size()):
+		_outdoors_todo.pop_front().queue_redraw()
 	var key: Array = [tower.stars, SkyLook.daylight, SkyLook.rain, GraphicsStyle.current().density(), tower.floors.revision]
 	if key == _outdoors_key:
 		return
@@ -125,7 +186,8 @@ func _follow_outdoors() -> void:
 		layer.set("daylight", SkyLook.daylight)
 		layer.set("raining", SkyLook.rain)
 		layer.set("built", built)
-		layer.queue_redraw()
+	_outdoors_todo = _outdoors.duplicate()  # redrawn a couple per frame, the skyline slices first
+
 
 
 ## A SubViewport at native size with a layer in it, shown by a nearest-filtered sprite at the origin.
@@ -164,17 +226,224 @@ func _sprite_of(view: SubViewport) -> Sprite2D:
 func _apply_density() -> void:
 	var density := GraphicsStyle.current().density()
 	_canvas = _canvas_bounds()
-	_static_view.size = _canvas.size * density
-	_static_layer.scale = Vector2(density, density)
-	_static_layer.position = -Vector2(_canvas.position * density)
-	_static_sprite.scale = Vector2(1.0 / density, 1.0 / density)
-	_static_sprite.position = Vector2(_canvas.position)
-	_dynamic_view.size = _static_view.size  # people are drawn at the style's density too (#304)
-	_dynamic_layer.scale = _static_layer.scale
-	_dynamic_layer.position = _static_layer.position
-	_dynamic_sprite.scale = _static_sprite.scale
-	_dynamic_sprite.position = _static_sprite.position
+	_dynamic_view.size = _canvas.size * density  # people are drawn at the style's density too (#304)
+	_dynamic_layer.scale = Vector2(density, density)
+	_dynamic_layer.position = -Vector2(_canvas.position * density)
+	_dynamic_sprite.scale = Vector2(1.0 / density, 1.0 / density)
+	_dynamic_sprite.position = Vector2(_canvas.position)
+	_rebuild_tiles(density)
+	_mark_all_stale()
 	_apply_ambient()
+
+
+## Cuts the view of the static world into TILE-sized windows over _canvas (#346). Each is a SubViewport
+## that shares the pieces' world, scaled by the style's density, and is rendered alone when something in it
+## changed. Total pixels equal one canvas of _canvas size, so the memory saving of #307 stays.
+func _rebuild_tiles(density: int) -> void:
+	for tile: Tile in _tiles:
+		tile.view.queue_free()
+		tile.sprite.queue_free()
+	_tiles.clear()
+	var y := _canvas.position.y
+	while y < _canvas.end.y:
+		var x := _canvas.position.x
+		while x < _canvas.end.x:
+			var tile := Tile.new()
+			tile.rect = Rect2i(Vector2i(x, y), TILE).intersection(_canvas)
+			tile.view = SubViewport.new()
+			tile.view.size = tile.rect.size * density
+			tile.view.transparent_bg = true
+			tile.view.disable_3d = true
+			tile.view.world_2d = _world.world_2d
+			tile.view.render_target_update_mode = SubViewport.UPDATE_DISABLED
+			add_child(tile.view)
+			tile.view.canvas_transform = Transform2D(Vector2(density, 0), Vector2(0, density), -Vector2(tile.rect.position * density))  # needs the view in the tree
+			tile.sprite = Sprite2D.new()
+			tile.sprite.texture = tile.view.get_texture()
+			tile.sprite.centered = false
+			tile.sprite.scale = Vector2(1.0 / density, 1.0 / density)
+			tile.sprite.position = Vector2(tile.rect.position)
+			_tile_root.add_child(tile.sprite)
+			_tiles.append(tile)
+			x += TILE.x
+		y += TILE.y
+
+
+## Everything needs repainting (style, palette, daylight, rain): every piece is marked, and repainted a few
+## per frame, the ones near the view first.
+func _mark_all_stale() -> void:
+	for piece: Piece in _frame_pieces:
+		piece.stale = true
+	for key: Variant in _room_pieces:
+		(_room_pieces[key] as Piece).stale = true
+
+
+## Marks the tiles near a rect for a fresh render.
+func _mark_tiles(rect: Rect2i) -> void:
+	var grown := rect.grow(TILE_PAD)
+	for tile: Tile in _tiles:
+		if tile.rect.intersects(grown):
+			tile.pending = true
+
+
+## Work not yet done near the view: pieces to repaint and tiles to render. A bench waits for this to reach 0.
+func pending_work() -> int:
+	var count := 0
+	var near := _view_rect()
+	for piece: Piece in _frame_pieces:
+		if piece.stale:
+			count += 1
+	for key: Variant in _room_pieces:
+		var piece: Piece = _room_pieces[key]
+		if piece.stale and piece.rect.intersects(near):
+			count += 1
+	for tile: Tile in _tiles:
+		if tile.pending and tile.rect.intersects(near):
+			count += 1
+	return count + _outdoors_todo.size()
+
+
+## The part of the world on screen, grown by a tile so a pan finds its neighbours already drawn.
+func _view_rect() -> Rect2i:
+	var seen := get_canvas_transform().affine_inverse() * get_viewport_rect()
+	return Rect2i(seen.grow(TILE.x * 2)).intersection(Rect2i(VC.world_rect()))
+
+
+## Makes the pieces the layout calls for: the frame pieces once, and a piece per room or joined suite,
+## reusing the ones whose room, position and suite membership are unchanged (they keep what they drew).
+func _sync_pieces() -> void:
+	if _frame_pieces.is_empty():
+		for layer_name: String in FRAME_LAYERS:
+			var piece := _new_piece()
+			piece.layer_name = layer_name
+			piece.rect = _canvas
+			piece.node.z_index = FRAME_Z[layer_name]
+			_frame_pieces.append(piece)
+	_plan_broken = Parking.broken_ids(tower.rooms, tower.grid)  # cut-off parking is crossed out
+	var entries := Suites.entries_for(tower, _room_runs, Suites.tenanted_rooms(tower))  # neighbours of one kind, both in use, draw as one suite (#276)
+	var joined: Dictionary = {}  # run index -> true for rooms drawn inside a suite
+	var wanted: Dictionary = {}
+	for group: Array[int] in Suites.groups(entries):
+		var first: Array = _room_runs[group[0]]
+		var bounds := Suites.span(entries, group)
+		var floor_rect: Rect2i = first[2]
+		var union := Rect2i(bounds[0], floor_rect.position.y, bounds[1], floor_rect.size.y)
+		var runs: Array = []
+		var key := "s%d_%d_%d_%d" % [first[0], union.position.x, union.position.y, union.size.x]
+		for index: int in group:
+			joined[index] = true
+			runs.append(_room_runs[index])
+			key += "_%d" % (_room_runs[index][0] as int)
+		wanted[key] = [union, runs, entries[group[0]]["kind"]]
+	for index: int in _room_runs.size():
+		if joined.has(index):
+			continue
+		var run: Array = _room_runs[index]
+		var rect: Rect2i = run[2]
+		wanted["r%d_%d_%d_%d_%d" % [run[0], rect.position.x, rect.position.y, rect.size.x, rect.size.y]] = [rect, [run], ""]
+	var span := tower.floors.lobby_span()
+	if not span.is_empty():  # the lobby: one piece, or in Detailed slices side by side (#346)
+		var lobby := Rect2i(span[0] * VC.CELL_W, VC.floor_to_row(span[2]) * VC.CELL_H, (span[1] - span[0] + 1) * VC.CELL_W, span[2] * VC.CELL_H)
+		var slice := LOBBY_SLICE if GraphicsStyle.current().density() > 1 else lobby.size.x
+		var from := lobby.position.x
+		while from < lobby.end.x:
+			var to := mini(from + slice, lobby.end.x)
+			wanted["lobby_%d_%d_%d_%d" % [from, to, lobby.position.y, lobby.size.y]] = [Rect2i(from, lobby.position.y, to - from, lobby.size.y), [], "lobby"]
+			from = to
+	for key: Variant in _room_pieces.keys():
+		if not wanted.has(key):
+			_free_piece(_room_pieces[key] as Piece)
+			_room_pieces.erase(key)
+	for key: Variant in wanted:
+		var spec: Array = wanted[key]
+		var piece: Piece = _room_pieces.get(key)
+		if piece == null:
+			piece = _new_piece()
+			piece.node.z_index = LOBBY_Z if (spec[2] as String) == "lobby" else ROOM_Z
+			_room_pieces[key] = piece
+		piece.rect = spec[0]
+		piece.runs = spec[1]
+		piece.suite_kind = spec[2]
+		piece.node.set("painter", _paint_room_piece.bind(piece))
+	for piece: Piece in _frame_pieces:
+		piece.stale = true  # floors, shafts and the rest are cheap: repainted whenever the layout changes
+	_frame_due = tower.tick + STATIC_REFRESH_TICKS
+
+
+func _new_piece() -> Piece:
+	var piece := Piece.new()
+	piece.uid = _next_uid
+	_next_uid += 1
+	piece.node = PixelLayer.new()
+	piece.node.set("painter", _paint_frame_piece.bind(piece))
+	_statics.add_child(piece.node)
+	return piece
+
+
+func _free_piece(piece: Piece) -> void:
+	DetailLight.drop(piece.uid)
+	_mark_tiles(piece.rect)
+	piece.node.queue_free()
+	_glow.queue_redraw()
+
+
+## What a room piece's look hangs on: the room's state, fill and whether it is lit or dark. A change repaints it.
+func _signature(piece: Piece) -> Array:
+	var out: Array = []
+	for run: Array in piece.runs:
+		var look := RoomLook.describe(tower, run[0], _plan_broken)
+		out.append([look["state"], look["fill"], _in_use.has(run[1]), _asleep.has(run[1])])
+	return out
+
+
+## Marks the room pieces whose state changed since they were last marked.
+func _mark_changed_rooms() -> void:
+	_plan_broken = Parking.broken_ids(tower.rooms, tower.grid)
+	for key: Variant in _room_pieces:
+		var piece: Piece = _room_pieces[key]
+		var now := _signature(piece)
+		if now != piece.sig:
+			piece.sig = now
+			piece.stale = true
+
+
+## Repaints stale pieces near the view, as many as the frame's budget allows (always one), then renders the
+## tiles they touched, a few per frame. Frame pieces come due every STATIC_REFRESH_TICKS ticks.
+func _repair() -> void:
+	if tower.tick >= _frame_due or _frame_due - tower.tick > STATIC_REFRESH_TICKS:
+		_frame_due = tower.tick + STATIC_REFRESH_TICKS
+		for piece: Piece in _frame_pieces:
+			piece.stale = true
+	var near := _view_rect()
+	var spent := 0
+	var queue: Array[Piece] = []
+	for piece: Piece in _frame_pieces:
+		if piece.stale:
+			queue.append(piece)
+	for key: Variant in _room_pieces:
+		var piece: Piece = _room_pieces[key]
+		if piece.stale and piece.rect.intersects(near):
+			queue.append(piece)
+	for piece: Piece in queue:
+		var cost := piece.cost_us if piece.cost_us > 0 else UNKNOWN_PIECE_COST_US
+		if spent > 0 and spent + cost > REPAIR_BUDGET_US:
+			break
+		spent += cost
+		_repaint(piece)
+	var renders := 0
+	for tile: Tile in _tiles:
+		if tile.pending and tile.rect.intersects(near):
+			tile.pending = false
+			tile.view.render_target_update_mode = SubViewport.UPDATE_ONCE
+			renders += 1
+			if renders >= TILE_RENDERS_PER_FRAME:
+				break
+
+
+func _repaint(piece: Piece) -> void:
+	piece.stale = false
+	piece.node.queue_redraw()
+	_mark_tiles(piece.rect)
 
 
 ## The world rect the canvases need (#307): the built floors, rooms and links, padded and snapped out to
@@ -209,8 +478,8 @@ func _canvas_bounds() -> Rect2i:
 func _follow_zoom() -> void:
 	var detailed := GraphicsStyle.current().density() > 1
 	var filter := CanvasItem.TEXTURE_FILTER_LINEAR if detailed and get_canvas_transform().get_scale().x < ZOOM_SHARP_ABOVE else CanvasItem.TEXTURE_FILTER_NEAREST
-	if _static_sprite.texture_filter != filter:
-		_static_sprite.texture_filter = filter
+	if _tile_root.texture_filter != filter:
+		_tile_root.texture_filter = filter
 		_dynamic_sprite.texture_filter = filter
 
 
@@ -220,7 +489,7 @@ func _follow_zoom() -> void:
 func _apply_ambient() -> void:
 	var detailed := GraphicsStyle.current().density() > 1
 	var ambient := DetailLight.ambient(SkyLook.daylight) if detailed else Color.WHITE
-	_static_sprite.modulate = ambient
+	_tile_root.modulate = ambient
 	_dynamic_sprite.modulate = Color.WHITE.lerp(ambient, 0.5)
 	_glow.visible = detailed
 	_glow.queue_redraw()
@@ -228,7 +497,7 @@ func _apply_ambient() -> void:
 
 ## Redraws what changed; the view never polls the whole tower.
 func _process(delta: float) -> void:
-	if tower == null or _static_layer == null:
+	if tower == null or _tile_root == null:
 		return
 	_since_tick += delta
 	_follow_sky()
@@ -247,6 +516,8 @@ func _process(delta: float) -> void:
 		_rebuild_runs()
 		if _canvas != _canvas_bounds():
 			_apply_density()
+		_in_use = _rooms_in_use()
+		_sync_pieces()
 	if new_tick or layout_changed:
 		_remember_positions()
 		_figures = _people_view.figures(tower)
@@ -258,24 +529,20 @@ func _process(delta: float) -> void:
 	if TransportLook.see_through != _seen_see_through:  ## The view option changed: repaint the shafts.
 		_seen_see_through = TransportLook.see_through
 		layout_changed = true
+		_mark_all_stale()
 	if GraphicsStyle.current() != _seen_style:  ## Graphics Classic/Detailed changed: repaint everything.
 		_seen_style = GraphicsStyle.current()
 		_apply_density()
 		layout_changed = true
 		queue_redraw()
-	var dirty := layout_changed or tower.tick - _static_tick >= STATIC_REFRESH_TICKS or tower.tick < _static_tick
-	if not dirty and (tower.tick - _checked_tick >= IN_USE_CHECK_TICKS or tower.tick < _checked_tick):
+	if layout_changed:
 		_checked_tick = tower.tick
-		var before := _in_use
-		_in_use = _rooms_in_use()
-		dirty = _in_use != before
-	elif dirty:
+	elif tower.tick - _checked_tick >= IN_USE_CHECK_TICKS or tower.tick < _checked_tick:
 		_checked_tick = tower.tick
 		_in_use = _rooms_in_use()
-	if dirty:
-		_static_tick = tower.tick
-		_static_layer.queue_redraw()
-		_static_view.render_target_update_mode = SubViewport.UPDATE_ONCE
+		_sync_pieces()  # tenancy can join or split suites without a layout change
+	_mark_changed_rooms()
+	_repair()
 	var sliding := (tower.rooms.total_cars() > 0 and _since_tick <= _tick_len * 2.0) or (_has_moving and _since_tick <= _tick_len)
 	if new_tick or layout_changed or sliding:
 		_dynamic_layer.queue_redraw()
@@ -292,13 +559,13 @@ func _follow_sky() -> void:
 	SkyLook.daylight = step
 	_seen_rain = SkyLook.rain
 	_apply_ambient()
-	_static_tick = -1000000
+	_mark_all_stale()
 	queue_redraw()
 
 
 func set_tower(value: Tower) -> void:
 	tower = value
-	_static_tick = -1000000
+	_mark_all_stale()
 	_seen_revision = -1
 	_seen_tick = -1
 	queue_redraw()
@@ -307,9 +574,7 @@ func set_tower(value: Tower) -> void:
 ## Redraws everything after the palette in use changed.
 func refresh_palette() -> void:
 	_outdoors_key = []
-	_static_tick = -1000000
-	_seen_revision = -1
-	_seen_tick = -1
+	_mark_all_stale()  # the layout is unchanged, so the runs need no rebuild
 	queue_redraw()
 
 
@@ -377,13 +642,41 @@ func _rebuild_runs() -> void:
 				column += maxi(link_run[2], 1)
 
 
-func _paint_static(canvas: CanvasItem) -> void:
+## Paints a frame piece: one of the static layers that are not rooms (backdrop, lobby, links, floors,
+## shafts, facade).
+func _paint_frame_piece(canvas: CanvasItem, piece: Piece) -> void:
 	if tower == null:
 		return
-	DetailLight.clear()
-	for layer: String in STATIC_LAYERS:
-		call(layer, canvas)
-	_glow.queue_redraw()  # after the rooms have recorded their lights
+	var started := Time.get_ticks_usec()
+	DetailLight.drop(piece.uid)
+	DetailLight.painter_id = piece.uid
+	call(piece.layer_name, canvas)
+	DetailLight.painter_id = 0
+	_glow.queue_redraw()
+	piece.cost_us = Time.get_ticks_usec() - started
+
+
+## Paints a room, or a joined suite, into its own rect. Its lights are dropped first and recorded afresh.
+func _paint_room_piece(canvas: CanvasItem, piece: Piece) -> void:
+	if tower == null:
+		return
+	var started := Time.get_ticks_usec()
+	DetailLight.drop(piece.uid)
+	DetailLight.painter_id = piece.uid
+	if piece.suite_kind == "lobby":
+		_paint_lobby_slice(canvas, piece.rect)
+		DetailLight.painter_id = 0
+		_glow.queue_redraw()
+		piece.cost_us = Time.get_ticks_usec() - started
+		return
+	var first: Array = piece.runs[0]
+	if piece.suite_kind != "":
+		GraphicsStyle.current().suite(canvas, piece.suite_kind, piece.rect, first[0])
+	else:
+		GraphicsStyle.current().room(canvas, tower, first[0], first[2], _plan_broken, _in_use.has(first[1]), _asleep.has(first[1]) and not _in_use.has(first[1]))
+	DetailLight.painter_id = 0
+	_glow.queue_redraw()
+	piece.cost_us = Time.get_ticks_usec() - started
 
 
 func _paint_dynamic(canvas: CanvasItem) -> void:
@@ -435,6 +728,18 @@ func _draw_lobby(canvas: CanvasItem) -> void:
 		return
 	var rect := Rect2i(span[0] * VC.CELL_W, VC.floor_to_row(span[2]) * VC.CELL_H, (span[1] - span[0] + 1) * VC.CELL_W, span[2] * VC.CELL_H)
 	GraphicsStyle.current().recipe(canvas, "lobby", rect, Palette.hue("lobby"), true)
+
+
+## One slice of the lobby: the whole lobby recipe confined to the slice's x range, so slices side by side are
+## the one picture, and a slice costs only its share.
+func _paint_lobby_slice(canvas: CanvasItem, slice: Rect2i) -> void:
+	var span := tower.floors.lobby_span()
+	if span.is_empty():
+		return
+	var rect := Rect2i(span[0] * VC.CELL_W, VC.floor_to_row(span[2]) * VC.CELL_H, (span[1] - span[0] + 1) * VC.CELL_W, span[2] * VC.CELL_H)
+	DetailRooms.window = Vector2i(slice.position.x, slice.end.x) if slice.size.x < rect.size.x else Vector2i.ZERO
+	GraphicsStyle.current().recipe(canvas, "lobby", rect, Palette.hue("lobby"), true)
+	DetailRooms.window = Vector2i.ZERO
 
 
 func _draw_rooms(canvas: CanvasItem) -> void:

@@ -13,8 +13,10 @@ const AMBIENT_DAY: Color = Color("fff4e2")  ## The mock-up's CanvasModulate colo
 const AMBIENT_NIGHT: Color = Color("3a4478")
 const TEX := 128
 
-## Recorded lights: [clip Rect2, centre Vector2, radii Vector2, colour, strength], in world pixels.
+## Recorded lights: [clip Rect2, centre Vector2, radii Vector2, colour, strength, owner], in world pixels. The owner
+## is the id of the renderer piece painting when the light was added (0 when none): a piece repainting drops its own.
 static var lights: Array = []
+static var painter_id: int = 0
 static var _texture: GradientTexture2D = null
 
 
@@ -23,7 +25,16 @@ static func clear() -> void:
 
 
 static func add(clip: Rect2, centre: Vector2, radii: Vector2, color: Color, strength: float) -> void:
-	lights.append([clip, centre, radii, color, strength])
+	lights.append([clip, centre, radii, color, strength, painter_id])
+
+
+## Removes the lights recorded by one piece.
+static func drop(owner_id: int) -> void:
+	var kept: Array = []
+	for light: Array in lights:
+		if light[5] != owner_id:
+			kept.append(light)
+	lights = kept
 
 
 ## The ambient colour multiplied over the world for a daylight value 0 to FULL.

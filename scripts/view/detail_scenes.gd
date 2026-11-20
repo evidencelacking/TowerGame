@@ -48,7 +48,8 @@ static func shell_room(p: Object, x: float, y: float, w: float, row: int, pal: A
 	var floor_alt := Color(pal[3] as String)
 	var trim := Color(pal[4] as String)
 	p.gradv(x, y, w, 56, wall.lightened(0.07), wall.darkened(0.06))
-	for i: int in int(ceil(w / 12.0)):
+	var run: Vector2i = p.repeats(x, 12.0, int(ceil(w / 12.0)), 2.0)
+	for i: int in range(run.x, run.y):
 		p.R(x + i * 12, y + 4, 1, 34, wall.darkened(0.045))
 	p.R(x, y, w, 3, trim)
 	p.R(x, y + 1, w, 1, trim.lightened(0.25))
@@ -56,11 +57,13 @@ static func shell_room(p: Object, x: float, y: float, w: float, row: int, pal: A
 	p.R(x, y + 38, w, 18, dado)
 	p.R(x, y + 38, w, 1, dado.lightened(0.3))
 	p.R(x, y + 39, w, 1, dado.darkened(0.25))
-	for j: int in int(ceil(w / 16.0)):
+	run = p.repeats(x, 16.0, int(ceil(w / 16.0)), 17.0)
+	for j: int in range(run.x, run.y):
 		p.R(x + j * 16 + 15, y + 40, 1, 14, dado.darkened(0.18))
 	p.R(x, y + 54, w, 2, trim.darkened(0.12))
 	p.R(x, y + 56, w, 4, floor_c)
-	for k: int in int(ceil(w / 12.0)):
+	run = p.repeats(x, 12.0, int(ceil(w / 12.0)), 12.0)
+	for k: int in range(run.x, run.y):
 		p.R(x + k * 12 + (row % 2) * 5, y + 56, 6, 4, floor_alt)
 	p.R(x, y + 56, w, 1, floor_c.lightened(0.25))
 	p.R(x, y + 3, 1, 53, wall.darkened(0.35))
@@ -341,17 +344,22 @@ static func clothes_rail(p: Object, rx: float, fy: float, rw: float) -> void:
 static func lobby(p: Object, w: float, y: float, seats: Array) -> void:
 	var fy: float = y + 58.0
 	shell_room(p, 0, y, w, 1, PALETTES["lobby"])
-	for i: int in int(w / 8.0):
+	var run: Vector2i = p.repeats(0.0, 8.0, int(w / 8.0), 8.0)
+	for i: int in range(run.x, run.y):
 		if i % 2 == 0:
 			p.R(i * 8, y + 58, 8, 2, Color("9a948f"))
 	var px: float = 100.0
-	while px < w - 60.0:
+	if p.x_from() > 108.0:  # columns every 100: jump to the first one that can touch the slice
+		px = 100.0 + floorf((p.x_from() - 108.0) / 100.0) * 100.0
+	while px < w - 60.0 and px < p.x_to():
 		p.item(px, y + 4, 6, 52, Color("d8c8a4"), 1.0, false)
 		p.R(px - 1, y + 4, 8, 3, Color("c9a85c"))
 		p.R(px - 1, y + 53, 8, 3, Color("c9a85c"))
 		px += 100.0
 	var lx: float = 40.0
-	while lx < w - 40.0:
+	if p.x_from() > 148.0:  # lamps every 103
+		lx = 40.0 + floorf((p.x_from() - 148.0) / 103.0) * 103.0
+	while lx < w - 40.0 and lx < p.x_to() + 100.0:
 		p.R(lx, y + 4, 1, 8, Color("8a7a60"))
 		p.ell(lx, y + 15, 5, 5, Color("f4e8c8"))
 		p.GR(lx - 3, y + 12, 6, 6, Color("fff2c8"))
@@ -402,14 +410,17 @@ static func mezzanine(p: Object, w: float, top: float, night: bool) -> void:
 	var wall := Color(pal[0] as String)
 	var trim := Color(pal[4] as String)
 	p.gradv(0, 0, w, top, wall.lightened(0.07), wall.darkened(0.06))
-	for i: int in int(ceil(w / 12.0)):
+	var run: Vector2i = p.repeats(0.0, 12.0, int(ceil(w / 12.0)), 2.0)
+	for i: int in range(run.x, run.y):
 		p.R(i * 12, 4, 1, top - 8, wall.darkened(0.045))
 	p.R(0, 0, w, 3, trim)
 	p.R(0, 1, w, 1, trim.lightened(0.25))
 	p.R(0, 3, w, 1, trim.darkened(0.3))
 	var col := Color("e8dcc0")
 	var cx: float = 48.0
-	while cx < w - 4.0:
+	if p.x_from() > 160.0:  # columns every 96
+		cx = 48.0 + floorf((p.x_from() - 160.0) / 96.0) * 96.0
+	while cx < w - 4.0 and cx < p.x_to():
 		p.item(cx, 4, 8, top - 4, col, 0.0, false)
 		p.item(cx - 2, 4, 12, 4, col.lightened(0.1), 0.0, false)
 		p.item(cx - 2, top - 8, 12, 4, col.darkened(0.1), 0.0, false)
@@ -418,14 +429,17 @@ static func mezzanine(p: Object, w: float, top: float, night: bool) -> void:
 	var wh: float = top - 40.0
 	if wh >= 12.0:
 		var wx: float = 72.0
-		while wx < w - 48.0:
+		if p.x_from() > 104.0:  # windows every 96, 32 wide
+			wx = 72.0 + floorf((p.x_from() - 104.0) / 96.0) * 96.0
+		while wx < w - 48.0 and wx < p.x_to():
 			window(p, wx, 10, 32, wh, Color("e8e2d4"), Color("b86a5a"), int(wx), night)
 			wx += 96.0
 	var rail := Color("5a4030")
 	p.R(0, top - 24, w, 2, rail.lightened(0.15))
 	p.R(0, top - 20, w, 1, rail)
-	for x: int in range(2, int(w), 8):
-		p.R(x, top - 22, 1, 18, rail)
+	run = p.repeats(0.0, 8.0, int(w / 8.0), 2.0)
+	for k: int in range(run.x, run.y):
+		p.R(2 + k * 8, top - 22, 1, 18, rail)
 	p.item(0, top - 4, w, 3, rail.lightened(0.05), 0.0, false)
 
 

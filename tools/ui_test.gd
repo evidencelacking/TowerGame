@@ -297,16 +297,16 @@ func _graphics_cases() -> void:
 		_camera.set_zoom_index(2)
 		await _frames(2)
 		zoom_ok = _camera.zoom.x == 4.0
-		filter_ok = renderer._static_sprite.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST
+		filter_ok = renderer._tile_root.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST
 		_camera.set_zoom_index(0)
 		await _frames(2)
-		filter_ok = filter_ok and renderer._static_sprite.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR
+		filter_ok = filter_ok and renderer._tile_root.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR
 		picker.select(0)
 		picker.item_selected.emit(0)
 		await _frames(2)
 		back = not ViewSettingsScript.detailed_graphics and renderer._seen_style == GraphicsStyleScript.for_detailed(false)
 		skin_off = not UiSkin.is_on() and (button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color == classic_fill
-		filter_ok = filter_ok and renderer._static_sprite.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST
+		filter_ok = filter_ok and renderer._tile_root.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST
 	ViewSettingsScript.set_detailed_graphics(was)
 	_record("graphics.toggle", "graphics", "Graphics: Detailed then Classic from the toolbar switches the renderer's style", "-", found and live and back,
 		"picker found %s, Detailed live %s, Classic back %s" % [str(found), str(live), str(back)])
