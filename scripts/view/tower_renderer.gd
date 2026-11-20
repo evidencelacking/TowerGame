@@ -80,6 +80,7 @@ func _ready() -> void:
 	_dynamic_sprite = _sprite_of(_dynamic_view)
 	_glow = DetailLight.new()
 	add_child(_glow)
+	add_child(SynergyOverlay.new())  # the synergy filter (#294), above the layers; idle while off
 	_apply_density()
 	queue_redraw()
 
