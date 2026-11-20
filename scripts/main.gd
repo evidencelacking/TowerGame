@@ -39,7 +39,7 @@ func _ready() -> void:
 	var person_window := PersonWindow.new()
 	person_window.name = "PersonWindow"
 	add_child(person_window)
-	person_window.bind(_tower, $PlacementGhost as PlacementGhost)
+	person_window.bind(_tower, $PlacementGhost as PlacementGhost, $TowerCamera as TowerCamera)
 	var room_window := RoomWindow.new()
 	room_window.name = "RoomWindow"
 	add_child(room_window)

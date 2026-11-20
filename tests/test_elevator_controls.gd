@@ -184,7 +184,7 @@ static func _run_resize_and_stops(check: Callable) -> void:
 	var shrink_args: Array[int] = [id, 1, 3]
 	check.call(shrink["valid"] and shrink["args"] == shrink_args and shrink["cost"] == 0 and "free" in shrink["note"], "dragging the top end down queues a shorter span, free")
 	var into_lobby := ElevatorTools.evaluate_shaft(t, "local_shaft", 2, 1, SHAFT_COLUMN, 1)
-	check.call(not into_lobby["valid"] and into_lobby["code"] == RoomsScript.OVERLAPS_LOBBY, "a bottom end lifted off floor 1 would put its machine room in the lobby")
+	check.call(into_lobby["valid"], "a bottom end lifted off floor 1 may put its machine room in front of the lobby (#272)")
 	# A drag that starts in the middle is not a resize.
 	var middle := ElevatorTools.evaluate_shaft(t, "local_shaft", 4, 2, SHAFT_COLUMN, 1)
 	check.call(not middle["valid"] and middle["text"] == "Drag from the top or bottom end to resize", "a drag from the middle of a shaft says to use an end")
