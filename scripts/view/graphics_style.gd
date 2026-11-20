@@ -62,13 +62,18 @@ func suite(canvas: Object, kind: String, rect: Rect2i, id: int) -> void:
 
 
 ## A recipe by kind with no room behind it (the lobby).
-func recipe(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bool) -> void:
-	RoomLook.draw_recipe(canvas, kind, rect, hue, lit)
+func recipe(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bool, upper: bool = false) -> void:
+	RoomLook.draw_recipe(canvas, kind, rect, hue, lit, upper)
 
 
 ## Stairs or escalator in its two-floor rect.
 func link(canvas: Object, kind: String, span: Rect2i) -> void:
 	TransportLook.draw_link(canvas, kind, span)
+
+
+## An escalator's moving steps and handrail dashes at a sim tick.
+func belt(canvas: Object, span: Rect2i, tick: int, hue: Color) -> void:
+	TransportLook.draw_belt(canvas, span, tick, hue)
 
 
 ## One shaft: body, machine-room caps (rects), and doors at each stop's floor surface row.

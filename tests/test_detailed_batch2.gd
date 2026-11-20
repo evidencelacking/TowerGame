@@ -13,7 +13,6 @@ const Batch1 := preload("res://tests/test_detailed_batch1.gd")
 const TestPests := preload("res://tests/test_pests.gd")
 
 const IDS_TRIED := 64  ## Room ids tried to meet every variant of a kind.
-const STILL_CLASSIC: Array[String] = ["party_hall", "movie_theatre", "cathedral", "metro"]
 
 
 static func run(check: Callable) -> void:
@@ -22,7 +21,7 @@ static func run(check: Callable) -> void:
 	_draws(check)
 	_placed(check, classic, detailed)
 	_spots(check, detailed)
-	_untouched(check, classic, detailed)
+	_transport(check, classic, detailed)
 
 
 static func _id_for(kind: String, variant: int) -> int:
@@ -115,14 +114,38 @@ static func _spots(check: Callable, detailed: GraphicsStyle) -> void:
 	check.call(at_furniture, "detailed: people at batch 2 spots are at furniture %s" % str(failures))
 
 
-## Kinds still to come draw Classic under Detailed.
-static func _untouched(check: Callable, classic: GraphicsStyle, detailed: GraphicsStyle) -> void:
-	var same := true
-	for kind: String in STILL_CLASSIC:
-		var rect := Rect2i(0, 0, Batch1._width_px(kind), VC.CELL_H)
-		var a := Batch1.Recorder.new()
-		classic.recipe(a, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), true)
-		var b := Batch1.Recorder.new()
-		detailed.recipe(b, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), true)
-		same = same and a.rects == b.rects
-	check.call(same, "detailed: kinds not yet in the Detailed look draw Classic under Detailed")
+## Stairs, escalators, shafts and cars in the Detailed look: they draw, differ from Classic, stay inside
+## their rects (links and shafts) and the escalator belt moves with the tick.
+static func _transport(check: Callable, classic: GraphicsStyle, detailed: GraphicsStyle) -> void:
+	var inside := true
+	var differs := true
+	for kind: String in ["stairs", "escalator"]:
+		for row: int in [2, 3]:
+			var span := Rect2i(24, (row - 1) * VC.CELL_H, (4 if kind == "stairs" else 8) * VC.CELL_W, VC.CELL_H * 2)
+			var rec := Batch1.Recorder.new()
+			detailed.link(rec, kind, span)
+			var base := Batch1.Recorder.new()
+			classic.link(base, kind, span)
+			inside = inside and not rec.rects.is_empty() and Batch1._inside(rec.rects, Rect2(span))
+			differs = differs and rec.rects != base.rects
+	check.call(inside, "detailed: stairs and escalators on both row parities draw inside their span")
+	check.call(differs, "detailed: stairs and escalators differ from Classic")
+	var span := Rect2i(0, VC.CELL_H, 8 * VC.CELL_W, VC.CELL_H * 2)
+	var still := Batch1.Recorder.new()
+	var moved := Batch1.Recorder.new()
+	detailed.belt(still, span, 0, Color.WHITE)
+	detailed.belt(moved, span, 1, Color.WHITE)
+	check.call(not still.rects.is_empty() and still.rects != moved.rects and Batch1._inside(still.rects, Rect2(span)), "detailed: the escalator belt draws inside its span and moves with the tick")
+	var shaft_rect := Rect2i(16, 0, VC.CELL_W, VC.CELL_H * 4)
+	var caps: Array[Rect2i] = [Rect2i(16, 0, VC.CELL_W, VC.CELL_H - VC.SLAB_H)]
+	var doors: Array[int] = [VC.CELL_H * 2 - VC.SLAB_H, VC.CELL_H * 4 - VC.SLAB_H]
+	var shafts_ok := true
+	for see_through: bool in [false, true]:
+		var rec := Batch1.Recorder.new()
+		detailed.shaft(rec, shaft_rect, Palette.hue("shaft"), caps, doors, see_through)
+		shafts_ok = shafts_ok and not rec.rects.is_empty() and Batch1._inside(rec.rects, Rect2(shaft_rect))
+	check.call(shafts_ok, "detailed: a shaft draws inside its rect, solid and see-through")
+	var level_bottom := func(level: int) -> int: return (level + 1) * VC.CELL_H - VC.SLAB_H
+	var car_rec := Batch1.Recorder.new()
+	detailed.car(car_rec, Rect2i(16, 0, VC.CELL_W, VC.CELL_H), Rect2i(19, 3, VC.CELL_W - 6, VC.CELL_H - VC.SLAB_H - 3), 1.0, 0, 3, Palette.hue("car"), Palette.get_palette()["people"], Palette.get_palette()["lamp"], level_bottom)
+	check.call(not car_rec.rects.is_empty(), "detailed: a car with riders draws")
