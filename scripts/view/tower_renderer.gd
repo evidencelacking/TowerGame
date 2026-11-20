@@ -398,6 +398,11 @@ func _draw_events(canvas: CanvasItem) -> void:
 	EventLook.draw_rescue(canvas, tower, tower.tick)
 
 
+## The figures drawn at the last tick, for layers that sit on top of the tower (thought icons).
+func figures() -> Array[Dictionary]:
+	return _figures
+
+
 func _draw_people(canvas: CanvasItem) -> void:
 	var skin: Color = Palette.get_palette()["skin"]
 	var types: Array = Palette.get_palette()["people"]
