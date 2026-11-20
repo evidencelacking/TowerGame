@@ -282,6 +282,22 @@ All art original and drawn by code.
 | 15.7 | Exterior and city: facade, roof, street, parallax skyline | Owner approves by eye | #306 |
 | 15.8 | Detailed UI skin and performance pass | Frame-rate report | #307 |
 
+### M16 Destinations, shops and the city link (owner, 2026-11-19)
+
+Bonus kinds like the cathedral, everyday shops, bigger homes and a real transit link. After the M13 sim batch.
+
+| ID | Task | Done when | Issue |
+|---|---|---|---|
+| 16.1 | Observation deck: top floor only, paid visitors, reputation boost | Tests | #318 |
+| 16.2 | Casino: night entertainment, hotel demand, noise and security | Tests | #319 |
+| 16.3 | Outdoor spaces on roofs and setbacks: roof deck, terrace garden, pool deck, playground | Tests; owner approves by eye | #320 |
+| 16.4 | Family condos: join neighbouring condos into larger homes | Tests; save bump | #321 |
+| 16.5 | Everyday shops: grocery and deli/bodega used by residents | Tests | #322 |
+| 16.6 | Restaurant types: cafe, pizza, sushi, fine dining, bar | Tests | #323 |
+| 16.7 | Entertainment: movie theatre end to end, bowling, arcade | Tests | #324 |
+| 16.8 | Transit: station at star 3 and a city-connection bonus | Tests | #325 |
+| 16.9 | Swimming pool: indoor, two floors, slide, diving board, animated water | Tests; owner approves by eye | #328 |
+
 ## M11 Full game
 
 | ID | Task | Done when | Issue |
