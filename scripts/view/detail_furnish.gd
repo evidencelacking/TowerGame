@@ -19,7 +19,7 @@ static func pendant(p: Object, lx: float, y: float, on: bool, radius: float = 70
 	p.item(lx - 7, y + 16, 14, 6, shade, 3.0)
 	if on:
 		p.GR(lx - 5, y + 21, 10, 2, Color("fff0c0"))
-		p.pool(lx, y + 24 + radius * 0.35, radius * 0.9, radius * 0.55, WARM, 0.55)
+		p.glow(lx, y + 24 + radius * 0.35, radius * 0.9, radius * 0.7, WARM, 0.55)
 	else:
 		p.R(lx - 5, y + 21, 10, 2, Color("b8b090"))
 
