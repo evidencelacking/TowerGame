@@ -48,6 +48,10 @@ func _ready() -> void:
 	room_window.name = "RoomWindow"
 	add_child(room_window)
 	room_window.bind(_tower, $PlacementGhost as PlacementGhost)
+	var news := NewsTicker.new()
+	news.name = "NewsTicker"
+	add_child(news)
+	news.bind(_tower, $TowerCamera as TowerCamera, person_window, room_window)
 	var elevator_window := ElevatorWindow.new()
 	elevator_window.name = "ElevatorWindow"
 	add_child(elevator_window)

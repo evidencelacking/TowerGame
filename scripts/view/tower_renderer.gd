@@ -58,6 +58,7 @@ var _room_runs: Array[Array] = []  ## [id, owning room id, rect] per placed room
 var _link_runs: Array[Array] = []  ## [kind, two-floor rect] per stairs or escalator.
 var _static_view: SubViewport = null
 var _static_layer: Node2D = null
+var _static_sprite: Sprite2D = null
 var _dynamic_view: SubViewport = null
 var _dynamic_layer: Node2D = null
 
@@ -70,8 +71,10 @@ func _ready() -> void:
 	var size := Vector2i(VC.world_rect().size)
 	_static_layer = _make_layer(size, _paint_static)
 	_static_view = _static_layer.get_parent()
+	_static_sprite = _sprite_of(_static_view)
 	_dynamic_layer = _make_layer(size, _paint_dynamic)
 	_dynamic_view = _dynamic_layer.get_parent()
+	_apply_density()
 	queue_redraw()
 
 
@@ -92,6 +95,26 @@ func _make_layer(size: Vector2i, painter: Callable) -> Node2D:
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(sprite)
 	return layer
+
+
+## The sprite that shows a layer's SubViewport.
+func _sprite_of(view: SubViewport) -> Sprite2D:
+	for child: Node in get_children():
+		if child is Sprite2D and (child as Sprite2D).texture == view.get_texture():
+			return child as Sprite2D
+	return null
+
+
+## Sizes the static canvas for the style in use (#302): Classic is one pixel per native pixel; a style at
+## density 2 gets a canvas twice as wide and tall, its layer scaled 2 so every Classic call still paints the
+## same world rect, and its sprite scaled a half so it covers the same world. Detailed rooms then paint in
+## half-pixel steps that land on whole pixels of the bigger canvas. The dynamic layer (people, cars) stays
+## at native size for now.
+func _apply_density() -> void:
+	var density := GraphicsStyle.current().density()
+	_static_view.size = Vector2i(VC.world_rect().size) * density
+	_static_layer.scale = Vector2(density, density)
+	_static_sprite.scale = Vector2(1.0 / density, 1.0 / density)
 
 
 ## Redraws what changed; the view never polls the whole tower.
@@ -124,6 +147,7 @@ func _process(delta: float) -> void:
 		layout_changed = true
 	if GraphicsStyle.current() != _seen_style:  ## Graphics Classic/Detailed changed: repaint everything.
 		_seen_style = GraphicsStyle.current()
+		_apply_density()
 		layout_changed = true
 		queue_redraw()
 	var dirty := layout_changed or tower.tick - _static_tick >= STATIC_REFRESH_TICKS or tower.tick < _static_tick
