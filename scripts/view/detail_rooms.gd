@@ -12,6 +12,7 @@ const Scenes := preload("res://scripts/view/detail_scenes.gd")
 const Shops := preload("res://scripts/view/detail_shops.gd")
 const Hall := preload("res://scripts/view/detail_hall.gd")
 const Pool := preload("res://scripts/view/detail_pool.gd")
+const Venues := preload("res://scripts/view/detail_venues.gd")
 const SkyLobby := preload("res://scripts/view/detail_sky_lobby.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
@@ -27,7 +28,7 @@ const CURTAINS: Array[String] = ["b86a5a", "5a7aa0", "5a8a6a"]
 
 
 static func handles(kind: String) -> bool:
-	return KINDS.has(kind) or kind == SKY_LOBBY or Shops.handles(kind) or Hall.handles(kind) or Pool.handles(kind)
+	return KINDS.has(kind) or kind == SKY_LOBBY or Shops.handles(kind) or Hall.handles(kind) or Pool.handles(kind) or Venues.handles(kind)
 
 
 ## Paints a room or suite of `kind` over rect (world pixels, at least one floor tall; a lobby taller than a
@@ -74,6 +75,8 @@ static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bo
 		_:
 			if Pool.handles(kind):
 				Pool.draw(pen, w, y0, seats, lit, night, id, upper, pal)
+			elif Venues.handles(kind):
+				Venues.draw(pen, kind, w, y0, seats, lit, night, id, pal)
 			elif Hall.handles(kind):
 				Hall.draw(pen, kind, w, y0, seats, lit, night, id, upper, pal)
 			else:
