@@ -129,16 +129,31 @@ static func describe(tower: Tower, room_id: int, broken: Variant = null) -> Dict
 static func draw(canvas: Object, tower: Tower, id: int, rect: Rect2i, broken: Variant = null, lit: bool = false, dark: bool = false) -> void:
 	var look := describe(tower, id, broken)
 	var kind: String = look["kind"]
-	var state: String = look["state"]
 	var upper := tower.rooms.is_tall_upper(id)
-	var in_use := (lit or state == OCCUPIED or state == LEASED) and not dark  # dark: everyone in it is asleep
-	var p := Palette.get_palette()
-	var base := Palette.hue(RoomRecipes.hue_key(kind))
+	var shown := appearance(look, lit, dark)  # dark: everyone in it is asleep
+	var base: Color = shown[0]
+	var in_use: bool = shown[1]
+	draw_recipe(canvas, kind, rect, base, in_use, upper, id)
+	draw_marks(canvas, look, rect, upper)
+
+
+## The base colour and in-use look of a placed room, from its describe() result: the state tint replaces
+## the hue for dirty, infested, idle and vacant rooms. Returns [colour, in_use]. Shared by both graphics styles.
+static func appearance(look: Dictionary, lit: bool, dark: bool) -> Array:
+	var state: String = look["state"]
+	var base := Palette.hue(RoomRecipes.hue_key(look["kind"]))
 	if state == DIRTY or state == INFESTED or state == IDLE or state == VACANT:
-		base = look["color"]  # the state tint replaces the hue
+		base = look["color"]
 	elif state == BROKEN:
 		base = base.darkened(0.35)
-	draw_recipe(canvas, kind, rect, base, in_use, upper, id)
+	return [base, (lit or state == OCCUPIED or state == LEASED) and not dark]
+
+
+## The state marks over a drawn room (vacant border, broken cross, pest, dirt, rubbish), in world pixels.
+static func draw_marks(canvas: Object, look: Dictionary, rect: Rect2i, upper: bool) -> void:
+	var kind: String = look["kind"]
+	var state: String = look["state"]
+	var p := Palette.get_palette()
 	var edge: Color = p["outline"]
 	var interior := Rect2i(rect.position.x, rect.end.y - VC.CELL_H, rect.size.x, VC.CELL_H - VC.SLAB_H)
 	if state == VACANT:
