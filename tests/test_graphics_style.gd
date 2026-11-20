@@ -16,6 +16,7 @@ const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const TestPests := preload("res://tests/test_pests.gd")
 
 const TestDetailedBatch1 := preload("res://tests/test_detailed_batch1.gd")
+const TestDetailedBatch2 := preload("res://tests/test_detailed_batch2.gd")
 const BASEMENT: Array[String] = ["recycling", "parking_ramp", "parking_space"]
 
 
@@ -57,6 +58,7 @@ static func run(check: Callable) -> void:
 	_the_rest(check, classic, detailed)
 	_spots(check, classic, detailed)
 	TestDetailedBatch1.run(check)
+	TestDetailedBatch2.run(check)
 
 
 ## Placed rooms in every state they are drawn in, through the full room path.
