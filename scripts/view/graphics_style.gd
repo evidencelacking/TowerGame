@@ -71,6 +71,11 @@ func link(canvas: Object, kind: String, span: Rect2i) -> void:
 	TransportLook.draw_link(canvas, kind, span)
 
 
+## An escalator's moving steps and handrail dashes at a sim tick.
+func belt(canvas: Object, span: Rect2i, tick: int, hue: Color) -> void:
+	TransportLook.draw_belt(canvas, span, tick, hue)
+
+
 ## One shaft: body, machine-room caps (rects), and doors at each stop's floor surface row.
 func shaft(canvas: Object, rect: Rect2i, color: Color, caps: Array[Rect2i], door_rows: Array[int], see_through: bool) -> void:
 	TransportLook.draw_shaft_body(canvas, rect, color)
