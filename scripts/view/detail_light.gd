@@ -12,6 +12,8 @@ const SkyLook := preload("res://scripts/view/sky_look.gd")
 const AMBIENT_DAY: Color = Color("fff4e2")  ## The mock-up's CanvasModulate colours.
 const AMBIENT_NIGHT: Color = Color("3a4478")
 const TEX := 128
+## Overall light level (#353): additive lights at full strength clipped to white blobs; the mock-up's lamps tint a room warm.
+const BRIGHTNESS := 0.55
 
 ## Recorded lights: [clip Rect2, centre Vector2, radii Vector2, colour, strength, owner], in world pixels. The owner
 ## is the id of the renderer piece painting when the light was added (0 when none): a piece repainting drops its own.
@@ -50,7 +52,7 @@ static func intensity(daylight: int) -> float:
 static func texture() -> GradientTexture2D:
 	if _texture == null:
 		var grad := Gradient.new()
-		grad.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.45), Color(1, 1, 1, 0)])
+		grad.colors = PackedColorArray([Color(1, 1, 1, 0.8), Color(1, 1, 1, 0.35), Color(1, 1, 1, 0)])
 		grad.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
 		_texture = GradientTexture2D.new()
 		_texture.gradient = grad
@@ -82,5 +84,5 @@ func _draw() -> void:
 			continue
 		var src := Rect2((area.position - (centre - radii)) / (radii * 2.0) * float(TEX), area.size / (radii * 2.0) * float(TEX))
 		var c: Color = light[3]
-		var s: float = float(light[4]) * k
+		var s: float = float(light[4]) * k * BRIGHTNESS
 		draw_texture_rect_region(tex, area, src, Color(c.r * s, c.g * s, c.b * s, 1.0))
