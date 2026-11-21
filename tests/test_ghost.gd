@@ -49,9 +49,52 @@ static func _run_lobby_height(check: Callable) -> void:
 	check.call(widen["height"] == 3, "widening keeps the lobby's own height")
 
 
+## Sticky placement (#381): an office (9 wide) hovered near one at 100 to 108 on floor 2.
+static func _run_sticky(check: Callable) -> void:
+	var t := _wide()
+	TestRooms._room(t, _kind("office"), 2, 100)
+	var ghost := Ghost.new()
+	ghost.tower = t
+	ghost.tool = "office"
+	ghost.stars = 5
+	var one := ghost.hover(2, 114)  ## x_left 110: one empty unit (109) beside the room.
+	check.call(one["x"] == 109 and one["valid"], "a 1-unit gap snaps flush to the left neighbour")
+	var two := ghost.hover(2, 115)
+	check.call(two["x"] == 109, "a 2-unit gap snaps flush")
+	var three := ghost.hover(2, 116)
+	check.call(three["x"] == 112, "a 3-unit gap does not snap")
+	ghost.free_place = true
+	check.call(ghost.hover(2, 114)["x"] == 110, "holding the free-place modifier disables snapping")
+	ghost.free_place = false
+	check.call(ghost.hover(2, 114)["x"] == 109, "releasing the modifier snaps again")
+	# Right edge: a neighbour at 120 to 128 with the cursor to its left.
+	var solo := _wide()
+	TestRooms._room(solo, _kind("office"), 2, 120)
+	check.call(Ghost.snap_x(solo, "office", 2, 110, 5) == 111, "a 1-unit gap snaps to the right neighbour")
+	check.call(Ghost.snap_x(solo, "office", 2, 108, 5) == 108, "a 3-unit gap on the right does not snap")
+	# Nearer edge wins: gap 2 on the left, gap 1 on the right.
+	var both := _wide()
+	TestRooms._room(both, _kind("office"), 2, 100)
+	TestRooms._room(both, _kind("office"), 2, 121)
+	check.call(Ghost.snap_x(both, "office", 2, 111, 5) == 112, "the nearer neighbour edge wins")
+	# An invalid snap falls back to the cursor position.
+	var gapped := _wide()
+	TestRooms._room(gapped, _kind("office"), 2, 100)
+	TestRooms._room(gapped, _kind("office"), 2, 110)
+	TestRooms._room(gapped, _kind("office"), 3, 100)
+	check.call(Ghost.evaluate(gapped, "office", 3, 110, 5)["valid"], "fixture: the cursor spot rests on the room below")
+	check.call(not Ghost.evaluate(gapped, "office", 3, 109, 5)["valid"], "fixture: the snapped spot hangs over the empty unit below")
+	check.call(Ghost.snap_x(gapped, "office", 3, 110, 5) == 110, "an invalid snap falls back to the cursor position")
+	# Other tools are untouched.
+	check.call(Ghost.snap_x(t, "stairs", 2, 110, 5) == 110, "stairs do not snap")
+	check.call(Ghost.snap_x(t, "lobby", 2, 110, 5) == 110, "the lobby does not snap")
+	ghost.free()
+
+
 static func run(check: Callable) -> void:
 	_run_lobby_height(check)
 	_run_spans(check)
+	_run_sticky(check)
 	var t := _wide()
 	check.call(t.floors.has_lobby(), "fixture: the lobby is built")
 	# Valid: cost includes the floor bought under the room (9 units at 500 on top of 40000).
