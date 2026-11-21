@@ -26,7 +26,7 @@ func room(canvas: Object, tower: Tower, id: int, rect: Rect2i, broken: Variant, 
 		return
 	var shown := RoomLook.appearance(look, lit, dark)
 	DetailRooms.draw(canvas, kind, rect, shown[0], shown[1], tower.rooms.is_tall_upper(id), id, false, dark)
-	RoomLook.draw_marks(canvas, look, rect, tower.rooms.is_tall_upper(id))
+	RoomLook.draw_marks(canvas, look, rect, tower.rooms.is_tall_upper(id), true)
 
 
 func suite(canvas: Object, kind: String, rect: Rect2i, id: int) -> void:
