@@ -1,6 +1,6 @@
 extends RefCounted
 ## Fire, #217: needs 3 stars and a security office, starts in a random room, spreads sideways and up
-## each period, destroys a room after 3 periods unless guards reach it (#216), and the owner may pay
+## each period, burns a room out after 3 periods unless guards reach it (#216), and the owner may pay
 ## $500,000 for a rescue craft that puts out every fire except the first two rooms that burned.
 
 const TowerSim := preload("res://scripts/sim/tower.gd")
@@ -10,6 +10,7 @@ const Msg := preload("res://scripts/sim/messages.gd")
 const FireScript := preload("res://scripts/sim/fire.gd")
 const Sec := preload("res://scripts/sim/security.gd")
 const GridScript := preload("res://scripts/sim/grid.gd")
+const EventWindow := preload("res://scripts/view/event_window.gd")
 
 
 ## A 3-star tower with floors 3, 4, 30 and 31 built. Seeded.
@@ -59,6 +60,22 @@ static func _uncovered(seed_value: int) -> TowerSim:
 	return t
 
 
+## A tower whose floor 3 office at column 110 is reached by stairs from the lobby (no security, no fire).
+static func _reachable() -> TowerSim:
+	var t := _tower(9)
+	_put(t, "office", 3, 110)
+	t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, 1, 100)
+	t.rooms.place_stairs(t.grid, t.floors, t.ledger, 0, 2, 104)
+	return t
+
+
+## Runs a weekday mid-morning, when offices lease.
+static func _morning(t: TowerSim) -> void:
+	t.clock.set_to_tick(700)
+	for _i in 10:
+		t.step()
+
+
 static func run(check: Callable) -> void:
 	# Gate: no fire without a security office, whatever the odds.
 	var bare := _tower(1)
@@ -91,7 +108,7 @@ static func run(check: Callable) -> void:
 	check.call(guarded.fire.burning_rooms().is_empty() and guarded.rooms.has_room(covered) and _has_message(guarded, Msg.FIRE_OUT), "guards reach a covered fire and put it out")
 	check.call(not _has_message(guarded, Msg.ROOM_BURNED) and guarded.events.open_count() == 0, "nothing is lost and the choice closes")
 
-	# Left to burn: no guards reach floor 30, so the room goes after 3 periods.
+	# Left to burn: no guards reach floor 30, so the room burns out after 3 periods.
 	var burnt := _uncovered(3)
 	var target := burnt.grid.cell_at(30, 100)
 	check.call(_until_burning(burnt) and burnt.fire.burning_rooms() == ([target] as Array[int]), "an uncovered fire starts in the room on floor 30")
@@ -102,12 +119,14 @@ static func run(check: Callable) -> void:
 		if burnt.clock.ticks_in_period() == 0:
 			boundaries += 1
 			if boundaries == 2:
-				alive_before_third = burnt.rooms.has_room(target)
+				alive_before_third = burnt.rooms.has_room(target) and not burnt.rooms.is_charred(target)
 			if boundaries == 3:
 				break
-	check.call(alive_before_third and not burnt.rooms.has_room(target), "an unattended room burns for 3 periods, then is destroyed")
-	check.call(burnt.grid.cell_at(30, 100) == GridScript.EMPTY and burnt.fire.burning_rooms().is_empty() and _has_message(burnt, Msg.ROOM_BURNED), "the destroyed room leaves empty floor")
-	check.call(burnt.rooms.place_room(burnt.grid, burnt.floors, burnt.ledger, burnt.tick, Catalogue.IDS.find("office"), 30, 100) == Rooms.OK, "the floor under it is still there")
+	check.call(alive_before_third, "an unattended room is still standing, not burnt out, after 2 periods")
+	check.call(burnt.rooms.has_room(target) and burnt.rooms.is_charred(target) and burnt.fire.burning_rooms().is_empty() and _has_message(burnt, Msg.ROOM_BURNED), "after 3 periods it stands charred, not deleted")
+	check.call(burnt.fire.charred_rooms() == ([target] as Array[int]) and burnt.grid.cell_at(30, 100) == target, "the charred room keeps its place in the tower")
+	check.call(burnt.rooms.place_room(burnt.grid, burnt.floors, burnt.ledger, burnt.tick, Catalogue.IDS.find("office"), 30, 100) == Rooms.OVERLAPS_ROOM, "nothing can be built over it until it is cleared")
+	check.call(FireScript.valid_ints(burnt.fire.state_ints()) and burnt.fire.state_ints().size() == 7, "the saved fire ints carry the charred room")
 
 	# The paid rescue: costs $500,000, arrives in a period, loses the room that was burning.
 	var rescued := _uncovered(3)
@@ -126,21 +145,21 @@ static func run(check: Callable) -> void:
 		if arrived == 0 and rescued.fire.burning_rooms().is_empty():
 			arrived = rescued.tick
 	check.call(arrived != 0 and arrived - paid_at <= 600 and _has_message(rescued, Msg.RESCUE_ARRIVED), "the rescue craft puts the fire out")
-	check.call(not rescued.rooms.has_room(doomed), "the first room that was burning is lost even so")
+	check.call(rescued.rooms.is_charred(doomed), "the first room that was burning is lost (charred) even so")
 
 	# Rescue with three fires: the first two are lost, the third is saved.
 	var three := _uncovered(4)
 	var a := three.grid.cell_at(30, 100)
 	var b := _put(three, "office", 30, 109)
 	var c := _put(three, "office", 30, 118)
-	var ints := three.fire.state_ints()
+	var ints := three.fire.state_ints().slice(0, 5)
 	ints[3] = three.tick + 5
 	ints[4] = 3
-	ints.append_array([a, 0, 0, b, 0, 0, c, 0, 0] as Array[int])
+	ints.append_array([a, 0, 0, b, 0, 0, c, 0, 0, 0] as Array[int])
 	three.fire.load_ints(ints)
 	for _i in 6:
 		three.step()
-	check.call(not three.rooms.has_room(a) and not three.rooms.has_room(b) and three.rooms.has_room(c) and three.fire.burning_rooms().is_empty(), "the rescue saves every fire except the first two rooms that burned")
+	check.call(three.rooms.is_charred(a) and three.rooms.is_charred(b) and not three.rooms.is_charred(c) and three.fire.burning_rooms().is_empty(), "the rescue saves every fire except the first two rooms that burned")
 
 	# Not enough money: the choice is refused and stays open.
 	var poor := _uncovered(3)
@@ -156,7 +175,7 @@ static func run(check: Callable) -> void:
 	_until_burning(silent)
 	for _i in 3000:
 		silent.step()
-	check.call(not silent.rooms.has_room(silent_room) and silent.events.open_count() == 0, "an unanswered fire is left to burn and the choice times out")
+	check.call(silent.rooms.is_charred(silent_room) and silent.events.open_count() == 0, "an unanswered fire is left to burn and the choice times out")
 
 	# Spread: over some seeds a fire reaches the neighbours, over others it does not.
 	var spread := 0
@@ -183,7 +202,93 @@ static func run(check: Callable) -> void:
 	_until_burning(staffed)
 	for _i in 3000:
 		staffed.step()
-	check.call(not staffed.rooms.has_room(work) and staffed.people.count() == 0, "people tied to a burned room are removed")
+	check.call(staffed.rooms.is_charred(work) and staffed.people.count() == 0, "people tied to a burned room are removed")
+
+	# Charred rooms earn nothing and house nobody until repaired. Control: the same office, not charred, fills.
+	var open := _reachable()
+	var open_room := open.grid.cell_at(3, 110)
+	_morning(open)
+	check.call(open.people.workers_in(open_room) == 6, "control: a reachable office fills with 6 workers")
+	var husk := _reachable()
+	var shell := husk.grid.cell_at(3, 110)
+	husk.rooms.charred[shell] = true  # as if burned out
+	_morning(husk)
+	check.call(husk.people.workers_in(shell) == 0, "a charred room houses nobody, though the lobby reaches it")
+	husk.people.add_person(-1, shell, husk.rng)  # a stray tenant, to see whether rent is paid for the room
+	check.call(husk.rent.collect(husk.rooms, husk.people, husk.ledger, husk.tick) == 0, "a charred room earns no rent")
+
+	# Repair: half the build cost, through a command; the office then takes tenants again.
+	var cost := FireScript.repair_cost("office")
+	check.call(cost == Catalogue.cost("office") / 2 and cost > 0, "repair costs half the build cost")
+	var funds := husk.ledger.balance
+	check.call(husk.repair_room(4, 110) == Rooms.NOTHING_THERE and husk.repair_room(3, 110) == Rooms.OK and not husk.rooms.is_charred(shell), "repair restores a charred room")
+	check.call(funds - husk.ledger.balance == cost and husk.repair_room(3, 110) == Rooms.NOT_CHARRED, "repair charges its cost once, and an intact room refuses")
+	check.call(husk.rent.collect(husk.rooms, husk.people, husk.ledger, husk.tick) > 0, "a repaired room earns rent again")
+	_morning(husk)
+	check.call(husk.people.workers_in(shell) == 6, "a repaired office takes tenants again")
+	var poor_fix := _reachable()
+	var poor_room := poor_fix.grid.cell_at(3, 110)
+	poor_fix.rooms.charred[poor_room] = true
+	poor_fix.ledger.balance = cost - 1
+	check.call(poor_fix.repair_room(3, 110) == Ledger.SHORT_OF_FUNDS and poor_fix.rooms.is_charred(poor_room), "repair without the money is refused")
+	var queued := _reachable()
+	var queued_room := queued.grid.cell_at(3, 110)
+	queued.rooms.charred[queued_room] = true
+	queued.enqueue(Command.make(queued.tick + 1, Command.REPAIR_ROOM, [3, 110] as Array[int]))
+	queued.step()
+	check.call(not queued.rooms.is_charred(queued_room) and _has_message(queued, Msg.ROOM_REPAIRED), "the REPAIR_ROOM command repairs the room")
+
+	# A charred room can be bulldozed; bulldozing forgets the char.
+	var razed := _reachable()
+	var razed_room := razed.grid.cell_at(3, 110)
+	razed.rooms.charred[razed_room] = true
+	check.call(razed.rooms.bulldoze(razed.grid, razed.floors, razed.ledger, razed.tick, 3, 110) == Rooms.OK and not razed.rooms.is_charred(razed_room), "bulldozing a charred room clears it")
+
+	# A burned room, saved and loaded, is still charred, and the loaded tower runs the same.
+	var scorched := _uncovered(7)
+	_until_burning(scorched)
+	var scorched_room: int = scorched.fire.burning_rooms()[0]
+	for _i in 3000:
+		scorched.step()
+	var reloaded := TowerSim.new(0)
+	check.call(scorched.rooms.is_charred(scorched_room) and reloaded.load_state(scorched.save()) and reloaded.rooms.is_charred(scorched_room) and reloaded.fire.charred_rooms() == scorched.fire.charred_rooms(), "the charred state survives save and load")
+	_force(reloaded)
+	for _i in 500:
+		scorched.step()
+		reloaded.step()
+	check.call(reloaded.state_hash() == scorched.state_hash(), "a loaded tower with a charred room matches the original")
+
+	# Prompt dialog: describes the open fire choice and its cost; the buttons answer it.
+	var prompt := _uncovered(3)
+	var dialog := FireDialog.new()
+	dialog.bind(prompt)
+	dialog.refresh()
+	check.call(not dialog.panel.visible, "the fire prompt is hidden while nothing burns")
+	_until_burning(prompt)
+	dialog.refresh()
+	var shown := FireDialog.describe(prompt)
+	check.call(dialog.panel.visible and shown["unguarded"] and shown["cost"] == 500000 and "$500000" in shown["text"] and "$500000" in dialog.pay_button.text, "an unguarded fire shows the prompt with the cost")
+	var panel := EventWindow.new()
+	panel.bind(prompt)
+	panel.refresh()
+	check.call(not EventWindow.describe(prompt).is_empty() and not panel.panel.visible, "the general event panel leaves the fire to its own prompt")
+	panel.free()
+	var before_pay := prompt.ledger.balance
+	dialog.pay_button.pressed.emit()
+	prompt.step()
+	check.call(before_pay - prompt.ledger.balance == 500000 and prompt.fire.rescue_at() > 0, "the prompt's pay button calls the fire company")
+	dialog.refresh()
+	check.call(not dialog.panel.visible, "the prompt closes once answered")
+	var declined := _uncovered(3)
+	var dialog2 := FireDialog.new()
+	dialog2.bind(declined)
+	_until_burning(declined)
+	dialog2.refresh()
+	dialog2.burn_button.pressed.emit()
+	declined.step()
+	check.call(declined.events.open_count() == 0 and declined.fire.rescue_at() == 0 and not declined.fire.burning_rooms().is_empty(), "let it burn closes the prompt and leaves the fire")
+	dialog.free()
+	dialog2.free()
 
 	# Save and load in the middle of a fire resume the same run.
 	var live := _uncovered(6)
@@ -198,4 +303,4 @@ static func run(check: Callable) -> void:
 		live.step()
 		copy.step()
 	check.call(copy.state_hash() == live.state_hash() and copy.fire.state_ints() == live.fire.state_ints(), "the loaded tower and the original stay identical to the end of the fire")
-	check.call(not FireScript.valid_ints([1, 2, 3]) and not FireScript.valid_ints([0, 0, 0, 0, 1]), "a malformed fire save is refused")
+	check.call(not FireScript.valid_ints([1, 2, 3]) and not FireScript.valid_ints([0, 0, 0, 0, 1]) and not FireScript.valid_ints([0, 0, 0, 0, 0]) and FireScript.valid_ints([0, 0, 0, 0, 0, 0]), "a malformed fire save is refused")

@@ -70,6 +70,8 @@ func reachable(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, id: i
 
 
 func _reachable(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, id: int, entry_x: int) -> bool:
+	if rooms.is_charred(id):  # a burned-out room takes no tenants or visitors until repaired (#373)
+		return false
 	var run := grid.run_of(id)
 	if run.is_empty():
 		return false

@@ -55,7 +55,7 @@ static func tenanted_rooms(tower: Object) -> Dictionary:
 	var workers: Dictionary = tower.people.worker_counts()  # one pass, not one per room (#399)
 	for id: int in tower.rooms.room_ids():
 		var kind: String = tower.rooms.kind_of(id)
-		if not joins(kind):
+		if not joins(kind) or tower.rooms.is_charred(id):
 			continue
 		if (kind == "retail" and not tower.commerce.is_vacant(id)) or int(workers.get(id, 0)) > 0:
 			out[id] = true

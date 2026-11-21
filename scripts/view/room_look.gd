@@ -22,6 +22,7 @@ const VACANT := "vacant"
 const OPEN := "open"
 const IDLE := "idle"  ## A full recycling centre: it takes nothing until the truck comes.
 const BROKEN := "broken"  ## Parking cut off from its ramp.
+const CHARRED := "charred"  ## Burned out by a fire (#373): blackened, empty, earning nothing until repaired.
 
 const SINGLE_COLOR := Color(0.93, 0.80, 0.55)
 const TWIN_COLOR := Color(0.95, 0.68, 0.30)
@@ -54,6 +55,10 @@ const RAMP_COLOR := Color(0.50, 0.50, 0.55)
 const SPACE_COLOR := Color(0.62, 0.62, 0.68)
 const BROKEN_COLOR := Color(0.85, 0.15, 0.15)
 const VACANT_COLOR := Color(0.62, 0.66, 0.60)
+const CHARRED_COLOR := Color(0.13, 0.11, 0.10)
+const SOOT := Color(0.04, 0.03, 0.03, 0.78)
+const SCORCH := Color(0.02, 0.02, 0.02, 0.9)
+const EMBER := Color(0.85, 0.34, 0.10)
 const DIRTY_TINT := Color(0.42, 0.34, 0.26)
 const INFESTED_TINT := Color(0.32, 0.38, 0.22)
 const GLOW_COLOR := Color(1.0, 0.93, 0.50)
@@ -113,6 +118,8 @@ static func describe(tower: Tower, room_id: int, broken: Variant = null, workers
 	var fill := 0
 	var state := OPEN
 	var color := base_color(kind)
+	if tower.rooms.is_charred(id):
+		return {"kind": kind, "state": CHARRED, "color": CHARRED_COLOR, "fill": 0, "empty": false}
 	var empty := false  ## Unrented or unoccupied: drawn with the vacant look (#358).
 	if tower.hotel.is_hotel(id):
 		if tower.hotel.is_infested(id):
@@ -191,6 +198,8 @@ static func draw(canvas: Object, tower: Tower, id: int, rect: Rect2i, broken: Va
 static func appearance(look: Dictionary, lit: bool, dark: bool) -> Array:
 	var state: String = look["state"]
 	var base := Palette.hue(RoomRecipes.hue_key(look["kind"]))
+	if state == CHARRED:
+		return [look["color"], false]
 	if state == DIRTY or state == INFESTED or state == IDLE or state == VACANT:
 		base = look["color"]
 	elif state == BROKEN:
@@ -205,6 +214,9 @@ static func draw_marks(canvas: Object, look: Dictionary, rect: Rect2i, upper: bo
 	var p := Palette.get_palette()
 	var edge: Color = p["outline"]
 	var interior := Rect2i(rect.position.x, rect.end.y - VC.CELL_H, rect.size.x, VC.CELL_H - VC.SLAB_H)
+	if state == CHARRED:
+		_charred_marks(canvas, interior)
+		return
 	if bool(look.get("empty", false)) and not upper:  # the vacant look (#358); fine is the Detailed style
 		VacantLook.draw(canvas, kind, rect, fine)
 	if state == VACANT:
@@ -223,6 +235,24 @@ static func draw_marks(canvas: Object, look: Dictionary, rect: Rect2i, upper: bo
 		_rubbish(canvas, interior, int(look["fill"]), upper)
 	if kind == PoolLifeScript.KIND:
 		_pool_marks(canvas, look, interior, upper, p)
+
+
+## The burned-out look (#373), the same in Classic and Detailed: soot over the whole room, a ragged black scorch
+## up from the floor, a few cold embers, and a black cross boarding the room up. Fixed pixels, no randomness.
+static func _charred_marks(canvas: Object, interior: Rect2i) -> void:
+	canvas.draw_rect(interior, SOOT)
+	var step := 6
+	var n := 0
+	var x := interior.position.x + 2
+	while x < interior.end.x - 2:
+		var height := 5 + (n * 7 + interior.position.x) % 9  # ragged flame-lick scorch, 5 to 13 px
+		canvas.draw_rect(Rect2i(x, interior.end.y - height, mini(step - 1, interior.end.x - 2 - x), height), SCORCH)
+		if n % 3 == 1:
+			canvas.draw_rect(Rect2i(x + 1, interior.end.y - 2, 2, 1), EMBER)
+		x += step
+		n += 1
+	canvas.draw_line(Vector2(interior.position.x + 1, interior.position.y + 1), Vector2(interior.end.x - 1, interior.end.y - 1), SCORCH, 2.0)
+	canvas.draw_line(Vector2(interior.position.x + 1, interior.end.y - 1), Vector2(interior.end.x - 1, interior.position.y + 1), SCORCH, 2.0)
 
 
 ## A joined suite (#276): one lit space over rect, the union of its rooms, drawn from the kind's suite

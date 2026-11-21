@@ -13,11 +13,13 @@ extends RefCounted
 ##  - is put out when guards reach it: the nearest covering office's response time (Security) after
 ##    it ignited; a floor no office covers has no guards;
 ##  - each period start rolls [35%] to ignite the room on either side and the room above;
-##  - is destroyed [after 3 periods] of burning. Destroyed rooms leave empty floor.
-## A destroyed room is handed to Tower (take_destroyed) so people, rent, shops and the hotel let go of it.
+##  - is burned out [after 3 periods] of burning (#373): it stays standing but charred, uninhabitable (no
+##    tenants, rent, sales or guests: Rooms.is_charred) until the owner pays to repair it (Tower.repair_room,
+##    half its build cost) or bulldozes it. Fire never reignites a charred room.
+## A newly charred room is handed to Tower (take_burned) so people, rent, shops and the hotel let go of it.
 ##
-## Saved: the stream, the last event adopted and last answer read, the rescue tick, and each burning
-## room as [room id, periods burned, tick the guards arrive or 0].
+## Saved: the stream, the last event adopted and last answer read, the rescue tick, each burning
+## room as [room id, periods burned, tick the guards arrive or 0], then the count and ids of charred rooms.
 
 const ClockScript := preload("res://scripts/sim/clock.gd")
 const EventsScript := preload("res://scripts/sim/events.gd")
@@ -38,6 +40,8 @@ const RESCUE_LOST := 2  ## Rooms already burning that the rescue craft cannot sa
 const PAY := 1  ## The choice that calls the rescue craft.
 const TIMEOUT := 600  ## Ticks the owner has to choose (one rush period).
 const FIELDS := 3  ## Ints per burning room.
+const HEADER := 5  ## Ints before the burning rooms.
+const REPAIR_PERCENT := 50  ## Repairing a charred room costs this percent of its build cost (owner to confirm).
 
 var _rooms: Rooms
 var _rng := Rng.new()
@@ -45,7 +49,7 @@ var _seen: int = 0  ## Id of the last fire event started.
 var _read: int = 0  ## Id of the last fire event whose answer was read.
 var _rescue_at: int = 0  ## Tick the rescue craft arrives, 0 for none.
 var _burning: Array[Array] = []  ## [room id, periods burned, guards arrive tick or 0], oldest first.
-var _destroyed: Array[int] = []  ## Rooms burned down since Tower last took them (not saved).
+var _burned: Array[int] = []  ## Rooms charred since Tower last took them (not saved).
 
 
 func _init(rooms: Rooms = null) -> void:
@@ -61,8 +65,8 @@ func kind() -> Dictionary:
 	return {"id": KIND, "class": EventsScript.FIRE, "chance": CHANCE, "chance_den": CHANCE_DEN, "chance_of": _gate,
 		"min_stars": MIN_STARS, "choices": 2, "timeout": TIMEOUT, "floor": 0, "costs": [0, RESCUE_COST],
 		"title": "Fire!",
-		"text": "A fire has broken out in the tower. Guards from a security office within reach will put it out, but a floor no office covers has no guards. A burning room is destroyed after three periods, and the fire spreads to rooms beside and above.\nA rescue craft costs $500,000: it arrives in about one period and puts out every fire, but the first two rooms that burned are lost.",
-		"labels": ["Leave it to the guards", "Call the rescue craft ($500,000)"]}
+		"text": "A fire has broken out in the tower. Guards from a security office within reach will put it out, but a floor no office covers has no guards. A burning room is burned out after three periods and stands charred, empty and earning nothing until you pay to repair it. The fire spreads to rooms beside and above.\nAn outside fire company costs $500,000: it arrives in about one period and puts out every fire, but the first two rooms that burned are lost.",
+		"labels": ["Leave it to the guards", "Call the fire company ($500,000)"]}
 
 
 func _gate() -> int:
@@ -93,11 +97,33 @@ func rescue_at() -> int:
 	return _rescue_at
 
 
-## Rooms burned down since the last call; Tower clears their other state.
-func take_destroyed() -> Array[int]:
-	var out := _destroyed
-	_destroyed = []
+## Rooms charred since the last call; Tower clears their other state.
+func take_burned() -> Array[int]:
+	var out := _burned
+	_burned = []
 	return out
+
+
+## Charred rooms, lowest id first.
+func charred_rooms() -> Array[int]:
+	var ids: Array[int] = []
+	for id: int in _rooms.charred:
+		ids.append(id)
+	ids.sort()
+	return ids
+
+
+## What repairing a charred room of this kind costs, in whole dollars.
+static func repair_cost(kind: String) -> int:
+	return CatalogueScript.cost(kind) * REPAIR_PERCENT / 100
+
+
+## True when any burning room has no guards on the way: nobody will put it out but the owner's rescue.
+func has_unguarded_fire() -> bool:
+	for entry in _burning:
+		if entry[2] == 0:
+			return true
+	return false
 
 
 ## Called once a tick, after Events.tick.
@@ -139,12 +165,15 @@ func _forget_gone() -> void:
 			n += 1
 		else:
 			_burning.remove_at(n)  # bulldozed or destroyed by something else
+	for id in charred_rooms():
+		if not _rooms.has_room(id):
+			_rooms.charred.erase(id)  # a charred room that was bulldozed
 
 
 ## Links (stairs, escalators, shafts) do not burn, nor does the security office that answers fires.
 func _burnable(id: int) -> bool:
 	var kind := _rooms.kind_of(id)
-	return kind != "" and not Rooms.is_link_kind(kind) and kind != "lobby" and kind != Security.OFFICE_KIND and not is_burning(id)
+	return kind != "" and not Rooms.is_link_kind(kind) and kind != "lobby" and kind != Security.OFFICE_KIND and not is_burning(id) and not _rooms.is_charred(id)
 
 
 ## Starts the fire in a random room, one that people live or work in if there is any.
@@ -179,7 +208,8 @@ func _put_out(id: int, grid: GridScript, messages: MessagesScript, at_tick: int)
 
 func _burn_down(id: int, grid: GridScript, messages: MessagesScript, at_tick: int) -> void:
 	messages.add(at_tick, MessagesScript.ROOM_BURNED, CatalogueScript.IDS.find(_rooms.kind_of(id)), _rooms.floors_of(grid, id)[0])
-	_destroyed.append(id)
+	_rooms.charred[id] = true
+	_burned.append(id)
 
 
 ## The rescue craft arrives: the first RESCUE_LOST rooms that were burning are lost, the rest saved.
@@ -230,6 +260,9 @@ func state_ints() -> Array[int]:
 	var ints: Array[int] = [_rng.state, _seen, _read, _rescue_at, _burning.size()]
 	for entry in _burning:
 		ints.append_array(entry)
+	var charred := charred_rooms()
+	ints.append(charred.size())
+	ints.append_array(charred)
 	return ints
 
 
@@ -239,7 +272,8 @@ static func valid_ints(ints: Array) -> bool:
 			return false
 	if ints.size() < 5 or ints[1] < 0 or ints[2] < 0 or ints[3] < 0 or ints[4] < 0:
 		return false
-	return ints.size() == 5 + FIELDS * ints[4]
+	var after: int = HEADER + FIELDS * ints[4]
+	return ints.size() > after and ints[after] >= 0 and ints.size() == after + 1 + ints[after]
 
 
 func load_ints(ints: Array) -> void:
@@ -249,4 +283,9 @@ func load_ints(ints: Array) -> void:
 	_rescue_at = ints[3]
 	_burning = []
 	for n in int(ints[4]):
-		_burning.append(ints.slice(5 + n * FIELDS, 5 + (n + 1) * FIELDS))
+		_burning.append(ints.slice(HEADER + n * FIELDS, HEADER + (n + 1) * FIELDS))
+	var after: int = HEADER + FIELDS * int(ints[4])
+	_rooms.charred = {}
+	var charred_count: int = int(ints[after]) if ints.size() > after else 0  # a hand-built array may stop before the list
+	for n in charred_count:
+		_rooms.charred[ints[after + 1 + n]] = true

@@ -120,7 +120,7 @@ static func day_share(quarterly: int, last_day: bool) -> int:
 func collect(rooms: RoomsScript, people: PeopleScript, ledger: LedgerScript, at_tick: int, last_day: bool = true, bonus_percent: int = 0) -> int:
 	var total := 0
 	for id in rooms.room_ids():
-		if is_rentable(rooms.kind_of(id)) and people.workers_in(id) > 0:
+		if is_rentable(rooms.kind_of(id)) and not rooms.is_charred(id) and people.workers_in(id) > 0:
 			var amount := day_share(rent_of(rooms, id), last_day)
 			amount += amount * bonus_percent / 100  # a connected tower (a metro station) rents for more (synergy.gd)
 			ledger.income(at_tick, amount, id)

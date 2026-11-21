@@ -14,6 +14,7 @@ const ElevatorTools := preload("res://scripts/view/elevator_tools.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
+const FireScript := preload("res://scripts/sim/fire.gd")
 
 var tower: TowerSim = null
 var ghost: Ghost = null  ## Read for the active build tool.
@@ -22,6 +23,7 @@ var pinned: bool = false  ## True after a click: hover no longer changes the roo
 var panel: InfoPanel
 var bar: ProgressBar
 var rent_row: HBoxContainer
+var repair_button: Button  ## Burned-out rooms only (#373): pays Fire.repair_cost.
 var _view := PeopleView.new()
 var _shown_tick: int = -1
 
@@ -52,6 +54,12 @@ func _init() -> void:
 		button.focus_mode = Control.FOCUS_NONE
 		button.pressed.connect(set_rent.bind(level))
 		rent_row.add_child(button)
+	repair_button = Button.new()
+	repair_button.name = "RepairButton"
+	repair_button.focus_mode = Control.FOCUS_NONE
+	repair_button.visible = false
+	repair_button.pressed.connect(repair)
+	panel.add_control(repair_button)
 
 
 func bind(tower_value: TowerSim, ghost_value: Ghost) -> void:
@@ -124,6 +132,17 @@ func set_rent(level: int) -> bool:
 	return tower.enqueue(TowerSim.Command.make(tower.tick + 1, TowerSim.Command.SET_RENT, args))
 
 
+## Asks the sim to repair the shown burned-out room (applies on the next tick). Returns true if queued.
+func repair() -> bool:
+	if tower == null or not is_open() or not tower.rooms.is_charred(room_id):
+		return false
+	var run := tower.rooms.run_of(tower.grid, room_id)
+	if run.is_empty():
+		return false
+	var args: Array[int] = [run[0], run[1]]
+	return tower.enqueue(TowerSim.Command.make(tower.tick + 1, TowerSim.Command.REPAIR_ROOM, args))
+
+
 func _process(_delta: float) -> void:
 	if is_open() and tower != null and tower.tick != _shown_tick:
 		_refresh()
@@ -135,7 +154,16 @@ func _refresh() -> void:
 		return
 	_shown_tick = tower.tick
 	var info := RoomInfo.describe(tower, room_id)
-	panel.show_info(info["label"], RoomInfo.lines_for(info))
+	var lines := RoomInfo.lines_for(info)
+	var charred: bool = tower.rooms.is_charred(room_id)
+	if charred:
+		lines.append("Burned out: empty and earning nothing until repaired (or bulldozed)")
+	panel.show_info(info["label"], lines)
+	repair_button.visible = charred
+	if charred:
+		var cost := FireScript.repair_cost(tower.rooms.kind_of(room_id))
+		repair_button.text = "Repair ($%d)" % cost
+		repair_button.disabled = not pinned or tower.ledger.balance < cost
 	var value := RoomInfo.bar_value(info)
 	bar.visible = value >= 0
 	if value >= 0:
@@ -144,7 +172,7 @@ func _refresh() -> void:
 		fill.bg_color = RoomInfo.bar_color(info)
 		bar.add_theme_stylebox_override("fill", fill)
 	# Condos cannot change rent (the reference); only rentable kinds get the buttons.
-	rent_row.visible = info["rentable"]
+	rent_row.visible = info["rentable"] and not charred
 	for level in RentScript.LEVELS:
 		var button := rent_row.get_child(level) as Button
 		button.disabled = not pinned or level == info["rent_level"]

@@ -12,6 +12,7 @@ extends CanvasLayer
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const EventsScript := preload("res://scripts/sim/events.gd")
 const CarsScript := preload("res://scripts/sim/cars.gd")
+const FireScript := preload("res://scripts/sim/fire.gd")
 
 var tower: TowerSim = null
 var panel: PanelContainer
@@ -66,7 +67,7 @@ static func describe(t: Object) -> Array[Dictionary]:
 			else:
 				labels.append("Decline" if n == EventsScript.DECLINE else "Option %d" % n)
 		var left: int = event[5] - t.tick
-		result.append({"id": event[0], "title": str(def.get("title", "Event")), "text": str(def.get("text", "")), "ticks_left": left, "time": time_text(left), "labels": labels})
+		result.append({"id": event[0], "kind": event[1], "title": str(def.get("title", "Event")), "text": str(def.get("text", "")), "ticks_left": left, "time": time_text(left), "labels": labels})
 	return result
 
 
@@ -84,7 +85,11 @@ func _process(_delta: float) -> void:
 ## Brings the panel in line with the sim. The buttons are rebuilt only when the events change, so a
 ## click is never lost to a rebuild; the time left is updated in place.
 func refresh() -> void:
-	var entries: Array[Dictionary] = describe(tower) if tower != null else [] as Array[Dictionary]
+	var entries: Array[Dictionary] = []
+	if tower != null:
+		for entry in describe(tower):
+			if entry["kind"] != FireScript.KIND:  # a fire has its own dialog (fire_dialog.gd)
+				entries.append(entry)
 	panel.visible = not entries.is_empty()
 	var parts: Array[String] = []
 	for entry in entries:

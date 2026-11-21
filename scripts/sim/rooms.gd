@@ -57,6 +57,7 @@ const NO_FLOOR_FOR_ESCALATOR := 55  ## Escalator: one of the two floors is not b
 const ONE_STATION := 74  ## Metro: the tower already has its one station.
 const NOT_TOP := 75  ## Observation deck: only on the tower's top floor, with no room above it (#318).
 const ONE_DECK := 76  ## Observation deck: the tower already has its one deck.
+const NOT_CHARRED := 78  ## Repair: the cell holds no burned-out room (#373).
 const ONE_CASINO := 77  ## Casino: the tower already has its one casino (#319).
 const NOT_UNDERGROUND := 60  ## A basement-only room (recycling) needs every one of its floors below ground.
 const NOT_TOUCHING := 61  ## Recycling: a new centre must touch an existing centre.
@@ -110,6 +111,7 @@ var links_over := GridScript.new()
 var _kind_of: Dictionary = {}  # occupant id -> index in RoomCatalogue.IDS
 var _sold: Dictionary = {}  # condo occupant id -> true once sold (sales come in M3; tests set it)
 var _next_id: int = FIRST_ID
+var charred: Dictionary = {}  ## Room id to true while the room stands burned out (#373): no tenants, rent or sales. Owned and saved by Fire.
 ## Stairs hold two grid occupants, one per floor: the room id (lower floor) and id + 1 (upper).
 ## Running total of workers and residents removed by
 ## bulldozing. A room holds RoomCatalogue "people" of them.
@@ -349,6 +351,11 @@ func highest_room_floor(grid: GridScript) -> int:
 				run_top = floor_above(run_top)
 			top = maxi(top, run_top)
 	return top
+
+
+## True while a room stands burned out (Fire, #373).
+func is_charred(id: int) -> bool:
+	return charred.has(id)
 
 
 ## True for an observation deck with a room above it: the tower has grown past it, so it is closed until moved.
@@ -1368,6 +1375,7 @@ func bulldoze(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_t
 		ledger.payout(at_tick, checked["refund"], id)
 	_remove_occupants(grid, floors, id)
 	_kind_of.erase(id)
+	charred.erase(id)
 	_sold.erase(id)
 	return OK
 
@@ -1382,6 +1390,7 @@ func destroy(grid: GridScript, floors: FloorsScript, id: int) -> bool:
 	occupants_removed += people_in(id)
 	_remove_occupants(grid, floors, id)
 	_kind_of.erase(id)
+	charred.erase(id)
 	_sold.erase(id)
 	return true
 
@@ -1459,6 +1468,7 @@ func replace_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, 
 	occupants_removed += people_in(id)
 	_remove_occupants(grid, floors, id)
 	_kind_of.erase(id)
+	charred.erase(id)
 	_sold.erase(id)
 	var width: int = CatalogueScript.field(kind, "width")
 	floors.fill_span(floor_number, x_left, x_left + width - 1)

@@ -189,7 +189,7 @@ func tick(clock: ClockScript, floors: FloorsScript, people: PeopleScript, rng: O
 	_last_minute = minute
 	var night := night_of(clock)
 	for id in _rooms.room_ids():
-		if not is_hotel(id):
+		if not is_hotel(id) or _rooms.is_charred(id):
 			continue
 		if not _records.has(id):
 			var fresh: Array[int] = [VACANT, -1, -1, CHECK_OUT_FROM, -1, 0, -1, 0]

@@ -169,7 +169,8 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.VIP_BAD: return "The VIP left disappointed: another will visit in a few days"
 		Msg.FIRE_STARTED: return "Fire in a %s on floor %s" % [_kind_name(a), _floor_name(b)]
 		Msg.FIRE_OUT: return "Guards put out the fire in a %s on floor %s" % [_kind_name(a), _floor_name(b)]
-		Msg.ROOM_BURNED: return "A %s on floor %s burned down" % [_kind_name(a), _floor_name(b)]
+		Msg.ROOM_BURNED: return "A %s on floor %s burned out and stands charred until repaired" % [_kind_name(a), _floor_name(b)]
+		Msg.ROOM_REPAIRED: return "A %s on floor %s was repaired" % [_kind_name(a), _floor_name(b)]
 		Msg.RESCUE_ARRIVED: return "The rescue craft arrived: %d fire(s) put out, %d room(s) lost" % [a, b]
 		Msg.THREAT_NOTICE: return "An anonymous notice: a device is hidden in the tower"
 		Msg.THREAT_PAID: return "The payment was made and the threat ended"
