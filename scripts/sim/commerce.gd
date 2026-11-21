@@ -690,7 +690,7 @@ func _casino_incident(rooms: RoomsScript, ledger: LedgerScript, messages: Messag
 func collect_rent(rooms: RoomsScript, rent: RentScript, ledger: LedgerScript, at_tick: int, last_day: bool = true) -> int:
 	var total := 0
 	for id in rooms.room_ids():
-		if rooms.kind_of(id) == "retail" and not is_vacant(id):
+		if rooms.kind_of(id) == "retail" and not is_vacant(id) and not rooms.is_charred(id):
 			var amount := RentScript.day_share(rent.rent_of(rooms, id), last_day)
 			ledger.income(at_tick, amount, id)
 			total += amount

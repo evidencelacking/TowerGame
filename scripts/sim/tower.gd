@@ -70,6 +70,7 @@ class Command:
 	const SET_CAR_HOME := 20  ## Moves a car's home floor: args are shaft id, the car's place among the shaft's cars (0 oldest), floor. See Rooms.set_car_home.
 	const SET_SCHEDULE := 21  ## Sets one shaft schedule slot: args are shaft id, slot (0 to 5: weekday then weekend, 3 periods each), mode (0 normal, 1 express to top, 2 to bottom), response distance, departure wait in seconds. See Rooms.set_schedule.
 	const CHOOSE_EVENT := 50  ## Answers an open event: args are event id, choice (0 declines). See Events.choose.
+	const REPAIR_ROOM := 51  ## Repairs the burned-out room covering a cell: args are floor, x. Costs Fire.repair_cost. See Tower.repair_room.
 	const SET_SHAFT_STOP := 15  ## Turns a shaft's stop on a floor on or off: args are shaft id, floor, on (1 or 0). See Rooms.set_shaft_stop.
 
 	var tick: int = 0  ## The tick this command applies at.
@@ -84,7 +85,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 44
+const SAVE_VERSION := 45
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -223,6 +224,36 @@ func destroy_room(id: int) -> void:
 		commerce.remove_room(id)
 		hotel.remove_room(id)
 		pests.remove_room(id)
+
+
+## Burns a room out (fire, #373): it stays standing but charred, and everything that pointed at it lets go.
+## A sold condo is unsold, so repairing it lets it sell again. Rooms.charred (set by Fire) keeps it empty.
+func char_room(id: int) -> void:
+	people.remove_room(id)
+	rent.remove_room(id)
+	commerce.remove_room(id)
+	hotel.remove_room(id)
+	pests.remove_room(id)
+	rooms.set_sold(id, false)
+
+
+## Repairs the charred room covering a cell, paying Fire.repair_cost. Returns OK or a reason code
+## (NOTHING_THERE, NOT_CHARRED, SHORT_OF_FUNDS), changing nothing on a refusal.
+func repair_room(floor_number: int, x: int) -> int:
+	if not Grid.is_valid_floor(floor_number):
+		return RoomsScript.BAD_FLOOR
+	var id := rooms.room_of(grid.cell_at(floor_number, x))
+	if id == 0:
+		return RoomsScript.NOTHING_THERE
+	if not rooms.is_charred(id):
+		return RoomsScript.NOT_CHARRED
+	var kind := rooms.kind_of(id)
+	var paid := ledger.charge(tick, FireScript.repair_cost(kind), CatalogueScript.IDS.find(kind))
+	if paid != LedgerScript.OK:
+		return paid
+	rooms.charred.erase(id)
+	messages.add(tick, MessagesScript.ROOM_REPAIRED, CatalogueScript.IDS.find(kind), floor_number)
+	return RoomsScript.OK
 
 
 ## Working parking spaces now, searched once per tick however many suites ask.
@@ -370,6 +401,10 @@ func _apply_command(command: Command) -> void:
 					_note_refusal(MessagesScript.PURCHASE_REFUSED, command.args[0])
 				elif events.choose(command.args[0], command.args[1], tick) and cost > 0:
 					ledger.charge(tick, cost, command.args[0])
+		Command.REPAIR_ROOM:
+			if command.args.size() == 2:
+				last_refusal = repair_room(command.args[0], command.args[1])
+				_note_refusal(MessagesScript.ROOM_REFUSED, command.args[0])
 		Command.RENAME_PERSON:
 			if command.args.size() >= 1 and people.index_of(command.args[0]) != -1:
 				names.apply_args(command.args)
@@ -421,7 +456,9 @@ func _run_systems() -> void:
 		mood.note_event(MoodScript.FIRE_SHOCK, people)
 	if threat.is_active():
 		mood.note_event(MoodScript.THREAT_SHOCK, people)
-	for id in fire.take_destroyed() + threat.take_destroyed():
+	for id in fire.take_burned():
+		char_room(id)
+	for id in threat.take_destroyed():
 		destroy_room(id)
 	if EvaluationScript.is_due(clock):
 		evaluate_tenants()

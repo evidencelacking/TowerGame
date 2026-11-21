@@ -67,7 +67,7 @@ static func run(check: Callable) -> void:
 		check.call(_count(look, t, 100) == 0, "event look: %s draws nothing with no event" % look.get_method())
 
 	# Fire: the room on floor 4 burns, the guards arrive at tick 140.
-	var ints := t.fire.state_ints()
+	var ints := t.fire.state_ints().slice(0, 5)
 	ints[3] = 0
 	ints[4] = 1
 	ints.append_array([office, 1, 140] as Array[int])

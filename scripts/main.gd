@@ -62,6 +62,10 @@ func _ready() -> void:
 	event_window.name = "EventWindow"
 	add_child(event_window)
 	event_window.bind(_tower)
+	var fire_dialog := FireDialog.new()
+	fire_dialog.name = "FireDialog"
+	add_child(fire_dialog)
+	fire_dialog.bind(_tower)
 	var finance_window := FinanceWindow.new()
 	finance_window.name = "FinanceWindow"
 	add_child(finance_window)
