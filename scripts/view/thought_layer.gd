@@ -6,11 +6,14 @@ extends Node2D
 
 const ThoughtIcons := preload("res://scripts/view/thought_icons.gd")
 
+const MEMO_TICKS := 10  ## A person's earned icon is reused this long; positions still follow every tick.
+
 var tower: Tower = null
 var renderer: TowerRenderer = null
 var enabled: bool = true
 var respect_window: bool = true  ## Off only for captures that want every icon at once.
 var _picks: Array[Dictionary] = []
+var _memo: Dictionary = {}
 var _seen_tick: int = -1
 
 
@@ -28,7 +31,7 @@ func _process(_delta: float) -> void:
 	if tower == null or renderer == null or tower.tick == _seen_tick:
 		return
 	_seen_tick = tower.tick
-	_picks = ThoughtIcons.pick(tower, renderer.figures(), respect_window) if enabled else ([] as Array[Dictionary])
+	_picks = ThoughtIcons.pick(tower, renderer.figures(), respect_window, _memo, MEMO_TICKS) if enabled else ([] as Array[Dictionary])
 	queue_redraw()
 
 

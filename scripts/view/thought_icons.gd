@@ -10,6 +10,7 @@ extends RefCounted
 
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const MoodScript := preload("res://scripts/sim/mood.gd")
+const NoiseScript := preload("res://scripts/sim/noise.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
 const NONE := 0
@@ -59,14 +60,15 @@ static func is_showing(id: int, tick: int) -> bool:
 
 
 ## The icon the person at index i has earned now (NONE below every threshold), by priority: waiting, noise,
-## unhappy, hungry, happy. counts is Mood.floor_counts, computed once for many people.
-static func state_of(tower: Object, i: int, counts: Dictionary) -> int:
+## unhappy, hungry, happy. _counts (Mood.floor_counts) is kept for callers; the noise test below reads
+## the same figure Mood.factors would give but without computing every other factor. noise_cache
+## (room id -> mood points noise costs) lets a whole crowd share one noise lookup per room (#399).
+static func state_of(tower: Object, i: int, _counts: Dictionary = {}, noise_cache: Dictionary = {}) -> int:
 	var people: PeopleScript = tower.people
 	if people.stress_band(i) == PeopleScript.BAND_ANGRY:
 		return CLOCK
-	for factor: Array in tower.mood.factors(tower.rooms, tower.grid, tower.grades, people, counts, i):
-		if factor[0] == MoodScript.REASON_NOISE and -factor[1] >= NOISE_COST:
-			return NOISE
+	if noise_cost(tower, MoodScript.room_of(people, i), noise_cache) >= NOISE_COST:
+		return NOISE
 	var mood := people.mood_of(i)
 	if mood < MoodScript.LOW_BELOW:
 		return CLOUD
@@ -77,19 +79,38 @@ static func state_of(tower: Object, i: int, counts: Dictionary) -> int:
 	return NONE
 
 
+## The mood points noise costs the people of `room` (Mood.factors' noise change, sign dropped), 0 for no room.
+static func noise_cost(tower: Object, room: int, cache: Dictionary) -> int:
+	if room == PeopleScript.NONE or tower.rooms.kind_of(room) == "":
+		return 0
+	if not cache.has(room):
+		cache[room] = mini(NoiseScript.noise_at(tower.grid, tower.rooms, room) * MoodScript.NOISE_PER_LEVEL, MoodScript.NOISE_MAX)
+	return cache[room]
+
+
 ## The icons to draw now, from the figures the renderer drew: [{"id", "icon", "at"}] where at is the
 ## world point of the figure's head top (the bubble's tail points there). Deterministic for a tower and
 ## its tick. Cleaners and anyone not showing this tick are skipped; the cap keeps the most urgent.
-static func pick(tower: Object, figures: Array[Dictionary], respect_window: bool = true) -> Array[Dictionary]:
+## memo (id -> [icon, tick]) with memo_ticks > 0 lets a caller reuse a person's earned icon for that many
+## ticks, so the mood lookups run a tenth as often while bubbles still follow the figures every tick (#399).
+static func pick(tower: Object, figures: Array[Dictionary], respect_window: bool = true, memo: Dictionary = {}, memo_ticks: int = 0) -> Array[Dictionary]:
 	var found: Array[Dictionary] = []
-	var counts: Dictionary = MoodScript.floor_counts(tower.people, tower.grid, tower.floors)
+	var noise_cache: Dictionary = {}
 	for figure: Dictionary in figures:
 		if figure.get("staff", false) or not figure.has("id") or (respect_window and not is_showing(figure["id"], tower.tick)):
 			continue
 		var i: int = tower.people.index_of(figure["id"])
 		if i == -1:
 			continue
-		var icon := state_of(tower, i, counts)
+		var icon: int
+		var id: int = figure["id"]
+		var age: int = tower.tick - memo[id][1] if memo_ticks > 0 and memo.has(id) else -1
+		if age >= 0 and age < memo_ticks:
+			icon = memo[id][0]
+		else:
+			icon = state_of(tower, i, {}, noise_cache)
+			if memo_ticks > 0:
+				memo[id] = [icon, tower.tick]
 		if icon != NONE:
 			found.append({"id": figure["id"], "icon": icon, "at": head_of(figure)})
 	found.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["icon"] < b["icon"] or (a["icon"] == b["icon"] and a["id"] < b["id"]))

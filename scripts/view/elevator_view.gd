@@ -72,13 +72,13 @@ static func shafts(tower: Object) -> Array[Dictionary]:
 ## Queues at stops: [{"shaft", "x", "width", "floor", "dir", "count", "shown", "side", "label"}].
 ## People going up queue on the left of the shaft (side -1), people going down on the right (+1).
 ## Shown is the figures drawn, at most MAX_QUEUE_FIGURES; label is the overflow count.
-static func queues(tower: Object) -> Array[Dictionary]:
+static func queues(tower: Object, shaft_list: Array[Dictionary] = []) -> Array[Dictionary]:
 	var counts: Dictionary = {}  # [shaft id, floor, dir] -> count (reads the sim's queue only)
 	for entry: Array in tower.rooms._queue:
 		var key := [entry[1], entry[2], CarsScript.dir_to(entry[2], entry[3])]
 		counts[key] = int(counts.get(key, 0)) + 1
 	var by_id: Dictionary = {}
-	for shaft: Dictionary in shafts(tower):
+	for shaft: Dictionary in (shaft_list if not shaft_list.is_empty() else shafts(tower)):
 		by_id[shaft["id"]] = shaft
 	var out: Array[Dictionary] = []
 	for key: Array in counts:
@@ -134,10 +134,10 @@ func glide(delta: float) -> bool:
 
 ## Cars to draw, t (0 to 1) of the way from the last tick's level to this one's:
 ## [{"shaft", "x", "width", "level", "load", "label", "moving"}], oldest first.
-func cars(tower: Object, t: float) -> Array[Dictionary]:
+func cars(tower: Object, t: float, shaft_list: Array[Dictionary] = []) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var by_id: Dictionary = {}
-	for shaft: Dictionary in shafts(tower):
+	for shaft: Dictionary in (shaft_list if not shaft_list.is_empty() else shafts(tower)):
 		by_id[shaft["id"]] = shaft
 	var number: Dictionary = {}
 	for car: Array in tower.rooms._cars:

@@ -42,6 +42,8 @@ var tower: Tower = null
 var _people_view := PeopleView.new()
 var _elevators := ElevatorView.new()
 var _seen_tick: int = -1
+var _shafts_key: Array = []  ## What _shafts_seen was built for: [floors.revision, occupant count, shaft ids].
+var _shafts_seen: Array[Dictionary] = []
 var _seen_rain: bool = false
 var _since_tick: float = 0.0  ## Seconds since the sim last ticked.
 var _tick_len: float = 1.0 / 30.0  ## Seconds the last tick took; cars slide over this long.
@@ -636,10 +638,31 @@ func _process(delta: float) -> void:
 	_mark_changed_rooms()
 	_repair()
 	var sliding := (tower.rooms.total_cars() > 0 and _since_tick <= _tick_len * 2.0) or (_has_moving and _since_tick <= _tick_len) or gliding
+	if sliding and not new_tick and not layout_changed:
+		sliding = _motion_in_view()  # between ticks, repaint only for motion the player can see (#399)
 	if new_tick or layout_changed or sliding:
 		_dynamic_layer.queue_redraw()
 		_dynamic_view.render_target_update_mode = SubViewport.UPDATE_ONCE
 	_seen_tick = tower.tick
+
+
+## True when a car or a moving figure is inside the visible part of the tower (or the view is unknown), so
+## the dynamic layer is worth repainting between ticks to slide it. Off-screen motion repaints at the next tick.
+func _motion_in_view() -> bool:
+	if not is_inside_tree():
+		return true
+	var view := get_global_transform_with_canvas().affine_inverse() * get_viewport_rect()
+	if view.size.x <= 0.0 or view.size.y <= 0.0:
+		return true
+	view = view.grow(float(VC.CELL_H * 2))
+	for car: Dictionary in _elevators.cars(tower, 0.0, _shaft_list()):
+		var top := ElevatorView.level_to_y(car["level"], VC.CELL_H)
+		if view.intersects(Rect2(float((car["x"] as int) * VC.CELL_W), top, float((car["width"] as int) * VC.CELL_W), float(VC.CELL_H))):
+			return true
+	for figure: Dictionary in _figures:
+		if figure["moving"] and view.intersects(Rect2(float(figure["fx"]) * VC.CELL_W, float(figure["frow"]) * VC.CELL_H, float(VC.CELL_W), float(VC.CELL_H))):
+			return true
+	return false
 
 
 ## Copies the time of day into SkyLook (rooms read it when drawn) and redraws the sky and every room when
@@ -1040,7 +1063,7 @@ func _draw_cars(canvas: CanvasItem) -> void:
 	var p := Palette.get_palette()
 	var car_color := Palette.hue("car")
 	var t := clampf(_since_tick / _tick_len, 0.0, 1.0)
-	for car: Dictionary in _elevators.cars(tower, t):
+	for car: Dictionary in _elevators.cars(tower, t, _shaft_list()):
 		var shaft_rect := Rect2i((car["x"] as int) * VC.CELL_W, 0, (car["width"] as int) * VC.CELL_W, VC.CELL_H)
 		var x: int = (car["x"] as int) * VC.CELL_W + 3
 		var y := roundi(ElevatorView.level_to_y(car["level"], VC.CELL_H)) + 3
@@ -1049,13 +1072,23 @@ func _draw_cars(canvas: CanvasItem) -> void:
 		GraphicsStyle.current().car(canvas, shaft_rect, Rect2i(x, y, w, h), car["level"], car["step"], car["load"], car_color, p["people"], p["lamp"], _level_bottom)
 
 
+## ElevatorView.shafts for the tower as it stands, rebuilt only when the layout moves: it walks every floor
+## of every shaft, and the queue and car layers asked for it on every redraw (#399).
+func _shaft_list() -> Array[Dictionary]:
+	var key: Array = [tower.floors.revision, tower.rooms.links.occupant_count(), tower.rooms.shaft_ids()]
+	if key != _shafts_key:
+		_shafts_key = key
+		_shafts_seen = ElevatorView.shafts(tower)
+	return _shafts_seen
+
+
 ## Hall queues: people going up wait left of the shaft, going down right of it; a long queue shows
 ## its first figures and a +N count.
 func _draw_queues(canvas: CanvasItem) -> void:
 	var p := Palette.get_palette()
 	var ink: Color = p["ink"]
 	var skin: Color = p["skin"]
-	for queue: Dictionary in ElevatorView.queues(tower):
+	for queue: Dictionary in ElevatorView.queues(tower, _shaft_list()):
 		var side: int = queue["side"]
 		var feet := (VC.floor_to_row(queue["floor"]) + 1) * VC.CELL_H - 3
 		var edge: int = (queue["x"] as int) * VC.CELL_W if side < 0 else ((queue["x"] as int) + (queue["width"] as int)) * VC.CELL_W

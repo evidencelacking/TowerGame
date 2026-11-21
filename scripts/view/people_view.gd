@@ -28,6 +28,8 @@ const POSE_ESCALATOR := 2
 ## Routes already found, keyed by trip ends; the caller keeps it and it is cleared when the
 ## floors or rooms change (see tower_renderer.gd).
 var route_cache: Dictionary = {}
+var _rest_key: int = 0  ## Hash of the resting people and tenanted rooms _rest_placed was made for.
+var _rest_placed: Array[Dictionary] = []  ## The placed resting figures, in pending order.
 
 
 static func color_of(band: int) -> Color:
@@ -124,7 +126,17 @@ func figures(tower: Object) -> Array[Dictionary]:
 		var act := ActivityLook.classify(kind, people.work_of(i) == room, people.goal_of(i), staying, minute, people.trip_state(i) == PeopleScript.TRIP_REQUESTED)
 		pending.append([out.size(), run, people.id_at(i), kind, act, band, column, room])
 		out.append({})  # filled in below, once the suites are known
-	_place_resting(out, pending, Suites.tenanted_rooms(tower))
+	var tenanted := Suites.tenanted_rooms(tower)
+	var key := [pending, tenanted].hash()
+	if key == _rest_key and _rest_placed.size() == pending.size():  # nobody resting moved: reuse the placing (#399)
+		for n in pending.size():
+			out[(pending[n] as Array)[0]] = (_rest_placed[n] as Dictionary).duplicate()
+	else:
+		_place_resting(out, pending, tenanted)
+		_rest_key = key
+		_rest_placed.clear()
+		for item: Array in pending:
+			_rest_placed.append((out[item[0]] as Dictionary).duplicate())
 	for figure: Dictionary in out:
 		if not figure.is_empty():
 			figure.merge(looks.get(figure["id"], {}), true)
