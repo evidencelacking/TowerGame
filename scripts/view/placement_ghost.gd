@@ -96,6 +96,8 @@ var stars: int:  ## Current star rating, read from the sim.
 	get:
 		return tower.unlocked_stars() if tower != null else TowerSim.START_STARS
 var last_room: String = "office"  ## The room the replace tool builds: the last room tool chosen.
+const SNAP_GAP := 2  ## A room placed this many units or fewer from a neighbour snaps flush against it (#381).
+var free_place: bool = false  ## True while Alt is held: place without snapping.
 var _last_key: Array = []  ## What result was computed for; check_* only reruns when it changes.
 var result: Dictionary = {}  ## Last evaluate() verdict, for the label and the tests.
 var _drag: DragScript = DragScript.new(DragScript.Axis.VERTICAL)  ## Drag tools: press, drag, release.
@@ -240,6 +242,36 @@ static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: in
 					effects.append(SynergyScript.text_of(entry))
 				out["effects"] = effects
 	return out
+
+
+## Sticky placement (#381): the left column for a room at x_left, snapped flush to the nearer
+## neighbour on the same floor when 1 or 2 empty units separate them and the snapped spot is valid.
+## Falls back to x_left. Only plain catalogue rooms snap; the lobby, stairs, shafts and floor tools do not.
+static func snap_x(t: TowerSim, tool_id: String, floor_number: int, x_left: int, star_rating: int) -> int:
+	if not CatalogueScript.has(tool_id) or tool_id in [STAIRS, ESCALATOR] or is_span_tool(tool_id) or ElevatorTools.handles(tool_id):
+		return x_left
+	var width: int = width_of(tool_id)
+	var right_edge: int = x_left + width - 1
+	for gap: int in range(1, SNAP_GAP + 1):  ## Nearest first; the left neighbour wins a tie.
+		var candidates: Array[int] = []
+		if _is_flush_gap(t, floor_number, x_left - gap, x_left - 1, x_left - gap - 1):
+			candidates.append(x_left - gap)
+		if _is_flush_gap(t, floor_number, right_edge + 1, right_edge + gap, right_edge + gap + 1):
+			candidates.append(x_left + gap)
+		for candidate: int in candidates:
+			if evaluate(t, tool_id, floor_number, candidate, star_rating)["valid"]:
+				return candidate
+	return x_left
+
+
+## True if columns first..last are empty and the column next to them (wall) holds a room.
+static func _is_flush_gap(t: TowerSim, floor_number: int, first: int, last: int, wall: int) -> bool:
+	if first < 0 or last >= GridScript.WIDTH_UNITS or wall < 0 or wall >= GridScript.WIDTH_UNITS:
+		return false
+	for column: int in range(first, last + 1):
+		if t.grid.cell_at(floor_number, column) != GridScript.EMPTY:
+			return false
+	return t.grid.cell_at(floor_number, wall) != GridScript.EMPTY
 
 
 static func _evaluate_elevator(t: TowerSim, tool_id: String, floor_number: int, x_left: int, star_rating: int, gesture: Dictionary) -> Dictionary:
@@ -454,7 +486,7 @@ func hover(floor_number: int, column: int) -> Dictionary:
 	if is_span_tool(tool) and _drag.active:
 		floor_number = _drag.start_floor  ## A sideways drag stays on the floor it began on.
 	var x_left := column if tool in [BULLDOZE, REPLACE] or is_span_tool(tool) else column - width_of(tool) / 2
-	var key: Array = [tool, last_room, floor_number, x_left, stars, tower.ledger.balance, _drag.key(), lobby_height]
+	var key: Array = [tool, last_room, floor_number, x_left, stars, tower.ledger.balance, _drag.key(), lobby_height, free_place]
 	if key != _last_key:  ## check_replace copies the grid, so only judge when something changed.
 		_last_key = key
 		var gesture := {}
@@ -463,6 +495,8 @@ func hover(floor_number: int, column: int) -> Dictionary:
 			if is_span_tool(tool):
 				gesture = {"start_column": _drag.start_column}
 		gesture["lobby_height"] = lobby_height
+		if not free_place:
+			x_left = snap_x(tower, tool, floor_number, x_left, stars)
 		result = evaluate(tower, tool, floor_number, x_left, stars, last_room, gesture)
 		if _label != null:
 			_label.text = "\n".join(lines_for(tool, result))
@@ -506,6 +540,7 @@ func _process(_delta: float) -> void:
 			result = {}
 			queue_redraw()
 		return
+	free_place = Input.is_key_pressed(KEY_ALT)
 	var cell := _mouse_cell()
 	hover(cell.x, cell.y)
 	_set_cursor(cursor_for(result, cell.x))
