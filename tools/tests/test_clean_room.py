@@ -39,6 +39,19 @@ class CleanRoom(unittest.TestCase):
     def test_allowed_docs_may_not_name_a_port(self):
         self.assertEqual(len(problems({"docs/roadmap.md": GENERATED})), 1)
 
+    def test_local_sounds_may_never_be_tracked(self):
+        for name in ["local_sounds/Bird1.wav", "local_sounds/notes.txt", "x/local_sounds/a.ogg"]:
+            self.assertGreaterEqual(len(check.audio_problems([name])), 1, name)
+
+    def test_audio_outside_the_sounds_folder_fails(self):
+        for name in ["Bird1.wav", "scripts/a.OGG", "assets/music/a.mp3", "assets/sounds2/a.wav"]:
+            self.assertEqual(len(check.audio_problems([name])), 1, name)
+
+    def test_licensed_audio_needs_a_sources_file(self):
+        self.assertEqual(len(check.audio_problems(["assets/sounds/a.ogg"])), 1)
+        self.assertEqual(check.audio_problems(["assets/sounds/a.ogg", "assets/sounds/SOURCES.md"]), [])
+        self.assertEqual(len(problems({"local_sounds/a.wav": None})), 1)
+
     def test_this_repository_is_clean(self):
         self.assertEqual(check.clean_room_problems(check.tracked_files(), check.read_tracked), [])
 
