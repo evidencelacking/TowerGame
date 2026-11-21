@@ -33,7 +33,7 @@ const _MASK := 0x7fffffff
 ## True when the tower has a housekeeping station (it shortens the pool's cleaning).
 static func has_housekeeping(rooms: RoomsScript) -> bool:
 	for id in rooms.room_ids():
-		if rooms.kind_of(id) == "housekeeping":
+		if rooms.kind_of(id) == "housekeeping" and not rooms.is_cut_off(id):
 			return true
 	return false
 

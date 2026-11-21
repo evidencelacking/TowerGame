@@ -4,7 +4,23 @@ extends RefCounted
 
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Command := TowerSim.Command
+const Catalogue := preload("res://scripts/sim/room_catalogue.gd")
 const Harness := preload("res://tests/harness.gd")
+
+
+## A local elevator from the ground floor to `top` at column `x`, so every room on the floors it serves is reachable from
+## the lobby (#368: rooms no route reaches earn and serve nothing). Needs the lobby and the floors at its column.
+static func connect_floors(tower: TowerSim, top: int, x: int = 156) -> int:
+	var code: int = tower.rooms.place_shaft(tower.grid, tower.floors, tower.ledger, 0, Catalogue.IDS.find("local_shaft"), 1, top, x)
+	assert(code == 0, "the connecting shaft places, refusal %d" % code)
+	return code
+
+
+## Two flights of stairs from the lobby up to floor 3 at columns 156 and 160, which reach floor 3 without a lift's
+## upkeep (so a test that counts the ledger is not disturbed). Needs floors 1 to 3 built there.
+static func connect_by_stairs(tower: TowerSim) -> void:
+	assert(tower.rooms.place_stairs(tower.grid, tower.floors, tower.ledger, 0, 1, 156) == 0, "the lower flight places")
+	assert(tower.rooms.place_stairs(tower.grid, tower.floors, tower.ledger, 0, 2, 160) == 0, "the upper flight places")
 
 
 ## A tower at tick 1 with every spec placed (all commands apply at tick 1, in order).

@@ -3,6 +3,7 @@ extends RefCounted
 ## distance (nearest office answers), staff never need inside stairs, satisfies star 3 and
 ## clears the "needs security" demand.
 
+const Fixtures := preload("res://tests/fixtures.gd")
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Msg := preload("res://scripts/sim/messages.gd")
 const Catalogue := preload("res://scripts/sim/room_catalogue.gd")
@@ -15,6 +16,7 @@ static func _tower() -> TowerSim:
 	t.floors.build_lobby(t.ledger, 0, 1, 100, 163, 2)
 	for f in [3, 20, 40]:
 		t.floors.fill_span(f, 100, 163)
+	Fixtures.connect_floors(t, 30)  # a shaft spans at most 30 floors
 	return t
 
 
@@ -37,9 +39,9 @@ static func run(check: Callable) -> void:
 	check.call(Sec.distance(1, -1) == 1, "there is no floor 0: the lobby and B1 are neighbours")
 
 	# Nearest of two offices responds.
-	_put(t, "security", 40, 100)
+	_put(t, "security", 20, 100)
 	var near := Sec.nearest(t.rooms, t.grid, 30)
-	check.call(near["distance"] == 10 and t.grid.run_of(near["room"])[0] == 40, "the nearest of two offices responds")
+	check.call(near["distance"] == 10 and t.grid.run_of(near["room"])[0] == 20, "the nearest of two offices responds")
 	check.call(Sec.covers(t.rooms, t.grid, 30) and Sec.staff_count(t.rooms) == 2 * Sec.GUARDS_PER_OFFICE, "two offices cover the gap between them")
 
 	# Cannot be bulldozed.

@@ -105,6 +105,9 @@ const FIRST_ID := 1000  ## Room occupant ids start here, clear of ids given to P
 ## coexist with them, so they hold their occupant cells here and not in the room grid. Ids come
 ## from the same counter as rooms, so an id is unique across both grids.
 var links := GridScript.new()
+## Room id to true while the room cannot be reached from the ground lobby by stairs, escalators or elevators (#368).
+## Derived by Tower (refresh_reach, from Tenancy.reachable), never saved or hashed; empty means everything is connected.
+var cut_off: Dictionary = {}
 ## Stacked flights (#259): a cell holds one id, so when two flights of one kind share a floor (one's
 ## top is the other's bottom) the half that finds the cell taken sits here instead. Mostly empty.
 var links_over := GridScript.new()
@@ -356,6 +359,22 @@ func highest_room_floor(grid: GridScript) -> int:
 ## True while a room stands burned out (Fire, #373).
 func is_charred(id: int) -> bool:
 	return charred.has(id)
+
+
+## Kinds whose use does not depend on a walking route (#368): the building fabric and links, the car-reached parking,
+## and the recycling centre (trucks, not people, come to it). Owner to confirm the last two.
+const ALWAYS_OPEN_KINDS: Array[String] = ["lobby", "floor", "parking_ramp", "parking_space", "recycling"]
+
+
+## True for a kind that is only usable while a route from the ground lobby reaches it (#368).
+static func needs_route(kind: String) -> bool:
+	return CatalogueScript.IDS.has(kind) and not is_link_kind(kind) and not ALWAYS_OPEN_KINDS.has(kind) 		and int(CatalogueScript.field(kind, "placement")) != CatalogueScript.PLACE_CAR
+
+
+## True while the room is cut off from the ground lobby (#368): it earns, rents, books and serves nothing until
+## stairs or elevators reach it. Always false for rooms Tower has not checked yet and for kinds in ALWAYS_OPEN_KINDS.
+func is_cut_off(id: int) -> bool:
+	return cut_off.has(id)
 
 
 ## True for an observation deck with a room above it: the tower has grown past it, so it is closed until moved.

@@ -678,7 +678,7 @@ func _casino_incident(rooms: RoomsScript, ledger: LedgerScript, messages: Messag
 	if rng == null or customers == 0:
 		return
 	for other in rooms.room_ids():
-		if rooms.kind_of(other) == "security":
+		if rooms.kind_of(other) == "security" and not rooms.is_cut_off(other):
 			return
 	if rng.next_below(100) < CASINO_INCIDENT_PERCENT:
 		ledger.payout(at_tick, CASINO_INCIDENT_COST, id)
@@ -690,7 +690,7 @@ func _casino_incident(rooms: RoomsScript, ledger: LedgerScript, messages: Messag
 func collect_rent(rooms: RoomsScript, rent: RentScript, ledger: LedgerScript, at_tick: int, last_day: bool = true) -> int:
 	var total := 0
 	for id in rooms.room_ids():
-		if rooms.kind_of(id) == "retail" and not is_vacant(id) and not rooms.is_charred(id):
+		if rooms.kind_of(id) == "retail" and not is_vacant(id) and not rooms.is_charred(id) and not rooms.is_cut_off(id):
 			var amount := RentScript.day_share(rent.rent_of(rooms, id), last_day)
 			ledger.income(at_tick, amount, id)
 			total += amount

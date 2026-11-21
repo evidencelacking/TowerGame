@@ -151,6 +151,7 @@ var commerce := CommerceScript.new()
 
 var _queue: Array[Command] = []
 var _parking_working: int = 0  ## Working parking spaces, found at most once a tick (derived, not saved).
+var _reach_sig: int = -1  ## What refresh_reach last saw (derived, not saved).
 var _parking_at: int = -1  ## The tick _parking_working was found at.
 
 
@@ -235,6 +236,7 @@ func char_room(id: int) -> void:
 	hotel.remove_room(id)
 	pests.remove_room(id)
 	rooms.set_sold(id, false)
+	rooms.cut_off.erase(id)  # a charred room is never marked cut off (refresh_reach skips it), whichever way it got there
 
 
 ## Repairs the charred room covering a cell, paying Fire.repair_cost. Returns OK or a reason code
@@ -252,8 +254,28 @@ func repair_room(floor_number: int, x: int) -> int:
 	if paid != LedgerScript.OK:
 		return paid
 	rooms.charred.erase(id)
+	_reach_sig = -1  # a repaired room is checked again
 	messages.add(tick, MessagesScript.ROOM_REPAIRED, CatalogueScript.IDS.find(kind), floor_number)
 	return RoomsScript.OK
+
+
+## Marks every room no route from the ground lobby reaches in Rooms.cut_off (#368), reusing Tenancy.reachable. Derived, so
+## not saved: it reruns whenever the floors or the room list change (a placement, a bulldoze or a replacement gives a new
+## id set), so a new link or a cut link takes effect on the next tick. Charred rooms are left to Rooms.is_charred.
+func refresh_reach() -> void:
+	var sig := floors.revision * 1000003 + rooms.room_ids().size()
+	for id in rooms.room_ids():
+		sig = (sig * 31 + id) & 0x3fffffffffff
+	if sig == _reach_sig:
+		return
+	_reach_sig = sig
+	rooms.cut_off = {}
+	if not floors.has_lobby():
+		return
+	var entry_x := floors.lobby_span()[0]
+	for id in rooms.room_ids():
+		if RoomsScript.needs_route(rooms.kind_of(id)) and not rooms.is_charred(id) and not tenancy.reachable(floors, rooms, grid, id, entry_x):
+			rooms.cut_off[id] = true
 
 
 ## Working parking spaces now, searched once per tick however many suites ask.
@@ -423,6 +445,7 @@ func _note_refusal(code: int, detail: int) -> bool:
 ## Per-tick systems, in a fixed order: the clock first, then (later) the grid and the rest.
 func _run_systems() -> void:
 	clock.advance()
+	refresh_reach()
 	tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
 	commerce.tick(clock, floors, rooms, grid, people, tenancy, rng, ledger, messages, tick, life)
 	vip.tick(clock, stars, people, grades, messages, tick)
@@ -496,12 +519,17 @@ func unlocked_stars() -> int:
 func star_facts() -> Dictionary:
 	var security := 0
 	var metro := 0
+	var suites := 0
 	for id in rooms.room_ids():
+		if rooms.is_cut_off(id):
+			continue  # a room no route reaches counts for no star (#368)
+		if hotel.is_suite(id):
+			suites += 1
 		match rooms.kind_of(id):
 			"security": security += 1
 			"metro": metro += 1
 	var facts := {
-		"population": population(), "security": security, "suites": hotel.suites().size(), "metro": metro,
+		"population": population(), "security": security, "suites": suites, "metro": metro,
 		"demands_met": demands.all_met(),  # no open demand (transport demands will join them)
 		"vip_good": vip.is_good(),
 	}
@@ -632,6 +660,7 @@ func save() -> Dictionary:
 func load_state(data: Dictionary) -> bool:
 	if data.get("version", 0) != SAVE_VERSION:
 		return false
+	_reach_sig = -1  # the loaded rooms are checked afresh
 	for key in ["tick", "rng_state", "notes", "last_refusal"]:
 		if typeof(data.get(key)) != TYPE_INT:
 			return false
@@ -722,4 +751,5 @@ func load_state(data: Dictionary) -> bool:
 	stars = loaded_stars
 	_queue = loaded_queue
 	trips.resume(clock)
+	refresh_reach()  # derived, so it is found again for the loaded rooms (#368)
 	return true

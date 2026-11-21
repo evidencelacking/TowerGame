@@ -70,7 +70,9 @@ static func _peak_stress(t: TowerSim) -> int:
 
 ## Runs the evening of day 0 from 17:00 to 23:30. Returns the tower if the room was booked, with
 ## meta = [minute the guests checked in, peak guest stress seen]; null if no one booked on this seed.
-static func _evening(seed_value: int, kind: String, linked: bool, parking: bool, meta: Array) -> TowerSim:
+## ungated clears Rooms.cut_off after every step: the room is booked although no route reaches it (#368 stops that in a real
+## game), which is how the guests-who-cannot-arrive path is still tested.
+static func _evening(seed_value: int, kind: String, linked: bool, parking: bool, meta: Array, ungated: bool = false) -> TowerSim:
 	var t := _tower(seed_value, kind, linked, parking)
 	_jump(t, 17 * 60, 0)
 	var room := _room(t)
@@ -80,6 +82,8 @@ static func _evening(seed_value: int, kind: String, linked: bool, parking: bool,
 	var guard := 0
 	while t.tick < target and guard < MAX_TICKS:
 		t.step()
+		if ungated:
+			t.rooms.cut_off.clear()
 		guard += 1
 		peak = maxi(peak, _peak_stress(t))
 		if first < 0 and t.hotel.state_of(room) != HotelScript.VACANT:
@@ -92,10 +96,10 @@ static func _evening(seed_value: int, kind: String, linked: bool, parking: bool,
 
 
 ## The first seed from 1 to 40 on which the room is booked that evening, or null.
-static func _booked(kind: String, linked: bool, parking: bool, meta: Array) -> TowerSim:
+static func _booked(kind: String, linked: bool, parking: bool, meta: Array, ungated: bool = false) -> TowerSim:
 	for seed_value in range(1, 41):
 		meta.clear()
-		var t := _evening(seed_value, kind, linked, parking, meta)
+		var t := _evening(seed_value, kind, linked, parking, meta, ungated)
 		if t != null:
 			return t
 	return null
@@ -204,8 +208,8 @@ static func run(check: Callable) -> void:
 	check.call(late.clock.minute_of_day() >= 6 * 60 - 5 and late.people.count() == 0 and late.hotel.state_of(_room(late)) == HotelScript.VACANT, "no one checks in after 23:00")
 
 	# Unreachable room: the guest takes stress, the room logs a complaint, the guest leaves unpaid.
-	var cut := _booked("hotel_single", false, false, meta)
-	check.call(cut != null, "an unconnected room is still booked")
+	var cut := _booked("hotel_single", false, false, meta, true)
+	check.call(cut != null, "an unconnected room is booked when the route check is bypassed")
 	if cut != null:
 		var cut_room := _room(cut)
 		check.call(int(meta[1]) >= 30, "the guest took stress for failing to reach the room")

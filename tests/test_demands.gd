@@ -2,11 +2,11 @@ extends RefCounted
 ## Demand messages (7.3, #168): none before the trigger, raised once, cleared once, re-raised
 ## when lost, only for rooms that can be built, block star 4, and survive save/load.
 
+const Fixtures := preload("res://tests/fixtures.gd")
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Msg := preload("res://scripts/sim/messages.gd")
 const DemandsScript := preload("res://scripts/sim/demands.gd")
 const Catalogue := preload("res://scripts/sim/room_catalogue.gd")
-const Fixtures := preload("res://tests/fixtures.gd")
 const Log := preload("res://scripts/view/message_log.gd")
 
 const ALL: Array[String] = ["office", "hotel_suite", "security", "medical", "recycling", "parking_space"]
@@ -16,6 +16,7 @@ static func _tower() -> TowerSim:
 	var t := TowerSim.new(5, 1000000000)
 	t.floors.build_lobby(t.ledger, 0, 1, 100, 163, 2)
 	t.floors.fill_span(3, 100, 163)
+	Fixtures.connect_floors(t, 3)
 	return t
 
 

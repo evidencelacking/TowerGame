@@ -3,6 +3,7 @@ extends RefCounted
 ## dirty floors, service cars and stairs only, about 18 rooms a day. Numbers are tunables
 ## (see housekeeping.gd).
 
+const Fixtures := preload("res://tests/fixtures.gd")
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const HotelScript := preload("res://scripts/sim/hotel.gd")
@@ -22,6 +23,7 @@ const ROW_X: Array[int] = [100, 104, 108, 112, 120, 124, 128]  ## Seven rooms fi
 ## Floors 1 to top (lobby on 1 and 2), a housekeeping station on floor 3. No links yet.
 static func _tower(top: int, station: bool = true) -> TowerSim:
 	var t := TestElevatorRoutes._plain(top)
+	Fixtures.connect_floors(t, top, 132)  # a local lift for guests (#368: rooms no route reaches are not used); staff ride service shafts only
 	if station:
 		_place(t, "housekeeping", STATION_FLOOR, STATION_X)
 	return t

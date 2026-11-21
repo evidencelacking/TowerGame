@@ -4,6 +4,7 @@ extends RefCounted
 
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Command := TowerSim.Command
+const Fixtures := preload("res://tests/fixtures.gd")
 const Catalogue := preload("res://scripts/sim/room_catalogue.gd")
 const Msg := preload("res://scripts/sim/messages.gd")
 const ThreatScript := preload("res://scripts/sim/threat.gd")
@@ -27,6 +28,7 @@ static func _tower(seed_value: int) -> TowerSim:
 		_put(t, "office", f, 100)
 	_put(t, "security", 3, 120)
 	t.stars = 3
+	Fixtures.connect_by_stairs(t)  # the security office on floor 3 is reached
 	return t
 
 
@@ -108,9 +110,10 @@ static func run(check: Callable) -> void:
 	var rooms_before := t.rooms.room_count()
 	var balance := t.ledger.balance
 	_answer(t, ThreatScript.PAY)
+	check.call(balance - t.ledger.balance == 200000, "paying costs $200,000")  # before rent and wages come in
 	for _i in 3000:
 		t.step()
-	check.call(balance - t.ledger.balance == 200000 and not t.threat.is_active() and t.rooms.room_count() == rooms_before and _has_message(t, Msg.THREAT_PAID), "paying costs $200,000 and ends it")
+	check.call(not t.threat.is_active() and t.rooms.room_count() == rooms_before and _has_message(t, Msg.THREAT_PAID), "paying ends it with nothing destroyed")
 
 	# Found in time: the device is within reach of the office on floor 3.
 	var saved := _tower(3)
@@ -141,7 +144,7 @@ static func run(check: Callable) -> void:
 	check.call(gone, "a miss destroys the device's floor, 2 above and 2 below")
 	check.call(_alive(missed, 27) and _alive(missed, 33) and _alive(missed, 12) and _alive(missed, 3), "floors just outside the range are untouched")
 	check.call(_has_message(missed, Msg.THREAT_EXPLODED) and not missed.threat.is_active(), "the blast is logged and the threat is over")
-	check.call(missed.people.count() == 0 and stairs_ok and stairs_id != GridScript.EMPTY and not missed.rooms.has_room(stairs_id), "people and stairs on the destroyed floors go too")
+	check.call(missed.people.workers_in(worker) == 0 and stairs_ok and stairs_id != GridScript.EMPTY and not missed.rooms.has_room(stairs_id), "people and stairs on the destroyed floors go too")
 	check.call(missed.rooms.place_room(missed.grid, missed.floors, missed.ledger, missed.tick, Catalogue.IDS.find("office"), 30, 100) == Rooms.OK, "the destroyed floors stay as empty floor")
 	for _i in 500:
 		missed.step()
@@ -157,7 +160,8 @@ static func run(check: Callable) -> void:
 
 	# More offices search more floors: a second office near floor 30 finds it in time.
 	var helped := _tower(3)
-	_put(helped, "security", 31, 120)
+	Fixtures.connect_floors(helped, 30, 148)  # a lift to the second office (a shaft spans at most 30 floors)
+	_put(helped, "security", 29, 120)
 	_force(helped)
 	_until_notice(helped)
 	_set_device(helped, 30)

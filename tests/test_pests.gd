@@ -5,6 +5,7 @@ extends RefCounted
 
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Command := TowerSim.Command
+const Fixtures := preload("res://tests/fixtures.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const HotelScript := preload("res://scripts/sim/hotel.gd")
 const PestsScript := preload("res://scripts/sim/pests.gd")
@@ -22,6 +23,7 @@ static func _tower(seed_value: int = 1) -> TowerSim:
 	t.floors.build_lobby(t.ledger, 0, 1, 100, 131, 2)
 	t.floors.fill_span(3, 100, 131)
 	t.floors.fill_span(4, 100, 131)
+	Fixtures.connect_floors(t, 4, 124)
 	return t
 
 

@@ -420,7 +420,7 @@ func _signature(piece: Piece) -> Array:
 	var out: Array = []
 	for run: Array in piece.runs:
 		var look := RoomLook.describe(tower, run[0], _plan_broken, _plan_workers)
-		out.append([look["state"], look["fill"], look["empty"], _in_use.has(run[1]), _asleep.has(run[1]), look.get("anim", 0)])
+		out.append([look["state"], look["fill"], look["empty"], look.get("cut_off", false), _in_use.has(run[1]), _asleep.has(run[1]), look.get("anim", 0)])
 	return out
 
 

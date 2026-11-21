@@ -3,6 +3,7 @@ extends RefCounted
 ## crowd of one kind, mood, recovery, condo sale price, the ghost preview (pure and in the label),
 ## and that a reload gives the same answer. Our own rules: no reference values.
 
+const Fixtures := preload("res://tests/fixtures.gd")
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Synergy := preload("res://scripts/sim/synergy.gd")
 const Catalogue := preload("res://scripts/sim/room_catalogue.gd")
@@ -110,7 +111,7 @@ static func run(check: Callable) -> void:
 			s.floors.fill_span(4, 100, 131)
 			var refusal := _place(s, "daycare", 4, 100)
 			assert(refusal == 0, "the daycare places, refusal %d" % refusal)
-		TestTenancy._link(s)
+		Fixtures.connect_floors(s, 4 if with_daycare else 3, 126)  # a lift, so the daycare (floor 4) is reached too
 		TestCondos._at(s, 10 * 60, 0)
 		for line: Array in s.ledger.lines:
 			if line[2] == Ledger.SALE:

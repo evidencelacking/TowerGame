@@ -144,7 +144,7 @@ func _drop_job(r: Array) -> void:
 func _sync_staff() -> void:
 	var kept: Array = []
 	for station in _rooms.room_ids():
-		if _rooms.kind_of(station) != STATION_KIND:
+		if _rooms.kind_of(station) != STATION_KIND or _rooms.is_cut_off(station):  # a station no route reaches sends no staff (#368)
 			continue
 		var have: Array = []
 		for r: Array in _staff:
