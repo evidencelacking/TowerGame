@@ -509,6 +509,7 @@ func _process(delta: float) -> void:
 	if _elevators.observe(tower):
 		_tick_len = maxf(_since_tick, 0.001)
 		_since_tick = 0.0
+	var gliding := _elevators.glide(delta)
 	var occupants := tower.grid.occupant_count() + tower.rooms.links.occupant_count() + tower.rooms.links_over.occupant_count()
 	var layout_changed := tower.floors.revision != _seen_revision or occupants != _seen_occupants
 	if layout_changed:
@@ -545,7 +546,7 @@ func _process(delta: float) -> void:
 		_sync_pieces()  # tenancy can join or split suites without a layout change
 	_mark_changed_rooms()
 	_repair()
-	var sliding := (tower.rooms.total_cars() > 0 and _since_tick <= _tick_len * 2.0) or (_has_moving and _since_tick <= _tick_len)
+	var sliding := (tower.rooms.total_cars() > 0 and _since_tick <= _tick_len * 2.0) or (_has_moving and _since_tick <= _tick_len) or gliding
 	if new_tick or layout_changed or sliding:
 		_dynamic_layer.queue_redraw()
 		_dynamic_view.render_target_update_mode = SubViewport.UPDATE_ONCE
