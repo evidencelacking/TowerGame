@@ -13,6 +13,7 @@ const TestShafts := preload("res://tests/test_shafts.gd")
 const TestBoarding := preload("res://tests/test_boarding.gd")
 const TestOfficeDay := preload("res://tests/test_office_day.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
+const TestRoutes := preload("res://tests/test_elevator_routes.gd")
 
 
 static func _find(rows: Array[Dictionary], key: String, value: Variant) -> Dictionary:
@@ -64,6 +65,34 @@ static func run(check: Callable) -> void:
 	u.step()
 	w.observe(u)
 	check.call(not w.cars(u, 0.5)[0]["moving"] and w.cars(u, 0.5)[0]["level"] == float(ElevatorView.level_of(u.rooms._cars[0][CarsScript.FLOOR])), "elevator view: a parked car stands still")
+
+	# Gliding (#366): a sim tick carries a car ~11 floors in 33 ms, so the drawn level trails it at a visible speed.
+	var g := TestDispatch._setup([1] as Array[int])
+	var gv := ElevatorView.new()
+	gv.observe(g)
+	g.rooms.send_car(0, 9)
+	g.step()
+	gv.observe(g)
+	check.call(gv.glide(0.1) and absf(gv.cars(g, 1.0)[0]["level"] - 2.0) < 0.001 and gv.cars(g, 1.0)[0]["moving"], "elevator view: a car glides at a capped speed, not a jump to the new floor")
+	var glide_frames := 1
+	while gv.glide(0.1) and glide_frames < 100:
+		glide_frames += 1
+	check.call(glide_frames == 7 and gv.cars(g, 1.0)[0]["level"] == 9.0 and not gv.cars(g, 1.0)[0]["moving"], "elevator view: an 8-floor ride takes 0.8 s of view time and ends at the sim floor")
+
+	# The sim moves cars and carries people: a worker boards a car, it changes floor, and the worker alights.
+	var day := TestRoutes._office_tower(7)
+	var floors_seen: Dictionary = {}
+	var rode := false
+	var alighted := false
+	for _n in 3000:
+		day.step()
+		floors_seen[day.rooms._cars[0][CarsScript.FLOOR]] = true
+		if day.rooms._cars[0][CarsScript.LOAD] > 0:
+			rode = true
+		elif rode:
+			alighted = true
+			break
+	check.call(rode and alighted and floors_seen.size() > 1, "sim: a car leaves its home floor carrying a rider, who gets off again")
 
 	# Queues: up on the left, down on the right.
 	var q := TestBoarding._setup([30] as Array[int], 20)
