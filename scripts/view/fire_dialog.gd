@@ -92,6 +92,10 @@ static func describe(t: Object) -> Dictionary:
 		else:
 			text += "Security guards are on their way, but the fire may spread before they arrive.\n"
 		text += "An outside fire company costs $%d and puts every fire out, though the first two rooms to burn are still lost." % cost
+		var ignored: String = str(t.events.kind_def(event[1]).get("ignored", ""))
+		if ignored != "":
+			text += "
+If ignored: " + ignored
 		var left: int = event[5] - t.tick
 		return {"id": event[0], "unguarded": unguarded, "cost": cost, "can_pay": t.ledger.balance >= cost, "ticks_left": left, "time": EventWindow.time_text(left), "text": text, "rooms": burning.size()}
 	return {}

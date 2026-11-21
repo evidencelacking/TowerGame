@@ -6,8 +6,10 @@ extends CanvasLayer
 ## the sim has applied it. The panel hides itself when no event is open. View only: it reads the
 ## sim and never writes to it.
 ##
-## Texts come from the kind in Events.kinds: optional "title", "text" and "labels" (one per choice,
-## choice 0 being decline). Missing ones fall back to plain defaults.
+## Each open event is a card (#374): title, text, one button per choice (with its cost), the time
+## left and an "If ignored:" line. Texts come from the kind in Events.kinds: optional "title", "text",
+## "labels" (one per choice, choice 0 being decline) and "ignored". Missing ones fall back to plain
+## defaults or are left out.
 
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const EventsScript := preload("res://scripts/sim/events.gd")
@@ -54,20 +56,24 @@ static func time_text(ticks_left: int) -> String:
 
 
 ## What the panel shows: one entry per open event, oldest first:
-## {"id", "title", "text", "ticks_left", "time", "labels" (one per choice, 0 declines)}.
+## {"id", "kind", "title", "text", "ignored", "ticks_left", "time", "labels" (one per choice, 0 declines),
+## "costs" (dollars per choice)}.
 static func describe(t: Object) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for event: Array in t.events.open_events():
 		var def: Dictionary = t.events.kind_def(event[1])
 		var labels: Array[String] = []
+		var costs: Array[int] = []
 		var given: Array = def.get("labels", [])
 		for n in int(event[6]):
-			if n < given.size():
-				labels.append(str(given[n]))
-			else:
-				labels.append("Decline" if n == EventsScript.DECLINE else "Option %d" % n)
+			var label := str(given[n]) if n < given.size() else ("Decline" if n == EventsScript.DECLINE else "Option %d" % n)
+			var cost: int = t.events.cost_of(event[0], n)
+			costs.append(cost)
+			if cost > 0 and not label.contains("$"):
+				label += " ($%d)" % cost
+			labels.append(label)
 		var left: int = event[5] - t.tick
-		result.append({"id": event[0], "kind": event[1], "title": str(def.get("title", "Event")), "text": str(def.get("text", "")), "ticks_left": left, "time": time_text(left), "labels": labels})
+		result.append({"id": event[0], "kind": event[1], "title": str(def.get("title", "Event")), "text": str(def.get("text", "")), "ignored": str(def.get("ignored", "")), "ticks_left": left, "time": time_text(left), "labels": labels, "costs": costs})
 	return result
 
 
@@ -93,7 +99,7 @@ func refresh() -> void:
 	panel.visible = not entries.is_empty()
 	var parts: Array[String] = []
 	for entry in entries:
-		parts.append("%d:%s:%s:%s" % [entry["id"], entry["title"], entry["text"], ",".join(entry["labels"])])
+		parts.append("%d:%s:%s:%s:%s" % [entry["id"], entry["title"], entry["text"], entry["ignored"], ",".join(entry["labels"])])
 	var signature := "|".join(parts)
 	if signature != _signature:
 		_signature = signature
@@ -111,24 +117,36 @@ func _rebuild(entries: Array[Dictionary]) -> void:
 	_time_labels.clear()
 	for entry in entries:
 		var event_id: int = entry["id"]
+		var card := PanelContainer.new()
+		card.name = "Card%d" % event_id
+		list.add_child(card)
+		var box := VBoxContainer.new()
+		card.add_child(box)
 		var title := Label.new()
 		title.name = "Title%d" % event_id
 		title.text = entry["title"]
-		list.add_child(title)
+		box.add_child(title)
 		if entry["text"] != "":
 			var body := Label.new()
 			body.name = "Text%d" % event_id
 			body.text = entry["text"]
 			body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			body.custom_minimum_size = Vector2(260, 0)
-			list.add_child(body)
+			box.add_child(body)
 		var time := Label.new()
 		time.name = "Time%d" % event_id
-		list.add_child(time)
+		box.add_child(time)
 		_time_labels[event_id] = time
+		if entry["ignored"] != "":
+			var ignored := Label.new()
+			ignored.name = "Ignored%d" % event_id
+			ignored.text = "If ignored: " + str(entry["ignored"])
+			ignored.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			ignored.custom_minimum_size = Vector2(260, 0)
+			box.add_child(ignored)
 		var row := HFlowContainer.new()
 		row.name = "Choices%d" % event_id
-		list.add_child(row)
+		box.add_child(row)
 		var labels: Array[String] = entry["labels"]
 		for n in labels.size():
 			var button := Button.new()
@@ -137,4 +155,3 @@ func _rebuild(entries: Array[Dictionary]) -> void:
 			button.focus_mode = Control.FOCUS_NONE
 			button.pressed.connect(func() -> void: choose(event_id, n))
 			row.add_child(button)
-		list.add_child(HSeparator.new())

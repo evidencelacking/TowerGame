@@ -67,6 +67,7 @@ func kind() -> Dictionary:
 		"min_stars": MIN_STARS, "choices": 2, "timeout": TIMEOUT, "floor": 0, "costs": [0, PAY_COST],
 		"periods": MORNING_PERIODS, "deadline_minute": DEADLINE_MINUTE,
 		"title": "Anonymous notice",
+		"ignored": "Security searches; if the floor is not found by 1:00 pm, about five floors are destroyed.",
 		"text": "An unsigned note says a device is hidden somewhere in the tower and will go off at 1:00 pm today. Pay $200,000 and it ends. Refuse, and security will search floor by floor from their offices; if they have not found the right floor by 1:00 pm, about five floors are destroyed. More security offices search more floors.",
 		"labels": ["Refuse and search", "Pay $200,000"]}
 

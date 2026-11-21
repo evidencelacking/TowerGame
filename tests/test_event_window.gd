@@ -5,6 +5,7 @@ extends RefCounted
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Command := TowerSim.Command
 const EventWindow := preload("res://scripts/view/event_window.gd")
+const StarWindow := preload("res://scripts/view/star_window.gd")
 const TestEvents := preload("res://tests/test_events.gd")
 
 
@@ -13,6 +14,8 @@ static func run(check: Callable) -> void:
 	kind["title"] = "Test notice"
 	kind["text"] = "Something happened."
 	kind["labels"] = ["Ignore", "Act"]
+	kind["ignored"] = "It gets worse."
+	kind["costs"] = [0, 500]
 	var t := TestEvents._tower(11, [kind] as Array[Dictionary])
 	var w := EventWindow.new()
 	w.bind(t)
@@ -21,11 +24,14 @@ static func run(check: Callable) -> void:
 	TestEvents._run(t, 650)
 	var entries := EventWindow.describe(t)
 	check.call(entries.size() == 1 and entries[0]["title"] == "Test notice" and entries[0]["text"] == "Something happened.", "the panel describes the open event's texts")
-	check.call(entries[0]["labels"] == (["Ignore", "Act", "Option 2"] as Array[String]), "a button per choice, the missing label falling back to a plain one")
+	check.call(entries[0]["labels"] == (["Ignore", "Act ($500)", "Option 2"] as Array[String]), "a button per choice, the missing label falling back to a plain one")
 	check.call(entries[0]["ticks_left"] > 0 and entries[0]["ticks_left"] <= 1000 and entries[0]["time"].ends_with("left"), "the time left is shown")
 	check.call(EventWindow.time_text(0) == "No time left" and EventWindow.time_text(25) == "10 min left" and EventWindow.time_text(150) == "1 h 0 min left", "time left reads in game minutes")
 	w.refresh()
 	var id: int = entries[0]["id"]
+	check.call(entries[0]["ignored"] == "It gets worse." and (w.list.find_child("Ignored%d" % id, true, false) as Label).text == "If ignored: It gets worse." and w.list.find_child("Card%d" % id, true, false) != null, "the card shows an If ignored line")
+	check.call("It gets worse." in "
+".join(StarWindow.event_lines(t)), "the goals panel lists the event and what happens if ignored")
 	check.call(w.panel.visible and w.list.find_child("Choice%d_1" % id, true, false) != null and w.list.find_child("Choice%d_2" % id, true, false) != null, "the panel shows the event with its choice buttons")
 
 	# Time ticks down in place, and the buttons survive the refresh.

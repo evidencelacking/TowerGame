@@ -65,6 +65,7 @@ func kind() -> Dictionary:
 	return {"id": KIND, "class": EventsScript.FIRE, "chance": CHANCE, "chance_den": CHANCE_DEN, "chance_of": _gate,
 		"min_stars": MIN_STARS, "choices": 2, "timeout": TIMEOUT, "floor": 0, "costs": [0, RESCUE_COST],
 		"title": "Fire!",
+		"ignored": "The guards fight it where they can reach; the fire spreads, and rooms burn out and stand charred and empty until you repair them.",
 		"text": "A fire has broken out in the tower. Guards from a security office within reach will put it out, but a floor no office covers has no guards. A burning room is burned out after three periods and stands charred, empty and earning nothing until you pay to repair it. The fire spreads to rooms beside and above.\nAn outside fire company costs $500,000: it arrives in about one period and puts out every fire, but the first two rooms that burned are lost.",
 		"labels": ["Leave it to the guards", "Call the fire company ($500,000)"]}
 

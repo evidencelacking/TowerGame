@@ -31,6 +31,8 @@ extends RefCounted
 ## start may fire it (default all); "deadline_minute", a minute of the day the event must end by, which
 ## replaces "timeout" (the deadline is the next time the clock reaches it); and "costs", the dollars
 ## each choice charges (0 for decline), which the CHOOSE_EVENT command takes. A draw is always made.
+## The view texts are also optional kind keys: "title", "text", "labels" and "ignored" (what happens
+## if the player does nothing, shown on the event card and the goals panel). Config, never saved.
 
 const SEED_SALT := 0x45564E54  ## "EVNT".
 const MAX_OPEN := 3
