@@ -26,6 +26,9 @@ Every turn re-reads the whole conversation, so a long session costs more per ste
 - **Hand off at the first automatic compaction,** or after about 3 finished tasks, whichever
   comes first. Write a short handoff: open PRs, running sessions, decisions pending and next
   steps. Then start fresh.
+- **The 500k auto-compaction cap is a ceiling, not a target.** Opus 5.5 has a 1M window, but
+  wrap rather than compact. The owner's token guard warns once at 400k, blocks once at 450k,
+  and asks before a manual `/compact`.
 - **A builder session ends when its PR merges.** Follow-up work goes to a new session.
 
 ## Rough cost of each kind of work
