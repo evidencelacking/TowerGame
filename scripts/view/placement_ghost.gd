@@ -89,6 +89,8 @@ const BULLDOZE_TEXT: Dictionary = {
 
 var tower: TowerSim = null
 var lobby_height: int = 1  ## Floors a new ground lobby gets: 1 to 3, cycled with PageUp/PageDown.
+const RIGHT_CLICK_SLOP_PX := 4.0  ## A right press and release this close is a click; further is a camera pan.
+var _right_down: Vector2 = Vector2(-1e9, -1e9)
 var tool: String = ""  ## "" (off), BULLDOZE, or a catalogue id.
 var stars: int:  ## Current star rating, read from the sim.
 	get:
@@ -382,6 +384,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	var click := event as InputEventMouseButton
+	if click != null and click.button_index == MOUSE_BUTTON_RIGHT:
+		if click.pressed:
+			right_press(click.position)
+		else:
+			right_release(click.position)
+		return
 	if click == null or click.button_index != MOUSE_BUTTON_LEFT:
 		return
 	var cell := _mouse_cell()
@@ -389,6 +397,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		press(cell.x, cell.y)
 	else:
 		release(cell.x, cell.y)
+
+
+## Right button down (#375): remembers where, so a release without a drag can cancel the tool.
+func right_press(screen: Vector2) -> void:
+	_right_down = screen
+
+
+## Right button up: a click (no drag, so the camera did not pan) cancels the tool or placement and
+## returns to the pointer. Returns true if it cancelled.
+func right_release(screen: Vector2) -> bool:
+	var was_click := _right_down.distance_to(screen) <= RIGHT_CLICK_SLOP_PX
+	_right_down = Vector2(-1e9, -1e9)
+	if not was_click or tool == "":
+		return false
+	set_tool("")
+	return true
 
 
 ## The cell under the mouse as Vector2i(floor number, column).
