@@ -2,6 +2,7 @@ extends RefCounted
 ## What the room window says (5.8), and which room a screen point is over. Reads the sim only.
 
 const VC := preload("res://scripts/view/view_consts.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const GridScript := preload("res://scripts/sim/grid.gd")
 const CommerceScript := preload("res://scripts/sim/commerce.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
@@ -54,7 +55,7 @@ static func describe(tower: Object, room: int) -> Dictionary:
 	var graded: bool = GradesScript.is_graded(kind)
 	var rentable: bool = RentScript.is_rentable(kind)
 	return {
-		"id": room, "kind": kind, "label": kind.capitalize().replace("_", " "),
+		"id": room, "kind": kind, "label": CatalogueScript.display_name(kind),
 		"floor_label": PersonInfo.room_label(tower, room).get_slice(", ", 1),
 		"width": run[2] if run.size() == 3 else 0,
 		"occupants": names, "capacity": tower.rooms.people_in(room),
