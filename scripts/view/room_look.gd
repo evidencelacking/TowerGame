@@ -156,7 +156,7 @@ static func describe(tower: Tower, room_id: int, broken: Variant = null, workers
 		if cut_off.has(id):
 			state = BROKEN
 			color = color.darkened(0.35)
-	var out := {"kind": kind, "state": state, "color": color, "fill": fill, "empty": empty}
+	var out := {"kind": kind, "state": state, "color": color, "fill": fill, "empty": empty, "cut_off": tower.rooms.is_cut_off(id)}
 	if kind == PoolLifeScript.KIND:
 		out.merge(_pool_life(tower, id))
 	return out
@@ -202,7 +202,7 @@ static func appearance(look: Dictionary, lit: bool, dark: bool) -> Array:
 		return [look["color"], false]
 	if state == DIRTY or state == INFESTED or state == IDLE or state == VACANT:
 		base = look["color"]
-	elif state == BROKEN:
+	elif state == BROKEN or bool(look.get("cut_off", false)):  # parking cut off from its ramp, or any room no route reaches (#368)
 		base = base.darkened(0.35)
 	return [base, (lit or state == OCCUPIED or state == LEASED) and not dark]
 
@@ -221,7 +221,7 @@ static func draw_marks(canvas: Object, look: Dictionary, rect: Rect2i, upper: bo
 		VacantLook.draw(canvas, kind, rect, fine)
 	if state == VACANT:
 		_dashed_border(canvas, interior, edge)
-	if state == BROKEN:  # a red cross: this parking does not count
+	if state == BROKEN or bool(look.get("cut_off", false)):  # a red cross: this parking does not count, or no stairs or lift reach this room (#368)
 		canvas.draw_line(Vector2(interior.position), Vector2(interior.end), p["red"], 1.0)
 		canvas.draw_line(Vector2(interior.position.x, interior.end.y), Vector2(interior.end.x, interior.position.y), p["red"], 1.0)
 	if state == IDLE or state == INFESTED:

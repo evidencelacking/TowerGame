@@ -5,6 +5,7 @@ extends RefCounted
 
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Command := TowerSim.Command
+const Fixtures := preload("res://tests/fixtures.gd")
 const Catalogue := preload("res://scripts/sim/room_catalogue.gd")
 const Msg := preload("res://scripts/sim/messages.gd")
 const FireScript := preload("res://scripts/sim/fire.gd")
@@ -20,6 +21,7 @@ static func _tower(seed_value: int) -> TowerSim:
 	for f in [3, 4, 30, 31]:
 		t.floors.fill_span(f, 100, 163)
 	t.stars = 3
+	Fixtures.connect_by_stairs(t)  # the security office on floor 3 is reached floors
 	return t
 
 

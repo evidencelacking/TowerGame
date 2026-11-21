@@ -83,6 +83,8 @@ static func compute(stars: int, kind_counts: Dictionary, buildable: Array[String
 func update(rooms: Rooms, stars: int, messages: Messages, at_tick: int, buildable: Array[String] = Rooms.PLACEABLE, extra: Dictionary = {}) -> void:
 	var counts: Dictionary = extra.duplicate()
 	for room in rooms.room_ids():
+		if rooms.is_cut_off(room):
+			continue  # a room no route reaches does not meet a demand (#368)
 		var kind := rooms.kind_of(room)
 		counts[kind] = int(counts.get(kind, 0)) + 1
 	var now := compute(stars, counts, buildable)

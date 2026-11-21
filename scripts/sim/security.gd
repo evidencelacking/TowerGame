@@ -33,7 +33,7 @@ const FLOORS_PER_MINUTE := 3  ## Emergency stairs pace used for the response est
 static func offices(rooms: Rooms) -> Array[int]:
 	var found: Array[int] = []
 	for id in rooms.room_ids():
-		if rooms.kind_of(id) == OFFICE_KIND:
+		if rooms.kind_of(id) == OFFICE_KIND and not rooms.is_cut_off(id):  # an office no route reaches covers nothing (#368)
 			found.append(id)
 	return found
 

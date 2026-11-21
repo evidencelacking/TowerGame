@@ -205,7 +205,7 @@ func tick(clock: ClockScript, floors: FloorsScript, people: PeopleScript, rng: O
 
 
 func _vacant(id: int, r: Array[int], minute: int, night: int, floors: FloorsScript, people: PeopleScript, rng: Object) -> void:
-	if r[_DIRTY_SINCE] >= 0 or is_infested(id) or not floors.has_lobby():
+	if r[_DIRTY_SINCE] >= 0 or is_infested(id) or not floors.has_lobby() or _rooms.is_cut_off(id):  # no booking while no route reaches it (#368)
 		return
 	if reserved_room.is_valid() and int(reserved_room.call()) == id:
 		return

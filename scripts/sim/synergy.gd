@@ -146,6 +146,8 @@ static func others_of(grid: GridScript, rooms: RoomsScript, linked: bool = true)
 		var kind := rooms.kind_of(id)
 		if kind == LINKED_KIND and not linked:
 			continue  # a station nobody can reach from the lobby gives nothing
+		if rooms.is_cut_off(id):
+			continue  # a room no route reaches gives nothing (#368)
 		if rooms.is_closed_up(grid, id):
 			continue  # a deck the tower has grown past is closed (#318)
 		if is_source(kind) and grid.has_occupant(id):
