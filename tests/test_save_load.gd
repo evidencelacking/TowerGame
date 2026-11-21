@@ -67,13 +67,13 @@ static func run(check: Callable) -> void:
 	check.call(not SaveFiles.load_into(untouched, BAD_PATH) and untouched.state_hash() == before, "save: a junk file is refused")
 	check.call(not SaveFiles.load_into(untouched, "user://does_not_exist.sav"), "save: a missing file is refused")
 	var old_data := TowerSim.new(5).save()
-	old_data["version"] = TowerSim.SAVE_VERSION - 1
+	old_data["version"] = 39  # below the oldest version the migrator upgrades (#395)
 	var old := FileAccess.open(BAD_PATH, FileAccess.WRITE)
 	old.store_pascal_string(SaveFiles.MAGIC)
 	old.store_var(old_data)
 	old.close()
 	check.call(not SaveFiles.load_into(untouched, BAD_PATH) and untouched.state_hash() == before, "save: a file from an older version is refused")
-	check.call(SaveFiles.problem(BAD_PATH).contains("version %d" % (TowerSim.SAVE_VERSION - 1)), "save: an old file gets a message naming its version")
+	check.call(SaveFiles.problem(BAD_PATH).contains("version 39"), "save: an old file gets a message naming its version")
 	check.call(SaveFiles.problem(PATH) == "", "save: a good file has no problem")
 
 	# Autosave: off by default; on, it writes one slot per quarter, rotating.

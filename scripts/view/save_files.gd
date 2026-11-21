@@ -153,8 +153,8 @@ static func problem(path: String) -> String:
 	if data.is_empty():
 		return "Not a tower save file"
 	var version: Variant = data.get("version", 0)
-	if version != TowerSim.SAVE_VERSION:
-		return "Save is from version %s but this game reads version %d, so it cannot be loaded" % [str(version), TowerSim.SAVE_VERSION]
+	if version != TowerSim.SAVE_VERSION and not SaveMigration.can_migrate(version, TowerSim.SAVE_VERSION):
+		return "Save is from version %s but this game reads version %d (upgrades start at version %d), so it cannot be loaded" % [str(version), TowerSim.SAVE_VERSION, SaveMigration.MIN_VERSION]
 	return ""
 
 

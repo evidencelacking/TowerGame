@@ -40,6 +40,7 @@ const FireScript := preload("res://scripts/sim/fire.gd")
 const ThreatScript := preload("res://scripts/sim/threat.gd")
 const MoodScript := preload("res://scripts/sim/mood.gd")
 const LifeScript := preload("res://scripts/sim/life.gd")
+const SaveMigrationScript := preload("res://scripts/sim/save_migration.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
 ## point in that tick (see step). Integers only, so it saves and hashes exactly.
@@ -85,7 +86,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 45
+const SAVE_VERSION := 45  ## Every bump needs a step in save_migration.gd (a test enforces it).
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -659,7 +660,9 @@ func save() -> Dictionary:
 ## the data is not a supported save: every part is validated before any field is assigned.
 func load_state(data: Dictionary) -> bool:
 	if data.get("version", 0) != SAVE_VERSION:
-		return false
+		data = SaveMigrationScript.migrate(data, SAVE_VERSION)  # older saves are upgraded step by step (#395)
+		if data.is_empty():
+			return false
 	_reach_sig = -1  # the loaded rooms are checked afresh
 	for key in ["tick", "rng_state", "notes", "last_refusal"]:
 		if typeof(data.get(key)) != TYPE_INT:
