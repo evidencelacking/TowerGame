@@ -72,6 +72,10 @@ func _ready() -> void:
 		save_menu.name = "SaveMenu"
 		add_child(save_menu)
 		save_menu.bind($Hud/SimDriver)
+	var sound := SoundSystem.new()  # view only: reads the tower and camera, plays whatever sound files it finds (#247)
+	sound.name = "SoundSystem"
+	add_child(sound)
+	sound.bind($Hud/SimDriver as SimDriver, $TowerCamera as Camera2D)
 	var money: Label = $Hud.get_node("%MoneyLabel")
 	money.mouse_filter = Control.MOUSE_FILTER_STOP
 	money.gui_input.connect(func(event: InputEvent) -> void:

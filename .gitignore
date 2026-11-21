@@ -12,3 +12,6 @@
 *.local.json
 .env
 __pycache__/
+
+# Unlicensed local audio (#247): never commit; see tools/check.py
+local_sounds/
