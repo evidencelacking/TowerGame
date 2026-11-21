@@ -36,6 +36,13 @@ REFERENCES_FOLDER_DOCS = {
 }
 MAX_SCAN_BYTES = 1_000_000
 
+# Audio (#247): the owner's sound files are of unknown licence and live untracked in local_sounds/.
+# Licensed sounds may be tracked only under assets/sounds/, next to a SOURCES.md recording where each came from.
+LOCAL_SOUNDS = re.compile(r"(^|/)local_sounds/", re.I)
+AUDIO_FILE = re.compile(r"\.(wav|ogg|mp3)$", re.I)
+AUDIO_FOLDER = "assets/sounds/"
+AUDIO_SOURCES = AUDIO_FOLDER + "SOURCES.md"
+
 
 def git(*args, cwd=ROOT):
     return subprocess.run(
@@ -168,9 +175,23 @@ def run_tool_tests():
     return [] if result.returncode == 0 else result.stderr.splitlines()[-20:]
 
 
+def audio_problems(names):
+    """Problems with tracked audio: nothing under local_sounds/, and audio only under assets/sounds/ with a SOURCES.md."""
+    problems = []
+    names = list(names)
+    for name in names:
+        if LOCAL_SOUNDS.search(name):
+            problems.append(f"{name}: local_sounds/ holds unlicensed audio and must never be tracked")
+        elif AUDIO_FILE.search(name) and not name.startswith(AUDIO_FOLDER):
+            problems.append(f"{name}: audio may be tracked only under {AUDIO_FOLDER}")
+        elif AUDIO_FILE.search(name) and AUDIO_SOURCES not in names:
+            problems.append(f"{name}: audio needs {AUDIO_SOURCES} recording its source and licence")
+    return problems
+
+
 def clean_room_problems(names, read):
     """Problems in tracked files. read(name) returns a file's text, or None if unreadable."""
-    problems = []
+    problems = audio_problems(names)
     for name in names:
         if FORBIDDEN_PATHS.search(name):
             problems.append(f"{name}: reference or original-game file must not be tracked")

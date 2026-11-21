@@ -84,6 +84,10 @@ func _ready() -> void:
 		start_menu.name = "StartMenu"
 		add_child(start_menu)
 		start_menu.bind($Hud/SimDriver, save_menu)
+	var sound := SoundSystem.new()  # view only: reads the tower and camera, plays whatever sound files it finds (#247)
+	sound.name = "SoundSystem"
+	add_child(sound)
+	sound.bind($Hud/SimDriver as SimDriver, $TowerCamera as Camera2D)
 	var star_window := StarWindow.new()
 	star_window.name = "StarWindow"
 	add_child(star_window)

@@ -12,6 +12,7 @@ const SynergyLook := preload("res://scripts/view/synergy_look.gd")
 const HudScript := preload("res://scripts/view/hud.gd")
 const TransportLook := preload("res://scripts/view/transport_look.gd")
 const ViewSettings := preload("res://scripts/view/view_settings.gd")
+const SoundControlsScript := preload("res://scripts/view/sound/sound_controls.gd")
 
 ## Category -> item ids, in display order. Catalogue ids here cover CatalogueScript.IDS exactly
 ## once (a test checks); bulldoze and replace are player tools, not catalogue rows.
@@ -136,6 +137,7 @@ func _ready() -> void:
 	_graphics.selected = 1 if ViewSettings.detailed_graphics else 0
 	_graphics.item_selected.connect(_on_graphics_selected)
 	row.add_child(_graphics)
+	row.add_child(SoundControlsScript.new())  # sound on/off and volumes (#247)
 	_refresh()
 
 
