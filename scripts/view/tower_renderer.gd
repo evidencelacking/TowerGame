@@ -67,7 +67,9 @@ const TILE: Vector2i = Vector2i(256, 128)  ## The static picture is shown throug
 const TILE_PAD: int = 32  ## A piece marks the tiles within this distance of it for a fresh render, for glows that spill past a room.
 const REPAIR_BUDGET_US: int = 5000  ## Estimated script cost of the pieces repainted in one frame; at least one piece is always repainted.
 const UNKNOWN_PIECE_COST_US: int = 1500
-const TILE_RENDERS_PER_FRAME: int = 2  ## Tiles re-rendered per frame at most; the rest wait their turn.
+const URGENT_BUDGET_US: int = 9000  ## Like REPAIR_BUDGET_US, for the pieces the player's last action touched (#372): they go first.
+const TILE_RENDERS_PER_FRAME: int = 2  ## Tiles re-rendered per frame at most; the rest wait their turn, the longest-waiting first.
+const URGENT_TILE_RENDERS_PER_FRAME: int = 4  ## The same for tiles the player's last action touched, which always go before the rest (#372).
 const FRAME_LAYERS: Array[String] = ["_draw_backdrop", "_draw_links", "_draw_floors", "_draw_shafts", "_draw_exterior"]
 const FRAME_Z: Dictionary = {"_draw_backdrop": 0, "_draw_links": 3, "_draw_floors": 4, "_draw_shafts": 5, "_draw_exterior": 6}
 const OUTDOOR_REDRAWS_PER_FRAME: int = 1  ## Skyline slices (or the street) redrawn per frame after the outdoors changed.
@@ -89,6 +91,8 @@ class Piece extends RefCounted:
 	var layer_name: String = ""  ## A frame piece's painter method; empty for a room.
 	var runs: Array = []  ## A room piece's runs: [id, owner room, rect], one for a room or several for a suite.
 	var suite_kind: String = ""
+	var painted_frame: int = 0  ## The repair frame of its last repaint, for tests: a tile must render after it.
+	var urgent: bool = false  ## Built or changed by the player's action: repainted before background work, its tiles rendered first (#372).
 
 
 ## One window onto the static world: a SubViewport sharing the world the pieces live in, looking at its rect.
@@ -97,6 +101,9 @@ class Tile extends RefCounted:
 	var view: SubViewport = null
 	var sprite: Sprite2D = null
 	var pending: bool = true  ## Needs a fresh render.
+	var urgent: bool = false  ## Pending because of the player's action: rendered before the background tiles.
+	var rendered_frame: int = 0  ## The repair frame it was last rendered in, for tests.
+	var since: int = 0  ## The repair frame it became pending; the oldest is rendered first, so none starves.
 
 
 var _world: SubViewport = null  ## Holds the pieces; never rendered itself. The tiles share its world.
@@ -106,6 +113,12 @@ var _tiles: Array[Tile] = []
 var _frame_pieces: Array[Piece] = []
 var _room_pieces: Dictionary = {}  ## Key -> Piece, for the rooms and suites in the layout.
 var _next_uid: int = 1
+var _repair_frame: int = 0
+var _synced_once: bool = false  ## False until the first layout is in: loading a tower is background work, not the player's action.
+var _urgent_rects: Array[Rect2i] = []  ## Where the layout just changed (floors, links, shafts); the frame pieces' tiles there are urgent.
+var _seen_floors: Array = []  ## The floors, links and shafts as they were at the last layout change, to find what changed.
+var _seen_links: Array = []
+var _seen_shafts: Array = []
 var _plan_broken: Array[int] = []
 var _frame_due: int = 0  ## Tick at which the frame pieces (shafts and so on) are marked stale again.
 var _dynamic_view: SubViewport = null
@@ -223,7 +236,7 @@ func _sprite_of(view: SubViewport) -> Sprite2D:
 ## half-pixel steps that land on whole pixels of the bigger canvas. The dynamic layer (people, cars) gets
 ## the same treatment (#304), so Detailed people paint in half-pixel steps; everything else on it still
 ## paints in native pixels and lands as before.
-func _apply_density() -> void:
+func _apply_density(restale: bool = true) -> void:
 	var density := GraphicsStyle.current().density()
 	_canvas = _canvas_bounds()
 	_dynamic_view.size = _canvas.size * density  # people are drawn at the style's density too (#304)
@@ -232,7 +245,8 @@ func _apply_density() -> void:
 	_dynamic_sprite.scale = Vector2(1.0 / density, 1.0 / density)
 	_dynamic_sprite.position = Vector2(_canvas.position)
 	_rebuild_tiles(density)
-	_mark_all_stale()
+	if restale:  # growing the canvas keeps the pieces as they are: they live in the world, not on a canvas
+		_mark_all_stale()
 	_apply_ambient()
 
 
@@ -279,11 +293,14 @@ func _mark_all_stale() -> void:
 
 
 ## Marks the tiles near a rect for a fresh render.
-func _mark_tiles(rect: Rect2i) -> void:
+func _mark_tiles(rect: Rect2i, urgent: bool = false) -> void:
 	var grown := rect.grow(TILE_PAD)
 	for tile: Tile in _tiles:
 		if tile.rect.intersects(grown):
+			if not tile.pending:
+				tile.since = _repair_frame
 			tile.pending = true
+			tile.urgent = tile.urgent or urgent
 
 
 ## Work not yet done near the view: pieces to repaint and tiles to render. A bench waits for this to reach 0.
@@ -352,9 +369,10 @@ func _sync_pieces() -> void:
 			from = to
 	if GraphicsStyle.current().density() > 1:  # sky lobbies (#357): Detailed only, each run of lobby cells in slices
 		_want_sky_lobbies(wanted)
+	var player_made := _synced_once
 	for key: Variant in _room_pieces.keys():
 		if not wanted.has(key):
-			_free_piece(_room_pieces[key] as Piece)
+			_free_piece(_room_pieces[key] as Piece, player_made)
 			_room_pieces.erase(key)
 	for key: Variant in wanted:
 		var spec: Array = wanted[key]
@@ -363,12 +381,16 @@ func _sync_pieces() -> void:
 			piece = _new_piece()
 			piece.node.z_index = LOBBY_Z if (spec[2] as String) in ["lobby", DetailRooms.SKY_LOBBY] else ROOM_Z
 			_room_pieces[key] = piece
+			piece.urgent = player_made  # a new or moved piece is the player's work: it draws first (#372)
 		piece.rect = spec[0]
 		piece.runs = spec[1]
 		piece.suite_kind = spec[2]
 		piece.node.set("painter", _paint_room_piece.bind(piece))
 	for piece: Piece in _frame_pieces:
+		piece.rect = _canvas  # the canvas may have grown since the piece was made: its tiles are all of them (#365)
 		piece.stale = true  # floors, shafts and the rest are cheap: repainted whenever the layout changes
+		piece.urgent = not _urgent_rects.is_empty()
+	_synced_once = true
 	_frame_due = tower.tick + STATIC_REFRESH_TICKS
 
 
@@ -382,9 +404,9 @@ func _new_piece() -> Piece:
 	return piece
 
 
-func _free_piece(piece: Piece) -> void:
+func _free_piece(piece: Piece, urgent: bool = false) -> void:
 	DetailLight.drop(piece.uid)
-	_mark_tiles(piece.rect)
+	_mark_tiles(piece.rect, urgent)
 	piece.node.queue_free()
 	_glow.queue_redraw()
 
@@ -409,43 +431,109 @@ func _mark_changed_rooms() -> void:
 			piece.stale = true
 
 
+## Finds what the last layout change touched: the floors, links and shafts that are new, gone or different.
+## The frame pieces' tiles there are rendered before the background ones (#372). Nothing is urgent while a
+## tower is being loaded.
+func _note_layout_changes() -> void:
+	var floors: Array = []
+	for rect: Rect2i in _floor_rects:
+		floors.append(rect)
+	var shafts: Array = []
+	for shaft: Dictionary in ElevatorView.shafts(tower):
+		var top_row := VC.floor_to_row(shaft["top"])
+		var rect := Rect2i((shaft["x"] as int) * VC.CELL_W, top_row * VC.CELL_H, (shaft["width"] as int) * VC.CELL_W, (VC.floor_to_row(shaft["bottom"]) - top_row + 1) * VC.CELL_H)
+		shafts.append([rect, shaft["stops"], shaft["disabled"]])
+	if _synced_once:
+		for rect: Variant in floors:
+			if not _seen_floors.has(rect):
+				_urgent_rects.append(rect as Rect2i)
+		for rect: Variant in _seen_floors:
+			if not floors.has(rect):
+				_urgent_rects.append(rect as Rect2i)
+		for link: Array in _link_runs:
+			if not _seen_links.has(link):
+				_urgent_rects.append(link[1] as Rect2i)
+		for link: Variant in _seen_links:
+			if not _link_runs.has(link):
+				_urgent_rects.append((link as Array)[1] as Rect2i)
+		for shaft: Array in shafts:
+			if not _seen_shafts.has(shaft):
+				_urgent_rects.append(shaft[0] as Rect2i)
+		for shaft: Variant in _seen_shafts:
+			if not shafts.has(shaft):
+				_urgent_rects.append((shaft as Array)[0] as Rect2i)
+		if _urgent_rects.size() > 8:  # a big change (a bulldozed block): one box around it
+			var all := _urgent_rects[0]
+			for rect: Rect2i in _urgent_rects:
+				all = all.merge(rect)
+			_urgent_rects = [all]
+	_seen_floors = floors
+	_seen_links = _link_runs.duplicate()
+	_seen_shafts = shafts
+
+
 ## Repaints stale pieces near the view, as many as the frame's budget allows (always one), then renders the
-## tiles they touched, a few per frame. Frame pieces come due every STATIC_REFRESH_TICKS ticks.
+## tiles they touched, a few per frame. The player's own work goes first (#372): pieces just built or moved,
+## then the frame pieces, then the rest, with a bigger budget for the first group; tiles wait their turn
+## oldest first, so a steady refresh of the others cannot starve one. Frame pieces come due every
+## STATIC_REFRESH_TICKS ticks.
 func _repair() -> void:
+	_repair_frame += 1
 	if tower.tick >= _frame_due or _frame_due - tower.tick > STATIC_REFRESH_TICKS:
 		_frame_due = tower.tick + STATIC_REFRESH_TICKS
 		for piece: Piece in _frame_pieces:
 			piece.stale = true
 	var near := _view_rect()
-	var spent := 0
-	var queue: Array[Piece] = []
+	var first: Array[Piece] = []
+	var frame: Array[Piece] = []
+	var rest: Array[Piece] = []
 	for piece: Piece in _frame_pieces:
 		if piece.stale:
-			queue.append(piece)
+			(first if piece.urgent else frame).append(piece)
 	for key: Variant in _room_pieces:
 		var piece: Piece = _room_pieces[key]
 		if piece.stale and piece.rect.intersects(near):
-			queue.append(piece)
+			(first if piece.urgent else rest).append(piece)
+	var queue: Array[Piece] = first + frame + rest
+	var spent := 0
+	var finished := true
 	for piece: Piece in queue:
 		var cost := piece.cost_us if piece.cost_us > 0 else UNKNOWN_PIECE_COST_US
-		if spent > 0 and spent + cost > REPAIR_BUDGET_US:
+		if spent > 0 and spent + cost > (URGENT_BUDGET_US if piece.urgent else REPAIR_BUDGET_US):
+			finished = false
 			break
 		spent += cost
 		_repaint(piece)
-	var renders := 0
+	if finished:
+		_urgent_rects.clear()
+	var ready: Array[Tile] = []
 	for tile: Tile in _tiles:
 		if tile.pending and tile.rect.intersects(near):
-			tile.pending = false
-			tile.view.render_target_update_mode = SubViewport.UPDATE_ONCE
-			renders += 1
-			if renders >= TILE_RENDERS_PER_FRAME:
-				break
+			ready.append(tile)
+	ready.sort_custom(func(a: Tile, b: Tile) -> bool: return a.urgent if a.urgent != b.urgent else a.since < b.since)
+	var renders := 0
+	for tile: Tile in ready:
+		if renders >= (URGENT_TILE_RENDERS_PER_FRAME if tile.urgent else TILE_RENDERS_PER_FRAME):
+			break
+		tile.pending = false
+		tile.urgent = false
+		tile.rendered_frame = _repair_frame
+		tile.view.render_target_update_mode = SubViewport.UPDATE_ONCE
+		renders += 1
 
 
 func _repaint(piece: Piece) -> void:
 	piece.stale = false
+	piece.painted_frame = _repair_frame
 	piece.node.queue_redraw()
 	_mark_tiles(piece.rect)
+	if piece.urgent:
+		piece.urgent = false
+		if piece.layer_name.is_empty():
+			_mark_tiles(piece.rect, true)
+		else:
+			for rect: Rect2i in _urgent_rects:
+				_mark_tiles(rect, true)
 
 
 ## The world rect the canvases need (#307): the built floors, rooms and links, padded and snapped out to
@@ -517,8 +605,9 @@ func _process(delta: float) -> void:
 		_people_view.route_cache.clear()
 		_rebuild_runs()
 		if _canvas != _canvas_bounds():
-			_apply_density()
+			_apply_density(false)
 		_in_use = _rooms_in_use()
+		_note_layout_changes()
 		_sync_pieces()
 	if new_tick or layout_changed:
 		_remember_positions()
@@ -567,6 +656,8 @@ func _follow_sky() -> void:
 
 func set_tower(value: Tower) -> void:
 	tower = value
+	_synced_once = false
+	_urgent_rects.clear()
 	_mark_all_stale()
 	_seen_revision = -1
 	_seen_tick = -1

@@ -98,6 +98,7 @@ var _last_key: Array = []  ## What result was computed for; check_* only reruns 
 var result: Dictionary = {}  ## Last evaluate() verdict, for the label and the tests.
 var _drag: DragScript = DragScript.new(DragScript.Axis.VERTICAL)  ## Drag tools: press, drag, release.
 var _panel: PanelContainer
+var _cursor: Input.CursorShape = Input.CURSOR_ARROW
 var _label: Label
 
 
@@ -459,8 +460,22 @@ func commit() -> bool:
 	return queued
 
 
+## The cursor over a shaft end a drag can resize (#365): its top or bottom floor, or its machine room.
+static func cursor_for(verdict: Dictionary, floor_number: int) -> Input.CursorShape:
+	if verdict.has("shaft") and (verdict.get("mode", "") == "resize" or floor_number in [verdict["shaft"]["top"], verdict["shaft"]["bottom"]]):
+		return Input.CURSOR_VSIZE
+	return Input.CURSOR_ARROW
+
+
+func _set_cursor(shape: Input.CursorShape) -> void:
+	if shape != _cursor:
+		_cursor = shape
+		Input.set_default_cursor_shape(shape)
+
+
 func _process(_delta: float) -> void:
 	if tower == null or tool == "" or _panel == null:
+		_set_cursor(Input.CURSOR_ARROW)
 		if _panel != null:
 			_panel.visible = false
 		if not result.is_empty():
@@ -469,6 +484,7 @@ func _process(_delta: float) -> void:
 		return
 	var cell := _mouse_cell()
 	hover(cell.x, cell.y)
+	_set_cursor(cursor_for(result, cell.x))
 	_panel.visible = true
 	_panel.position = get_viewport().get_mouse_position() + Vector2(18, 18)
 

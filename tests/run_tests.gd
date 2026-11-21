@@ -18,7 +18,7 @@ func _initialize() -> void:
 	names.sort()
 	for file in names:
 		var script: GDScript = load(TEST_DIR + file)
-		script.call("run", check)
+		await script.call("run", check)  # a test may wait for frames (the renderer tests do)
 	print("TESTS FINISHED failures=%d" % failures)
 	quit(failures)
 
