@@ -153,6 +153,7 @@ func _ready() -> void:
 	_glow = DetailLight.new()
 	add_child(_glow)
 	add_child(SynergyOverlay.new())  # the synergy filter (#294), above the layers; idle while off
+	add_child(HeatOverlay.new())  # the income and mood heat maps (#376); idle while off
 	_apply_density()
 	queue_redraw()
 
