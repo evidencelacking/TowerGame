@@ -36,6 +36,8 @@ const MIN_STARS := 3
 const SPREAD_PERCENT := 35  ## Chance per period that a burning room ignites each neighbour.
 const BURN_PERIODS := 3  ## Periods of burning before a room is destroyed.
 const RESCUE_COST := 500000  ## Dollars.
+const RESCUE_COST_WITH_PAD := 300000  ## Dollars while a reachable helicopter pad stands (#409): never free.
+const PAD_ARRIVAL_DIVISOR := 2  ## ...and the craft arrives in this fraction of the time (half).
 const RESCUE_LOST := 2  ## Rooms already burning that the rescue craft cannot save.
 const PAY := 1  ## The choice that calls the rescue craft.
 const TIMEOUT := 600  ## Ticks the owner has to choose (one rush period).
@@ -60,14 +62,41 @@ func reseed(tower_seed: int) -> void:
 	_rng.reseed(tower_seed ^ SEED_SALT)
 
 
+## What the paid rescue costs now: cheaper while a reachable helicopter pad stands (#409).
+func rescue_cost() -> int:
+	return RESCUE_COST_WITH_PAD if _rooms != null and _rooms.helipad_reachable() else RESCUE_COST
+
+
 ## The event kind to register in Events.kinds. Its chance is gated: 0 without a security office.
+## "dynamic" rebuilds the costs, text and labels on every read (Events.kind_def), so the pad is reflected.
 func kind() -> Dictionary:
-	return {"id": KIND, "class": EventsScript.FIRE, "chance": CHANCE, "chance_den": CHANCE_DEN, "chance_of": _gate,
-		"min_stars": MIN_STARS, "choices": 2, "timeout": TIMEOUT, "floor": 0, "costs": [0, RESCUE_COST],
+	var def := {"id": KIND, "class": EventsScript.FIRE, "chance": CHANCE, "chance_den": CHANCE_DEN, "chance_of": _gate,
+		"min_stars": MIN_STARS, "choices": 2, "timeout": TIMEOUT, "floor": 0,
 		"title": "Fire!",
 		"ignored": "The guards fight it where they can reach; the fire spreads, and rooms burn out and stand charred and empty until you repair them.",
-		"text": "A fire has broken out in the tower. Guards from a security office within reach will put it out, but a floor no office covers has no guards. A burning room is burned out after three periods and stands charred, empty and earning nothing until you pay to repair it. The fire spreads to rooms beside and above.\nAn outside fire company costs $500,000: it arrives in about one period and puts out every fire, but the first two rooms that burned are lost.",
-		"labels": ["Leave it to the guards", "Call the fire company ($500,000)"]}
+		"dynamic": _live}
+	def.merge(_live.call())
+	return def
+
+
+func _live() -> Dictionary:
+	var cost := rescue_cost()
+	var money := "$%s" % _grouped(cost)
+	var pad := cost != RESCUE_COST
+	var arrives := "in about half a period (your helicopter pad lets it land on the roof)" if pad else "in about one period"
+	return {"costs": [0, cost],
+		"text": "A fire has broken out in the tower. Guards from a security office within reach will put it out, but a floor no office covers has no guards. A burning room is burned out after three periods and stands charred, empty and earning nothing until you pay to repair it. The fire spreads to rooms beside and above.\nAn outside fire company costs %s: it arrives %s and puts out every fire, but the first two rooms that burned are lost." % [money, arrives],
+		"labels": ["Leave it to the guards", "Call the fire company (%s)" % money]}
+
+
+static func _grouped(amount: int) -> String:
+	var digits := str(amount)
+	var out := ""
+	for n in digits.length():
+		if n > 0 and (digits.length() - n) % 3 == 0:
+			out += ","
+		out += digits[n]
+	return out
 
 
 func _gate() -> int:
@@ -140,7 +169,10 @@ func tick(clock: ClockScript, events: EventsScript, grid: GridScript, people: Ob
 		if entry[1] == KIND and entry[0] > _read:
 			_read = entry[0]
 			if entry[2] == PAY and not _burning.is_empty():
-				_rescue_at = at_tick + ClockScript.period_ticks(clock.period() - 1)
+				var delay := ClockScript.period_ticks(clock.period() - 1)
+				if _rooms.helipad_reachable():  # the craft lands on the roof pad: half the time (#409)
+					delay = maxi(delay / PAD_ARRIVAL_DIVISOR, 1)
+				_rescue_at = at_tick + delay
 	# Guards put out the fires they have reached.
 	var n := 0
 	while n < _burning.size():

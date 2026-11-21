@@ -37,6 +37,7 @@ const DemandsScript := preload("res://scripts/sim/demands.gd")
 const StarRulesScript := preload("res://scripts/sim/star_rules.gd")
 const EventsScript := preload("res://scripts/sim/events.gd")
 const FireScript := preload("res://scripts/sim/fire.gd")
+const HelipadScript := preload("res://scripts/sim/helipad.gd")
 const ThreatScript := preload("res://scripts/sim/threat.gd")
 const MoodScript := preload("res://scripts/sim/mood.gd")
 const LifeScript := preload("res://scripts/sim/life.gd")
@@ -86,7 +87,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 45  ## Every bump needs a step in save_migration.gd (a test enforces it).
+const SAVE_VERSION := 46  ## Every bump needs a step in save_migration.gd (a test enforces it).
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -161,6 +162,7 @@ func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_START
 	names.name_seed = seed_value
 	events.reseed(seed_value)
 	fire.reseed(seed_value)
+	vip.reseed(seed_value)
 	threat.reseed(seed_value)
 	events.kinds = [fire.kind(), threat.kind()] as Array[Dictionary]
 	ledger = LedgerScript.new(starting_funds)
@@ -457,6 +459,7 @@ func _run_systems() -> void:
 	if clock.day_started:  # rent comes in daily (#261); the quarter's last day pays the remainder
 		rent.collect(rooms, people, ledger, tick, clock.quarter_started, rent_bonus_percent())
 		commerce.collect_rent(rooms, rent, ledger, tick, clock.quarter_started)
+		HelipadScript.collect(rooms, ledger, tick)  # landing fees while the pad is reachable (#409)
 	if clock.quarter_started:
 		var rent_income := _quarter_rent()
 		var running := RunningCostsScript.charge(rooms, floors, ledger, tick)

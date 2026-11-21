@@ -20,7 +20,7 @@ const RoomsScript := preload("res://scripts/sim/rooms.gd")
 ## Noise a source makes right beside a room (distance 0). Offices, commercial, communal.
 const SOURCES: Dictionary = {
 	"office": 3, "fast_food": 4, "restaurant": 5, "retail": 3,
-	"movie_theatre": 6, "party_hall": 8, "nightclub": 9, "cafe": 2, "pizza": 3, "sushi": 1, "fine_dining": 1, "bar": 6, "casino": 8, "deli": 2, "pool": 3,
+	"movie_theatre": 6, "party_hall": 8, "nightclub": 9, "cafe": 2, "pizza": 3, "sushi": 1, "fine_dining": 1, "bar": 6, "casino": 8, "deli": 2, "pool": 3, "helipad": 6,
 }
 ## Kinds that can be disturbed: residential and hotel rooms.
 const SENSITIVE: Array[String] = ["condo", "hotel_single", "hotel_twin", "hotel_suite"]
@@ -30,6 +30,9 @@ const BUFFERS: Dictionary = {"medical": 2, "security": 1, "cathedral": 4}
 const RANGE_FLOORS := 1  ## Sources and buffers reach this many floors above and below.
 const RANGE_UNITS := 2  ## ...and this many empty units sideways (0 = touching or overlapping).
 const FALLOFF_PER_STEP := 1  ## A source loses this much per floor and per sideways unit of distance.
+## Sources that reach further than RANGE_FLOORS, and only downward from themselves (#409): the helicopter pad
+## disturbs hotel rooms and condos up to 3 floors below it, with the usual falloff per floor.
+const REACH_BELOW: Dictionary = {"helipad": 3}
 const MAX_LEVEL := 10  ## Noise level never exceeds this.
 const STRESS_PER_NOISE_LEVEL := 5  ## Stress added to a room's grade average per noise level (tunable, unverified; 0 turns it off).
 
@@ -44,13 +47,13 @@ static func is_sensitive(kind: String) -> bool:
 
 ## Steps between two runs [floor, column, length]: floors apart plus empty units between them.
 ## Returns -1 when out of range.
-static func distance(a: Array, b: Array) -> int:
+static func distance(a: Array, b: Array, range_floors: int = RANGE_FLOORS) -> int:
 	var floors_apart: int = absi(int(a[0]) - int(b[0]))
 	# There is no floor 0, so floors above and below ground are one apart across it.
 	if (int(a[0]) > 0) != (int(b[0]) > 0):
 		floors_apart -= 1
 	var gap: int = maxi(maxi(int(a[1]) - (int(b[1]) + int(b[2])), int(b[1]) - (int(a[1]) + int(a[2]))), 0)
-	if floors_apart > RANGE_FLOORS or gap > RANGE_UNITS:
+	if floors_apart > range_floors or gap > RANGE_UNITS:
 		return -1
 	return floors_apart + gap
 
@@ -63,7 +66,12 @@ static func level_among(kind: String, run: Array, others: Array) -> int:
 	var muting := 0
 	for other: Array in others:
 		var other_kind: String = other[0]
-		var d := distance(run, other[1])
+		var d := -1
+		if REACH_BELOW.has(other_kind):  # a roof source: only rooms below it, within its own reach
+			if int(run[0]) < int(other[1][0]):
+				d = distance(run, other[1], int(REACH_BELOW[other_kind]))
+		else:
+			d = distance(run, other[1])
 		if d < 0:
 			continue
 		if SOURCES.has(other_kind):

@@ -33,6 +33,7 @@ const PALETTES: Dictionary = {
 	"casino": ["4a1a2c", "2c1020", "6a1a28", "5a1622", "e0b040"],
 	"nightclub": ["2a1a4a", "1a1030", "2a2040", "221a36", "e04aa8"],
 	"observation_deck": ["c8d4e0", "8a9ab0", "b8b4ac", "a8a49c", "d8dce4"],
+	"helipad": ["8a9ab0", "6a7686", "5a6270", "4e5662", "e8c040"],
 	"cafe": ["ecd8b8", "a8744a", "b88a58", "9a7048", "f8ecd4"],
 	"pizza": ["e0c090", "a83c30", "c8b090", "b8a07c", "f4e4c0"],
 	"sushi": ["e4dcc8", "3a3a46", "a8845a", "987450", "c8453c"],

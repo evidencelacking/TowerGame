@@ -16,10 +16,15 @@ extends RefCounted
 ## condos, hotel rooms; Grades.quality), by integer division. A vacant suite reads as the neutral B
 ## until guests have stayed in it, so in practice the tower's quality decides. No random draw is used.
 ##
+## Helicopter arrival (#409): once a day the VIP's own seeded stream is drawn (always, so the stream never
+## shifts); a draw under AIR_PERCENT with a reachable helipad means the visit arrives by air and needs no
+## free parking space. The suite and verdict rules are unchanged.
+##
 ## The VIP is not walked through the tower (no transport model for VIPs): the visit is a booking, a
 ## night and a verdict. The VIP holds no parking space. All numbers are UNVERIFIED tunables.
 ##
-## Saved state: phase, reserved suite, visit day, next visit day, last verdict, visits so far.
+## Saved state: phase, reserved suite, visit day, next visit day, last verdict, visits so far, the stream state,
+## the day of the last air draw and its result.
 
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const HotelScript := preload("res://scripts/sim/hotel.gd")
@@ -27,6 +32,7 @@ const GradesScript := preload("res://scripts/sim/grades.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const ClockScript := preload("res://scripts/sim/clock.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
+const Rng := preload("res://scripts/sim/sim_rng.gd")
 
 const VISIT_STARS := 3  ## No VIP comes before this star rating (the suite itself needs 3 stars).
 const RETRY_DAYS := 3  ## After a bad verdict the next VIP comes this many days later.
@@ -34,6 +40,9 @@ const VISIT_MINUTE := 1080  ## 18:00: the VIP arrives (the hotel's check-in wind
 const VISIT_WINDOW := 120  ## A tick may skip minutes, so a visit may start up to this many minutes late.
 const VERDICT_MINUTE := 600  ## 10:00 the next morning: the VIP leaves and gives a verdict.
 const GOOD_FROM := 150  ## Tower quality must reach this (the B line, which is acceptable) for a good verdict.
+const SEED_SALT := 0x56495020  ## "VIP ".
+const AIR_PERCENT := 50  ## Chance a visit arrives by helicopter when a reachable pad stands (#409).
+const DEFAULT_STREAM := 0  ## The stream state a migrated old save gets (save_migration.gd, v45 to v46).
 
 ## Phases.
 const WAITING := 0  ## No VIP in the tower.
@@ -52,12 +61,24 @@ var _visit_day: int = -1
 var _next_day: int = 0  ## No visit before this day index (Hotel.night_of).
 var _verdict: int = NONE
 var _visits: int = 0
+var _rng := Rng.new()  ## Its own seeded stream (#409): one draw a day, whatever else is true, so it never shifts.
+var _roll_day: int = -1  ## The day the air-arrival draw was last made.
+var _by_air: bool = false  ## That day's draw came up "by air".
 var _last_minute: int = -1  ## Not saved: every step is idempotent, so a reload simply rechecks.
 
 
 func _init(rooms: RoomsScript, hotel: HotelScript) -> void:
 	_rooms = rooms
 	_hotel = hotel
+
+
+func reseed(tower_seed: int) -> void:
+	_rng.reseed(tower_seed ^ SEED_SALT)
+
+
+## True when today's visit would arrive by helicopter: the day's draw said so and a reachable pad stands.
+func arrives_by_air() -> bool:
+	return _by_air and _rooms.helipad_reachable()
 
 
 ## The suite held for the VIP, or -1. Hotel reads this to keep the suite empty.
@@ -114,6 +135,9 @@ func tick(clock: ClockScript, stars: int, people: PeopleScript, grades: GradesSc
 		return
 	_last_minute = minute
 	var day := HotelScript.night_of(clock)
+	if day != _roll_day:  # one draw every day, with or without a pad, so the stream does not depend on the tower
+		_roll_day = day
+		_by_air = _rng.next_below(100) < AIR_PERCENT
 	if _phase == VISITING:
 		_visiting(day, minute, people, grades, messages, at_tick)
 	elif _verdict != GOOD and day >= _next_day and stars >= VISIT_STARS and minute >= VISIT_MINUTE and minute < VISIT_MINUTE + VISIT_WINDOW:
@@ -121,7 +145,7 @@ func tick(clock: ClockScript, stars: int, people: PeopleScript, grades: GradesSc
 
 
 func _start(day: int, messages: MessagesScript, at_tick: int) -> void:
-	if _hotel.parking_free() <= 0:
+	if _hotel.parking_free() <= 0 and not arrives_by_air():  # a helicopter needs no parking space (#409)
 		return
 	for suite in _hotel.suites():  # a finite list, so the loop ends
 		if _eligible(suite):
@@ -151,11 +175,11 @@ func _visiting(day: int, minute: int, people: PeopleScript, grades: GradesScript
 
 
 func state_ints() -> Array[int]:
-	return [_phase, _suite, _visit_day, _next_day, _verdict, _visits]
+	return [_phase, _suite, _visit_day, _next_day, _verdict, _visits, _rng.state, _roll_day, 1 if _by_air else 0]
 
 
 static func valid_ints(ints: Array) -> bool:
-	if ints.size() != 6:
+	if ints.size() != 9:
 		return false
 	for value in ints:
 		if typeof(value) != TYPE_INT:
@@ -164,7 +188,7 @@ static func valid_ints(ints: Array) -> bool:
 		return false
 	if ints[0] == VISITING and ints[1] < 1:
 		return false
-	return ints[3] >= 0 and ints[4] >= NONE and ints[4] <= BAD and ints[5] >= 0
+	return ints[3] >= 0 and ints[4] >= NONE and ints[4] <= BAD and ints[5] >= 0 and ints[7] >= -1 and (ints[8] == 0 or ints[8] == 1)
 
 
 func load_ints(ints: Array) -> void:
@@ -174,4 +198,7 @@ func load_ints(ints: Array) -> void:
 	_next_day = ints[3]
 	_verdict = ints[4]
 	_visits = ints[5]
+	_rng.state = ints[6]
+	_roll_day = ints[7]
+	_by_air = ints[8] == 1
 	_last_minute = -1

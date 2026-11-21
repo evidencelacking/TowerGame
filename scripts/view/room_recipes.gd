@@ -37,7 +37,7 @@ const FIGURE_H: int = VC.FIGURE_H
 const PLACEHOLDERS: Dictionary = {}  ## Every kind has a real recipe now; the table stays for kinds added before their art.
 
 ## Real recipes with no spot: nobody stands in them (cars, ramps and the like).
-const RECIPES_WITHOUT_SPOTS: Array[String] = ["parking_ramp", "parking_space"]
+const RECIPES_WITHOUT_SPOTS: Array[String] = ["parking_ramp", "parking_space", "helipad"]
 
 static var _real: Dictionary = {}
 static var _cache: Dictionary = {}

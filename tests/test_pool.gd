@@ -60,7 +60,7 @@ static func run(check: Callable) -> void:
 	# The catalogue row and the placement above ground (step 1's gap: a full place_room).
 	var row: Dictionary = Catalogue.row("pool")
 	check.call(int(row["width"]) == 24 and int(row["height"]) == 2 and int(row["staff"]) == 4 and Catalogue.star("pool") == 3 and Catalogue.cost("pool") == 700000, "pool: 24 wide, two floors, 4 staff, star 3, $700,000")
-	check.call(Rooms.TALL_KINDS.has("pool") and Rooms.PLACEABLE.has("pool") and Catalogue.IDS[Catalogue.IDS.size() - 1] == "pool", "pool: a tall, placeable kind added at the end of the catalogue")
+	check.call(Rooms.TALL_KINDS.has("pool") and Rooms.PLACEABLE.has("pool") and Catalogue.IDS.has("pool"), "pool: a tall, placeable kind in the catalogue")
 	var t := _tower()
 	var before := t.ledger.balance
 	var refusal := _put(t, "pool", 3, POOL_X)

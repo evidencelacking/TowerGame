@@ -10,7 +10,7 @@ extends RefCounted
 const Furnish := preload("res://scripts/view/detail_furnish.gd")
 const Scenes := preload("res://scripts/view/detail_scenes.gd")
 
-const KINDS: Array[String] = ["casino", "nightclub", "observation_deck", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "gym", "daycare", "clinic", "coworking"]
+const KINDS: Array[String] = ["casino", "nightclub", "observation_deck", "helipad", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "gym", "daycare", "clinic", "coworking"]
 const BRASS := Color("c9a85c")
 const FELT := Color("2f7a4a")
 const REACH := 16.0
@@ -34,6 +34,8 @@ static func draw(p: Object, kind: String, w: int, y0: int, seats: Array, lit: bo
 			_nightclub(p, wf, yt, fy, seats, lit, taken)
 		"observation_deck":
 			_deck(p, wf, yt, fy, seats, lit, night, id, taken)
+		"helipad":
+			_pad(p, wf, yt, fy, lit, night, id, taken)
 		"cafe":
 			_cafe(p, wf, yt, fy, seats, lit, night, id, taken)
 		"pizza":
@@ -236,6 +238,32 @@ static func _deck(p: Object, w: float, yt: float, fy: float, seats: Array, lit: 
 	p.R(bx + 2, fy - 7, 2, 7, Color("3a2a22"))
 	p.R(bx + 36, fy - 7, 2, 7, Color("3a2a22"))
 	_note(taken, bx, bx + 40.0)
+
+
+## The helicopter pad (#409): open sky over the skyline, a steel landing platform with a painted H, and a
+## beacon on a mast that is lit at night. Drawn over the shell so the roof reads as open air.
+static func _pad(p: Object, w: float, yt: float, fy: float, lit: bool, night: bool, id: int, taken: Array) -> void:
+	p.gradv(4, yt + 4, w - 8, 36, Scenes.sky_col(night, yt + 4.0), Scenes.sky_col(night, yt + 40.0))
+	Scenes.skyline(p, 4, yt + 4, w - 8, 34, night, id)
+	var cx := w * 0.5
+	var pw := minf(w - 40.0, 150.0)
+	p.R(cx - pw * 0.5, fy - 6, pw, 6, Color("5a6270"))  # the platform
+	p.R(cx - pw * 0.5, fy - 6, pw, 1, Color("c8d0d8"))
+	p.R(cx - pw * 0.5, fy - 1, pw, 1, Color("3a424e"))
+	var rim := cx - pw * 0.5
+	while rim < cx + pw * 0.5 - 2.0:  # a rim of yellow dashes; rim steps 10 toward the limit
+		p.R(rim, fy - 5, 4, 1, Color("e8c040"))
+		rim += 10.0
+	p.R(cx - 11, fy - 22, 3, 17, Color("f4f0e6"))  # the H: two legs and a bar
+	p.R(cx + 8, fy - 22, 3, 17, Color("f4f0e6"))
+	p.R(cx - 8, fy - 15, 16, 3, Color("f4f0e6"))
+	var mx := cx + pw * 0.5 + 6.0  # the beacon on a mast at the platform's edge
+	p.R(mx, fy - 30, 2, 30, Color("8a94a4"))
+	p.R(mx - 2, fy - 34, 6, 5, Color("c8453c"))
+	if lit or night:
+		p.GR(mx - 1, fy - 33, 4, 3, Color("ff6a5a"))
+		p.glow(mx + 1, fy - 31, 18.0, 16.0, Color("ff5040"), 0.45)
+	_note(taken, cx - pw * 0.5, mx + 4.0)
 
 
 # ---------------------------------------------------------------- group 2
