@@ -50,22 +50,22 @@ static func run(check: Callable) -> void:
 	# Star panel: the next star's fields, ticked or crossed.
 	var s := TowerSim.new(5, 1000000000)
 	var lines := StarWindow.lines_for(s)
-	check.call(lines[0] == "Needed for star 2:" and lines.size() == 1 + StarRulesScript.REQUIREMENTS[2].size(), "star panel: star 2 lists its one field")
-	check.call(lines[1].begins_with(StarWindow.MARK_NO) and "Population" in lines[1] and "of 300" in lines[1], "star panel: population short is crossed, with the need")
+	check.call(lines[0] == "Needed for star 2:" and StarWindow.star_lines(s).size() == 1 + StarRulesScript.REQUIREMENTS[2].size(), "star panel: star 2 lists its one field")
+	check.call(lines[1].begins_with(StarWindow.MARK_NO) and "Population" in lines[1] and "/ 300" in lines[1], "star panel: population short is crossed, with the need")
 	s.stars = 3
 	lines = StarWindow.lines_for(s)
-	check.call(lines.size() == 1 + StarRulesScript.REQUIREMENTS[4].size(), "star panel: star 4 lists every requirement field")
+	check.call(StarWindow.star_lines(s).size() == 1 + StarRulesScript.REQUIREMENTS[4].size(), "star panel: star 4 lists every requirement field")
 	var joined := "\n".join(lines)
-	for word: String in ["Population", "Hotel suites 0 of 2", "No open demands", "VIP"]:
+	for word: String in ["Population", "Suites 0 / 2", "No open demands", "VIP"]:
 		check.call(word in joined, "star panel: star 4 shows %s" % word)
 	s.demands._open = (1 << (s.demands.SECURITY - 1)) | (1 << (s.demands.MEDICAL - 1))
 	joined = "\n".join(StarWindow.lines_for(s))
-	check.call("[X] Open demands: security, medical" in joined, "star panel: open demands are named and crossed")
+	check.call("[X] Open demands: security, medical" in joined and "Security: build a security office" in joined and "Medical:" in joined, "star panel: open demands are named, crossed and explained")
 	s.stars = 4
 	joined = "\n".join(StarWindow.lines_for(s))
-	check.call("Needed for star 5" in joined and "Metro stations 0 of 1" in joined, "star panel: star 5 lists population and metro")
+	check.call("Needed for star 5" in joined and "Metro stations 0 / 1" in joined, "star panel: star 5 lists population and metro")
 	s.stars = 5
-	check.call(StarWindow.lines_for(s).size() == 1, "star panel: at the top rank there is nothing more to need")
+	check.call(StarWindow.star_lines(s).size() == 1 and StarWindow.lines_for(s)[0].begins_with("Top star"), "star panel: at the top rank there is nothing more to need")
 	var before := s.state_hash()
 	StarWindow.lines_for(s)
 	check.call(s.state_hash() == before, "star panel: reading leaves the sim hash unchanged")

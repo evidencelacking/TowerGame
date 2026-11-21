@@ -102,7 +102,7 @@ func _ready() -> void:
 	hover_tip.bind(_tower, $PlacementGhost as PlacementGhost)
 	var stars: Label = $Hud.get_node("%StarsLabel")
 	stars.mouse_filter = Control.MOUSE_FILTER_STOP
-	stars.tooltip_text = "Click for progress toward the next star."
+	stars.tooltip_text = "Click (or press G) for goals: next star, demands and events."
 	stars.gui_input.connect(func(event: InputEvent) -> void:
 		var click := event as InputEventMouseButton
 		if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
