@@ -1,6 +1,7 @@
 extends RefCounted
 ## What the person window says (5.9), and which person a click picks. Reads the sim only.
 
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const NamesScript := preload("res://scripts/sim/names.gd")
@@ -24,7 +25,7 @@ static func room_label(tower: Object, room: int) -> String:
 	if kind == "" or run.is_empty():
 		return OUTSIDE
 	var floor_number := run[0]
-	return "%s, floor %s" % [kind.capitalize().replace("_", " "), "B%d" % -floor_number if floor_number < 0 else str(floor_number)]
+	return "%s, floor %s" % [CatalogueScript.display_name(kind), "B%d" % -floor_number if floor_number < 0 else str(floor_number)]
 
 
 ## The person at index i: {"id", "name", "partner", "mood", "mood_reasons", "age", "age_name", "title", "from", "to", "stress", "band", "band_name", "renamed"}.

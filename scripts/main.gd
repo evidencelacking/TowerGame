@@ -76,6 +76,21 @@ func _ready() -> void:
 	sound.name = "SoundSystem"
 	add_child(sound)
 	sound.bind($Hud/SimDriver as SimDriver, $TowerCamera as Camera2D)
+	var star_window := StarWindow.new()
+	star_window.name = "StarWindow"
+	add_child(star_window)
+	star_window.bind(_tower)
+	var hover_tip := HoverTip.new()
+	hover_tip.name = "HoverTip"
+	add_child(hover_tip)
+	hover_tip.bind(_tower, $PlacementGhost as PlacementGhost)
+	var stars: Label = $Hud.get_node("%StarsLabel")
+	stars.mouse_filter = Control.MOUSE_FILTER_STOP
+	stars.tooltip_text = "Click for progress toward the next star."
+	stars.gui_input.connect(func(event: InputEvent) -> void:
+		var click := event as InputEventMouseButton
+		if click != null and click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
+			star_window.toggle())
 	var money: Label = $Hud.get_node("%MoneyLabel")
 	money.mouse_filter = Control.MOUSE_FILTER_STOP
 	money.gui_input.connect(func(event: InputEvent) -> void:

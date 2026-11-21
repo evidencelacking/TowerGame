@@ -8,12 +8,15 @@ extends RefCounted
 const CarsScript := preload("res://scripts/sim/cars.gd")
 const GridScript := preload("res://scripts/sim/grid.gd")
 
+const GLIDE_LEVELS_PER_SECOND := 10.0  ## Fastest a car is drawn travelling: a sim tick moves it ~11 floors in 33 ms, too quick to see (#366).
 const MAX_QUEUE_FIGURES := 5  ## Queued people drawn per side; the rest are a count label.
 
 ## Last two sim levels of each car, keyed by "shaft id:car number in its shaft".
 var _prev: Dictionary = {}
 var _cur: Dictionary = {}
 var _seen_tick: int = -1
+var _glided: bool = false  ## Set once glide has run: only then does cars() draw the trailing level.
+var _shown: Dictionary = {}  ## Drawn level of each car (view-only float), chasing its sim level at GLIDE_LEVELS_PER_SECOND.
 
 
 ## A floor's place on one line: there is no floor 0, so basements are 0 and below.
@@ -106,7 +109,27 @@ func observe(tower: Object) -> bool:
 	for key: String in fresh:
 		_prev[key] = _cur.get(key, fresh[key])
 	_cur = fresh
+	for key: String in _cur:  # a car seen for the first time starts drawn where it stood
+		if not _shown.has(key):
+			_shown[key] = float(_prev[key])
 	return true
+
+
+## Moves each drawn car toward its sim level, at most GLIDE_LEVELS_PER_SECOND; call every frame after
+## observe. True while any car is still travelling, so the caller keeps repainting.
+func glide(delta: float) -> bool:
+	_glided = true
+	var travelling := false
+	var fresh: Dictionary = {}
+	for key: String in _cur:
+		var target := float(_cur[key])
+		var at: float = _shown.get(key, target)
+		at = move_toward(at, target, GLIDE_LEVELS_PER_SECOND * delta)
+		fresh[key] = at
+		if at != target:
+			travelling = true
+	_shown = fresh
+	return travelling
 
 
 ## Cars to draw, t (0 to 1) of the way from the last tick's level to this one's:
@@ -126,5 +149,10 @@ func cars(tower: Object, t: float) -> Array[Dictionary]:
 			continue
 		var now: int = _cur.get(key, level_of(car[CarsScript.FLOOR]))
 		var before: int = _prev.get(key, now)
-		out.append({"shaft": id, "x": shaft["x"], "width": shaft["width"], "level": lerp_level(before, now, t), "load": car[CarsScript.LOAD], "label": load_label(car[CarsScript.LOAD], tower.rooms.car_capacity(id)), "moving": before != now, "step": absf(float(now - before))})
+		var level := lerp_level(before, now, t)
+		var step := absf(float(now - before))
+		if _glided and _shown.has(key):  # gliding: the drawn level trails the sim's so a long ride is visible
+			level = _shown[key]
+			step = absf(float(now) - level)
+		out.append({"shaft": id, "x": shaft["x"], "width": shaft["width"], "level": level, "load": car[CarsScript.LOAD], "label": load_label(car[CarsScript.LOAD], tower.rooms.car_capacity(id)), "moving": level != float(now) if _glided else before != now, "step": step})
 	return out

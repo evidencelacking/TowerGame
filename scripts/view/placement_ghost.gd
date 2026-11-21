@@ -89,6 +89,8 @@ const BULLDOZE_TEXT: Dictionary = {
 
 var tower: TowerSim = null
 var lobby_height: int = 1  ## Floors a new ground lobby gets: 1 to 3, cycled with PageUp/PageDown.
+const RIGHT_CLICK_SLOP_PX := 4.0  ## A right press and release this close is a click; further is a camera pan.
+var _right_down: Vector2 = Vector2(-1e9, -1e9)
 var tool: String = ""  ## "" (off), BULLDOZE, or a catalogue id.
 var stars: int:  ## Current star rating, read from the sim.
 	get:
@@ -98,6 +100,7 @@ var _last_key: Array = []  ## What result was computed for; check_* only reruns 
 var result: Dictionary = {}  ## Last evaluate() verdict, for the label and the tests.
 var _drag: DragScript = DragScript.new(DragScript.Axis.VERTICAL)  ## Drag tools: press, drag, release.
 var _panel: PanelContainer
+var _cursor: Input.CursorShape = Input.CURSOR_ARROW
 var _label: Label
 
 
@@ -382,6 +385,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	var click := event as InputEventMouseButton
+	if click != null and click.button_index == MOUSE_BUTTON_RIGHT:
+		if click.pressed:
+			right_press(click.position)
+		else:
+			right_release(click.position)
+		return
 	if click == null or click.button_index != MOUSE_BUTTON_LEFT:
 		return
 	var cell := _mouse_cell()
@@ -389,6 +398,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		press(cell.x, cell.y)
 	else:
 		release(cell.x, cell.y)
+
+
+## Right button down (#375): remembers where, so a release without a drag can cancel the tool.
+func right_press(screen: Vector2) -> void:
+	_right_down = screen
+
+
+## Right button up: a click (no drag, so the camera did not pan) cancels the tool or placement and
+## returns to the pointer. Returns true if it cancelled.
+func right_release(screen: Vector2) -> bool:
+	var was_click := _right_down.distance_to(screen) <= RIGHT_CLICK_SLOP_PX
+	_right_down = Vector2(-1e9, -1e9)
+	if not was_click or tool == "":
+		return false
+	set_tool("")
+	return true
 
 
 ## The cell under the mouse as Vector2i(floor number, column).
@@ -459,8 +484,22 @@ func commit() -> bool:
 	return queued
 
 
+## The cursor over a shaft end a drag can resize (#365): its top or bottom floor, or its machine room.
+static func cursor_for(verdict: Dictionary, floor_number: int) -> Input.CursorShape:
+	if verdict.has("shaft") and (verdict.get("mode", "") == "resize" or floor_number in [verdict["shaft"]["top"], verdict["shaft"]["bottom"]]):
+		return Input.CURSOR_VSIZE
+	return Input.CURSOR_ARROW
+
+
+func _set_cursor(shape: Input.CursorShape) -> void:
+	if shape != _cursor:
+		_cursor = shape
+		Input.set_default_cursor_shape(shape)
+
+
 func _process(_delta: float) -> void:
 	if tower == null or tool == "" or _panel == null:
+		_set_cursor(Input.CURSOR_ARROW)
 		if _panel != null:
 			_panel.visible = false
 		if not result.is_empty():
@@ -469,6 +508,7 @@ func _process(_delta: float) -> void:
 		return
 	var cell := _mouse_cell()
 	hover(cell.x, cell.y)
+	_set_cursor(cursor_for(result, cell.x))
 	_panel.visible = true
 	_panel.position = get_viewport().get_mouse_position() + Vector2(18, 18)
 
