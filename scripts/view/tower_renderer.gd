@@ -121,6 +121,7 @@ var _urgent_rects: Array[Rect2i] = []  ## Where the layout just changed (floors,
 var _seen_floors: Array = []  ## The floors, links and shafts as they were at the last layout change, to find what changed.
 var _seen_links: Array = []
 var _seen_shafts: Array = []
+var _plan_workers: Dictionary = {}  ## Office room id -> workers, for the vacancy look (#358).
 var _plan_broken: Array[int] = []
 var _frame_due: int = 0  ## Tick at which the frame pieces (shafts and so on) are marked stale again.
 var _dynamic_view: SubViewport = null
@@ -418,14 +419,15 @@ func _free_piece(piece: Piece, urgent: bool = false) -> void:
 func _signature(piece: Piece) -> Array:
 	var out: Array = []
 	for run: Array in piece.runs:
-		var look := RoomLook.describe(tower, run[0], _plan_broken)
-		out.append([look["state"], look["fill"], _in_use.has(run[1]), _asleep.has(run[1]), look.get("anim", 0)])
+		var look := RoomLook.describe(tower, run[0], _plan_broken, _plan_workers)
+		out.append([look["state"], look["fill"], look["empty"], _in_use.has(run[1]), _asleep.has(run[1]), look.get("anim", 0)])
 	return out
 
 
 ## Marks the room pieces whose state changed since they were last marked.
 func _mark_changed_rooms() -> void:
 	_plan_broken = Parking.broken_ids(tower.rooms, tower.grid)
+	_plan_workers = tower.people.worker_counts()  # one pass, so each office's vacancy is a lookup
 	for key: Variant in _room_pieces:
 		var piece: Piece = _room_pieces[key]
 		var now := _signature(piece)

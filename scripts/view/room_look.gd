@@ -112,14 +112,15 @@ static func base_color(kind: String) -> Color:
 ## one). fill is the recycling centre's rubbish in thousandths of capacity, else 0. Pure read of the
 ## tower. broken lists the cut-off parking ids when the caller already has them (one search per
 ## frame, not per room); null finds them here.
-static func describe(tower: Tower, room_id: int, broken: Variant = null) -> Dictionary:
+static func describe(tower: Tower, room_id: int, broken: Variant = null, workers: Variant = null) -> Dictionary:
 	var id := tower.rooms.room_of(room_id)
 	var kind := tower.rooms.kind_of(id)
 	var fill := 0
 	var state := OPEN
 	var color := base_color(kind)
 	if tower.rooms.is_charred(id):
-		return {"kind": kind, "state": CHARRED, "color": CHARRED_COLOR, "fill": 0}
+		return {"kind": kind, "state": CHARRED, "color": CHARRED_COLOR, "fill": 0, "empty": false}
+	var empty := false  ## Unrented or unoccupied: drawn with the vacant look (#358).
 	if tower.hotel.is_hotel(id):
 		if tower.hotel.is_infested(id):
 			state = INFESTED
@@ -132,12 +133,19 @@ static func describe(tower: Tower, room_id: int, broken: Variant = null) -> Dict
 			color = color.lerp(GLOW_COLOR, 0.55)
 		else:
 			state = CLEAN
+			empty = true
 	elif kind == "retail":
 		if tower.commerce.is_vacant(id):
 			state = VACANT
 			color = VACANT_COLOR
+			empty = true
 		else:
 			state = LEASED
+	elif kind == "office":
+		var staff: int = int((workers as Dictionary).get(id, 0)) if workers != null else tower.people.workers_in(id)
+		empty = staff == 0
+	elif kind == "condo":
+		empty = not tower.rooms.is_sold(id)
 	elif kind == "recycling":
 		fill = tower.recycling.fill_of(id) * 1000 / RecyclingScript.CAPACITY
 		if tower.recycling.is_idle(id):
@@ -148,7 +156,7 @@ static func describe(tower: Tower, room_id: int, broken: Variant = null) -> Dict
 		if cut_off.has(id):
 			state = BROKEN
 			color = color.darkened(0.35)
-	var out := {"kind": kind, "state": state, "color": color, "fill": fill}
+	var out := {"kind": kind, "state": state, "color": color, "fill": fill, "empty": empty}
 	if kind == PoolLifeScript.KIND:
 		out.merge(_pool_life(tower, id))
 	return out
@@ -200,7 +208,7 @@ static func appearance(look: Dictionary, lit: bool, dark: bool) -> Array:
 
 
 ## The state marks over a drawn room (vacant border, broken cross, pest, dirt, rubbish), in world pixels.
-static func draw_marks(canvas: Object, look: Dictionary, rect: Rect2i, upper: bool) -> void:
+static func draw_marks(canvas: Object, look: Dictionary, rect: Rect2i, upper: bool, fine: bool = false) -> void:
 	var kind: String = look["kind"]
 	var state: String = look["state"]
 	var p := Palette.get_palette()
@@ -209,6 +217,8 @@ static func draw_marks(canvas: Object, look: Dictionary, rect: Rect2i, upper: bo
 	if state == CHARRED:
 		_charred_marks(canvas, interior)
 		return
+	if bool(look.get("empty", false)) and not upper:  # the vacant look (#358); fine is the Detailed style
+		VacantLook.draw(canvas, kind, rect, fine)
 	if state == VACANT:
 		_dashed_border(canvas, interior, edge)
 	if state == BROKEN:  # a red cross: this parking does not count
