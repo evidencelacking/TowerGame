@@ -33,6 +33,7 @@ layout_mode = 2
 [node name="PopulationLabel" type="Label" parent="Bar/Row"]
 unique_name_in_owner = true
 layout_mode = 2
+mouse_filter = 0
 
 [node name="StarsLabel" type="Label" parent="Bar/Row"]
 unique_name_in_owner = true

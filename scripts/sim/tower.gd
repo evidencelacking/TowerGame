@@ -84,7 +84,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 43
+const SAVE_VERSION := 44
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -188,6 +188,31 @@ func enqueue(command: Command) -> bool:
 ## People in the tower right now (derived from people, not saved).
 func population() -> int:
 	return people.in_tower_count() + commerce.visitors_inside(clock.minute_of_day())
+
+
+## Population by group, for the top bar (#383). "now" is people in the tower this minute (its total is
+## population(), what the star rules use); "overall" is everyone who uses the building in a day: each
+## registered person once (a hotel guest, else a worker, else a resident) plus outside visitors served today.
+## Derived from people, rooms and commerce; only the visitors-today counter is saved.
+func population_breakdown() -> Dictionary:
+	var now := {"residents": 0, "workers": 0, "guests": 0, "visitors": commerce.visitors_inside(clock.minute_of_day())}
+	var overall := {"residents": 0, "workers": 0, "guests": 0, "visitors": commerce.visitors_today()}
+	for i in people.count():
+		var home := people.home_of(i)
+		var group := "residents"
+		if home != PeopleScript.NONE and rooms.has_room(home) and HotelScript.is_hotel_kind(rooms.kind_of(home)):
+			group = "guests"
+		elif people.work_of(i) != PeopleScript.NONE:
+			group = "workers"
+		overall[group] = int(overall[group]) + 1
+		if people.location_of(i) != PeopleScript.NONE or people.trip_state(i) != PeopleScript.TRIP_IDLE:
+			now[group] = int(now[group]) + 1
+	var total_now := 0
+	var total_overall := 0
+	for group: String in now:
+		total_now += int(now[group])
+		total_overall += int(overall[group])
+	return {"now": now, "overall": overall, "now_total": total_now, "overall_total": total_overall}
 
 
 ## Removes a room by disaster (fire, #217) and lets go of everything that pointed at it, as a bulldoze does.
