@@ -221,6 +221,7 @@ const _ROWS: Dictionary = {
 const DISPLAY_NAMES: Dictionary = {
 	"local_shaft": "Local elevator", "service_shaft": "Service elevator", "express_shaft": "Express elevator",
 	"local_car": "Local car", "service_car": "Service car", "express_car": "Express car",
+	"medical": "Medical Center", "clinic": "Wellness Clinic",  # #384
 }
 
 
