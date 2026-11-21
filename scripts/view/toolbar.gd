@@ -40,6 +40,8 @@ const TOOL_TIPS: Dictionary = {
 	"service_shaft": SHAFT_TIP,
 	"express_shaft": SHAFT_TIP + " Express shafts stop only at lobbies and basements, any height.",
 	"local_car": CAR_TIP + " Hotkey A.",
+	"medical": "Medical Center: a required service. The tower needs one per 20 offices, and it is needed for 4 stars. Cannot be removed.",
+	"clinic": "Wellness Clinic: lifts the mood of unhappy people. An optional amenity, not the required Medical Center.",
 	"service_car": CAR_TIP,
 	"express_car": CAR_TIP + " Holds 36.",
 }
