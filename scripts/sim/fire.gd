@@ -41,7 +41,7 @@ const PAY := 1  ## The choice that calls the rescue craft.
 const TIMEOUT := 600  ## Ticks the owner has to choose (one rush period).
 const FIELDS := 3  ## Ints per burning room.
 const HEADER := 5  ## Ints before the burning rooms.
-const REPAIR_PERCENT := 50  ## Repairing a charred room costs this percent of its build cost (owner to confirm).
+const REPAIR_PERCENT := 50  ## Repairing a charred room costs this percent of its build cost (owner ruling, #373).
 
 var _rooms: Rooms
 var _rng := Rng.new()
