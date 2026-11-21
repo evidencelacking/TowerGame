@@ -66,12 +66,24 @@ func _ready() -> void:
 	finance_window.name = "FinanceWindow"
 	add_child(finance_window)
 	finance_window.bind(_tower)
-	if not demo:  # Demo towers never write or read the normal save slots.
-		$Hud/SimDriver.autosave_enabled = true
-		var save_menu := SaveMenu.new()
-		save_menu.name = "SaveMenu"
-		add_child(save_menu)
-		save_menu.bind($Hud/SimDriver)
+	# Demo towers save to their own files, marked demo, never the normal slots.
+	SaveFiles.demo = demo
+	SaveFiles.autosave_template = SaveFiles.DEMO_AUTOSAVE_PATH if demo else SaveFiles.AUTOSAVE_PATH
+	$Hud/SimDriver.autosave_enabled = true
+	var save_menu := SaveMenu.new()
+	save_menu.name = "SaveMenu"
+	add_child(save_menu)
+	save_menu.bind($Hud/SimDriver)
+	if SaveFiles.pending_load != "":  # Switching mode to load a save from the other mode.
+		var path := SaveFiles.pending_load
+		SaveFiles.pending_load = ""
+		StartMenu.shown = true
+		save_menu._load(path, demo)
+	elif not StartMenu.shown and not demo:
+		var start_menu := StartMenu.new()
+		start_menu.name = "StartMenu"
+		add_child(start_menu)
+		start_menu.bind($Hud/SimDriver, save_menu)
 	var sound := SoundSystem.new()  # view only: reads the tower and camera, plays whatever sound files it finds (#247)
 	sound.name = "SoundSystem"
 	add_child(sound)

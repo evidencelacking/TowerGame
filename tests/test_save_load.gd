@@ -106,3 +106,33 @@ static func run(check: Callable) -> void:
 	DirAccess.remove_absolute(BAD_PATH)
 	SaveFiles.autosave_template = real_template
 	d.free()
+	_slots(check, t)
+
+
+## Named slots, demo separation and the refused-version message (#386).
+static func _slots(check: Callable, t: TowerSim) -> void:
+	var normal_path := "user://test_slot_normal_%s.sav" % _run_id
+	var demo_path := "user://test_slot_demo_%s.sav" % _run_id
+	check.call(SaveFiles.slot_path(1, false) != SaveFiles.slot_path(1, true), "save: demo slots are separate files from normal slots")
+	check.call(SaveFiles.quick_path(false) != SaveFiles.quick_path(true), "save: demo quick save is a separate file")
+	check.call(SaveFiles.write(t, normal_path, "Alpha", false) and SaveFiles.write(t, demo_path, "Beta", true), "save: named slots write")
+	check.call(SaveFiles.read_meta(demo_path).get("demo", false) == true and SaveFiles.read_meta(normal_path).get("demo", true) == false, "save: the slot records whether it is demo")
+	var entry := SaveFiles.entry_for(normal_path, "Slot 1", false)
+	check.call(entry["name"] == "Alpha" and entry["stars"] == t.stars and entry["population"] == t.population() and entry["day"] == SaveFiles.day_number(t), "save: a slot lists name, stars, population and day")
+	var text := SaveFiles.describe(entry)
+	check.call(text.contains("Alpha") and text.contains("%d stars" % t.stars) and text.contains("pop %d" % t.population()) and text.contains("day %d" % SaveFiles.day_number(t)), "save: the slot description shows the details")
+	check.call(SaveFiles.describe(SaveFiles.entry_for("user://no_such_slot_%s.sav" % _run_id, "Slot 2", false)) == "Slot 2: empty", "save: a missing slot reads as empty")
+	var loaded := TowerSim.new(0)
+	check.call(SaveFiles.load_into(loaded, demo_path) and loaded.state_hash() == t.state_hash(), "save: a slot with a summary record still loads exactly")
+	# An old version is refused with a message naming both versions, and the slot says so too.
+	var old_data := t.save()
+	old_data["version"] = 7
+	var old := FileAccess.open(normal_path, FileAccess.WRITE)
+	old.store_pascal_string(SaveFiles.MAGIC)
+	old.store_var(old_data)
+	old.close()
+	var why := SaveFiles.problem(normal_path)
+	check.call(why.contains("version 7") and why.contains("version %d" % TowerSim.SAVE_VERSION), "save: the refusal names the found and expected versions")
+	check.call(SaveFiles.describe(SaveFiles.entry_for(normal_path, "Slot 1", false)).contains("version 7"), "save: the slot list shows why an old save cannot load")
+	DirAccess.remove_absolute(normal_path)
+	DirAccess.remove_absolute(demo_path)
