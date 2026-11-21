@@ -90,6 +90,15 @@ static func build() -> Dictionary:
 			"spots": [[14, 28]]}],
 		"spots": [[-10, 28, "r"]],
 	}
+	# Helicopter pad (#409): open sky, a steel platform with a white H and a red beacon on a mast (lit while the room is lit).
+	out["helipad"] = {
+		"hue": "office", "look": "full",
+		"fixed": [
+			[-50, 26, 100, 4, "furn", "c"], [-12, 10, 3, 16, "white", "c"], [9, 10, 3, 16, "white", "c"], [-9, 17, 18, 3, "white", "c"],
+			[-46, 25, 92, 1, "gold", "c"], [52, 8, 2, 22, "furn", "c"], [51, 5, 4, 3, "red", "c"], [51, 3, 4, 2, "lamp", "c"],
+		],
+		"spots": [],
+	}
 	# Grocery: rows of shelving with produce crates in front, a checkout counter at the back.
 	out["grocery"] = {
 		"hue": "shop", "look": "full",

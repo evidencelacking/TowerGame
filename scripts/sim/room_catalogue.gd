@@ -39,7 +39,7 @@ const RESCUE_COST := 500000  ## Fire rescue, dollars (decided 2026-11-10).
 
 ## Kinds whose upkeep is a guess: only the $10,000 per elevator (local shaft) is in the reference.
 const UPKEEP_UNVERIFIED: Array[String] = [
-	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp", "metro", "observation_deck", "casino", "pool",
+	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp", "metro", "observation_deck", "casino", "pool", "helipad",
 ]
 
 const PLACE_ANYWHERE := 0  ## Above or below ground.
@@ -64,7 +64,7 @@ const IDS: Array[String] = [
 	"movie_theatre", "party_hall", "medical", "recycling", "parking_ramp", "parking_space",
 	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino",
 	"cafe", "pizza", "sushi", "fine_dining", "bar",
-	"grocery", "deli", "pool",
+	"grocery", "deli", "pool", "helipad",
 ]
 
 const _ROWS: Dictionary = {
@@ -183,6 +183,12 @@ const _ROWS: Dictionary = {
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"observation_deck": {"upkeep": 6000, "staff": 2, "width": 32, "height": 1, "cost": 800000, "per_unit": false, "star": 4,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# Helicopter pad (#409, our own kind): one per tower, on the roof (the observation deck's top-floor rule), star 3.
+	# Upkeep is $2,000 a day; RunningCosts charges per quarter (Clock.DAYS_PER_QUARTER = 3 days), so $6,000 a quarter.
+	# Its hooks (fire rescue, VIP air arrival, daily income, noise) are in fire.gd, vip.gd, helipad.gd and noise.gd.
+	"helipad": {"upkeep": 6000, "width": 16, "height": 1, "cost": 400000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	# Everyday shops (#322, our own design). A grocery serves the tower's households; a deli is the small early-and-late shop.

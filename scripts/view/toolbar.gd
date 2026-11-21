@@ -27,7 +27,7 @@ const CATEGORIES: Array = [
 	["Services", ["housekeeping", "security", "medical", "recycling", "clinic"]],
 	["Community", ["gym", "daycare", "pool"]],
 	["Parking", ["parking_ramp", "parking_space"]],
-	["Landmarks", ["metro", "cathedral", "observation_deck"]],
+	["Landmarks", ["metro", "cathedral", "observation_deck", "helipad"]],
 	["Tools", [Ghost.BULLDOZE, Ghost.REPLACE]],
 ]
 const TOOL_STAR: int = 1  ## Bulldoze and replace are always available.
@@ -44,6 +44,7 @@ const TOOL_TIPS: Dictionary = {
 	"local_car": CAR_TIP + " Hotkey A.",
 	"medical": "Medical Center: a required service. The tower needs one per 20 offices, and it is needed for 4 stars. Cannot be removed.",
 	"clinic": "Wellness Clinic: lifts the mood of unhappy people. An optional amenity, not the required Medical Center.",
+	"helipad": "Helicopter Pad: one on the roof. A reachable pad cuts the fire rescue to $300,000 and half the wait, lets a VIP fly in without a parking space, and earns $5,000 a day (costs $2,000 a day). It is loud for hotels and condos up to 3 floors below.",
 	"service_car": CAR_TIP,
 	"express_car": CAR_TIP + " Holds 36.",
 }

@@ -21,6 +21,7 @@ extends RefCounted
 ##             array (shock only) gains the empty shocked list                    (#287)
 ##   43 -> 44  commerce: appends visitors_today 0                                 (#383)
 ##   44 -> 45  fire: appends the charred-room list, empty                         (#373)
+##   45 -> 46  vip: appends the air-arrival stream (state 0), no draw yet (day -1), not by air  (#409)
 ## Versions below MIN_VERSION are refused: the layout before #259 is not recorded here.
 
 const MIN_VERSION := 40
@@ -73,6 +74,8 @@ static func upgrade_step(version: int, data: Dictionary) -> Dictionary:
 			_append(out, "commerce", [0])
 		44:
 			_append(out, "fire", [0])
+		45:
+			_append(out, "vip", [0, -1, 0])  # Vip.DEFAULT_STREAM, no draw made, not by air
 		_:
 			return {}
 	out["version"] = version + 1

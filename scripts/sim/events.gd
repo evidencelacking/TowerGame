@@ -99,9 +99,15 @@ func cost_of(id: int, choice: int) -> int:
 	return 0
 
 
+## A kind's definition. A kind with a "dynamic" Callable has the Dictionary it returns merged over it on each
+## read, so costs and texts follow the tower's current state (the fire's rescue and the helicopter pad, #409).
 func kind_def(kind: int) -> Dictionary:
 	for def in kinds:
 		if def["id"] == kind:
+			if def.has("dynamic"):
+				var live: Dictionary = def.duplicate()
+				live.merge((def["dynamic"] as Callable).call(), true)
+				return live
 			return def
 	return {}
 

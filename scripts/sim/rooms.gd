@@ -57,6 +57,7 @@ const NO_FLOOR_FOR_ESCALATOR := 55  ## Escalator: one of the two floors is not b
 const ONE_STATION := 74  ## Metro: the tower already has its one station.
 const NOT_TOP := 75  ## Observation deck: only on the tower's top floor, with no room above it (#318).
 const ONE_DECK := 76  ## Observation deck: the tower already has its one deck.
+const ONE_HELIPAD := 79  ## Helicopter pad: the tower already has its one pad (#409).
 const NOT_CHARRED := 78  ## Repair: the cell holds no burned-out room (#373).
 const ONE_CASINO := 77  ## Casino: the tower already has its one casino (#319).
 const NOT_UNDERGROUND := 60  ## A basement-only room (recycling) needs every one of its floors below ground.
@@ -94,7 +95,7 @@ const EXPRESS_CAR_CAPACITY := 36  ## People an express car holds (owner ruling 2
 const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
-const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool"]
+const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool", "helipad"]
 ## Rooms two floors tall, underground (recycling) or above ground (a kind whose placement is not underground,
 ## #328; see _check_place_tall). Their grid run is on the lower (deeper) floor under the room's id, and the
 ## upper floor is a second grid occupant under id + 1 that is not a room of its own (see room_of).
@@ -187,8 +188,11 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 	if kind == "casino" and _has_kind(kind):  # one casino (#319)
 		result["reason"] = ONE_CASINO
 		return result
-	if kind == "observation_deck":  # one deck, on the top floor (#318)
-		if _has_kind(kind):
+	if kind == "helipad" and _has_kind(kind):  # one pad, on the roof like the deck (#409)
+		result["reason"] = ONE_HELIPAD
+		return result
+	if kind == "observation_deck" or kind == "helipad":  # on the top floor (#318, #409)
+		if kind == "observation_deck" and _has_kind(kind):
 			result["reason"] = ONE_DECK
 			return result
 		if floor_number < highest_room_floor(grid):
@@ -375,6 +379,20 @@ static func needs_route(kind: String) -> bool:
 ## stairs or elevators reach it. Always false for rooms Tower has not checked yet and for kinds in ALWAYS_OPEN_KINDS.
 func is_cut_off(id: int) -> bool:
 	return cut_off.has(id)
+
+
+## The id of the tower's helicopter pad, or 0 when there is none (#409).
+func helipad_id() -> int:
+	for id in room_ids():
+		if kind_of(id) == "helipad":
+			return id
+	return 0
+
+
+## True while a helicopter pad stands, is not burned out and is not cut off from the lobby (#409, #368).
+func helipad_reachable() -> bool:
+	var id := helipad_id()
+	return id != 0 and not is_charred(id) and not is_cut_off(id)
 
 
 ## True for an observation deck with a room above it: the tower has grown past it, so it is closed until moved.

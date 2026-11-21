@@ -15,6 +15,10 @@ static func _current() -> Dictionary:
 		t.rooms.place_room(t.grid, t.floors, t.ledger, 0, condo, 6, column)
 	for _n in 400:
 		t.step()
+	# The v46 VIP stream is seeded per tower, which an upgrade cannot know: pin it to what the step appends.
+	var vip_ints := t.vip.state_ints().slice(0, 6)
+	vip_ints.append_array([0, -1, 0])
+	t.vip.load_ints(vip_ints)
 	return t.save()
 
 
@@ -45,6 +49,9 @@ static func _reverse(data: Dictionary, v: int) -> Dictionary:
 		45:
 			var fire: Array = out["fire"]
 			fire.resize(fire.size() - 1)
+		46:
+			var vip: Array = out["vip"]
+			vip.resize(vip.size() - 3)
 	out["version"] = v - 1
 	return out
 
