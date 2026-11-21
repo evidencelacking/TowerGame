@@ -40,9 +40,9 @@ static func _tables(check: Callable) -> void:
 	for kind: String in Catalog.KIND_LOOPS:
 		check.call(kind in RoomCatalogue.IDS, "ambience kind %s is a catalogue kind" % kind)
 		used[Catalog.KIND_LOOPS[kind]] = true
-	for single: String in [Catalog.BUY_CLIP, Catalog.CRICKET_LOOP, Catalog.FIRE_LOOP, Catalog.ELEVATOR_LOOP, "Intro", "Recycling"]:
+	for single: String in [Catalog.BUY_CLIP, Catalog.OFFICE_CLIP, Catalog.CRICKET_LOOP, Catalog.FIRE_LOOP, Catalog.ELEVATOR_LOOP, "Intro", "Recycling"]:
 		used[single] = true
-	for kind: String in [Catalog.CONDO_KIND, Catalog.THEATER_KIND, Catalog.LOBBY_KIND, Catalog.RECYCLING_KIND]:
+	for kind: String in Catalog.OFFICE_KINDS + [Catalog.CONDO_KIND, Catalog.THEATER_KIND, Catalog.LOBBY_KIND, Catalog.RECYCLING_KIND]:
 		check.call(kind in RoomCatalogue.IDS, "kind %s is a catalogue kind" % kind)
 	for sound_name: String in used:
 		check.call(Catalog.is_known(sound_name), "%s is a known sound name" % sound_name)
