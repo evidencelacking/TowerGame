@@ -79,7 +79,6 @@ const UNMAPPED: Array[String] = ["Rain", "Thunder", "Wedding", "Belltoll", "Sant
 ## Room kind -> the ambience loop it adds to, weighted by that kind's floor area in view. A kind not
 ## listed is silent. Crowd, birds, crickets, fire and the elevator hum are driven by the system itself.
 const KIND_LOOPS: Dictionary = {
-	"office": "Office1", "coworking": "Office1",
 	"housekeeping": "Vacuum1",
 	"fast_food": "Resturant1", "cafe": "Resturant1", "deli": "Resturant1", "grocery": "Resturant1",
 	"restaurant": "Resturant2", "pizza": "Resturant2", "sushi": "Resturant2",
@@ -89,6 +88,9 @@ const KIND_LOOPS: Dictionary = {
 	"parking_ramp": "Car1",
 }
 const THEATER_KIND := "movie_theatre"
+## Offices play their clip once now and then rather than looping it (owner: the phone rang far too often).
+const OFFICE_KINDS: Array[String] = ["office", "coworking"]
+const OFFICE_CLIP := "Office1"
 const LOBBY_KIND := "lobby"
 const RECYCLING_KIND := "recycling"
 

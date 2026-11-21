@@ -23,6 +23,7 @@ const OPEN_GAP_MS := 350  ## At most one elevator-door sound per this long.
 const SAME_GAP_MS := 120  ## The same one-shot is not restarted within this.
 const MAX_PER_POLL := 3
 const ELEVATOR_LEVEL := 0.3  ## The elevator hum is quiet.
+const OFFICE_GAP_MS := 20000  ## Offices in view play their clip at most this often.
 const CROWD_PEOPLE := 20  ## People in the tower before the lobby sounds busy.
 const CROWD_FULL := 200
 
@@ -43,6 +44,7 @@ var _last_hour: int = -1
 var _ambience_t: float = 0.0
 var _elevator_t: float = 0.0
 var _next_theater_ms: int = 0
+var _next_office_ms: int = 0
 var _bird_loop: String = CatalogScript.BIRD_LOOP
 var _crowd_loop: String = CatalogScript.CROWD_LOOP
 var _alias: Dictionary = {}  ## KIND_LOOPS name -> the variant picked for this session.
@@ -207,11 +209,13 @@ func _ambience(tower: Tower) -> void:
 	var zoom: int = view["zoom"]
 	var units: Dictionary = {}  ## loop name -> columns of rooms of that kind in view.
 	var theatre_units := 0
+	var office_units := 0
 	for id in tower.rooms.room_ids():
 		var kind := tower.rooms.kind_of(id)
 		var loop_name: String = CatalogScript.KIND_LOOPS.get(kind, "")
 		loop_name = _alias.get(loop_name, loop_name)
-		if loop_name == "" and kind != CatalogScript.THEATER_KIND:
+		var office := CatalogScript.OFFICE_KINDS.has(kind)
+		if loop_name == "" and kind != CatalogScript.THEATER_KIND and not office:
 			continue
 		var run := tower.grid.run_of(id)
 		if run.size() < 3:
@@ -221,6 +225,8 @@ func _ambience(tower: Tower) -> void:
 			continue
 		if kind == CatalogScript.THEATER_KIND:
 			theatre_units += run[2]
+		elif office:
+			office_units += run[2]
 		else:
 			units[loop_name] = int(units.get(loop_name, 0)) + run[2]
 	var wanted: Dictionary = {}
@@ -248,6 +254,10 @@ func _ambience(tower: Tower) -> void:
 	if theatre_units > 0 and now >= _next_theater_ms:
 		_next_theater_ms = now + _rng.randi_range(20000, 60000)
 		play_one(CatalogScript.BUS_AMBIENCE, _pick(CatalogScript.THEATER_CLIPS), MixerScript.level_for(theatre_units, zoom))
+	# Offices in view: their clip once every OFFICE_GAP_MS, not a loop.
+	if office_units > 0 and now >= _next_office_ms:
+		_next_office_ms = now + OFFICE_GAP_MS
+		play_one(CatalogScript.BUS_AMBIENCE, CatalogScript.OFFICE_CLIP, MixerScript.level_for(office_units, zoom))
 	# Fire: a loop while anything burns, louder when it is in view.
 	var fire_level := 0.0
 	for id in tower.fire.burning_rooms():

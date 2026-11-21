@@ -66,8 +66,22 @@ static func format_demands(demands: DemandsScript) -> String:
 	return "Needs: " + ", ".join(names)
 
 
-static func format_population(count: int) -> String:
-	return "Pop %d" % count
+static func format_population(count: int, overall: int = -1) -> String:
+	return "Pop %d" % count if overall < 0 else "Pop %d (%d/day)" % [count, overall]
+
+
+## Tooltip text: both numbers, each split by group (Tower.population_breakdown).
+static func population_tooltip(breakdown: Dictionary) -> String:
+	var now: Dictionary = breakdown["now"]
+	var overall: Dictionary = breakdown["overall"]
+	var text := "In the building now: %d
+" % int(breakdown["now_total"])
+	text += "  Residents %d, workers %d, hotel guests %d, visitors %d
+" % [now["residents"], now["workers"], now["guests"], now["visitors"]]
+	text += "Overall per day: %d
+" % int(breakdown["overall_total"])
+	text += "  Residents %d, workers %d, hotel guests %d, visitors %d" % [overall["residents"], overall["workers"], overall["guests"], overall["visitors"]]
+	return text
 
 
 func _refresh() -> void:
@@ -77,7 +91,9 @@ func _refresh() -> void:
 	_period.text = "Period %d" % clock.period()
 	_money.text = format_money(_driver.tower.ledger.balance)
 	_stars.text = "Stars %d" % _driver.tower.stars + ("   DEMO" if DemoMode.active() else "")
-	_population.text = format_population(_driver.tower.population())
+	var pop := _driver.tower.population_breakdown()
+	_population.text = format_population(int(pop["now_total"]), int(pop["overall_total"]))
+	_population.tooltip_text = population_tooltip(pop)
 	var needs := format_demands(_driver.tower.demands)
 	_demands.text = needs
 	_demands.visible = needs != ""

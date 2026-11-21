@@ -385,6 +385,7 @@ const PROFILES: Dictionary = {
 var _last_minute: int = -1
 var _visitors_in: int = 0  ## Outside visitors inside the tower now (they count toward population, 3.8).
 var _visitors_until: int = 0  ## Minute of day when the latest batch of them leaves.
+var _visitors_today: int = 0  ## Outside visitors served since the last settle (overall population, #383).
 var _today: Dictionary = {}  ## Room id -> customers served so far today.
 var _vacant: Dictionary = {}  ## Retail room id -> evaluations vacant (its renter left; absent: leased).
 var _last_day: Dictionary = {}  ## Room id -> customers served in the last settled day (0 counts; absent: none settled yet).
@@ -436,6 +437,11 @@ static func period_of_minute(minute: int) -> int:
 		if minute >= Clock.period_start(i):
 			found = i + 1
 	return found
+
+
+## Outside visitors who came in so far today (reset at the daily settle).
+func visitors_today() -> int:
+	return _visitors_today
 
 
 ## Outside visitors in the tower at this minute of the day.
@@ -548,6 +554,7 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 	if _crossed(prev, minute, SETTLE_MINUTE):
 		_visitors_in = 0
 		_visitors_until = 0
+		_visitors_today = 0
 		_settle(floors, rooms, grid, tenancy, ledger, messages, at_tick, rng)
 
 
@@ -608,6 +615,7 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 			served[shop] = int(served.get(shop, 0)) + 1
 			_today[shop] = customers_today(shop) + 1
 			came += 1
+	_visitors_today += came
 	if came > 0:
 		if at_minute >= _visitors_until:
 			_visitors_in = 0
@@ -725,6 +733,7 @@ func state_ints() -> Array[int]:
 	ints.append(vacant.size())
 	for id: int in vacant:
 		ints.append_array([id, int(_vacant[id])] as Array[int])
+	ints.append(_visitors_today)
 	return ints
 
 
@@ -732,7 +741,7 @@ static func valid_ints(ints: Array) -> bool:
 	if ints.size() < 5 or typeof(ints[3]) != TYPE_INT or ints[3] < 0:
 		return false
 	var at: int = 4 + 3 * ints[3]
-	if ints.size() <= at or typeof(ints[at]) != TYPE_INT or ints[at] < 0 or ints.size() != at + 1 + 2 * ints[at]:
+	if ints.size() <= at or typeof(ints[at]) != TYPE_INT or ints[at] < 0 or ints.size() != at + 2 + 2 * ints[at]:
 		return false
 	for value in ints:
 		if typeof(value) != TYPE_INT:
@@ -740,7 +749,9 @@ static func valid_ints(ints: Array) -> bool:
 	for k in range(4, at, 3):
 		if ints[k] < 0 or ints[k + 1] < 0 or ints[k + 2] < -1:
 			return false
-	for k in range(at + 1, ints.size(), 2):
+	if ints[ints.size() - 1] < 0:
+		return false
+	for k in range(at + 1, ints.size() - 1, 2):
 		if ints[k] < 0 or ints[k + 1] < 0:
 			return false
 	return ints[0] >= -1 and ints[0] < Clock.MINUTES_PER_DAY and ints[1] >= 0 and ints[2] >= 0 and ints[2] <= Clock.MINUTES_PER_DAY
@@ -750,6 +761,7 @@ func load_ints(ints: Array) -> void:
 	_last_minute = ints[0]
 	_visitors_in = ints[1]
 	_visitors_until = ints[2]
+	_visitors_today = ints[ints.size() - 1]
 	_today.clear()
 	_last_day.clear()
 	_vacant.clear()
@@ -759,5 +771,5 @@ func load_ints(ints: Array) -> void:
 			_today[ints[k]] = ints[k + 1]
 		if ints[k + 2] >= 0:
 			_last_day[ints[k]] = ints[k + 2]
-	for k in range(at + 1, ints.size(), 2):
+	for k in range(at + 1, ints.size() - 1, 2):
 		_vacant[ints[k]] = ints[k + 1]
