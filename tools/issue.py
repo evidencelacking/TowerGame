@@ -115,12 +115,20 @@ def cites(number, text):
     return re.search(rf"#{number}\b", text) is not None
 
 
-def require_pr(number, pr, state):
-    data = json.loads(gh("pr", "view", str(pr), "--json", "state,title,body"))
-    if data["state"] != state:
-        raise MoveError(f"PR {pr} is not {state.lower()}.")
+def pr_problem(number, pr, data, states):
+    """Why a PR (gh pr view JSON) can't back a move of issue `number`; None when it can."""
+    if data["state"] not in states:
+        return f"PR {pr} is not {' or '.join(state.lower() for state in states)}."
     if not cites(number, f"{data['title']}\n{data['body']}"):
-        raise MoveError(f"PR {pr} does not reference #{number}.")
+        return f"PR {pr} does not reference #{number}."
+    return None
+
+
+def require_pr(number, pr, states):
+    data = json.loads(gh("pr", "view", str(pr), "--json", "state,title,body"))
+    problem = pr_problem(number, pr, data, states)
+    if problem:
+        raise MoveError(problem)
 
 
 PASSED = {"SUCCESS", "SKIPPED", "NEUTRAL"}
@@ -225,7 +233,7 @@ def move(command, number, extra):
             raise MoveError(problem)
     if command == "finish":
         pr, evidence = finish_parts(labels, extra)
-        require_pr(number, pr, "MERGED")
+        require_pr(number, pr, ("MERGED",))
         gh("issue", "comment", str(number), "--body", f"**Reviewed, PR #{pr}:** {evidence}")
     if command == "ask":
         if not extra:
@@ -233,8 +241,9 @@ def move(command, number, extra):
         gh("issue", "comment", str(number), "--body", f"**Blocked, question for owner:** {extra}")
     if command == "handoff":
         if not extra:
-            raise MoveError("handoff needs an open PR number: handoff N PR")
-        require_pr(number, extra, "OPEN")
+            raise MoveError("handoff needs a PR number: handoff N PR")
+        # A merged PR is allowed too, for work that merged before its issue was handed off.
+        require_pr(number, extra, ("OPEN", "MERGED"))
     set_status(number, old, new, labels)
     if new in TERMINAL:
         reason = "completed" if new == "done" else "not planned"
