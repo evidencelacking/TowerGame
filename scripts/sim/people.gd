@@ -299,10 +299,36 @@ func day_plan(i: int, day: int) -> Array[Array]:
 ## office workers. Break and lunch are the single seam for food rooms (#74): today both resolve to
 ## the work room in goal_room, so people stay at their desks.
 func scheduled_goal(i: int, day: int, minute: int) -> int:
+	# The same answer as the last entry of day_plan(i, day) at or before the minute, entry by entry in list order, without
+	# building the plan: this runs for every person every minute (#427).
 	var goal := DEST_HOME
-	for entry in day_plan(i, day):
-		if entry[0] <= minute:
-			goal = entry[1]
+	if work_of(i) == NONE:
+		if home_of(i) != NONE and not (guest_home.is_valid() and guest_home.call(home_of(i))):  # a resident
+			if day == Clock.WE:
+				if WEEKEND_OUT <= minute:
+					goal = DEST_AWAY
+				if WEEKEND_BACK <= minute:
+					goal = DEST_HOME
+			else:
+				if RESIDENT_OUT <= minute:
+					goal = DEST_AWAY
+				if RESIDENT_BACK <= minute:
+					goal = DEST_HOME
+		return goal
+	if day == Clock.WE:
+		return goal
+	if ARRIVE + _data[i * FIELDS + _OFFSET] <= minute:
+		goal = DEST_WORK
+	if BREAK <= minute:
+		goal = DEST_BREAK
+	if BREAK + BREAK_LENGTH <= minute:
+		goal = DEST_WORK
+	if LUNCH <= minute:
+		goal = DEST_LUNCH
+	if LUNCH + LUNCH_LENGTH <= minute:
+		goal = DEST_WORK
+	if LEAVE <= minute:
+		goal = DEST_HOME
 	return goal
 
 

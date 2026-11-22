@@ -27,6 +27,8 @@ const WARN_EVERY_TICKS := 2550  ## One day of ticks (the clock's six periods): t
 var _last_minute: int = -1  ## Not saved: resume() sets it after a load.
 var _memo: Dictionary = {}  ## [from floor, from x, to floor, to x] -> route found this step; see _find_legs. Not saved.
 var _memo_waiting: Array[int] = []  ## rooms.waiting_keys() when the memo was filled; a change empties it.
+var _memo_waiting_set: Dictionary = {}  ## The same keys as {key: true}, for Routes.find.
+var _waiting_known: bool = false  ## _memo_waiting is current: no car can have moved or been called since it was read (#427).
 var blocked_transfers: int = 0  ## People this step whose trip needed a second transfer; Tower logs it and clears it. Not saved.
 var _memo_reason: Dictionary = {}  ## Same keys as _memo: the route search's reason code.
 var _routes: Dictionary = {}  ## person id -> legs of the trip under way; a cache, rebuilt from trip_from and the goal.
@@ -67,6 +69,7 @@ static func segment(legs: Array, first: int) -> Array:
 func tick(clock: Object, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript) -> void:
 	_memo.clear()
 	_memo_reason.clear()  # the tower can only change between steps, so a memo never outlives one
+	_waiting_known = false
 	var minute: int = clock.minute_of_day()
 	if minute == _last_minute:
 		return
@@ -122,18 +125,23 @@ func _find_legs(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 		return null
 	# People leaving one room for the same goal share a search: a route depends only on the two
 	# ends, the tower (fixed within a step) and which cars are waiting (checked below).
-	var waiting := rooms.waiting_keys()
-	if waiting != _memo_waiting:
-		_memo.clear()
-		_memo_reason.clear()
-		_memo_waiting = waiting
+	if not _waiting_known:  # reading it sorts every car's state: once per change, not once per route
+		var waiting := rooms.waiting_keys()
+		if waiting != _memo_waiting:
+			_memo.clear()
+			_memo_reason.clear()
+			_memo_waiting = waiting
+			_memo_waiting_set = {}
+			for key: int in waiting:
+				_memo_waiting_set[key] = true
+		_waiting_known = true
 	var key := [from[0], from[1], to[0], to[1]]
 	if _memo.has(key):
 		var cached: Variant = _memo[key]
 		if cached == null and _memo_reason.get(key, 0) == RoutesScript.TOO_MANY_TRANSFERS:
 			blocked_transfers += 1
 		return null if cached == null else (cached as Array).duplicate(true)
-	var route: Dictionary = RoutesScript.find(floors, rooms, grid, from[0], from[1], to[0], to[1])
+	var route: Dictionary = RoutesScript.find(floors, rooms, grid, from[0], from[1], to[0], to[1], false, _memo_waiting_set)
 	var found: Variant = null if route["reason"] != RoutesScript.OK else route["legs"]
 	_memo[key] = found if found == null else (found as Array).duplicate(true)
 	_memo_reason[key] = route["reason"]
@@ -164,6 +172,7 @@ func _enter_leg(i: int, leg: int, legs: Array, rooms: RoomsScript, people: Peopl
 	if leg < legs.size() and legs[leg]["kind"] == RoutesScript.ELEVATOR:
 		var l: Dictionary = legs[leg]
 		var result := rooms.join_queue(people.id_at(i), l["shaft"], l["floor"], l["to_floor"])
+		_waiting_known = false  # the call may have sent a car
 		if result != RoomsScript.OK:
 			_give_up(i, people)
 			return
@@ -196,6 +205,7 @@ func collect_arrivals(floors: FloorsScript, rooms: RoomsScript, grid: GridScript
 	if not riding or not floors.has_lobby():
 		return
 	var entry: Array[int] = [GROUND_FLOOR, floors.lobby_span()[0]]
+	_waiting_known = false  # the cars have moved since the last read
 	for event: Array in rooms.take_alighted():
 		var i := people.index_of(event[0])
 		if i == -1 or people.trip_state(i) != PeopleScript.TRIP_RIDING:

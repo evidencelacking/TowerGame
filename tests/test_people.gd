@@ -25,6 +25,22 @@ static func run(check: Callable) -> void:
 	workless.add_person(People.NONE, People.NONE, a.rng)
 	check.call(workless.day_plan(0, Clock.WD1).is_empty(), "a person with no home or work has no plan")
 
+	# scheduled_goal reads the plan without building it (#427): it must agree with the last plan entry due, for a worker, a
+	# resident, a person with neither, and each clock day.
+	var agree := true
+	for person in [0, 1]:
+		for day in [Clock.WD1, Clock.WD2, Clock.WE]:
+			for minute in range(0, 1440, 7):
+				var expected: int = People.DEST_HOME
+				for entry in a.people.day_plan(person, day):
+					if entry[0] <= minute:
+						expected = entry[1]
+				agree = agree and a.people.scheduled_goal(person, day, minute) == expected
+	for day in [Clock.WD1, Clock.WE]:
+		for minute in range(0, 1440, 7):
+			agree = agree and workless.scheduled_goal(0, day, minute) == People.DEST_HOME
+	check.call(agree, "scheduled_goal matches the day plan at every minute")
+
 	# Model fields.
 	check.call(a.people.count() == 2 and a.people.home_of(0) == 5 and a.people.work_of(0) == 7 and a.people.home_of(1) == People.NONE, "home and work are kept, either may be none")
 	check.call(a.people.id_at(0) == 0 and a.people.id_at(1) == 1 and a.people.index_of(1) == 1, "ids are sequential and findable")
