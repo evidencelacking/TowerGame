@@ -113,6 +113,7 @@ var route_cache: Array = [null, null]
 ## Room id to true while the room cannot be reached from the ground lobby by stairs, escalators or elevators (#368).
 ## Derived by Tower (refresh_reach, from Tenancy.reachable), never saved or hashed; empty means everything is connected.
 var cut_off: Dictionary = {}
+var route_revision: int = 0  ## Bumped by a change to a shaft's stops, which alters routes but not the floors (derived, not saved); Tower.refresh_reach watches it.
 ## Stacked flights (#259): a cell holds one id, so when two flights of one kind share a floor (one's
 ## top is the other's bottom) the half that finds the cell taken sits here instead. Mostly empty.
 var links_over := GridScript.new()
@@ -1080,6 +1081,7 @@ func set_shaft_stop(id: int, floor_number: int, on: bool) -> int:
 			if car[CarsScript.SHAFT] == id and car[CarsScript.HOME] == floor_number:
 				return HOME_STOP
 	layout_revision += 1
+	route_revision += 1
 	off.erase(floor_number)
 	if not on:
 		off.append(floor_number)

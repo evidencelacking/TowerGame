@@ -267,7 +267,7 @@ func repair_room(floor_number: int, x: int) -> int:
 ## not saved: it reruns whenever the floors or the room list change (a placement, a bulldoze or a replacement gives a new
 ## id set), so a new link or a cut link takes effect on the next tick. Charred rooms are left to Rooms.is_charred.
 func refresh_reach() -> void:
-	var sig := floors.revision * 1000003 + rooms.room_ids().size()
+	var sig := (floors.revision * 1000003 + rooms.route_revision) * 1000003 + rooms.room_ids().size()
 	for id in rooms.room_ids():
 		sig = (sig * 31 + id) & 0x3fffffffffff
 	if sig == _reach_sig:

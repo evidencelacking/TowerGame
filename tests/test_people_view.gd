@@ -74,3 +74,11 @@ static func run(check: Callable) -> void:
 	for f: Dictionary in view.figures(s):
 		bands.append(f["band"])
 	check.call(bands == [People.BAND_UNEASY, People.BAND_ANGRY, People.BAND_CALM], "people view: figures carry the stress band")
+	# Looks are built for drawn people only (#418) and equal the direct per-person lookup.
+	var looked := 0
+	for f: Dictionary in view.figures(s):
+		if f.has("age"):
+			var j: int = s.people.index_of(f["id"])
+			looked += 1
+			check.call(f["age"] == s.life.age_band_of(s, f["id"]) and f["child"] == s.life.is_child(f["id"]) and f["job"] == s.rooms.kind_of(s.people.work_of(j)), "people view: a figure's look matches the direct lookup")
+	check.call(looked == 3, "people view: every drawn person has a look")

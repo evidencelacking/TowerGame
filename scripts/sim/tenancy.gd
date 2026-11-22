@@ -41,10 +41,10 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 		var kind := rooms.kind_of(id)
 		if kind == "office" and leasing:
 			var need := rooms.people_in(id) - int(workers.get(id, 0))
-			if need > 0 and _reachable(floors, rooms, grid, id, entry_x):
+			if need > 0 and routed(floors, rooms, grid, id, entry_x):
 				for n in need:
 					people.add_person(PeopleScript.NONE, id, rng)
-		elif kind == "condo" and selling and not rooms.is_sold(id) and _reachable(floors, rooms, grid, id, entry_x):
+		elif kind == "condo" and selling and not rooms.is_sold(id) and routed(floors, rooms, grid, id, entry_x):
 			rooms.set_sold(id, true)
 			var price := CatalogueScript.cost(kind)
 			price += price * SynergyScript.demand_percent(grid.run_of(id), SynergyScript.others_of(grid, rooms, transit_linked(floors, rooms, grid))) / 100  # daycares and a metro lift demand
@@ -67,6 +67,15 @@ func transit_linked(floors: FloorsScript, rooms: RoomsScript, grid: GridScript) 
 ## True if the lobby's route reaches the room (used by Evaluation for friends).
 func reachable(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, id: int, entry_x: int) -> bool:
 	return _reachable(floors, rooms, grid, id, entry_x)
+
+
+## Same answer as reachable(), read from Rooms.cut_off (which Tower.refresh_reach fills at the start of every tick) for
+## the kinds it covers, so a cut-off room costs no route search (#414). Use it only inside a tick; kinds that need no
+## route keep the search.
+func routed(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, id: int, entry_x: int) -> bool:
+	if not RoomsScript.needs_route(rooms.kind_of(id)):
+		return _reachable(floors, rooms, grid, id, entry_x)
+	return not rooms.is_charred(id) and not rooms.is_cut_off(id) and not grid.run_of(id).is_empty()
 
 
 func _reachable(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, id: int, entry_x: int) -> bool:

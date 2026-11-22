@@ -566,7 +566,7 @@ func _open_shops(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, ten
 	var shops: Array[int] = []
 	var entry_x := floors.lobby_span()[0]
 	for id in rooms.room_ids():
-		if is_shop(rooms.kind_of(id)) and not is_vacant(id) and not rooms.is_closed_up(grid, id) and tenancy.reachable(floors, rooms, grid, id, entry_x):
+		if is_shop(rooms.kind_of(id)) and not is_vacant(id) and not rooms.is_closed_up(grid, id) and tenancy.routed(floors, rooms, grid, id, entry_x):
 			shops.append(id)
 	return shops
 
@@ -709,7 +709,7 @@ func evaluate(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenanc
 			continue
 		if is_vacant(id):
 			_vacant[id] = int(_vacant[id]) + 1
-			if int(_vacant[id]) >= RELET_DAYS and floors.has_lobby() and tenancy.reachable(floors, rooms, grid, id, entry_x):
+			if int(_vacant[id]) >= RELET_DAYS and floors.has_lobby() and tenancy.routed(floors, rooms, grid, id, entry_x):
 				_vacant.erase(id)
 		elif grade(rooms, id) == GradesScript.GRADE_C and not rent.never_leaves(rooms, id):
 			_vacant[id] = 0
