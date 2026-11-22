@@ -51,6 +51,15 @@ func cell_at(floor_number: int, column: int) -> int:
 	return _cells[index * WIDTH_UNITS + column]
 
 
+## A copy of one floor's occupant ids, WIDTH_UNITS of them (empty for an invalid floor). Read-only: lets a
+## view compare a floor with an earlier copy to find what changed.
+func row_cells(floor_number: int) -> PackedInt32Array:
+	var index := floor_to_index(floor_number)
+	if index < 0:
+		return PackedInt32Array()
+	return _cells.slice(index * WIDTH_UNITS, (index + 1) * WIDTH_UNITS)
+
+
 ## Places occupant id over length cells starting at column on a floor. Returns false, and
 ## changes nothing, for an id that is not positive or is already placed, an invalid floor,
 ## a run outside the width, or any overlap.

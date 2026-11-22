@@ -129,7 +129,13 @@ static func _extended_shaft(check: Callable) -> void:
 	check.call(shaft["bottom"] == 21 and shaft["top"] == 50, "the shaft's span is the new one")
 	var want := _rect_of(shaft)
 	check.call(Rect2i(renderer._canvas).encloses(want), "the canvas covers the extended shaft")
-	check.call(renderer._seen_shafts.size() == 1 and renderer._seen_shafts[0][0] == want, "the renderer drew the shaft over its new span")
+	check.call(renderer._seen_shafts.size() == 1 and renderer._seen_shafts.values()[0] == want, "the renderer drew the shaft over its new span")
+	var floors_now := renderer._floor_rects.duplicate()
+	var rooms_now := renderer._room_runs.duplicate()
+	var links_now := renderer._link_runs.duplicate()
+	renderer._row_cache.clear()  # a from-scratch scan must find what the incremental one kept (#349)
+	renderer._rebuild_runs()
+	check.call(floors_now == renderer._floor_rects and rooms_now == renderer._room_runs and links_now == renderer._link_runs, "the incremental run scan matches a full one after the layout changed")
 	var all_framed := true
 	for piece: TowerRenderer.Piece in renderer._frame_pieces:
 		all_framed = all_framed and piece.rect == renderer._canvas and not piece.stale

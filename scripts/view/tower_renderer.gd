@@ -42,7 +42,7 @@ var tower: Tower = null
 var _people_view := PeopleView.new()
 var _elevators := ElevatorView.new()
 var _seen_tick: int = -1
-var _shafts_key: Array = []  ## What _shafts_seen was built for: [floors.revision, occupant count, shaft ids].
+var _shafts_key: Array = []  ## What _shafts_seen was built for: [links.revision, route_revision, shaft ids].
 var _shafts_seen: Array[Dictionary] = []
 var _seen_rain: bool = false
 var _since_tick: float = 0.0  ## Seconds since the sim last ticked.
@@ -59,6 +59,9 @@ var _asleep: Dictionary = {}  ## Room id -> true for rooms where everyone presen
 var _checked_tick: int = -1000000
 var _floor_rects: Array[Rect2i] = []  ## Runs of built floor units, one row tall; rebuilt when the layout changes.
 var _room_runs: Array[Array] = []  ## [id, owning room id, rect] per placed room run.
+var _sky_key: Array = []  ## The sky lobby floors' flags when _sky_wanted was scanned.
+var _sky_wanted: Dictionary = {}  ## Piece key -> spec for the sky lobby slices, as _sync_pieces wants them.
+var _row_cache: Array = []  ## Per floor index: [what the floor looked like, its scanned runs], so a layout change rescans only the floors it touched (#349).
 var _link_runs: Array[Array] = []  ## [kind, two-floor rect] per stairs or escalator.
 const CANVAS_GRAIN: Vector2i = Vector2i(128, 128)  ## Canvas edges snap to this many native pixels, so growing the tower reallocates rarely.
 const CANVAS_PAD: Vector2i = Vector2i(64, 64)  ## Room around the built tower for shaft caps, cars and figures at the edge.
@@ -71,7 +74,7 @@ const REPAIR_BUDGET_US: int = 5000  ## Estimated script cost of the pieces repai
 const UNKNOWN_PIECE_COST_US: int = 1500
 const URGENT_BUDGET_US: int = 9000  ## Like REPAIR_BUDGET_US, for the pieces the player's last action touched (#372): they go first.
 const TILE_RENDERS_PER_FRAME: int = 2  ## Tiles re-rendered per frame at most; the rest wait their turn, the longest-waiting first.
-const URGENT_TILE_RENDERS_PER_FRAME: int = 4  ## The same for tiles the player's last action touched, which always go before the rest (#372).
+const URGENT_TILE_RENDERS_PER_FRAME: int = 2  ## The same for tiles the player's last action touched, which always go before the rest (#372).
 const FRAME_LAYERS: Array[String] = ["_draw_backdrop", "_draw_links", "_draw_floors", "_draw_shafts", "_draw_exterior"]
 const FRAME_Z: Dictionary = {"_draw_backdrop": 0, "_draw_links": 3, "_draw_floors": 4, "_draw_shafts": 5, "_draw_exterior": 6}
 const OUTDOOR_REDRAWS_PER_FRAME: int = 1  ## Skyline slices (or the street) redrawn per frame after the outdoors changed.
@@ -118,9 +121,9 @@ var _next_uid: int = 1
 var _repair_frame: int = 0
 var _synced_once: bool = false  ## False until the first layout is in: loading a tower is background work, not the player's action.
 var _urgent_rects: Array[Rect2i] = []  ## Where the layout just changed (floors, links, shafts); the frame pieces' tiles there are urgent.
-var _seen_floors: Array = []  ## The floors, links and shafts as they were at the last layout change, to find what changed.
-var _seen_links: Array = []
-var _seen_shafts: Array = []
+var _seen_floors: Dictionary = {}  ## The floors, links and shafts as they were at the last layout change, to find what changed.
+var _seen_links: Dictionary = {}
+var _seen_shafts: Dictionary = {}
 var _plan_workers: Dictionary = {}  ## Office room id -> workers, for the vacancy look (#358).
 var _plan_broken: Array[int] = []
 var _frame_due: int = 0  ## Tick at which the frame pieces (shafts and so on) are marked stale again.
@@ -382,14 +385,19 @@ func _sync_pieces() -> void:
 	for key: Variant in wanted:
 		var spec: Array = wanted[key]
 		var piece: Piece = _room_pieces.get(key)
+		var fresh := false
 		if piece == null:
 			piece = _new_piece()
 			piece.node.z_index = LOBBY_Z if (spec[2] as String) in ["lobby", DetailRooms.SKY_LOBBY] else ROOM_Z
 			_room_pieces[key] = piece
 			piece.urgent = player_made  # a new or moved piece is the player's work: it draws first (#372)
+			fresh = true
 		piece.rect = spec[0]
 		piece.runs = spec[1]
 		piece.suite_kind = spec[2]
+		if fresh:  # the layout frame skips the room comparison (#349), so a new piece is marked here
+			piece.sig = _signature(piece)
+			piece.stale = true
 		piece.node.set("painter", _paint_room_piece.bind(piece))
 	for piece: Piece in _frame_pieces:
 		piece.rect = _canvas  # the canvas may have grown since the piece was made: its tiles are all of them (#365)
@@ -441,40 +449,43 @@ func _mark_changed_rooms() -> void:
 ## The frame pieces' tiles there are rendered before the background ones (#372). Nothing is urgent while a
 ## tower is being loaded.
 func _note_layout_changes() -> void:
-	var floors: Array = []
+	var floors: Dictionary = {}  # sets, so what changed is found in one pass each way
 	for rect: Rect2i in _floor_rects:
-		floors.append(rect)
-	var shafts: Array = []
-	for shaft: Dictionary in ElevatorView.shafts(tower):
+		floors[rect] = true
+	var links: Dictionary = {}
+	for link: Array in _link_runs:
+		links[link] = true
+	var shafts: Dictionary = {}
+	for shaft: Dictionary in _shaft_list():
 		var top_row := VC.floor_to_row(shaft["top"])
 		var rect := Rect2i((shaft["x"] as int) * VC.CELL_W, top_row * VC.CELL_H, (shaft["width"] as int) * VC.CELL_W, (VC.floor_to_row(shaft["bottom"]) - top_row + 1) * VC.CELL_H)
-		shafts.append([rect, shaft["stops"], shaft["disabled"]])
+		shafts[[rect, shaft["stops"], shaft["disabled"]]] = rect
 	if _synced_once:
-		for rect: Variant in floors:
+		for rect: Rect2i in floors:
 			if not _seen_floors.has(rect):
-				_urgent_rects.append(rect as Rect2i)
-		for rect: Variant in _seen_floors:
+				_urgent_rects.append(rect)
+		for rect: Rect2i in _seen_floors:
 			if not floors.has(rect):
-				_urgent_rects.append(rect as Rect2i)
-		for link: Array in _link_runs:
+				_urgent_rects.append(rect)
+		for link: Array in links:
 			if not _seen_links.has(link):
 				_urgent_rects.append(link[1] as Rect2i)
-		for link: Variant in _seen_links:
-			if not _link_runs.has(link):
-				_urgent_rects.append((link as Array)[1] as Rect2i)
+		for link: Array in _seen_links:
+			if not links.has(link):
+				_urgent_rects.append(link[1] as Rect2i)
 		for shaft: Array in shafts:
 			if not _seen_shafts.has(shaft):
-				_urgent_rects.append(shaft[0] as Rect2i)
-		for shaft: Variant in _seen_shafts:
+				_urgent_rects.append(shafts[shaft] as Rect2i)
+		for shaft: Array in _seen_shafts:
 			if not shafts.has(shaft):
-				_urgent_rects.append((shaft as Array)[0] as Rect2i)
+				_urgent_rects.append(_seen_shafts[shaft] as Rect2i)
 		if _urgent_rects.size() > 8:  # a big change (a bulldozed block): one box around it
 			var all := _urgent_rects[0]
 			for rect: Rect2i in _urgent_rects:
 				all = all.merge(rect)
 			_urgent_rects = [all]
 	_seen_floors = floors
-	_seen_links = _link_runs.duplicate()
+	_seen_links = links
 	_seen_shafts = shafts
 
 
@@ -639,7 +650,8 @@ func _process(delta: float) -> void:
 		_checked_tick = tower.tick
 		_in_use = _rooms_in_use()
 		_sync_pieces()  # tenancy can join or split suites without a layout change
-	_mark_changed_rooms()
+	if not layout_changed:  # a layout frame already did the layout's work; the next frame compares room states (#349)
+		_mark_changed_rooms()
 	_repair()
 	var sliding := (tower.rooms.total_cars() > 0 and _since_tick <= _tick_len * 2.0) or (_has_moving and _since_tick <= _tick_len) or gliding
 	if sliding and not new_tick and not layout_changed:
@@ -703,6 +715,9 @@ func _follow_sky() -> void:
 func set_tower(value: Tower) -> void:
 	tower = value
 	_synced_once = false
+	_row_cache.clear()
+	_sky_key = []
+	_shafts_key = []
 	_urgent_rects.clear()
 	_mark_all_stale()
 	_seen_revision = -1
@@ -735,50 +750,72 @@ func _rooms_in_use() -> Dictionary:
 	return used
 
 
-## The floor, room and link runs as rects, found once per layout change and reused by every redraw.
+## The floor, room and link runs as rects, found once per layout change and reused by every redraw. Only the
+## floors whose cells differ from the last call are scanned again (#349); the rest keep their runs.
 func _rebuild_runs() -> void:
+	if _row_cache.size() != Tower.Grid.FLOOR_COUNT:
+		_row_cache.clear()
+		for _i in Tower.Grid.FLOOR_COUNT:
+			_row_cache.append([])
 	_floor_rects.clear()
 	_room_runs.clear()
 	_link_runs.clear()
-	var seen: Dictionary = {}
-	var links_seen: Dictionary = {}
 	for index: int in Tower.Grid.FLOOR_COUNT:
 		var floor_number := Tower.Grid.index_to_floor(index)
-		var row_y := VC.floor_to_row(floor_number) * VC.CELL_H
-		var column := 0
-		var floor_start := -1
-		while column <= Tower.Grid.WIDTH_UNITS:
-			var built := column < Tower.Grid.WIDTH_UNITS and tower.floors.has_floor(floor_number, column)
-			if built and floor_start < 0:
-				floor_start = column
-			elif not built and floor_start >= 0:
-				_floor_rects.append(Rect2i(floor_start * VC.CELL_W, row_y, (column - floor_start) * VC.CELL_W, VC.CELL_H))
-				floor_start = -1
+		var key: Array = [tower.floors.row_flags(floor_number), tower.grid.row_cells(floor_number), tower.rooms.links.row_cells(floor_number), tower.rooms.links_over.row_cells(floor_number)]
+		var cached: Array = _row_cache[index]
+		if cached.is_empty() or cached[0] != key:
+			cached = [key, _scan_floor(floor_number)]
+			_row_cache[index] = cached
+		var found: Array = cached[1]
+		_floor_rects.append_array(found[0] as Array[Rect2i])
+		_room_runs.append_array(found[1] as Array[Array])
+		_link_runs.append_array(found[2] as Array[Array])
+
+
+## One floor's floor rects, room runs and link runs: [Array[Rect2i], Array[Array], Array[Array]].
+func _scan_floor(floor_number: int) -> Array:
+	var rects: Array[Rect2i] = []
+	var rooms: Array[Array] = []
+	var links: Array[Array] = []
+	var links_seen: Dictionary = {}
+	var row_y := VC.floor_to_row(floor_number) * VC.CELL_H
+	var column := 0
+	var floor_start := -1
+	while column <= Tower.Grid.WIDTH_UNITS:
+		var built := column < Tower.Grid.WIDTH_UNITS and tower.floors.has_floor(floor_number, column)
+		if built and floor_start < 0:
+			floor_start = column
+		elif not built and floor_start >= 0:
+			rects.append(Rect2i(floor_start * VC.CELL_W, row_y, (column - floor_start) * VC.CELL_W, VC.CELL_H))
+			floor_start = -1
+		column += 1
+	var seen: Dictionary = {}
+	column = 0
+	while column < Tower.Grid.WIDTH_UNITS:
+		var id := tower.grid.cell_at(floor_number, column)
+		if id == Tower.Grid.EMPTY or seen.has(id):
 			column += 1
+			continue
+		seen[id] = true
+		var run := tower.grid.run_of(id)
+		var owner_room: int = tower.rooms.room_of(id)
+		if owner_room != 0:
+			rooms.append([id, owner_room, Rect2i(run[1] * VC.CELL_W, row_y, run[2] * VC.CELL_W, VC.CELL_H)])
+		column += maxi(run[2], 1)
+	for layer: Tower.Grid in [tower.rooms.links, tower.rooms.links_over]:  # a stacked flight's lower half sits in the second layer (#259)
 		column = 0
 		while column < Tower.Grid.WIDTH_UNITS:
-			var id := tower.grid.cell_at(floor_number, column)
-			if id == Tower.Grid.EMPTY or seen.has(id):
+			var link := layer.cell_at(floor_number, column)
+			if link == Tower.Grid.EMPTY or links_seen.has(link) or not Tower.RoomsScript.is_stair_kind(tower.rooms.kind_of(link)):
 				column += 1
 				continue
-			seen[id] = true
-			var run := tower.grid.run_of(id)
-			var owner_room: int = tower.rooms.room_of(id)
-			if owner_room != 0:
-				_room_runs.append([id, owner_room, Rect2i(run[1] * VC.CELL_W, row_y, run[2] * VC.CELL_W, VC.CELL_H)])
-			column += maxi(run[2], 1)
-		for layer: Tower.Grid in [tower.rooms.links, tower.rooms.links_over]:  # a stacked flight's lower half sits in the second layer (#259)
-			column = 0
-			while column < Tower.Grid.WIDTH_UNITS:
-				var link := layer.cell_at(floor_number, column)
-				if link == Tower.Grid.EMPTY or links_seen.has(link) or not Tower.RoomsScript.is_stair_kind(tower.rooms.kind_of(link)):
-					column += 1
-					continue
-				links_seen[link] = true
-				var link_run := layer.run_of(link)
-				var top := VC.floor_to_row(Tower.RoomsScript.floor_above(floor_number)) * VC.CELL_H
-				_link_runs.append([tower.rooms.kind_of(link), Rect2i(link_run[1] * VC.CELL_W, top, link_run[2] * VC.CELL_W, 2 * VC.CELL_H)])
-				column += maxi(link_run[2], 1)
+			links_seen[link] = true
+			var link_run := layer.run_of(link)
+			var top := VC.floor_to_row(Tower.RoomsScript.floor_above(floor_number)) * VC.CELL_H
+			links.append([tower.rooms.kind_of(link), Rect2i(link_run[1] * VC.CELL_W, top, link_run[2] * VC.CELL_W, 2 * VC.CELL_H)])
+			column += maxi(link_run[2], 1)
+	return [rects, rooms, links]
 
 
 ## Paints a frame piece: one of the static layers that are not rooms (backdrop, lobby, links, floors,
@@ -890,6 +927,17 @@ func _paint_lobby_slice(canvas: CanvasItem, slice: Rect2i) -> void:
 ## Adds a slice piece to `wanted` for every run of lobby cells on every sky lobby floor. A piece's runs hold
 ## [floor, whole run rect], so each slice paints its share of the one picture.
 func _want_sky_lobbies(wanted: Dictionary) -> void:
+	var key: Array = []
+	for floor_number: int in tower.floors.SKY_LOBBY_FLOORS:
+		key.append(tower.floors.row_flags(floor_number))
+	if key != _sky_key:  # the scan walks every cell of six floors: redone only when one of them changed (#349)
+		_sky_key = key
+		_sky_wanted = {}
+		_scan_sky_lobbies(_sky_wanted)
+	wanted.merge(_sky_wanted)
+
+
+func _scan_sky_lobbies(wanted: Dictionary) -> void:
 	for floor_number: int in tower.floors.SKY_LOBBY_FLOORS:
 		var row_y := VC.floor_to_row(floor_number) * VC.CELL_H
 		var column := 0
@@ -1059,7 +1107,7 @@ func _draw_people(canvas: CanvasItem) -> void:
 func _draw_shafts(canvas: CanvasItem) -> void:
 	var p := Palette.get_palette()
 	var shaft_color := Palette.hue("shaft")
-	for shaft: Dictionary in ElevatorView.shafts(tower):
+	for shaft: Dictionary in _shaft_list():
 		var top_row := VC.floor_to_row(shaft["top"])
 		var bottom_row := VC.floor_to_row(shaft["bottom"])
 		var rect := Rect2i((shaft["x"] as int) * VC.CELL_W, top_row * VC.CELL_H, (shaft["width"] as int) * VC.CELL_W, (bottom_row - top_row + 1) * VC.CELL_H)
@@ -1105,7 +1153,7 @@ func _draw_cars(canvas: CanvasItem) -> void:
 ## ElevatorView.shafts for the tower as it stands, rebuilt only when the layout moves: it walks every floor
 ## of every shaft, and the queue and car layers asked for it on every redraw (#399).
 func _shaft_list() -> Array[Dictionary]:
-	var key: Array = [tower.floors.revision, tower.rooms.links.occupant_count(), tower.rooms.shaft_ids()]
+	var key: Array = [tower.rooms.links.revision, tower.rooms.route_revision, tower.rooms.shaft_ids()]
 	if key != _shafts_key:
 		_shafts_key = key
 		_shafts_seen = ElevatorView.shafts(tower)

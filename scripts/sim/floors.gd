@@ -346,6 +346,15 @@ func _cell_index(floor_number: int, column: int) -> int:
 	return row * GridScript.WIDTH_UNITS + column
 
 
+## A copy of one floor's flag bytes (built, shaft, lobby), one per column; empty for an invalid floor.
+## Read-only: lets a view compare a floor with an earlier copy to find what changed.
+func row_flags(floor_number: int) -> PackedByteArray:
+	var index := _cell_index(floor_number, 0)
+	if index < 0:
+		return PackedByteArray()
+	return _flags.slice(index, index + GridScript.WIDTH_UNITS)
+
+
 func _has(floor_number: int, column: int, flag: int) -> bool:
 	var index := _cell_index(floor_number, column)
 	return index >= 0 and (_flags[index] & flag) != 0

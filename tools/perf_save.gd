@@ -193,6 +193,9 @@ func _view_costs(t: Tower) -> void:
 	var pick := 0
 	var proc := 0
 	var runs := 0
+	var part_runs := 0
+	var part_use := 0
+	var part_sync := 0
 	var hud := 0
 	var figures: Array[Dictionary] = []
 	for _i in VIEW_STEPS:
@@ -212,16 +215,58 @@ func _view_costs(t: Tower) -> void:
 	for _i in LAYOUT_SAMPLES:
 		a = Time.get_ticks_usec()
 		r._rebuild_runs()
+		var b := Time.get_ticks_usec()
 		r._in_use = r._rooms_in_use()
+		var c := Time.get_ticks_usec()
 		r._sync_pieces()
-		runs += Time.get_ticks_usec() - a
+		var d := Time.get_ticks_usec()
+		part_runs += b - a
+		part_use += c - b
+		part_sync += d - c
+		runs += d - a
+	_real_layout_changes(t, r)
 	print("view per tick (%d ticks):" % VIEW_STEPS)
 	print("  figures(): %d figures, %.2f ms" % [figures.size(), fig / 1000.0 / VIEW_STEPS])
 	print("  ThoughtIcons.pick: %.2f ms" % [pick / 1000.0 / VIEW_STEPS])
 	print("  renderer._process on a new tick (includes its own figures()): %.2f ms" % [proc / 1000.0 / VIEW_STEPS])
 	print("  layout change (_rebuild_runs + _rooms_in_use + _sync_pieces): %.2f ms" % [runs / 1000.0 / LAYOUT_SAMPLES])
+	print("    of which _rebuild_runs %.2f, _rooms_in_use %.2f, _sync_pieces %.2f ms" % [part_runs / 1000.0 / LAYOUT_SAMPLES, part_use / 1000.0 / LAYOUT_SAMPLES, part_sync / 1000.0 / LAYOUT_SAMPLES])
 	print("  population_breakdown (HUD, every frame): %.3f ms" % [hud / 1000.0 / VIEW_STEPS])
 	r.queue_free()
+
+
+## A real bulldoze and rebuild of one room, each timed as the renderer's whole _process frame (#349).
+func _real_layout_changes(t: Tower, r: TowerRenderer) -> void:
+	t.ledger.balance = maxi(t.ledger.balance, 100000000)
+	var picked: Array = []
+	for run: Array in r._room_runs:
+		var kind_index: int = Tower.CatalogueScript.IDS.find(t.rooms.kind_of(run[1]))
+		var at: Array[int] = t.grid.run_of(run[0])
+		if kind_index >= 0 and t.rooms.kind_of(run[1]) == "office":
+			picked = [kind_index, at[0], at[1]]
+			if at[0] > 3:
+				break
+	if picked.is_empty():
+		print("  real layout change: no room to bulldoze")
+		return
+	var worst_dozer := 0.0
+	var worst_build := 0.0
+	var dozer_total := 0.0
+	var build_total := 0.0
+	const ROUNDS := 5
+	for _i in ROUNDS:
+		var a := Time.get_ticks_usec()
+		t.rooms.bulldoze(t.grid, t.floors, t.ledger, t.tick, picked[1], picked[2])
+		r._process(MIN_FRAME_SECONDS)
+		var b := Time.get_ticks_usec()
+		t.rooms.place_room(t.grid, t.floors, t.ledger, t.tick, picked[0], picked[1], picked[2])
+		r._process(MIN_FRAME_SECONDS)
+		var c := Time.get_ticks_usec()
+		dozer_total += (b - a) / 1000.0
+		build_total += (c - b) / 1000.0
+		worst_dozer = maxf(worst_dozer, (b - a) / 1000.0)
+		worst_build = maxf(worst_build, (c - b) / 1000.0)
+	print("  real layout change, whole _process: bulldoze %.2f ms (worst %.2f), build %.2f ms (worst %.2f)" % [dozer_total / ROUNDS, worst_dozer, build_total / ROUNDS, worst_build])
 
 
 ## Adds the time since the last mark to label's total and worst, then restarts the clock.
