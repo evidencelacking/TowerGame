@@ -107,12 +107,12 @@ func figures(tower: Object) -> Array[Dictionary]:
 	var looks: Dictionary = {}  # person id -> {"age", "child", "job"}, for the Detailed figures (#304)
 	for i in people.count():
 		var band := people.stress_band(i)
-		looks[people.id_at(i)] = {"age": tower.life.age_band_of(tower, people.id_at(i)), "child": tower.life.is_child(people.id_at(i)), "job": tower.rooms.kind_of(people.work_of(i))}
 		if people.trip_state(i) == PeopleScript.TRIP_RIDING:
 			continue  # queued at a shaft or riding: elevator_view draws the queue and the car's load
 		if people.trip_state(i) == PeopleScript.TRIP_MOVING:
 			var spot := _moving_spot(tower, i)
 			if not spot.is_empty():
+				looks[people.id_at(i)] = _look_of(tower, people, i)
 				out.append({"id": people.id_at(i), "floor": spot["floor"], "x": roundi(spot["fx"]), "fx": spot["fx"], "frow": spot["frow"],
 					"pose": spot["pose"], "band": band, "moving": true})
 			continue
@@ -120,6 +120,7 @@ func figures(tower: Object) -> Array[Dictionary]:
 		var run: Array[int] = tower.grid.run_of(room)
 		if run.is_empty():
 			continue
+		looks[people.id_at(i)] = _look_of(tower, people, i)
 		var column: int = run[1] + people.id_at(i) % maxi(run[2], 1)
 		var kind: String = tower.rooms.kind_of(room)
 		var staying: bool = tower.hotel.is_hotel(room) and tower.hotel.state_of(room) == HotelScript.STAYING
@@ -142,6 +143,12 @@ func figures(tower: Object) -> Array[Dictionary]:
 			figure.merge(looks.get(figure["id"], {}), true)
 	out.append_array(_cleaners(tower))
 	return out
+
+
+## The Detailed look of person i: {"age", "child", "job"}. Built only for people who are drawn (#418).
+static func _look_of(tower: Object, people: PeopleScript, i: int) -> Dictionary:
+	var id: int = people.id_at(i)
+	return {"age": tower.life.age_band_of(tower, id), "child": tower.life.is_child(id), "job": tower.rooms.kind_of(people.work_of(i))}
 
 
 ## Places the resting figures: each takes the next spot of its room, or of its suite when neighbouring
