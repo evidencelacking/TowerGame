@@ -70,6 +70,7 @@ static func _stop(pair: Array) -> void:
 static func run(check: Callable) -> void:
 	await _placed_room(check)
 	await _extended_shaft(check)
+	await _bulldozed_room(check)
 	_cursor(check)
 
 
@@ -129,7 +130,13 @@ static func _extended_shaft(check: Callable) -> void:
 	check.call(shaft["bottom"] == 21 and shaft["top"] == 50, "the shaft's span is the new one")
 	var want := _rect_of(shaft)
 	check.call(Rect2i(renderer._canvas).encloses(want), "the canvas covers the extended shaft")
-	check.call(renderer._seen_shafts.size() == 1 and renderer._seen_shafts[0][0] == want, "the renderer drew the shaft over its new span")
+	check.call(renderer._seen_shafts.size() == 1 and renderer._seen_shafts.values()[0] == want, "the renderer drew the shaft over its new span")
+	var floors_now := renderer._floor_rects.duplicate()
+	var rooms_now := renderer._room_runs.duplicate()
+	var links_now := renderer._link_runs.duplicate()
+	renderer._row_cache.clear()  # a from-scratch scan must find what the incremental one kept (#349)
+	renderer._rebuild_runs()
+	check.call(floors_now == renderer._floor_rects and rooms_now == renderer._room_runs and links_now == renderer._link_runs, "the incremental run scan matches a full one after the layout changed")
 	var all_framed := true
 	for piece: TowerRenderer.Piece in renderer._frame_pieces:
 		all_framed = all_framed and piece.rect == renderer._canvas and not piece.stale
@@ -140,6 +147,37 @@ static func _extended_shaft(check: Callable) -> void:
 		if tile.rect.intersects(want):
 			covered = covered and not tile.pending
 	check.call(covered, "every tile the extended shaft crosses is rendered")
+	await _stop(pair)
+
+
+## A bulldozed room's piece is gone and cannot paint, even when a redraw was queued and the renderer ran twice
+## with no engine frame between (the node waits for deletion until the frame ends).
+static func _bulldozed_room(check: Callable) -> void:
+	var tower := TestShafts._tall()
+	var office := CatalogueScript.IDS.find("office")
+	TestRooms._room(tower, office, 2, 100)
+	TestRooms._room(tower, office, 2, 110)
+	var pair := await _start(tower)
+	var renderer: TowerRenderer = pair[0]
+	check.call(await _settle(renderer) >= 0, "the renderer settles before the bulldoze")
+	var doomed: int = tower.grid.cell_at(2, 100)
+	check.call(doomed != 0 and renderer._room_pieces.size() > 0, "the office to bulldoze has a piece")
+	for piece: TowerRenderer.Piece in renderer._room_pieces.values():
+		piece.node.queue_redraw()  # a redraw is pending on every piece, the doomed one included
+	var rooms_before := renderer._room_pieces.size()
+	TestRooms._send(tower, Command.BULLDOZE, [2, 100] as Array[int])
+	tower.step()
+	renderer._process(1.0 / 60.0)
+	renderer._process(1.0 / 60.0)  # no engine frame in between
+	check.call(not tower.grid.has_occupant(doomed), "the office is gone from the grid")
+	check.call(renderer._room_pieces.size() == rooms_before - 1, "no piece is left for the removed room")
+	var waiting := 0
+	var painters_ok := true
+	for node: Node in renderer._statics.get_children():
+		if node.is_queued_for_deletion():
+			waiting += 1
+			painters_ok = painters_ok and not (node.get("painter") as Callable).is_valid()
+	check.call(waiting > 0 and painters_ok, "the piece waiting for deletion has no painter")
 	await _stop(pair)
 
 
