@@ -30,6 +30,7 @@ const ACTIONS: Array = [
 	["cam_up", "Camera up", KEY_W],
 	["cam_down", "Camera down", KEY_S],
 	["see_through", "Elevators see-through", KEY_V],
+	["transport_glass", "Transport see-through (Detailed)", KEY_U],
 	["synergies", "Synergy overlay", KEY_Y],
 	["heat", "Heat map overlay", KEY_H],
 	["messages", "Message log", KEY_M],

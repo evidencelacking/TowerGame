@@ -11,6 +11,7 @@ const TransportLook := preload("res://scripts/view/transport_look.gd")
 const Scenes := preload("res://scripts/view/detail_scenes.gd")
 const DetailPeople := preload("res://scripts/view/detail_people.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
+const Glass := preload("res://scripts/view/transport_glass.gd")
 
 const SUB := 2  ## Mock-up pixels per world pixel.
 const SLAB := 4  ## Floor slab, mock-up pixels.
@@ -49,7 +50,9 @@ static func stairs(canvas: Object, span: Rect2i) -> void:
 	var p := _pen(canvas, span)
 	var w := span.size.x * SUB
 	var fy := float(span.size.y * SUB - SLAB)  # the lower floor's surface
-	_stair_panel(p, w)
+	var glass := Glass.on
+	if not glass:
+		_stair_panel(p, w)
 	if TransportLook.flips(span):
 		p.flip_around(w * 0.5)
 	var n := maxi(w / 8, 2)
@@ -59,6 +62,13 @@ static func stairs(canvas: Object, span: Rect2i) -> void:
 		var sx := i * run
 		var top_y := fy - 2.0 - i * rise - rise
 		var body_h := minf(fy - top_y - 8.0, 12.0)
+		if glass:  # outline: a light tread, its edge and a riser line; the room shows through
+			var line := Color(0.16, 0.12, 0.16, 1.0)
+			p.R(sx, top_y + 3, run, 5, Color(0.85, 0.76, 0.7, 0.5))
+			p.R(sx, top_y + 3, 1, minf(fy - top_y - 3.0, rise + 1.0), line)
+			p.R(sx, top_y + 3, run, 1, line)
+			p.R(sx, top_y, run, 3, Color(1.0, 0.94, 0.86, 1.0))
+			continue
 		if body_h > 0.0:  # the solid underside, stepped
 			p.R(sx, top_y + 8.0, run, body_h, Color("6a585c"))
 			p.R(sx, top_y + 8.0, run, 1, Color("52403f"))
@@ -66,6 +76,8 @@ static func stairs(canvas: Object, span: Rect2i) -> void:
 		p.R(sx, top_y + 3, run, 1, Color("5a484c"))
 		p.item(sx, top_y, run, 3, Color("c2b0a4"), 0.5, false)
 		p.R(sx, top_y, run, 1, Color("e8d8cc"))
+	if glass:  # the stringer under the treads
+		p.ln(Vector2(0, fy - 2.0), Vector2(w, fy - 2.0 - RISE), Color(0.16, 0.12, 0.16, 1.0), 2.0)
 	p.ln(Vector2(0, fy - 22.0), Vector2(w, fy - 22.0 - RISE), Color("3a2e2c"), 2.0)
 	for i: int in range(0, n + 1, 2):  # a post every other step
 		var nose := fy - 2.0 - i * rise
@@ -87,14 +99,22 @@ static func escalator(canvas: Object, span: Rect2i) -> void:
 	var w := span.size.x * SUB
 	var yb := float(span.size.y * SUB - SLAB)
 	var hall: Array = ["e6dac2", "b8a27c", "d8d0c4", "a8a0a8", "c8ad6a"]  # the mock-up's escalator hall
+	var glass := Glass.on
 	for f: int in 2:
-		Scenes.shell_room(p, 0, f * FLOOR, w, f, hall)
+		if not glass:
+			Scenes.shell_room(p, 0, f * FLOOR, w, f, hall)
 	if TransportLook.flips(span):
 		p.flip_around(w * 0.5)
 	var top_off := 24.0
 	for x: int in range(0, w, 2):
 		var y := _belt_y(yb, w, x)
-		p.R(x, y + 2, 2, 12, Color("424a5e"))  # the truss
+		if glass:  # an open truss: a top and a bottom chord and a rib every 16, the room shows through
+			p.R(x, y + 2, 2, 1, Color("424a5e"))
+			p.R(x, y + 13, 2, 1, Color("424a5e"))
+			if x % 16 < 2:
+				p.R(x, y + 2, 2, 12, Color("424a5e"))
+		else:
+			p.R(x, y + 2, 2, 12, Color("424a5e"))  # the truss
 		p.R(x, y + 1, 2, 1, Color("8a94ac"))  # the belt bed
 		p.R(x, y - top_off + 2, 2, top_off - 6, Color(0.75, 0.88, 0.95, 0.35))  # glass balustrade
 		p.R(x, y - top_off, 2, 3, Color("23202a"))  # handrail band
@@ -143,6 +163,9 @@ static func shaft(canvas: Object, rect: Rect2i, color: Color, caps: Array[Rect2i
 		p.R(0, 0, w, 1, edge)
 		p.R(0, h - 1, w, 1, edge)
 		return
+	if Glass.on:
+		_glass_shaft(p, w, h, rect, color, caps, door_rows)
+		return
 	p.gradv(0, 0, w, h, color.darkened(0.55), color.darkened(0.35))
 	var rail := mini(3, w / 6)
 	for sx: float in [float(w / 12), float(w - w / 12 - rail)]:
@@ -163,6 +186,44 @@ static func shaft(canvas: Object, rect: Rect2i, color: Color, caps: Array[Rect2i
 		p.R(inset, fy - DOOR_H, dw, 1, Color("8a92a6"))
 		p.R(w * 0.5 - 7.0, fy - DOOR_H - 6.0, 14, 4, Color("1a1e28"))  # the indicator, dark until a car arrives
 		p.R(0, fy, w, 2, Color("3a4052"))
+
+
+## A shaft as a glass column (#367): a faint tint, a steel frame down both sides, a tick at each floor and, at
+## each stop, an open door frame with a centre seam; the machine-room caps stay solid. The rooms and people
+## behind show through; the car (car()) and its counterweight are drawn solid in front.
+static func _glass_shaft(p: Prims, w: int, h: int, rect: Rect2i, color: Color, caps: Array[Rect2i], door_rows: Array[int]) -> void:
+	var tint := color.lightened(0.5)
+	var steel := Color(0.35, 0.39, 0.46, 0.9)
+	var edge := Color("8a92a6")
+	p.R(0, 0, w, h, Color(tint.r, tint.g, tint.b, 0.2))
+	var rail := mini(2, w / 6)
+	p.R(0, 0, rail, h, steel)
+	p.R(w - rail, 0, rail, h, steel)
+	p.R(0, 0, 1, h, edge)
+	p.R(w - 1, 0, 1, h, edge)
+	for k: int in range(1, int(h / FLOOR) + 1):  # a floor tick on each side
+		var fy := float(k * FLOOR - SLAB)
+		p.R(0, fy, 8, 2, steel)
+		p.R(w - 8.0, fy, 8, 2, steel)
+	for y: int in range(10, h, 22):  # a gleam on the glass, here and there
+		var gx := (y * 7) % maxi(w - 12, 1) + 4
+		p.R(gx, y, 5, 1, Color(1, 1, 1, 0.22))
+		p.R(gx + 1, y + 1, 5, 1, Color(1, 1, 1, 0.22))
+	for cap: Rect2i in caps:
+		var c := Rect2i((cap.position - rect.position) * SUB, cap.size * SUB)
+		p.gradv(c.position.x, c.position.y, c.size.x, c.size.y, color.lightened(0.1), color.darkened(0.1))
+		p.item(c.position.x + 4.0, c.position.y + 6.0, minf(8.0, c.size.x * 0.3), 22.0, Color("6a707e"), 1.0)
+		for k: int in 4:
+			p.R(c.position.x + 5.0, c.position.y + 9.0 + k * 5, minf(6.0, c.size.x * 0.25), 1, Color("4a505e"))
+	for row: int in door_rows:
+		var fy := float((row - rect.position.y) * SUB)
+		var inset := 6.0 if w >= 24 else 2.0
+		var dw := w - inset * 2.0
+		p.R(inset, fy - DOOR_H, dw, 1, edge)
+		p.R(inset, fy - DOOR_H, 1, DOOR_H, edge)
+		p.R(inset + dw - 1.0, fy - DOOR_H, 1, DOOR_H, edge)
+		p.R(w * 0.5 - 0.5, fy - DOOR_H + 1.0, 1, DOOR_H - 1.0, Color(0.55, 0.6, 0.68, 0.7))
+		p.R(w * 0.5 - 7.0, fy - DOOR_H - 6.0, 14, 4, Color("1a1e28"))  # the indicator, dark until a car arrives
 
 
 ## The arrival indicator over the doors of the floor a car stands at (shaft_rect is the top floor of the shaft).

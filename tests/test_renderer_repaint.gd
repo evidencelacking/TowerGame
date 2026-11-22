@@ -8,6 +8,7 @@ const Command := TowerSim.Command
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
+const TransportGlass := preload("res://scripts/view/transport_glass.gd")
 const TestRooms := preload("res://tests/test_rooms.gd")
 const TestShafts := preload("res://tests/test_shafts.gd")
 
@@ -71,6 +72,7 @@ static func run(check: Callable) -> void:
 	await _placed_room(check)
 	await _extended_shaft(check)
 	await _bulldozed_room(check)
+	await _transport_glass_key(check)
 	_cursor(check)
 
 
@@ -147,6 +149,31 @@ static func _extended_shaft(check: Callable) -> void:
 		if tile.rect.intersects(want):
 			covered = covered and not tile.pending
 	check.call(covered, "every tile the extended shaft crosses is rendered")
+	await _stop(pair)
+
+
+## The see-through transport key (#367) flips the option and every frame piece is repainted after it.
+static func _transport_glass_key(check: Callable) -> void:
+	var tower := TestShafts._tall()
+	TestShafts._shaft(tower, 21, 25, 100)
+	var pair := await _start(tower)
+	var renderer: TowerRenderer = pair[0]
+	check.call(await _settle(renderer) >= 0, "the renderer settles before the glass key")
+	var was := TransportGlass.on
+	for piece: TowerRenderer.Piece in renderer._frame_pieces:
+		piece.cost_us = -1  # _paint_frame_piece sets it, so a repainted piece loses the marker
+	var key := InputEventKey.new()
+	key.keycode = KeyBindings.keycode("transport_glass") as Key
+	key.pressed = true
+	renderer._unhandled_key_input(key)
+	check.call(TransportGlass.on != was, "the bound key flips the see-through transport option")
+	check.call(await _settle(renderer) >= 0, "the renderer settles after the glass key")
+	var repainted := not renderer._frame_pieces.is_empty()
+	for piece: TowerRenderer.Piece in renderer._frame_pieces:
+		repainted = repainted and piece.cost_us >= 0 and not piece.stale
+	check.call(repainted, "every frame piece is repainted after the option changed")
+	check.call(_tiles_are_current(renderer), "no tile was rendered before its pieces were repainted after the option changed")
+	TransportGlass.set_on(was)
 	await _stop(pair)
 
 
