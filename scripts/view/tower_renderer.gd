@@ -50,6 +50,7 @@ var _since_tick: float = 0.0  ## Seconds since the sim last ticked.
 var _tick_len: float = 1.0 / 30.0  ## Seconds the last tick took; cars slide over this long.
 var _seen_revision: int = -1
 var _seen_see_through: bool = false
+var _label_step: int = ShaftNumbers.FAR_STEP  ## Floor-number spacing in the shafts at the current zoom (#431).
 var _seen_glass: bool = false  ## TransportGlass.on as last painted (#367).
 var _seen_style: GraphicsStyle = null
 var _seen_occupants: int = -1
@@ -648,6 +649,11 @@ func _process(delta: float) -> void:
 			if figure["moving"]:
 				_has_moving = true
 				break
+	var label_step := ShaftNumbers.step_for_zoom(get_canvas_transform().get_scale().x)
+	if label_step != _label_step:  ## Zoomed across the threshold: the shaft numbers change (#431).
+		_label_step = label_step
+		layout_changed = true
+		_mark_all_stale()
 	if TransportLook.see_through != _seen_see_through or TransportGlass.on != _seen_glass:  ## A view option changed: repaint the shafts and links.
 		_seen_see_through = TransportLook.see_through
 		_seen_glass = TransportGlass.on
@@ -1132,6 +1138,7 @@ func _draw_shafts(canvas: CanvasItem) -> void:
 		for floor_number: int in shaft["stops"]:
 			door_rows.append(_floor_bottom(floor_number))
 		GraphicsStyle.current().shaft(canvas, rect, shaft_color, caps, door_rows, TransportLook.see_through)
+		ShaftNumbers.draw(canvas, rect, shaft["bottom"], shaft["top"], _label_step, shaft_color)
 		for floor_number: int in shaft["disabled"]:
 			var top := VC.floor_to_row(floor_number) * VC.CELL_H
 			var red: Color = p["red"]
