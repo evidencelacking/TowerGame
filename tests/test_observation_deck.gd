@@ -34,6 +34,7 @@ static func _put(t: TowerSim, kind: String, floor_number: int, x: int) -> int:
 
 
 static func _serve(t: TowerSim, minute: int) -> void:
+	t.refresh_reach()  # the tick does this before commerce runs; the shop test drives commerce by hand
 	t.commerce._serve("observation_deck", 90, 100, t.floors, t.rooms, t.grid, t.people, t.tenancy, t.rng, Clock.WD1, minute, t.life)
 
 

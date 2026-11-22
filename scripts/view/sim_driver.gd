@@ -7,7 +7,8 @@ const Tower := preload("res://scripts/sim/tower.gd")
 
 const BASE_TICKS_PER_SECOND := 30.0
 const SPEEDS: Array[int] = [1, 2, 3]  ## Multipliers of the base rate; index 0 is speed 1.
-const MAX_TICKS_PER_FRAME := 20  ## Caps catch-up after a stall so a hitch can't spiral.
+const MAX_TICKS_PER_FRAME := 4  ## Caps catch-up after a stall so a hitch can't spiral (top speed needs 1.5 a frame at 60 fps).
+const FRAME_BUDGET_USEC := 8000  ## Stops stepping once the frame's sim work has spent this long (#417).
 
 var tower: Tower = Tower.new()
 var paused: bool = false
@@ -16,7 +17,18 @@ var speed_index: int = 0
 ## start of every quarter (see SaveFiles).
 var autosave_enabled: bool = false
 
+## Per-frame limits; tests set them so nothing depends on wall-clock speed. A negative budget means no time limit.
+var max_ticks_per_frame: int = MAX_TICKS_PER_FRAME
+var budget_usec: int = FRAME_BUDGET_USEC
+
 var _accumulator: float = 0.0
+var _slow: bool = false
+
+
+## True when the last frame dropped sim time because of the tick cap or the time budget (the game is running slower
+## than the selected speed).
+func running_slow() -> bool:
+	return _slow
 
 
 func _process(delta: float) -> void:
@@ -26,15 +38,24 @@ func _process(delta: float) -> void:
 ## Steps the sim for delta real seconds. Returns the number of ticks run.
 func run_frame(delta: float) -> int:
 	if paused:
+		_slow = false
 		return 0
 	_accumulator += delta * BASE_TICKS_PER_SECOND * SPEEDS[speed_index]
-	var ticks: int = mini(int(_accumulator), MAX_TICKS_PER_FRAME)
-	_accumulator = 0.0 if ticks == MAX_TICKS_PER_FRAME else _accumulator - ticks
-	for _i in ticks:
+	var due := int(_accumulator)
+	var ticks := mini(due, max_ticks_per_frame)
+	var started := Time.get_ticks_usec()
+	var run := 0
+	while run < ticks:
 		tower.step()
+		run += 1
 		if autosave_enabled and tower.clock.quarter_started:
 			SaveFiles.autosave(tower)
-	return ticks
+		if budget_usec >= 0 and Time.get_ticks_usec() - started >= budget_usec:
+			break
+	# Debt the frame could not pay is dropped, not carried, so a slow frame never snowballs into the next.
+	_slow = run < due
+	_accumulator = _accumulator - run if run == due else 0.0
+	return run
 
 
 func set_paused(value: bool) -> void:

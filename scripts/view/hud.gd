@@ -15,6 +15,7 @@ const DAY_NAMES: Array[String] = ["WD1", "WD2", "WE"]
 @onready var _population: Label = %PopulationLabel
 @onready var _stars: Label = %StarsLabel
 @onready var _demands: Label = %DemandsLabel
+@onready var _slow: Label = %SlowLabel
 @onready var _pause: Button = %PauseButton
 @onready var _speed_buttons: Array[Button] = [%Speed1Button, %Speed2Button, %Speed3Button]
 
@@ -97,6 +98,7 @@ func _refresh() -> void:
 	var needs := format_demands(_driver.tower.demands)
 	_demands.text = needs
 	_demands.visible = needs != ""
+	_slow.visible = _driver.running_slow()
 	_pause.text = "Resume" if _driver.paused else "Pause"
 	for i in _speed_buttons.size():
 		_speed_buttons[i].disabled = i == _driver.speed_index
