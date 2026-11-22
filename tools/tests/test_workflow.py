@@ -84,6 +84,15 @@ class StateMachine(unittest.TestCase):
             self.assertNotIn("ready", moves.values())
             self.assertEqual("done" in moves.values(), command == "finish")
 
+    def test_handoff_takes_an_open_or_merged_pr_and_finish_only_merged(self):
+        pr = {"title": "Thing (refs #7)", "body": ""}
+        handoff, finish = ("OPEN", "MERGED"), ("MERGED",)
+        self.assertIsNone(issue.pr_problem(7, 9, {**pr, "state": "OPEN"}, handoff))
+        self.assertIsNone(issue.pr_problem(7, 9, {**pr, "state": "MERGED"}, handoff))
+        self.assertIsNotNone(issue.pr_problem(7, 9, {**pr, "state": "CLOSED"}, handoff))
+        self.assertIsNotNone(issue.pr_problem(7, 9, {**pr, "state": "OPEN"}, finish))
+        self.assertIsNotNone(issue.pr_problem(8, 9, {**pr, "state": "MERGED"}, handoff))
+
     def test_finish_needs_evidence_and_never_takes_a_playtest(self):
         self.assertEqual(issue.finish_parts(["type::chore"], "12 tests pass"), ("12", "tests pass"))
         for labels, extra in [(["type::chore"], None), (["type::chore"], "12"), (["type::chore"], "x y")]:

@@ -14,7 +14,7 @@ backlog -> ready -> in-progress -> review -> done
 | Start | ready | in-progress | Claude | `issue.py start N` |
 | Hand-start | backlog | in-progress | Claude, when the owner asks | `issue.py start N` |
 | Block with a question | backlog, ready, in-progress | blocked | Claude | `issue.py ask N "question"` |
-| Hand off | in-progress | review | Claude, needs an open PR citing the issue | `issue.py handoff N PR` |
+| Hand off | in-progress | review | Claude, needs an open (or already merged) PR citing the issue | `issue.py handoff N PR` |
 | Rework | review | ready | Owner | `issue.py ready N` |
 | Unblock | blocked | ready | Owner | `issue.py ready N` |
 | Shelve | blocked | backlog | Owner | `issue.py status N backlog` |
