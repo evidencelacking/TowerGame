@@ -17,6 +17,8 @@ const EMPTY := 0  ## What cell_at() returns for a free cell.
 
 var _cells := PackedInt32Array()  # FLOOR_COUNT * WIDTH_UNITS occupant ids, EMPTY when free
 var _runs: Dictionary = {}  # occupant id -> [floor, start, length]
+## Bumps on every place, remove and load, so a cache of what the grid holds can tell it went stale. Derived: not saved or hashed.
+var revision: int = 0
 
 
 func _init() -> void:
@@ -65,6 +67,7 @@ func place(id: int, floor_number: int, column: int, length: int) -> bool:
 	for i in length:
 		_cells[base + i] = id
 	_runs[id] = [floor_number, column, length]
+	revision += 1
 	return true
 
 
@@ -77,6 +80,7 @@ func remove(id: int) -> bool:
 	for i: int in run[2]:
 		_cells[base + i] = EMPTY
 	_runs.erase(id)
+	revision += 1
 	return true
 
 
@@ -122,4 +126,5 @@ func load_ints(ints: Array) -> bool:
 			return false
 	_cells = loaded._cells
 	_runs = loaded._runs
+	revision += 1
 	return true

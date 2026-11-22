@@ -17,6 +17,7 @@ extends RefCounted
 ##
 ## Saved state: which people have made a first trip (their ids, in the order they first travelled).
 
+const EvalTablesScript := preload("res://scripts/sim/eval_tables.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 
@@ -38,6 +39,13 @@ const HOME_KINDS: Array[String] = ["condo", "hotel_single", "hotel_twin", "hotel
 var _tripped: Dictionary = {}  ## Person id -> true once they have made a trip.
 var _order: Array[int] = []  ## The same ids in the order first seen, for saving.
 var _modifiers: Array[Callable] = []
+## While set (a mood update or an evaluation is running), average_stress reads these tables instead of scanning everyone (#416).
+var batch: EvalTablesScript = null
+
+
+## True once the person has made a trip.
+func tripped(id: int) -> bool:
+	return _tripped.has(id)
 
 
 ## Marks people who are travelling as having made their first trip. Run each tick, after
@@ -85,6 +93,8 @@ func average_stress(rooms: RoomsScript, people: PeopleScript, room: int) -> int:
 	if not is_graded(kind):
 		return -1
 	var by_work := WORK_KINDS.has(kind)
+	if batch != null:
+		return batch.average_stress(room, by_work)
 	var total := 0
 	var n := 0
 	for i in people.count():

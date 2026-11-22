@@ -23,6 +23,7 @@ const MessagesScript := preload("res://scripts/sim/messages.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const MoodScript := preload("res://scripts/sim/mood.gd")
+const EvalTablesScript := preload("res://scripts/sim/eval_tables.gd")
 
 ## Minute of the day whose period start runs the evaluation, once per day: 21:00, the start of
 ## the night period, taken as the manual's "rest period" (owner ruling 2026-11-14: the rest
@@ -51,11 +52,18 @@ func red_days(room: int) -> int:
 	return _red_days.get(room, 0)
 
 
-func _occupied(rooms: RoomsScript, people: PeopleScript, id: int) -> bool:
+func _occupied(rooms: RoomsScript, tables: EvalTablesScript, id: int) -> bool:
 	var kind := rooms.kind_of(id)
 	if kind == "office":
-		return people.workers_in(id) > 0
+		return tables.workers.get(id, 0) > 0
 	return kind == "condo" and rooms.is_sold(id)
+
+
+func _vacant_in(rooms: RoomsScript, tables: EvalTablesScript, id: int) -> bool:
+	var kind := rooms.kind_of(id)
+	if kind == "office":
+		return tables.workers.get(id, 0) == 0
+	return kind == "condo" and not rooms.is_sold(id)
 
 
 func _vacant(rooms: RoomsScript, people: PeopleScript, id: int) -> bool:
@@ -65,25 +73,49 @@ func _vacant(rooms: RoomsScript, people: PeopleScript, id: int) -> bool:
 	return kind == "condo" and not rooms.is_sold(id)
 
 
+## Vacant offices and condos grouped by kind and floor, each list in ascending id order, for _vacancy_near.
+func _vacancies(rooms: RoomsScript, grid: GridScript, tables: EvalTablesScript, ids: Array[int]) -> Dictionary:
+	var found: Dictionary = {}
+	for id in ids:
+		if not _vacant_in(rooms, tables, id):
+			continue
+		var run := grid.run_of(id)
+		if run.is_empty():
+			continue
+		var key := "%s/%d" % [rooms.kind_of(id), run[0]]
+		if not found.has(key):
+			found[key] = [] as Array[int]
+		found[key].append(id)
+	return found
+
+
 ## Runs one evaluation of the whole tower.
 func evaluate(rooms: RoomsScript, people: PeopleScript, grades: GradesScript, grid: GridScript, floors: FloorsScript, tenancy: TenancyScript, ledger: LedgerScript, messages: MessagesScript, rng: Object, at_tick: int) -> void:
 	var ids := rooms.room_ids()
 	ids.sort()
+	var tables := EvalTablesScript.build(rooms, grid, people, grades, MoodScript.LEAVE_DAYS)
+	grades.batch = tables
 	var graded: Dictionary = {}  # occupied room id -> grade
 	for id in ids:
-		if _occupied(rooms, people, id):
+		if _occupied(rooms, tables, id):
 			graded[id] = grades.grade(rooms, people, id)
 	for id in _red_days.keys():
 		if not graded.has(id):
 			_red_days.erase(id)
 	# Friends first, against the vacancies that exist before anyone leaves.
 	var entry_x := floors.lobby_span()[0] if floors.has_lobby() else 0
+	var vacancies := _vacancies(rooms, grid, tables, ids)
 	for id in ids:
 		if graded.get(id, -1) == GradesScript.GRADE_A and (FRIEND_PERCENT >= 100 or rng.next_below(100) < FRIEND_PERCENT):
-			var reach := FRIEND_REACH + (MoodScript.FRIEND_REACH_BONUS if MoodScript.room_average(people, id) >= MoodScript.HIGH_FROM else 0)
-			var friend := _vacancy_near(rooms, people, grid, floors, tenancy, id, entry_x, reach)
+			var reach := FRIEND_REACH + (MoodScript.FRIEND_REACH_BONUS if MoodScript.room_average(people, id, tables) >= MoodScript.HIGH_FROM else 0)
+			var friend := _vacancy_near(rooms, grid, floors, tenancy, vacancies, id, entry_x, reach)
 			if friend != 0:
 				_fill(rooms, people, grid, ledger, messages, rng, at_tick, friend)
+				if rooms.kind_of(friend) == "office":
+					tables.workers[friend] = int(tables.workers.get(friend, 0)) + rooms.people_in(friend)
+				if not _vacant_in(rooms, tables, friend):
+					vacancies["%s/%d" % [rooms.kind_of(friend), grid.run_of(friend)[0]]].erase(friend)
+	grades.batch = null
 	# Then C tenants leave.
 	for id in ids:
 		var grade: int = graded.get(id, -1)
@@ -112,9 +144,11 @@ func evaluate(rooms: RoomsScript, people: PeopleScript, grades: GradesScript, gr
 func evaluate_moods(rooms: RoomsScript, people: PeopleScript, grades: GradesScript, grid: GridScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:
 	var ids := rooms.room_ids()
 	ids.sort()
+	var tables := EvalTablesScript.build(rooms, grid, people, grades, MoodScript.LEAVE_DAYS)
+	grades.batch = tables
 	for id in ids:
 		var kind := rooms.kind_of(id)
-		if not _occupied(rooms, people, id) or not MoodScript.gave_notice(people, id) or grades.grade(rooms, people, id) != GradesScript.GRADE_C:
+		if not _occupied(rooms, tables, id) or not MoodScript.gave_notice(people, id, tables) or grades.grade(rooms, people, id) != GradesScript.GRADE_C:
 			continue
 		if kind == "condo":
 			var price := CatalogueScript.cost(kind)
@@ -127,26 +161,26 @@ func evaluate_moods(rooms: RoomsScript, people: PeopleScript, grades: GradesScri
 			_red_days.erase(id)
 			people.remove_room(id)
 			_left(rooms, grid, messages, at_tick, id)
+		# People went, so what the tables hold is stale: read the tower afresh for the rest.
+		tables = EvalTablesScript.build(rooms, grid, people, grades, MoodScript.LEAVE_DAYS)
+		grades.batch = tables
+	grades.batch = null
 
 
 ## The nearest vacant unit of the same kind and floor within FRIEND_REACH cells that the lobby
-## reaches (ties: lowest id), or 0.
-func _vacancy_near(rooms: RoomsScript, people: PeopleScript, grid: GridScript, floors: FloorsScript, tenancy: TenancyScript, id: int, entry_x: int, reach: int = FRIEND_REACH) -> int:
+## reaches (ties: lowest id), or 0. vacancies is _vacancies, kept up to date as units fill.
+func _vacancy_near(rooms: RoomsScript, grid: GridScript, floors: FloorsScript, tenancy: TenancyScript, vacancies: Dictionary, id: int, entry_x: int, reach: int = FRIEND_REACH) -> int:
 	var run := grid.run_of(id)
 	var kind := rooms.kind_of(id)
 	var best := 0
 	var best_gap := reach + 1
-	var ids := rooms.room_ids()
-	ids.sort()
-	for other in ids:
-		if other == id or rooms.kind_of(other) != kind or not _vacant(rooms, people, other):
+	for other: int in vacancies.get("%s/%d" % [kind, run[0]], [] as Array[int]):
+		if other == id:
 			continue
 		var there := grid.run_of(other)
-		if there.is_empty() or there[0] != run[0]:
-			continue
 		var gap := maxi(there[1] - (run[1] + run[2]), run[1] - (there[1] + there[2]))
 		gap = maxi(gap, 0)
-		if gap < best_gap and tenancy.reachable(floors, rooms, grid, other, entry_x):
+		if gap < best_gap and tenancy.routed(floors, rooms, grid, other, entry_x):
 			best = other
 			best_gap = gap
 	return best
