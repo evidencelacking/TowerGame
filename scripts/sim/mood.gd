@@ -22,6 +22,7 @@ const GradesScript := preload("res://scripts/sim/grades.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
 const NoiseScript := preload("res://scripts/sim/noise.gd")
 const SynergyScript := preload("res://scripts/sim/synergy.gd")
+const EvalTablesScript := preload("res://scripts/sim/eval_tables.gd")
 
 const REASON_TRAVEL := 0
 const REASON_NOISE := 1
@@ -85,14 +86,13 @@ static func floor_counts(people: PeopleScript, grid: GridScript, floors: FloorsS
 	return counts
 
 
-## The factors on person i as [reason, change] pairs (changes are not zero), worst first.
-## counts is floor_counts (pass it in so a whole tower shares one pass).
-func factors(rooms: RoomsScript, grid: GridScript, grades: GradesScript, people: PeopleScript, counts: Dictionary, i: int) -> Array[Array]:
+## The factors of person i that depend only on their room, as [reason, change] pairs in a fixed order:
+## noise, grade, neighbours, crowding. tables (EvalTables) supplies the rooms that are synergy sources and
+## memoises the answer per room; pass it only while counts and the tower stay as they are.
+func _room_terms(rooms: RoomsScript, grid: GridScript, grades: GradesScript, people: PeopleScript, counts: Dictionary, room: int, tables: EvalTablesScript) -> Array[Array]:
+	if tables != null and tables.terms.has(room):
+		return tables.terms[room]
 	var found: Array[Array] = []
-	var travel := mini(people.stress_of(i) * TRAVEL_MAX / PeopleScript.STRESS_MAX, TRAVEL_MAX)
-	if travel > 0:
-		found.append([REASON_TRAVEL, -travel])
-	var room := room_of(people, i)
 	if room != PeopleScript.NONE and rooms.kind_of(room) != "":
 		var noise := mini(NoiseScript.noise_at(grid, rooms, room) * NOISE_PER_LEVEL, NOISE_MAX)
 		if noise > 0:
@@ -104,41 +104,75 @@ func factors(rooms: RoomsScript, grid: GridScript, grades: GradesScript, people:
 			found.append([REASON_GRADE, -GRADE_C_PENALTY])
 		var run := grid.run_of(room)
 		if not run.is_empty():
-			var nearby := SynergyScript.mood_delta(rooms.kind_of(room), run, SynergyScript.others_of(grid, rooms))
+			var others: Array = tables.others if tables != null else SynergyScript.others_of(grid, rooms)
+			var nearby := SynergyScript.mood_delta(rooms.kind_of(room), run, others)
 			if nearby != 0:
 				found.append([REASON_NEIGHBOURS, nearby])
 			var over: int = counts.get(run[0], 0) - CROWD_FREE
 			if over > 0:
 				found.append([REASON_CROWD, -mini(over / CROWD_STEP * CROWD_PER_STEP, CROWD_MAX)])
-	if shock > 0 and _shocked.has(people.id_at(i)):
+	if tables != null:
+		tables.terms[room] = found
+	return found
+
+
+func _shocked_has(id: int, tables: EvalTablesScript) -> bool:
+	return tables.shocked.has(id) if tables != null else _shocked.has(id)
+
+
+## The factors on person i as [reason, change] pairs (changes are not zero), worst first.
+## counts is floor_counts (pass it in so a whole tower shares one pass). tables is optional (see _room_terms).
+func factors(rooms: RoomsScript, grid: GridScript, grades: GradesScript, people: PeopleScript, counts: Dictionary, i: int, tables: EvalTablesScript = null) -> Array[Array]:
+	var found: Array[Array] = []
+	var travel := mini(people.stress_of(i) * TRAVEL_MAX / PeopleScript.STRESS_MAX, TRAVEL_MAX)
+	if travel > 0:
+		found.append([REASON_TRAVEL, -travel])
+	found.append_array(_room_terms(rooms, grid, grades, people, counts, room_of(people, i), tables))
+	if shock > 0 and _shocked_has(people.id_at(i), tables):
 		found.append([REASON_EVENT, -shock])
 	found.sort_custom(func(a: Array, b: Array) -> bool: return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0]))
 	return found
 
 
 ## The mood the day's conditions pull person i toward, 0 to MOOD_MAX.
-func target(rooms: RoomsScript, grid: GridScript, grades: GradesScript, people: PeopleScript, counts: Dictionary, i: int) -> int:
+func target(rooms: RoomsScript, grid: GridScript, grades: GradesScript, people: PeopleScript, counts: Dictionary, i: int, tables: EvalTablesScript = null) -> int:
 	var total := BASE
-	for factor in factors(rooms, grid, grades, people, counts, i):
+	if tables == null:
+		for factor in factors(rooms, grid, grades, people, counts, i):
+			total += factor[1]
+		return clampi(total, 0, PeopleScript.MOOD_MAX)
+	# The same sum without the sort, which cannot change it.
+	total -= mini(people.stress_of(i) * TRAVEL_MAX / PeopleScript.STRESS_MAX, TRAVEL_MAX)
+	for factor in _room_terms(rooms, grid, grades, people, counts, room_of(people, i), tables):
 		total += factor[1]
+	if shock > 0 and _shocked_has(people.id_at(i), tables):
+		total -= shock
 	return clampi(total, 0, PeopleScript.MOOD_MAX)
 
 
 ## Moves everyone's mood one day toward its target, counts low days, then clears the event shock.
 func update(rooms: RoomsScript, grid: GridScript, floors: FloorsScript, grades: GradesScript, people: PeopleScript) -> void:
 	var counts := floor_counts(people, grid, floors)
-	var recovery := SynergyScript.recovery_bonus(SynergyScript.others_of(grid, rooms))  # clinics: moods rise faster
+	var tables := EvalTablesScript.build(rooms, grid, people, grades, LEAVE_DAYS)
+	for id in _shocked:
+		tables.shocked[id] = true
+	grades.batch = tables
+	var recovery := SynergyScript.recovery_bonus(tables.others)  # clinics: moods rise faster
 	for i in people.count():
 		var mood := people.mood_of(i)
-		mood += clampi(target(rooms, grid, grades, people, counts, i) - mood, -STEP, STEP + recovery)
+		mood += clampi(target(rooms, grid, grades, people, counts, i, tables) - mood, -STEP, STEP + recovery)
 		people.set_mood(i, mood)
 		people.set_low_days(i, people.low_days_of(i) + 1 if people.mood_of(i) < LOW_BELOW else 0)
+	grades.batch = null
 	shock = 0
 	_shocked.clear()
 
 
-## Average mood of the people who work or live in a room, or -1 if there are none.
-static func room_average(people: PeopleScript, room: int) -> int:
+## Average mood of the people who work or live in a room, or -1 if there are none. tables (EvalTables,
+## built after the last mood change) answers without scanning everyone.
+static func room_average(people: PeopleScript, room: int, tables: EvalTablesScript = null) -> int:
+	if tables != null:
+		return tables.room_average(room)
 	var total := 0
 	var n := 0
 	for i in people.count():
@@ -148,8 +182,10 @@ static func room_average(people: PeopleScript, room: int) -> int:
 	return total / n if n > 0 else -1
 
 
-## True when someone who works or lives in the room has had LEAVE_DAYS low days in a row.
-static func gave_notice(people: PeopleScript, room: int) -> bool:
+## True when someone who works or lives in the room has had LEAVE_DAYS low days in a row. tables as in room_average.
+static func gave_notice(people: PeopleScript, room: int, tables: EvalTablesScript = null) -> bool:
+	if tables != null:
+		return tables.notice.has(room)
 	for i in people.count():
 		if (people.work_of(i) == room or people.home_of(i) == room) and people.low_days_of(i) >= LEAVE_DAYS:
 			return true

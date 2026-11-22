@@ -26,6 +26,8 @@ var _grades: GradesScript
 var _rooms: RoomsScript
 var _grid: GridScript
 var _people: PeopleScript
+var _near_key: Array[int] = []
+var _near_cache: Dictionary = {}  ## Room id -> its neighbours (see _neighbours).
 var _busy := false  ## True while judging sources, so their grade leaves word of mouth out.
 
 
@@ -48,17 +50,32 @@ func stress_for(room: int) -> int:
 		return 0
 	_busy = true
 	var complainers := 0
-	for other in _rooms.room_ids():
-		if other == room or not GradesScript.is_graded(_rooms.kind_of(other)):
-			continue
-		if not _near(here, _grid.run_of(other)):
-			continue
+	for other in _neighbours(room, here):
 		if _grades.grade(_rooms, _people, other) == GradesScript.GRADE_C:
 			complainers += 1
 			if complainers >= MAX_COMPLAINERS:
 				break
 	_busy = false
 	return complainers * STRESS_PER_COMPLAINER
+
+
+## The graded rooms within reach of a room, in room id order. Kept per layout (#416): it depends only on the room kinds
+## and where the rooms sit, so it is thrown away whenever the grid or the room list changes. Derived, never saved.
+func _neighbours(room: int, here: Array[int]) -> Array[int]:
+	var key: Array[int] = [_grid.get_instance_id(), _grid.revision, _rooms.layout_revision, _rooms.get_instance_id()]
+	if key != _near_key:
+		_near_key = key
+		_near_cache = {}
+	if _near_cache.has(room):
+		return _near_cache[room]
+	var found: Array[int] = []
+	for other in _rooms.room_ids():
+		if other == room or not GradesScript.is_graded(_rooms.kind_of(other)):
+			continue
+		if _near(here, _grid.run_of(other)):
+			found.append(other)
+	_near_cache[room] = found
+	return found
 
 
 ## True when two [floor, column, length] runs are within reach of each other.

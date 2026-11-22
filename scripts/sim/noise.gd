@@ -86,7 +86,14 @@ static func noise_at(grid: GridScript, rooms: RoomsScript, room_id: int) -> int:
 	var kind := rooms.kind_of(room_id)
 	if not is_sensitive(kind) or not grid.has_occupant(room_id):
 		return 0
-	return level_among(kind, grid.run_of(room_id), _others(grid, rooms, room_id))
+	var cache := _cache(grid, rooms)
+	if cache.has(room_id):
+		return cache[room_id]
+	if not cache.has(_OTHERS):
+		cache[_OTHERS] = _others(grid, rooms, 0)
+	var level := level_among(kind, grid.run_of(room_id), cache[_OTHERS])
+	cache[room_id] = level
+	return level
 
 
 ## Rooms with noise above 0: room id -> level, ascending by id.
@@ -102,6 +109,21 @@ static func levels(grid: GridScript, rooms: RoomsScript) -> Dictionary:
 ## Stress a noise level adds.
 static func stress_for(level: int) -> int:
 	return level * STRESS_PER_NOISE_LEVEL
+
+
+## Key of the cached "every placed room" list; room ids are positive, so it never clashes with one.
+const _OTHERS := -1
+
+
+## The cache of levels (room id -> level) and the placed-room list, for the grid and room list as they are now (#416).
+## A pure function of the grid and the room kinds, so it is thrown away whenever either changes. A sensitive
+## room is never a source or a buffer, so the list can include the room it is asked about.
+static func _cache(grid: GridScript, rooms: RoomsScript) -> Dictionary:
+	var key: Array[int] = [grid.get_instance_id(), grid.revision, rooms.layout_revision]
+	if rooms.noise_key != key:
+		rooms.noise_key = key
+		rooms.noise_cache = {}
+	return rooms.noise_cache
 
 
 static func _others(grid: GridScript, rooms: RoomsScript, except_id: int) -> Array:

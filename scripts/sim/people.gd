@@ -69,6 +69,7 @@ const _TRIP_LEG := 11  ## Route leg the person is on: the first leg of the walki
 var _next_id: int = 0
 var _last_minute: int = -1  ## The last minute of day the plan was checked at.
 var _data: Array[int] = []  ## Flat: FIELDS ints per person, in id order.
+var _index: Dictionary = {}  ## Person id -> index into _data / FIELDS. Derived (rebuilt on load and removal), not saved.
 
 
 func count() -> int:
@@ -83,6 +84,7 @@ func add_person(home: int, work: int, rng: Object) -> int:
 	var start := home if home != NONE else work
 	var goal := DEST_HOME if home != NONE else DEST_WORK
 	var offset: int = rng.next_below(ARRIVAL_SPREAD + 1)
+	_index[id] = count()
 	_data.append_array([id, home, work, offset, goal, TRIP_IDLE, start, 0, 0, 0, NONE, 0, MOOD_START, 0] as Array[int])
 	return id
 
@@ -98,6 +100,7 @@ func add_guest(room: int, rng: Object) -> int:
 	var id := _next_id
 	_next_id += 1
 	var offset: int = rng.next_below(ARRIVAL_SPREAD + 1)
+	_index[id] = count()
 	_data.append_array([id, room, NONE, offset, DEST_HOME, TRIP_REQUESTED, NONE, 0, 0, 0, NONE, 0, MOOD_START, 0] as Array[int])
 	return id
 
@@ -115,6 +118,7 @@ func remove_room(room: int) -> int:
 		else:
 			kept.append_array(_data.slice(b, b + FIELDS))
 	_data = kept
+	_rebuild_index()
 	return removed
 
 
@@ -125,6 +129,7 @@ func remove_person(i: int) -> void:
 	kept.append_array(_data.slice(0, b))
 	kept.append_array(_data.slice(b + FIELDS))
 	_data = kept
+	_rebuild_index()
 
 
 ## Moves a person's home to another room (a couple moving in together).
@@ -152,10 +157,15 @@ func worker_counts() -> Dictionary:
 
 ## Index of the person with this id, or -1.
 func index_of(id: int) -> int:
+	return _index.get(id, -1)
+
+
+func _rebuild_index() -> void:
+	_index = {}
 	for i in count():
-		if _data[i * FIELDS + _ID] == id:
-			return i
-	return -1
+		var id := _data[i * FIELDS + _ID]
+		if not _index.has(id):  # a repeated id keeps its first person, as the scan did
+			_index[id] = i
 
 
 func id_at(i: int) -> int:
@@ -187,8 +197,8 @@ func location_of(i: int) -> int:
 ## Mid-trip counts (an arrival's trip starts outside but they are already inside).
 func in_tower_count() -> int:
 	var n := 0
-	for i in count():
-		if location_of(i) != NONE or trip_state(i) != TRIP_IDLE:
+	for b in range(0, _data.size(), FIELDS):
+		if _data[b + _LOCATION] != NONE or _data[b + _TRIP] != TRIP_IDLE:
 			n += 1
 	return n
 
@@ -416,3 +426,4 @@ func load_ints(ints: Array) -> void:
 	_data = []
 	for i in range(3, ints.size()):
 		_data.append(ints[i])
+	_rebuild_index()

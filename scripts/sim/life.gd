@@ -181,13 +181,28 @@ func age_band_of(t: Object, id: int) -> int:
 	return age_band(t.names.name_seed, id)
 
 
+## The ids in a list as a set, for a loop that asks about every person (#416).
+static func _set_of(ids: Array[int]) -> Dictionary:
+	var found := {}
+	for id in ids:
+		found[id] = true
+	return found
+
+
+## Same answer as age_band, read from a set of the children.
+func _age_band_in(kids: Dictionary, t: Object, id: int) -> int:
+	return NamesScript.BAND_YOUNG if kids.has(id) else NamesScript.age_band(t.names.name_seed, id)
+
+
 func couple_up(t: Object) -> void:
 	var by_room := {}  # room -> ids of uncoupled adults, in id order
+	var kids := _set_of(_kids)
+	var coupled := _set_of(_couples)
 	for i in t.people.count():
 		var id: int = t.people.id_at(i)
 		var room := MoodScript.room_of(t.people, i)
 		var kind: String = t.rooms.kind_of(room) if room != PeopleScript.NONE else ""
-		if (kind == "office" or kind == "condo") and partner_of(id) == -1 and age_band_of(t, id) == NamesScript.BAND_ADULT:
+		if (kind == "office" or kind == "condo") and not coupled.has(id) and _age_band_in(kids, t, id) == NamesScript.BAND_ADULT:
 			if not by_room.has(room):
 				by_room[room] = [] as Array[int]
 			by_room[room].append(id)
@@ -259,10 +274,12 @@ func have_children(t: Object) -> void:
 
 func promote(t: Object) -> void:
 	var chosen: Array[int] = []
+	var kids := _set_of(_kids)
+	var promoted := _set_of(_promoted)
 	for i in t.people.count():
 		var id: int = t.people.id_at(i)
 		var work: int = t.people.work_of(i)
-		if work != PeopleScript.NONE and t.rooms.kind_of(work) == "office" and age_band_of(t, id) == NamesScript.BAND_ADULT and not is_promoted(id):
+		if work != PeopleScript.NONE and t.rooms.kind_of(work) == "office" and _age_band_in(kids, t, id) == NamesScript.BAND_ADULT and not promoted.has(id):
 			if t.rng.next_below(100) < promotion_percent:
 				chosen.append(id)
 	for id in chosen:
@@ -274,9 +291,10 @@ func promote(t: Object) -> void:
 
 func retire(t: Object) -> void:
 	var chosen: Array[int] = []
+	var kids := _set_of(_kids)
 	for i in t.people.count():
 		var work: int = t.people.work_of(i)
-		if work != PeopleScript.NONE and t.rooms.kind_of(work) == "office" and age_band_of(t, t.people.id_at(i)) == NamesScript.BAND_SENIOR:
+		if work != PeopleScript.NONE and t.rooms.kind_of(work) == "office" and _age_band_in(kids, t, t.people.id_at(i)) == NamesScript.BAND_SENIOR:
 			if t.rng.next_below(100000) < retire_per_100000:
 				chosen.append(t.people.id_at(i))
 	for id in chosen:

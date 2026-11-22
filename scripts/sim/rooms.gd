@@ -110,6 +110,9 @@ var links := GridScript.new()
 var layout_revision: int = 0
 ## Routes' cached static graph, one per staff flag (#415). Derived: not saved or hashed. Owned by Routes.
 var route_cache: Array = [null, null]
+## Noise's per-layout cache (#416): the key it was built for and the answers. Derived: not saved or hashed. Owned by Noise.
+var noise_key: Array[int] = []
+var noise_cache: Dictionary = {}
 ## Room id to true while the room cannot be reached from the ground lobby by stairs, escalators or elevators (#368).
 ## Derived by Tower (refresh_reach, from Tenancy.reachable), never saved or hashed; empty means everything is connected.
 var cut_off: Dictionary = {}
