@@ -73,6 +73,7 @@ static func run(check: Callable) -> void:
 	await _extended_shaft(check)
 	await _bulldozed_room(check)
 	await _transport_glass_key(check)
+	await _label_zoom(check)
 	_cursor(check)
 
 
@@ -174,6 +175,29 @@ static func _transport_glass_key(check: Callable) -> void:
 	check.call(repainted, "every frame piece is repainted after the option changed")
 	check.call(_tiles_are_current(renderer), "no tile was rendered before its pieces were repainted after the option changed")
 	TransportGlass.set_on(was)
+	await _stop(pair)
+
+
+## Zooming across ShaftNumbers.ZOOM_ALL changes how many floors are labelled, so the shaft pieces are repainted (#431).
+static func _label_zoom(check: Callable) -> void:
+	var tower := TestShafts._tall()
+	TestShafts._shaft(tower, 21, 25, 100)
+	var pair := await _start(tower)
+	var renderer: TowerRenderer = pair[0]
+	var camera: Camera2D = pair[1]
+	check.call(await _settle(renderer) >= 0, "the renderer settles before the zoom")
+	check.call(renderer._label_step == ShaftNumbers.FAR_STEP, "zoomed out, shafts label every 5th floor")
+	for piece: TowerRenderer.Piece in renderer._frame_pieces:
+		piece.cost_us = -1
+	camera.zoom = Vector2(ShaftNumbers.ZOOM_ALL, ShaftNumbers.ZOOM_ALL)
+	await _tree().process_frame
+	await _tree().process_frame
+	check.call(renderer._label_step == 1, "zoomed in, shafts label every floor")
+	check.call(await _settle(renderer) >= 0, "the renderer settles after the zoom")
+	var repainted := not renderer._frame_pieces.is_empty()
+	for piece: TowerRenderer.Piece in renderer._frame_pieces:
+		repainted = repainted and piece.cost_us >= 0 and not piece.stale
+	check.call(repainted, "every frame piece is repainted after zooming across the label threshold")
 	await _stop(pair)
 
 

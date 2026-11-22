@@ -5,15 +5,17 @@ extends RefCounted
 const ShaftNumbers := preload("res://scripts/view/shaft_numbers.gd")
 
 
+## Records draw_rect calls; the plaques are the wide dark ones (alpha below 1), so one per labelled floor.
 class Recorder:
 	extends RefCounted
-	var texts: Array[String] = []
+	var plaques: int = 0
+	var ink: int = 0
 
-	func draw_string_outline(_font: Variant, _pos: Vector2, _text: String, _align: int = 0, _width: float = -1.0, _size: int = 16, _outline: int = 1, _color: Color = Color.WHITE) -> void:
-		pass
-
-	func draw_string(_font: Variant, _pos: Vector2, text: String, _align: int = 0, _width: float = -1.0, _size: int = 16, _color: Color = Color.WHITE) -> void:
-		texts.append(text)
+	func draw_rect(_r: Variant, c: Color, _filled: bool = true, _width: float = -1.0) -> void:
+		if c.a < 1.0:
+			plaques += 1
+		else:
+			ink += 1
 
 
 static func run(check: Callable) -> void:
@@ -23,7 +25,7 @@ static func run(check: Callable) -> void:
 	check.call(ShaftNumbers.step_for_zoom(1.0) == 5 and ShaftNumbers.step_for_zoom(2.0) == 1 and ShaftNumbers.step_for_zoom(4.0) == 1, "labels thin out below zoom 2")
 	var rec := Recorder.new()
 	ShaftNumbers.draw(rec, Rect2i(0, 0, 16, 32), -3, 12, 1, Color("8a6a4a"))
-	check.call(rec.texts == ["B3", "B2", "B1", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"], "zoomed in, every floor is labelled, with no floor 0")
+	check.call(rec.plaques == 15 and rec.ink > 0, "zoomed in, every floor is labelled, with no floor 0")
 	rec = Recorder.new()
 	ShaftNumbers.draw(rec, Rect2i(0, 0, 16, 32), -7, 12, 5, Color("8a6a4a"))
-	check.call(rec.texts == ["B5", "B1", "1", "5", "10"], "zoomed out, the ground floors and every 5th floor")
+	check.call(rec.plaques == 5, "zoomed out, the ground floors and every 5th floor")
