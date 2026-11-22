@@ -138,77 +138,10 @@ def add_at(track, at_sec, part):
             track[at + i] += v
 
 
-def blips(rng, sec, rate, freq_lo, freq_hi, dur, vol=0.6, shape="sine"):
-    """Scatter short tones at random times: birds, chatter, glasses. Loops over `sec`."""
-    track = silence(sec + 0.4)
-    for _ in range(int(sec * rate)):
-        f = rng.uniform(freq_lo, freq_hi)
-        b = tone(f, dur, shape, vol * rng.uniform(0.5, 1.0), glide=f * rng.uniform(0.8, 1.3), attack=0.004, release=dur * 0.5)
-        add_at(track, rng.uniform(0, sec), b)
-    return loopify(track, sec)
-
-
-def murmur(rng, sec, low, high, rate, vol=0.5, chatter=(180, 420)):
-    """Crowd-like bed: band-limited noise with a slow swell plus syllable-like blips."""
-    bed = loop_noise(rng, sec, vol=vol, low=low, high=high)
-    lfo = round(rng.uniform(0.4, 0.9) * sec) / sec  # whole cycles per loop so the swell stays seamless
-    bed = [v * (0.75 + 0.25 * math.sin(TAU * lfo * i / RATE)) for i, v in enumerate(bed)]
-    return mix(bed, blips(rng, sec, rate, chatter[0], chatter[1], 0.09, vol * 0.5, "soft"))
-
-
 # ---- the sounds -------------------------------------------------------------------------------
 
 def thud(freq, sec, vol=0.9):
     return tone(freq, sec, "sine", vol, glide=freq * 0.45, attack=0.002, decay=sec * 0.3, release=sec * 0.4)
-
-
-def rec_firetruck(rng):
-    def beep(f):
-        return tone(f, 0.35, "square", 0.25, attack=0.02, release=0.05)
-    return seq(beep(660), beep(880), beep(660))
-
-
-def rec_helicopter(rng):
-    out = silence(1.0)
-    for k in range(int(1.0 * 12)):
-        add_at(out, k / 12, noise(rng, 0.05, 0.9, low=400, attack=0.002, decay=0.02, release=0.02))
-    return mix(out, tone(90, 1.0, "saw", 0.12, attack=0.1, release=0.2))
-
-
-def rec_rain(rng):
-    return mix(loop_noise(rng, 2.0, vol=0.35, low=6000, high=800), loop_noise(rng, 2.0, vol=0.1, low=300))
-
-
-def rec_bird(variant):
-    def rec(rng):
-        lo = 2200 + variant * 450
-        return blips(rng, 2.0, 2.5 + variant * 0.7, lo, lo + 1500, 0.07 + 0.02 * variant, 0.35)
-    return rec
-
-
-def rec_cricket(rng):
-    sec = 2.0
-    track = silence(sec + 0.4)
-    for k in range(int(sec * 5)):
-        for j in range(3):
-            add_at(track, k / 5 + j * 0.06, tone(4300, 0.035, "sine", 0.28, attack=0.004, release=0.012))
-    return loopify(track, sec)
-
-
-def rec_crowd(variant):
-    def rec(rng):
-        return murmur(rng, 2.0, 900 + variant * 300, 150, 7 + variant * 2, 0.5)
-    return rec
-
-
-def rec_restaurant(variant):
-    def rec(rng):
-        sec = 2.0
-        out = murmur(rng, sec, 1500 + variant * 400, 180, 5 + variant, 0.3 - 0.04 * variant, (200, 380))
-        for _ in range(4 + variant):
-            add_at(out, rng.uniform(0, sec - 0.4), tone(rng.uniform(2400, 3600), 0.3, "sine", 0.12, attack=0.001, decay=0.06, release=0.1))
-        return out
-    return rec
 
 
 def rec_dancehall(rng):
@@ -223,23 +156,8 @@ def rec_dancehall(rng):
     return out
 
 
-def make_recipes():
-    """Only the sounds with no good CC0 recording; every other name is a converted CC0 file (SOURCES.md)."""
-    r = {"FireTruck1": rec_firetruck, "Helicopter": rec_helicopter, "Rain": rec_rain, "Cricket1": rec_cricket,
-         "DanceHall1": rec_dancehall}
-    for i in range(1, 5):
-        r[f"Bird{i}"] = rec_bird(i - 1)
-    for i in range(1, 3):
-        r[f"Crowd{i}"] = rec_crowd(i - 1)
-    for i in range(1, 4):
-        r[f"Resturant{i}"] = rec_restaurant(i - 1)
-    return r
-
-
-RECIPES = make_recipes()
-# The generated sounds that are loops (2-4 s, seamless); every other generated sound is a one-shot under 1.5 s.
-LOOPS = {"Rain", "Cricket1", "DanceHall1", "Bird1", "Bird2", "Bird3", "Bird4", "Crowd1", "Crowd2",
-         "Resturant1", "Resturant2", "Resturant3"}
+RECIPES = {"DanceHall1": rec_dancehall}   # the only generated sound left (#396); every other name is a converted CC0 file
+LOOPS = {"DanceHall1"}   # the generated sounds that are loops (2-4 s, seamless); the rest would be one-shots under 1.5 s
 
 
 def render(name):
