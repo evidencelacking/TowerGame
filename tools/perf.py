@@ -1,6 +1,9 @@
 """Timing harness for the view and sim (#399): not part of the test suite.
 
   python tools/perf.py [samples=300] [frames=400] [warmup=700]
+  python tools/perf.py save=<path> [ticks=2550] [noview]   per-system day profile of a save (#419)
+  python tools/perf.py mixed [ticks=2550] [noview]         the same on the mixed fixture
+  python tools/perf.py loop save=<path>|mixed speed=1|2|3 [frames=120 warmup=500]   real frame loop
 
 Builds a 60-floor tower with a dozen elevators and several hundred people, headless, and prints the
 mean and p95 milliseconds of a sim tick, the view's figures, thought-icon picking, the renderer's
@@ -15,7 +18,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 from check import ensure_imported, find_godot, kill_tree  # noqa: E402
 
-TIMEOUT_SECONDS = 300
+TIMEOUT_SECONDS = 900  # a day of a large real save can take minutes
+
+
+def script_for(args):
+    """The save and fixture profiler for save=, mixed or loop; else the synthetic tower."""
+    if any(a.startswith("save=") or a in ("mixed", "loop") for a in args):
+        return "res://tools/perf_save.gd"
+    return "res://tools/perf.gd"
 
 
 def main(args):
@@ -30,7 +40,7 @@ def main(args):
     out = ROOT / "perf_output.txt"
     with open(out, "w", encoding="utf-8") as log:
         process = subprocess.Popen(
-            [godot, "--headless", "--path", str(ROOT), "--script", "res://tools/perf.gd", "--", *args],
+            [godot, "--headless", "--path", str(ROOT), "--script", script_for(args), "--", *args],
             stdout=log,
             stderr=subprocess.STDOUT,
         )
