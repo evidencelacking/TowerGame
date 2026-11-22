@@ -84,6 +84,11 @@ static func population_tooltip(breakdown: Dictionary) -> String:
 	return text
 
 
+## The population counts loop over every person, so they refresh only when the tower or its tick changes (#418).
+var _pop_tower: Object = null
+var _pop_tick: int = -1
+
+
 func _refresh() -> void:
 	var clock := _driver.tower.clock
 	_date.text = "Y%d Q%d %s  %02d:%02d" % [
@@ -91,9 +96,12 @@ func _refresh() -> void:
 	_period.text = "Period %d" % clock.period()
 	_money.text = format_money(_driver.tower.ledger.balance)
 	_stars.text = "Stars %d" % _driver.tower.stars + ("   DEMO" if DemoMode.active() else "")
-	var pop := _driver.tower.population_breakdown()
-	_population.text = format_population(int(pop["now_total"]), int(pop["overall_total"]))
-	_population.tooltip_text = population_tooltip(pop)
+	if _driver.tower != _pop_tower or _driver.tower.tick != _pop_tick:
+		_pop_tower = _driver.tower
+		_pop_tick = _driver.tower.tick
+		var pop := _driver.tower.population_breakdown()
+		_population.text = format_population(int(pop["now_total"]), int(pop["overall_total"]))
+		_population.tooltip_text = population_tooltip(pop)
 	var needs := format_demands(_driver.tower.demands)
 	_demands.text = needs
 	_demands.visible = needs != ""
