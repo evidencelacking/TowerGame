@@ -9,12 +9,18 @@ const CatalogScript := preload("res://scripts/view/sound/sound_catalog.gd")
 var _mute: CheckButton
 
 
+## Called by the Settings window when it closes: show the key now bound.
+func refresh_key_labels() -> void:
+	_mute.text = "Sound (%s)" % KeyBindings.key_name("mute")
+
+
 func _ready() -> void:
 	name = "SoundControls"
+	add_to_group("key_labels")
 	SettingsScript.load_settings()
 	_mute = CheckButton.new()
 	_mute.name = "SoundOn"
-	_mute.text = "Sound (N)"
+	_mute.text = "Sound (%s)" % KeyBindings.key_name("mute")
 	_mute.tooltip_text = "Switch all game sound on or off. View option."
 	_mute.focus_mode = Control.FOCUS_NONE
 	_mute.button_pressed = not SettingsScript.muted

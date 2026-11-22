@@ -42,6 +42,7 @@ func bind(driver_value: Driver, save_menu_value: SaveMenu) -> void:
 	continue_button = _add(column, "Continue", "Continue", continue_latest)
 	continue_button.disabled = SaveFiles.latest().is_empty()
 	_add(column, "Load", "Load", open_load)
+	_add(column, "Settings", "Settings", func() -> void: get_tree().call_group("settings_window", "open"))
 
 
 func _add(column: VBoxContainer, node_name: String, text: String, action: Callable) -> Button:
@@ -63,7 +64,10 @@ func new_demo() -> void:
 
 ## Starts a fresh tower in the chosen mode, reloading the scene when the mode changes.
 func _start(want_demo: bool) -> void:
-	if want_demo != DemoMode.active():
+	# A new game takes the starting funds chosen in Settings (#248); the tower is built with them at scene
+	# start, so a changed setting rebuilds the scene (the mode stays).
+	var funds_moved: bool = not want_demo and NewGameSettings.funds() != NewGameSettings.applied
+	if want_demo != DemoMode.active() or funds_moved:
 		DemoMode.forced = want_demo
 		get_tree().reload_current_scene()
 		return

@@ -399,17 +399,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
+	var tool_keys: Dictionary = {
+		"tool_lobby": "lobby", "tool_floor": "floor", "tool_stairs": STAIRS, "tool_escalator": ESCALATOR,
+		"tool_office": "office", "tool_condo": "condo", "tool_shaft": "local_shaft", "tool_car": "local_car",
+		"tool_bulldoze": BULLDOZE, "tool_replace": REPLACE,
+	}
+	for action: String in tool_keys:  # rebindable in Settings (#248); the first match wins, as the old match did
+		if KeyBindings.is_key(key, action):
+			set_tool(tool_keys[action] as String)
+			return
 	match key.keycode:
-		KEY_L: set_tool("lobby")
-		KEY_F: set_tool("floor")
-		KEY_S: set_tool(STAIRS)
-		KEY_X: set_tool(ESCALATOR)
-		KEY_O: set_tool("office")
-		KEY_C: set_tool("condo")
-		KEY_E: set_tool("local_shaft")
-		KEY_A: set_tool("local_car")
-		KEY_B: set_tool(BULLDOZE)
-		KEY_R: set_tool(REPLACE)
 		KEY_ESCAPE: set_tool("")
 		KEY_PAGEUP, KEY_PAGEDOWN:
 			if tool == "lobby" and tower != null and not tower.floors.has_lobby():

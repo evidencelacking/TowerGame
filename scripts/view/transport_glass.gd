@@ -2,13 +2,12 @@ extends RefCounted
 ## The "see-through transport" view option (#367): in Detailed, elevator shafts are a tinted glass column and
 ## stairs and escalators are outline structures, so the rooms and people behind them show. On by default.
 ## Detailed only (Classic has its own outline option, TransportLook.see_through). View state only: kept in
-## user://settings.cfg with the other display settings, never in the tower or a save. A settings window can
+## user://settings.cfg with the other display settings; its key is the KeyBindings action "transport_glass" (U), never in the tower or a save. A settings window can
 ## show it with `on` and set_on().
 
 const SETTINGS_PATH := "user://settings.cfg"
 const SECTION := "display"
 const KEY := "transport_see_through"
-const HOTKEY := KEY_U  ## T is the finance window's, V is Classic's elevator outline.
 
 static var on: bool = true
 

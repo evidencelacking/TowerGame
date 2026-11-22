@@ -156,8 +156,8 @@ func _process(delta: float) -> void:
 	var dir: Vector2 = Vector2.ZERO
 	dir.x = Input.get_axis(&"ui_left", &"ui_right")
 	dir.y = Input.get_axis(&"ui_up", &"ui_down")
-	for pair: Array in [[KEY_A, Vector2.LEFT], [KEY_D, Vector2.RIGHT], [KEY_W, Vector2.UP], [KEY_S, Vector2.DOWN]]:
-		if Input.is_key_pressed(pair[0] as Key):
+	for pair: Array in [["cam_left", Vector2.LEFT], ["cam_right", Vector2.RIGHT], ["cam_up", Vector2.UP], ["cam_down", Vector2.DOWN]]:
+		if Input.is_key_pressed(KeyBindings.keycode(pair[0] as String) as Key):
 			dir += pair[1] as Vector2
 	var speed: float = KEY_SPEED_PX
 	if dir == Vector2.ZERO and not _dragging and get_window().has_focus():

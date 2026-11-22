@@ -142,7 +142,7 @@ var _glow: Node2D = null  ## Detailed night lights, added on top of the world (#
 ## U toggles the Detailed see-through transport option (#367).
 func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
-	if key != null and key.pressed and not key.echo and key.keycode == TransportGlass.HOTKEY and not key.ctrl_pressed and not key.alt_pressed:
+	if key != null and key.pressed and not key.echo and KeyBindings.is_key(key, "transport_glass") and not key.ctrl_pressed and not key.alt_pressed:
 		TransportGlass.toggle()
 		get_viewport().set_input_as_handled()
 
