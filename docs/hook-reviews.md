@@ -3,6 +3,20 @@
 Newest first. The latest date here sets when the next review is due. Firings logged on that
 date count as reviewed.
 
+## 2026-11-22
+
+Firings since 2026-11-19: script-logic 9, owner-move 4, protected-file 3, manual-full-check 1.
+The log still records rule and tool only.
+
+- **Working as designed:** script-logic (Write nudges, clustered in one builder run);
+  protected-file (asks, as intended); manual-full-check.
+- **Fix (proposed again, needs owner approval):** owner-move fired 4 more times. Sessions only
+  ever run `issue.py finish`, so these are most likely handoff or comment text that names the
+  owner's `ready`/`close`/`status` commands. Anchor the pattern to a command position (start of
+  the command or after `&&`, `;`, `|`), not anywhere in the text. guard.py is protected.
+- **Add (still waiting):** log the first 120 characters of each denied command.
+- **Retire:** none. **Trim:** CLAUDE.md is 49 lines.
+
 ## 2026-11-19
 
 Firings since 2026-11-12: script-logic 8, history-rewrite 6, unbounded-script 5, raw-api 1,
