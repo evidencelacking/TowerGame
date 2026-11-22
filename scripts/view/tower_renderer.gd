@@ -420,6 +420,7 @@ func _new_piece() -> Piece:
 func _free_piece(piece: Piece, urgent: bool = false) -> void:
 	DetailLight.drop(piece.uid)
 	_mark_tiles(piece.rect, urgent)
+	piece.node.set("painter", Callable())  # a redraw already queued must not paint a room that is gone before the node is freed
 	piece.node.queue_free()
 	_glow.queue_redraw()
 
