@@ -35,11 +35,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
-	match key.keycode:
-		KEY_SPACE: _toggle_pause()
-		KEY_1: _driver.set_speed(0)
-		KEY_2: _driver.set_speed(1)
-		KEY_3: _driver.set_speed(2)
+	if KeyBindings.is_key(key, "pause"):
+		_toggle_pause()
+	elif KeyBindings.is_key(key, "speed_1"):
+		_driver.set_speed(0)
+	elif KeyBindings.is_key(key, "speed_2"):
+		_driver.set_speed(1)
+	elif KeyBindings.is_key(key, "speed_3"):
+		_driver.set_speed(2)
 
 
 func _toggle_pause() -> void:

@@ -199,6 +199,6 @@ func _input(event: InputEvent) -> void:
 	if _open and key.keycode == KEY_ESCAPE:
 		close()
 		get_viewport().set_input_as_handled()
-	elif key.keycode == KEY_G and not key.ctrl_pressed and not key.alt_pressed and not (get_viewport().gui_get_focus_owner() is LineEdit):
+	elif KeyBindings.is_key(key, "stars") and not key.ctrl_pressed and not key.alt_pressed and not (get_viewport().gui_get_focus_owner() is LineEdit):
 		toggle()
 		get_viewport().set_input_as_handled()

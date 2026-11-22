@@ -88,7 +88,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
-	if key.keycode == HOTKEY:
+	if KeyBindings.is_key(key, "finance"):
 		toggle()
 		get_viewport().set_input_as_handled()
 	elif key.keycode == KEY_ESCAPE and _open:

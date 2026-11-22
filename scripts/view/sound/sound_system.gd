@@ -79,7 +79,7 @@ func has_sounds() -> bool:
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
-	if key != null and key.pressed and not key.echo and key.keycode == KEY_N and not key.ctrl_pressed and not key.alt_pressed:
+	if key != null and key.pressed and not key.echo and KeyBindings.is_key(key, "mute") and not key.ctrl_pressed and not key.alt_pressed:
 		SettingsScript.set_muted(not SettingsScript.muted)
 		get_viewport().set_input_as_handled()
 
