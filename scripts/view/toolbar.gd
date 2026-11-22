@@ -48,9 +48,10 @@ const TOOL_TIPS: Dictionary = {
 	"service_car": CAR_TIP,
 	"express_car": CAR_TIP + " Holds 36.",
 }
-const HOTKEYS: Dictionary = {"lobby": "L", "floor": "F", "stairs": "S", "escalator": "X", "office": "O", "condo": "C",
-	"local_shaft": "E", "local_car": "A",
-	Ghost.BULLDOZE: "B", Ghost.REPLACE: "R"}
+## Item id -> the KeyBindings action that selects it; the label shows the key now bound (#248).
+const HOTKEYS: Dictionary = {"lobby": "tool_lobby", "floor": "tool_floor", "stairs": "tool_stairs", "escalator": "tool_escalator",
+	"office": "tool_office", "condo": "tool_condo", "local_shaft": "tool_shaft", "local_car": "tool_car",
+	Ghost.BULLDOZE: "tool_bulldoze", Ghost.REPLACE: "tool_replace"}
 
 var ghost: PlacementGhost = null
 var _bar: PanelContainer
@@ -70,8 +71,17 @@ var _shown_tool: String = "?"
 var _new_items: Array[String] = []  ## Items a promotion just opened; marked until picked (#167).
 
 
+## Called by the Settings window when it closes: show the keys now bound.
+func refresh_key_labels() -> void:
+	_see_through.text = "Elevators see-through (%s)" % KeyBindings.key_name("see_through")
+	_synergies.text = "Synergies (%s)" % KeyBindings.key_name("synergies")
+	_sync_heat()
+	_shown_tool = "?"  # forces _refresh() on the next frame, which rewrites the item labels
+
+
 func _ready() -> void:
 	layer = 4
+	add_to_group("key_labels")
 	_bar = PanelContainer.new()
 	_bar.name = "Bar"
 	_bar.anchor_left = 0.0
@@ -118,7 +128,7 @@ func _ready() -> void:
 	row.add_child(_auto_fill)
 	_see_through = CheckButton.new()
 	_see_through.name = "SeeThrough"
-	_see_through.text = "Elevators see-through (V)"
+	_see_through.text = "Elevators see-through (%s)" % KeyBindings.key_name("see_through")
 	_see_through.tooltip_text = "Draw elevator shafts as an outline so the rooms behind them show. View only."
 	_see_through.focus_mode = Control.FOCUS_NONE
 	_see_through.button_pressed = TransportLook.see_through
@@ -126,7 +136,7 @@ func _ready() -> void:
 	row.add_child(_see_through)
 	_synergies = CheckButton.new()
 	_synergies.name = "Synergies"
-	_synergies.text = "Synergies (Y)"
+	_synergies.text = "Synergies (%s)" % KeyBindings.key_name("synergies")
 	_synergies.tooltip_text = "Tint each room by what its neighbours do to it, green boost to red harm; hover a room to see what acts on it. View only."
 	_synergies.focus_mode = Control.FOCUS_NONE
 	_synergies.button_pressed = SynergyLook.on
@@ -151,6 +161,13 @@ func _ready() -> void:
 	_graphics.item_selected.connect(_on_graphics_selected)
 	row.add_child(_graphics)
 	row.add_child(SoundControlsScript.new())  # sound on/off and volumes (#247)
+	var settings := Button.new()
+	settings.name = "SettingsButton"
+	settings.text = "Settings (F10)"
+	settings.tooltip_text = "Resolution, full screen, UI scale, volume, keys and starting funds."
+	settings.focus_mode = Control.FOCUS_NONE
+	settings.pressed.connect(func() -> void: get_tree().call_group("settings_window", "toggle"))
+	row.add_child(settings)
 	_refresh()
 
 
@@ -161,7 +178,7 @@ func cycle_heat() -> void:
 
 
 func _sync_heat() -> void:
-	_heat.text = "Overlay: %s (H)" % HeatLook.NAMES[HeatLook.mode]
+	_heat.text = "Overlay: %s (%s)" % [HeatLook.NAMES[HeatLook.mode], KeyBindings.key_name("heat")]
 	HeatLook.refresh_legend(_heat_legend, HeatLook.mode)
 
 
@@ -175,13 +192,13 @@ func _on_see_through_toggled(on: bool) -> void:
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
-	if key != null and key.pressed and not key.echo and key.keycode == KEY_V and not key.ctrl_pressed and not key.alt_pressed:
+	if key != null and key.pressed and not key.echo and KeyBindings.is_key(key, "see_through") and not key.ctrl_pressed and not key.alt_pressed:
 		_see_through.button_pressed = not _see_through.button_pressed
 		get_viewport().set_input_as_handled()
-	elif key != null and key.pressed and not key.echo and key.keycode == KEY_Y and not key.ctrl_pressed and not key.alt_pressed:
+	elif key != null and key.pressed and not key.echo and KeyBindings.is_key(key, "synergies") and not key.ctrl_pressed and not key.alt_pressed:
 		_synergies.button_pressed = not _synergies.button_pressed
 		get_viewport().set_input_as_handled()
-	elif key != null and key.pressed and not key.echo and key.keycode == KEY_H and not key.ctrl_pressed and not key.alt_pressed:
+	elif key != null and key.pressed and not key.echo and KeyBindings.is_key(key, "heat") and not key.ctrl_pressed and not key.alt_pressed:
 		cycle_heat()
 		get_viewport().set_input_as_handled()
 
@@ -213,7 +230,7 @@ static func item_state(id: String, star_rating: int) -> Dictionary:
 	if CatalogueScript.has(id):
 		text += "  " + HudScript.format_money(CatalogueScript.cost(id))
 	if HOTKEYS.has(id):
-		text += "  [%s]" % HOTKEYS[id]
+		text += "  [%s]" % KeyBindings.key_name(HOTKEYS[id] as String)
 	var out := {"enabled": false, "locked": star > star_rating, "text": text, "tooltip": ""}
 	if out["locked"]:
 		out["text"] = "%s  (Star %d)" % [display_name(id), star]
