@@ -81,20 +81,24 @@ func tick(clock: Object, floors: FloorsScript, rooms: RoomsScript, grid: GridScr
 	if not floors.has_lobby():
 		return
 	var entry: Array[int] = [GROUND_FLOOR, floors.lobby_span()[0]]  # left-edge entry, outside the tower
-	for i in people.count():
-		match people.trip_state(i):
-			PeopleScript.TRIP_REQUESTED:
-				people.add_stress(i, STRESS_PER_WAIT_MINUTE)
-				_start(i, floors, rooms, grid, people, entry)
-			PeopleScript.TRIP_MOVING:
-				people.add_stress(i, STRESS_PER_TRAVEL_MINUTE)
-				if people.spend_trip_minute(i) == 0:
-					people.finish_trip(i)
-			PeopleScript.TRIP_RIDING:
-				pass  # queued for a car (stress above, at STRESS_PER_QUEUE_MINUTE) or riding one
-			_:
-				people.cool_down(i)
-				people.add_stress(i, -STRESS_RECOVERY_PER_MINUTE)
+	_cb_floors = floors
+	_cb_rooms = rooms
+	_cb_grid = grid
+	_cb_people = people
+	_cb_entry = entry
+	people._core.TripsLoop(STRESS_PER_WAIT_MINUTE, STRESS_PER_TRAVEL_MINUTE, STRESS_RECOVERY_PER_MINUTE, _start_cb)
+
+
+var _cb_floors: FloorsScript = null
+var _cb_rooms: RoomsScript = null
+var _cb_grid: GridScript = null
+var _cb_people: PeopleScript = null
+var _cb_entry: Array[int] = []
+var _start_cb: Callable = Callable(self, "_start_from_core")
+
+
+func _start_from_core(i: int) -> void:
+	_start(i, _cb_floors, _cb_rooms, _cb_grid, _cb_people, _cb_entry)
 
 
 func _spot(room: int, grid: GridScript, entry: Array[int]) -> Array[int]:
@@ -199,10 +203,7 @@ func _segment_done(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridS
 ## After the cars have moved: people who alighted at their ride's destination carry on.
 ## Only reads the log while somebody is riding, so other users of it are left alone.
 func collect_arrivals(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript) -> void:
-	var riding := false
-	for i in people.count():
-		riding = riding or people.trip_state(i) == PeopleScript.TRIP_RIDING
-	if not riding or not floors.has_lobby():
+	if not people._core.AnyRiding() or not floors.has_lobby():
 		return
 	var entry: Array[int] = [GROUND_FLOOR, floors.lobby_span()[0]]
 	_waiting_known = false  # the cars have moved since the last read
@@ -224,6 +225,6 @@ func collect_arrivals(floors: FloorsScript, rooms: RoomsScript, grid: GridScript
 			_enter_leg(i, leg + 1, legs, rooms, people)
 
 	# A rider whose shaft was bulldozed is neither queued nor in a car: the trip is given up.
-	for i in people.count():
-		if people.trip_state(i) == PeopleScript.TRIP_RIDING and not rooms.in_elevator(people.id_at(i)):
+	for i: int in people._core.RidingIndices():
+		if not rooms.in_elevator(people.id_at(i)):
 			_give_up(i, people)

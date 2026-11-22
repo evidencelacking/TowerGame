@@ -75,15 +75,15 @@ static func run(check: Callable) -> void:
 
 	# Only people inside the tower at the time feel it: someone outside (no room, no trip) does not.
 	var out := TestEvaluation._pair("condo")
-	out.people._data[PeopleScript.FIELDS * 0 + PeopleScript._LOCATION] = PeopleScript.NONE
-	out.people._data[PeopleScript.FIELDS * 0 + PeopleScript._TRIP] = PeopleScript.TRIP_IDLE
+	out.people._core.RawSet(0, PeopleScript._LOCATION, PeopleScript.NONE)
+	out.people._core.RawSet(0, PeopleScript._TRIP, PeopleScript.TRIP_IDLE)
 	out.mood.note_event(MoodScript.FIRE_SHOCK, out.people)
 	check.call(not _has(out, MoodScript.REASON_EVENT), "mood: a fire does not shock someone who was outside the tower")
 	var saved_out := TestEvaluation._pair("condo")
-	saved_out.people._data[PeopleScript.FIELDS * 0 + PeopleScript._LOCATION] = PeopleScript.NONE
-	saved_out.people._data[PeopleScript.FIELDS * 0 + PeopleScript._TRIP] = PeopleScript.TRIP_IDLE
+	saved_out.people._core.RawSet(0, PeopleScript._LOCATION, PeopleScript.NONE)
+	saved_out.people._core.RawSet(0, PeopleScript._TRIP, PeopleScript.TRIP_IDLE)
 	saved_out.mood.note_event(MoodScript.THREAT_SHOCK, saved_out.people)
-	saved_out.people._data[PeopleScript.FIELDS * 0 + PeopleScript._LOCATION] = saved_out.people.home_of(0)  # home again after the event
+	saved_out.people._core.RawSet(0, PeopleScript._LOCATION, saved_out.people.home_of(0))  # home again after the event
 	check.call(not _has(saved_out, MoodScript.REASON_EVENT), "mood: coming home after the event does not make someone feel it")
 
 	# Crowding never counts on a lobby floor.
