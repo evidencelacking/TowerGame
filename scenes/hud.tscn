@@ -72,3 +72,12 @@ unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
 text = "3x"
+
+[node name="SlowLabel" type="Label" parent="Bar/Row"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Slow"
+tooltip_text = "The tower is too heavy to run at full speed, so the game is dropping ticks."
+mouse_filter = 0
+theme_override_colors/font_color = Color(1, 0.8, 0.3, 1)

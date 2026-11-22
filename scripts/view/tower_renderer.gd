@@ -125,6 +125,7 @@ var _plan_workers: Dictionary = {}  ## Office room id -> workers, for the vacanc
 var _plan_broken: Array[int] = []
 var _frame_due: int = 0  ## Tick at which the frame pieces (shafts and so on) are marked stale again.
 var _dynamic_view: SubViewport = null
+var _people_painted_for: Rect2 = Rect2()  ## World rect the people were last drawn for (culled to it); empty when not culled.
 var _dynamic_layer: Node2D = null
 var _outdoors: Array[Node2D] = []  ## The far and near skylines and the street (#306), behind everything else.
 var _outdoors_todo: Array[Node2D] = []  ## Outdoor layers waiting for their redraw.
@@ -643,10 +644,28 @@ func _process(delta: float) -> void:
 	var sliding := (tower.rooms.total_cars() > 0 and _since_tick <= _tick_len * 2.0) or (_has_moving and _since_tick <= _tick_len) or gliding
 	if sliding and not new_tick and not layout_changed:
 		sliding = _motion_in_view()  # between ticks, repaint only for motion the player can see (#399)
+	if not (new_tick or layout_changed or sliding) and _view_left_painted():
+		sliding = true  # the camera panned or zoomed past the culled people: repaint, also while paused (#418)
 	if new_tick or layout_changed or sliding:
 		_dynamic_layer.queue_redraw()
 		_dynamic_view.render_target_update_mode = SubViewport.UPDATE_ONCE
 	_seen_tick = tower.tick
+
+
+## The world rect the camera sees, or an empty rect when it is unknown (then nothing is culled).
+func _visible_world() -> Rect2:
+	if not is_inside_tree():
+		return Rect2()
+	var view := get_global_transform_with_canvas().affine_inverse() * get_viewport_rect()
+	return view if view.size.x > 0.0 and view.size.y > 0.0 else Rect2()
+
+
+## True when the camera now sees beyond the area the people were last painted for.
+func _view_left_painted() -> bool:
+	if _people_painted_for.size == Vector2.ZERO:
+		return false  # painted without culling
+	var view := _visible_world()
+	return view.size != Vector2.ZERO and not _people_painted_for.encloses(view)
 
 
 ## True when a car or a moving figure is inside the visible part of the tower (or the view is unknown), so
@@ -1007,7 +1026,15 @@ func figures() -> Array[Dictionary]:
 func _draw_people(canvas: CanvasItem) -> void:
 	var skin: Color = Palette.get_palette()["skin"]
 	var types: Array = Palette.get_palette()["people"]
+	var view := _visible_world()
+	var cull := view.size != Vector2.ZERO
+	var keep := view.grow_individual(view.size.x * 0.5, view.size.y * 0.5, view.size.x * 0.5, view.size.y * 0.5).grow(float(VC.CELL_H * 2))  # a margin, so small pans need no repaint
+	_people_painted_for = keep if cull else Rect2()
 	for figure: Dictionary in _figures:
+		if cull:
+			var where := Vector2(figure["px"], figure["pfeet"]) if figure.has("px") else Vector2(float(figure["fx"]) * VC.CELL_W, float(figure["frow"]) * VC.CELL_H)
+			if not keep.has_point(where):
+				continue
 		var band: int = figure["band"]
 		if not figure["moving"]:  # resting: on a spot of its room, doing what the sim says
 			var rest_shirt: Color = types[(figure["id"] as int) % types.size()] if band == 0 else PeopleView.color_of(band)
