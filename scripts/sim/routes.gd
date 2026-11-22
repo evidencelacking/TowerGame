@@ -54,8 +54,10 @@ const HEAP_SHIFT := 1 << 24  ## Search states stay below this, so dist * HEAP_SH
 ## Finds a route from (from_floor, from_x) to (to_floor, to_x). Returns {"reason", "legs"}:
 ## reason is OK or a refusal code, legs is an Array of Dictionary (empty if refused or if the
 ## start is the goal). staff routes ride service shafts only (no standard cars, no escalators);
-## everyone else never rides a service shaft, even when it is the only link (6.1).
-static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, from_floor: int, from_x: int, to_floor: int, to_x: int, staff: bool = false) -> Dictionary:
+## everyone else never rides a service shaft, even when it is the only link (6.1). waiting_set, when given, is
+## {key: true} for every key of rooms.waiting_keys() as it stands now: a caller making many queries between car
+## moves reads it once instead of once a query.
+static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, from_floor: int, from_x: int, to_floor: int, to_x: int, staff: bool = false, waiting_set: Variant = null) -> Dictionary:
 	var result := {"reason": OK, "legs": []}
 	if not GridScript.is_valid_floor(from_floor) or not GridScript.is_valid_floor(to_floor):
 		result["reason"] = BAD_FLOOR
@@ -73,13 +75,16 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 	node_floor[1] = to_floor
 	node_x[1] = to_x
 	var count := node_floor.size()
-	# Edges per node, in node order: [to, cost, kind (0 walk, 1 stairs, 2 elevator), resets_count]. An elevator
-	# edge holds only its rise: _search adds the base cost of its source node from the waiting cars.
-	# The query's own edges (to nodes 0 and 1) go first in every list, as when every edge was built in node order.
-	var edges: Array = (cache["edges"] as Array).duplicate()
+	# Edges per node: [to, cost, kind (0 walk, 1 stairs, 2 elevator), resets_count], flat in packed rows. An elevator
+	# edge holds only its rise: _run_search adds the base cost of its source node from the waiting cars. The cached
+	# graph holds the rows between its own nodes; `extra` holds this query's edges to and from nodes 0 and 1 (and the
+	# rows of 0 and 1 themselves). The order of a node's edges does not matter: they lead to different states.
+	var extra: Array = (cache["no_extra"] as Array).duplicate()
 	var on_floor: Dictionary = cache["on_floor"]
-	var list0: Array = []
-	var list1: Array = []
+	var row0 := PackedInt32Array()
+	var row1 := PackedInt32Array()
+	var seeds: Array[int] = []  # the cached nodes with a walk to the goal
+	var zero_cost := false  # a walk of no columns from or to the query's own nodes
 	var levels: Array[int] = [from_floor]
 	if to_floor != from_floor:
 		levels.append(to_floor)
@@ -94,38 +99,65 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 			here.append(1)
 		var others: Array[int] = on_floor.get(level, [] as Array[int])
 		for k: int in others:
-			var prefix: Array = []
+			var row := PackedInt32Array()
 			for i: int in here:
 				var low := mini(node_x[i], node_x[k])
 				var high := maxi(node_x[i], node_x[k])
 				if unbuilt[high + 1] - unbuilt[low] == 0:
-					var resets: bool = lobbies[high + 1] - lobbies[low] > 0
-					prefix.append([i, high - low, 0, resets])
-					(list0 if i == 0 else list1).append([k, high - low, 0, resets])
-			if not prefix.is_empty():
-				prefix.append_array(edges[k])
-				edges[k] = prefix
-	if from_floor == to_floor:  # nodes 0 and 1 see each other first (lowest index)
+					zero_cost = zero_cost or high == low
+					var resets := 1 if lobbies[high + 1] - lobbies[low] > 0 else 0
+					row.append_array(PackedInt32Array([i, high - low, 0, resets]))
+					if i == 0:
+						row0.append_array(PackedInt32Array([k, high - low, 0, resets]))
+					else:
+						row1.append_array(PackedInt32Array([k, high - low, 0, resets]))
+						seeds.append(k)
+			if not row.is_empty():
+				extra[k] = row
+	if from_floor == to_floor:  # nodes 0 and 1 see each other
 		var low := mini(from_x, to_x)
 		var high := maxi(from_x, to_x)
 		var counts := floors.span_counts(from_floor)
 		var unbuilt: PackedInt32Array = counts[0]
 		var lobbies: PackedInt32Array = counts[1]
 		if unbuilt[high + 1] - unbuilt[low] == 0:
-			var resets: bool = lobbies[high + 1] - lobbies[low] > 0
-			list0.push_front([1, high - low, 0, resets])
-			list1.push_front([0, high - low, 0, resets])
-	edges[0] = list0
-	edges[1] = list1
+			zero_cost = zero_cost or high == low
+			var resets := 1 if lobbies[high + 1] - lobbies[low] > 0 else 0
+			row0.append_array(PackedInt32Array([1, high - low, 0, resets]))
+			row1.append_array(PackedInt32Array([0, high - low, 0, resets]))
+	extra[0] = row0
+	extra[1] = row1
 	var waiting: Dictionary = {}  # what car_waiting_at would say, from one pass over the cars
-	for key: int in rooms.waiting_keys():
-		waiting[key] = true
+	if waiting_set != null:
+		waiting = waiting_set
+	else:
+		for key: int in rooms.waiting_keys():
+			waiting[key] = true
 
-	if not _search(node_floor, node_x, node_shaft, node_esc, edges, floors, waiting, cache, true, result):
+	var viable := _viability(cache, floors, seeds, to_floor)
+	# A walk of no columns (a tie between a state and one it leads to) makes the pop order something other than (dist,
+	# state) order, which the tie rule of the A* search relies on. With one at the query's own nodes the search is plain
+	# Dijkstra: no estimate, no tie rule. With one between cached nodes it runs as A* and is repeated as plain
+	# Dijkstra only if that walk would make Dijkstra pop out of order (see _run_search).
+	var heuristic := PackedInt32Array()
+	if zero_cost:
+		heuristic.resize(count)
+	else:
+		heuristic = _heuristic(cache, to_floor, to_x)  # see _run_search
+		var goal_rise := absi(GridScript.floor_to_index(from_floor) - GridScript.floor_to_index(to_floor))
+		heuristic[0] = absi(from_x - to_x) + (goal_rise + 1 if goal_rise > 0 else 0)
+
+	var found := _search(node_floor, node_x, node_shaft, node_esc, extra, floors, waiting, cache, viable, heuristic, not zero_cost, true, result)
+	if result.has("zero_hit"):  # it met a walk of no columns that Dijkstra would order differently: do it again as plain Dijkstra
+		result.erase("zero_hit")
+		var plain := PackedInt32Array()
+		plain.resize(count)
+		found = _search(node_floor, node_x, node_shaft, node_esc, extra, floors, waiting, cache, viable, plain, false, true, result)
+	if not found:
 		# Tell the refusals apart: no way at all, a transfer rule, or the stairs limit.
-		if not _reachable(edges, count):
+		if not _reachable(extra, cache, count):
 			result["reason"] = NO_ROUTE
-		elif _search(node_floor, node_x, node_shaft, node_esc, edges, floors, waiting, cache, false, {}):
+		elif _search(node_floor, node_x, node_shaft, node_esc, extra, floors, waiting, cache, viable, heuristic, false, false, {}):
 			result["reason"] = TOO_MANY_TRANSFERS
 		else:
 			result["reason"] = TOO_MANY_STAIRS
@@ -134,7 +166,8 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 
 ## The part of the graph that does not depend on the query, cached on the Rooms (one per staff flag) until the floors,
 ## the room list or a shaft's stops change (#415). Returns {floor, x, shaft, esc, edges, on_floor}. Nodes 0 and 1 are
-## placeholders the query fills in; edges hold no edge to them, and an elevator edge holds its rise only.
+## placeholders the query fills in; edges hold no edge to them, and an elevator edge holds its rise only. A node's list
+## ends with its elevator edges, `rides` counts them (the query's edges are prepended, so the tail is unchanged).
 static func _static_graph(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, staff: bool) -> Dictionary:
 	var slot := 1 if staff else 0
 	var key: Array[int] = [floors.get_instance_id(), floors.revision, rooms.layout_revision, grid.get_instance_id()]
@@ -197,6 +230,9 @@ static func _static_graph(floors: FloorsScript, rooms: RoomsScript, grid: GridSc
 		var cost := ESCALATOR_COST if node_esc[k] else STAIRS_COST
 		edges[k].append([k + 1, cost, kind, false])
 		edges[k + 1].append([k, cost, kind, false])
+	var walk_edges: Array[int] = []
+	for i in count:
+		walk_edges.append(edges[i].size())  # everything so far; the elevator edges are appended after
 	var group_start := stair_nodes  # a shaft's stop nodes are contiguous, in stop order
 	for i in range(stair_nodes, count):
 		if node_shaft[i] != node_shaft[group_start]:
@@ -207,6 +243,30 @@ static func _static_graph(floors: FloorsScript, rooms: RoomsScript, grid: GridSc
 				var rise := absi(GridScript.floor_to_index(node_floor[i]) - GridScript.floor_to_index(node_floor[j]))
 				edges[i].append([j, ELEVATOR_COST_PER_FLOOR * rise, 2, floors.is_lobby_floor(node_floor[j])])
 			j += 1
+	var node_index: Array[int] = []  # each node's floor as a storage index, for the heuristic; nodes 0 and 1 are the query's
+	for i in count:
+		node_index.append(GridScript.floor_to_index(node_floor[i]))
+	var walk_rows: Array = []  # per node, the same edges flat: [to, cost, kind, resets (0 or 1)] repeated, walking and stairs first
+	var ride_rows: Array = []  # and its elevator edges, kept apart so a search can skip them
+	var no_extra: Array = []
+	for i in count:
+		var walk_row := PackedInt32Array()
+		var ride_row := PackedInt32Array()
+		for n in edges[i].size():
+			var edge: Array = edges[i][n]
+			var flat := PackedInt32Array([edge[0], edge[1], edge[2], 1 if edge[3] else 0])
+			if n >= walk_edges[i]:
+				ride_row.append_array(flat)
+			else:
+				walk_row.append_array(flat)
+		walk_rows.append(walk_row)
+		ride_rows.append(ride_row)
+		no_extra.append(PackedInt32Array())
+	var rides: Array[int] = []  # how many elevator edges close each node's list: 0 off the shafts
+	rides.resize(count)
+	rides.fill(0)
+	for i in range(stair_nodes, count):
+		rides[i] = edges[i].size() - walk_edges[i]
 	var states := count * (LEG_LIMIT + 1) * 4
 	var dist: Array[int] = []
 	var prev: Array[int] = []
@@ -217,7 +277,7 @@ static func _static_graph(floors: FloorsScript, rooms: RoomsScript, grid: GridSc
 	dist.fill(_INF)
 	prev.fill(-1)
 	done.fill(false)
-	var built := {"dist": dist, "prev": prev, "done": done, "key": key, "floor": node_floor, "x": node_x, "shaft": node_shaft, "esc": node_esc, "edges": edges, "on_floor": on_floor}
+	var built := {"dist": dist, "prev": prev, "done": done, "key": key, "floor": node_floor, "x": node_x, "shaft": node_shaft, "esc": node_esc, "edges": edges, "on_floor": on_floor, "rides": rides, "viable": {}, "heuristic": {}, "index": node_index, "walk_rows": walk_rows, "ride_rows": ride_rows, "no_extra": no_extra}
 	rooms.route_cache[slot] = built
 	return built
 
@@ -333,18 +393,110 @@ static func _stair_spots(rooms: RoomsScript, grid: GridScript) -> Array:
 	return spots
 
 
+## The A* estimate of _run_search for each cached node (a copy, for the caller to set node 0, the start) towards the goal
+## (to_floor, to_x): the columns to walk plus, on another floor, its rise plus one. Kept on the cached graph per goal.
+static func _heuristic(cache: Dictionary, to_floor: int, to_x: int) -> PackedInt32Array:
+	var held: Dictionary = cache["heuristic"]
+	var key := to_floor * 100000 + to_x
+	if held.has(key):
+		return (held[key] as PackedInt32Array).duplicate()
+	var node_index: Array[int] = cache["index"]
+	var node_x: Array[int] = cache["x"]
+	var estimate := PackedInt32Array()
+	estimate.resize(node_index.size())
+	var goal_index := GridScript.floor_to_index(to_floor)
+	for n in range(2, node_index.size()):  # nodes 0 and 1 are the query's; 1, the goal, stays 0
+		var rise := absi(node_index[n] - goal_index)
+		estimate[n] = absi(node_x[n] - to_x) + (rise + 1 if rise > 0 else 0)
+	held[key] = estimate
+	return estimate.duplicate()
+
+
+## The elevator edges of `node` worth trying towards the goal that `viable` (from _viability) is for: those to a lobby
+## floor and those to a node a walker can still reach the goal from. The others are refused whatever the state.
+static func _rides(viable: Dictionary, ride_rows: Array, node: int) -> PackedInt32Array:
+	var kept: Array = viable["rides"]
+	if kept[node] != null:
+		return kept[node]
+	var best: PackedInt32Array = viable["best"]
+	var row: PackedInt32Array = ride_rows[node]
+	var keep := PackedInt32Array()
+	for at in range(0, row.size(), 4):
+		if row[at + 3] == 1 or best[row[at]] >= 0:
+			keep.append_array(row.slice(at, at + 4))
+	kept[node] = keep
+	return keep
+
+
+## For a goal whose walkable neighbours (the cached nodes on its floor with a built span to it) are `seeds`: per node, the
+## largest stairs count `used` with which a walker who may ride no more (elevator state 1 or 3) can still get there by
+## walking and stairs, or -1 for none. A superset of the truth, so _run_search can drop those states without changing
+## any route: such a state is never on a path to the goal, and it only ever feeds states that cannot reach it either.
+## It ignores the query's start node (a walk through it is a walk on its floor, which every cached node there already
+## has) and lets any walk on a floor with a lobby cell reset the count, which covers a walk through the start. It does
+## not depend on the cars or the start, so it is kept on the cached graph under the seed set (most goals on a floor
+## share one).
+static func _viability(cache: Dictionary, floors: FloorsScript, seeds: Array[int], goal_floor: int) -> Dictionary:
+	var held: Dictionary = cache["viable"]
+	var key := str(goal_floor) + ":"
+	for k: int in seeds:
+		key += str(k) + ","
+	if held.has(key):
+		return held[key]
+	var node_floor: Array[int] = cache["floor"]
+	var edges: Array = cache["edges"]
+	var rides: Array[int] = cache["rides"]
+	var best := PackedInt32Array()
+	best.resize(node_floor.size())
+	best.fill(-1)
+	var resets: Dictionary = {}  # floor -> whether a walk on it may cross a lobby cell
+	var work: Array[int] = []
+	for k: int in seeds:
+		best[k] = LEG_LIMIT  # the last walk to the goal has no limit
+		work.append(k)
+	var head := 0
+	while head < work.size():
+		var q: int = work[head]
+		head += 1
+		var reach := best[q]
+		var q_edges: Array = edges[q]
+		for e in q_edges.size() - rides[q]:
+			var edge: Array = q_edges[e]  # the graph is symmetric: this is also the edge into q
+			var p: int = edge[0]
+			var carry := reach
+			if edge[2] == 0:
+				var floor_number := node_floor[p]
+				if not resets.has(floor_number):
+					var lobbies: PackedInt32Array = floors.span_counts(floor_number)[1]
+					resets[floor_number] = lobbies[lobbies.size() - 1] > 0
+				if resets[floor_number]:
+					carry = LEG_LIMIT
+			else:
+				carry = reach - (STAIRS_WEIGHT if edge[2] == 1 else ESCALATOR_WEIGHT)
+			if carry > best[p]:
+				best[p] = carry
+				work.append(p)
+	# Per node, the rides worth trying, filled in when first needed (see _rides): one to a floor that is not a lobby floor
+	# lands in state 1 (or 3), which `best` refuses when no walk or stairs from there reaches the goal.
+	var kept: Array = []
+	kept.resize(best.size())
+	var made := {"best": best, "rides": kept}
+	held[key] = made
+	return made
+
+
 ## Dijkstra over (node, stairs used, elevator state) states. Elevator state: 0 none ridden, 1 one
 ## ridden and landed off a lobby floor (no more rides), 2 one ridden and landed on a lobby floor
 ## (a second ride may start on a lobby floor), 3 two ridden. With limit_transfers false any number
 ## of rides is fine. Fills result.legs and returns true when the goal is reached.
 ## The state arrays come from the cached graph (scratch) and are put back after the search by resetting only the
 ## states it touched, so a query does not pay to fill them.
-static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Array[int], node_esc: Array[bool], edges: Array, floors: FloorsScript, waiting: Dictionary, scratch: Dictionary, limit_transfers: bool, result: Dictionary) -> bool:
+static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Array[int], node_esc: Array[bool], extra: Array, floors: FloorsScript, waiting: Dictionary, scratch: Dictionary, viable: Dictionary, heuristic: PackedInt32Array, ties: bool, limit_transfers: bool, result: Dictionary) -> bool:
 	var dist: Array[int] = scratch["dist"]
 	var prev: Array[int] = scratch["prev"]
 	var done: Array[bool] = scratch["done"]
 	var touched := PackedInt32Array([0])
-	var found := _run_search(node_floor, node_x, node_shaft, node_esc, edges, floors, waiting, dist, prev, done, touched, limit_transfers, result)
+	var found := _run_search(node_floor, node_x, node_shaft, node_esc, extra, scratch["walk_rows"], scratch["ride_rows"], floors, waiting, dist, prev, done, viable, heuristic, ties, touched, limit_transfers, result)
 	for state in touched:
 		dist[state] = _INF
 		prev[state] = -1
@@ -352,53 +504,98 @@ static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Arra
 	return found
 
 
-static func _run_search(node_floor: Array[int], node_x: Array[int], node_shaft: Array[int], node_esc: Array[bool], edges: Array, floors: FloorsScript, waiting: Dictionary, dist: Array[int], prev: Array[int], done: Array[bool], touched: PackedInt32Array, limit_transfers: bool, result: Dictionary) -> bool:
+static func _run_search(node_floor: Array[int], node_x: Array[int], node_shaft: Array[int], node_esc: Array[bool], extra: Array, walk_rows: Array, ride_rows: Array, floors: FloorsScript, waiting: Dictionary, dist: Array[int], prev: Array[int], done: Array[bool], viable_set: Dictionary, heuristic: PackedInt32Array, ties: bool, touched: PackedInt32Array, limit_transfers: bool, result: Dictionary) -> bool:
 	var step := LEG_LIMIT + 1
+	var viable: PackedInt32Array = viable_set["best"]
 	dist[0] = 0
-	# Open states live in a binary heap of dist * HEAP_SHIFT + state, so the cheapest comes out
-	# first and equal costs come out lowest state first, as a linear scan for that pair would.
-	var open := PackedInt64Array([0])
+	# A* with a heuristic that is a lower bound and consistent: the walking columns still to go (stairs and cars keep
+	# the column, so at least the distance to the goal's) plus, when the goal is on another floor, its rise plus one
+	# (a car costs 2 plus its rise, a stairs flight 10 and an escalator 2 a floor). Open states live in a binary heap of
+	# (dist + heuristic) * HEAP_SHIFT + state, so the lowest estimate comes out first and ties come out lowest state first.
+	# Dijkstra's routes are kept exactly: a state's predecessor is the one that would have been popped first (the lowest
+	# dist, then state) of those that reach it at its final cost and come out before it, whatever order they are expanded
+	# in; and the search runs on until nothing open could still reach the goal's cost, so every such predecessor is seen.
+	var open := PackedInt64Array([heuristic[0] * HEAP_SHIFT])
 	var goal_state := -1
+	var goal_dist := 0
 	while not open.is_empty():
 		var top := _heap_pop(open)
 		var best := top % HEAP_SHIFT
-		var best_dist := top / HEAP_SHIFT
-		if done[best] or best_dist != dist[best]:
-			continue  # a stale entry: the state was reached cheaper since
-		done[best] = true
+		var estimate := top / HEAP_SHIFT
 		var es := best % 4
 		var node := best / 4 / step
 		var used := (best / 4) % step
+		if goal_state != -1 and estimate > goal_dist:
+			break  # nothing left that can reach the goal at its cost
+		var best_dist := dist[best]
+		if done[best] or estimate != best_dist + heuristic[node]:
+			continue  # a stale entry: the state was reached cheaper since
+		done[best] = true
 		if node == 1:
-			goal_state = best
-			break
+			if goal_state == -1:
+				goal_state = best  # the first to come out: the lowest dist, then the lowest state
+				goal_dist = best_dist
+			if not ties:
+				break
+			continue
 		var base := 0  # a ride's boarding cost: a car waiting at this stop, or not
 		if node_shaft[node] != 0:
 			base = ELEVATOR_WAITING_COST if waiting.has(node_shaft[node] * 1000 + node_floor[node] + 100) else ELEVATOR_BASE_COST
-		for edge: Array in edges[node]:
-			var next_used := used
-			var next_es := es
-			if edge[2] == 1 or edge[2] == 3:
-				next_used += STAIRS_WEIGHT if edge[2] == 1 else ESCALATOR_WEIGHT
-				if next_used > LEG_LIMIT:
-					continue
-			elif edge[3]:
-				next_used = 0
-			if edge[2] == 2 and limit_transfers:
-				if es == 0:
-					next_es = 2 if edge[3] else 1
-				elif es == 2 and floors.is_lobby_floor(node_floor[node]):
-					next_es = 3
-				else:
-					continue
-			var next_state: int = ((edge[0] as int) * step + next_used) * 4 + next_es
-			var next_dist: int = best_dist + (edge[1] as int) + (base if edge[2] == 2 else 0)
-			if not done[next_state] and next_dist < dist[next_state]:
-				if dist[next_state] == _INF:
-					touched.append(next_state)
-				dist[next_state] = next_dist
-				prev[next_state] = best
-				_heap_push(open, next_dist * HEAP_SHIFT + next_state)
+		# Which edge rows apply: the query's, the walking and stairs ones, and the rides when this state may start one.
+		var may_ride := not limit_transfers or es == 0 or (es == 2 and floors.is_lobby_floor(node_floor[node]))
+		var part := 0
+		while part < 3:
+			var row: PackedInt32Array
+			if part == 0:
+				row = extra[node]
+			elif part == 1:
+				row = walk_rows[node]
+			elif may_ride:
+				row = _rides(viable_set, ride_rows, node) if limit_transfers else ride_rows[node]
+			else:
+				break  # a ride from here is refused for every elevator edge
+			part += 1
+			var at := 0
+			var end := row.size()
+			while at < end:
+				var target := row[at]
+				var kind := row[at + 2]
+				var next_used := used
+				var next_es := es
+				if kind == 1 or kind == 3:
+					next_used += STAIRS_WEIGHT if kind == 1 else ESCALATOR_WEIGHT
+					if next_used > LEG_LIMIT:
+						at += 4
+						continue
+				elif row[at + 3] == 1:
+					next_used = 0
+				if kind == 2 and limit_transfers:
+					if es == 0:
+						next_es = 2 if row[at + 3] == 1 else 1
+					else:  # es 2 on a lobby floor: the second ride
+						next_es = 3
+				if (next_es == 1 or next_es == 3) and limit_transfers and target >= 2 and next_used > viable[target]:
+					at += 4
+					continue  # no more rides, and walking and stairs from there never reach the goal: see _viability
+				var next_state := (target * step + next_used) * 4 + next_es
+				var next_dist := best_dist + row[at + 1] + (base if kind == 2 else 0)
+				var known := dist[next_state]
+				if ties and next_dist == best_dist and next_state < best and not done[next_state] and next_dist <= known:
+					# A walk of no columns to a state that Dijkstra would pop next, ahead of its place in (dist, state)
+					# order: the tie rule below assumes that order, so the caller repeats this as plain Dijkstra.
+					result["zero_hit"] = true
+					return false
+				if next_dist < known:
+					if known == _INF:
+						touched.append(next_state)
+					dist[next_state] = next_dist
+					prev[next_state] = best
+					_heap_push(open, (next_dist + heuristic[target]) * HEAP_SHIFT + next_state)
+				elif ties and next_dist == known:
+					var held := prev[next_state]  # the same cost by another way: the one popped first by Dijkstra wins
+					if held != -1 and (best_dist < next_dist or best < next_state) and (best_dist < dist[held] or (best_dist == dist[held] and best < held)):
+						prev[next_state] = best
+				at += 4
 	if goal_state == -1:
 		return false
 	var path: Array[int] = []
@@ -455,7 +652,9 @@ static func _heap_pop(heap: PackedInt64Array) -> int:
 
 
 ## True when node 1 can be reached from node 0 with any number of stairs.
-static func _reachable(edges: Array, count: int) -> bool:
+static func _reachable(extra: Array, cache: Dictionary, count: int) -> bool:
+	var walk_rows: Array = cache["walk_rows"]
+	var ride_rows: Array = cache["ride_rows"]
 	var seen: Array[bool] = []
 	seen.resize(count)
 	seen.fill(false)
@@ -465,8 +664,9 @@ static func _reachable(edges: Array, count: int) -> bool:
 		var node: int = queue.pop_front()
 		if node == 1:
 			return true
-		for edge: Array in edges[node]:
-			if not seen[edge[0]]:
-				seen[edge[0]] = true
-				queue.append(edge[0])
+		for row: PackedInt32Array in [extra[node], walk_rows[node], ride_rows[node]]:
+			for at in range(0, row.size(), 4):
+				if not seen[row[at]]:
+					seen[row[at]] = true
+					queue.append(row[at])
 	return false
