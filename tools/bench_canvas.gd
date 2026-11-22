@@ -11,6 +11,7 @@ const Bench := preload("res://tools/bench_tower.gd")
 const RendererScript := preload("res://scripts/view/tower_renderer.gd")
 const ViewSettings := preload("res://scripts/view/view_settings.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
+const TransportGlass := preload("res://scripts/view/transport_glass.gd")
 
 const SETTLE_FRAMES := 30  ## Idle frames before the forced rebuild, so the GPU has drained the warmup renders and does not bill them to it.
 const REBUILD_FROM := 30  ## Frames of warmup at least, and until the first draw has finished.
@@ -31,6 +32,8 @@ var _phase: int = 0  ## 0 warm up, 1 rebuild, 2 scroll, 3 report.
 var _phase_start: int = 0
 var _idle: int = 0
 var _edit: bool = false
+var _links: bool = false  ## links=1 adds a stairs and an escalator near the camera (#367).
+var _glass: bool = true  ## glass=0 draws Detailed transport opaque, as before #367.
 var _edit_step: int = 0  ## 0 not started, 1 bulldozed (waiting for the tiles), 2 rebuilt (waiting).
 var _edit_room: Array[int] = []  ## [kind index, floor, column] of the room edited.
 var _edit_frames: Array[int] = []
@@ -48,6 +51,10 @@ func _initialize() -> void:
 			_edit = true
 		elif arg.begins_with("shot="):
 			_shot = arg.get_slice("=", 1)
+		elif arg == "links=1":
+			_links = true
+		elif arg == "glass=0":
+			_glass = false
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	_tower = Bench.build(42)
 	_renderer = RendererScript.new()
@@ -62,12 +69,19 @@ func _process(_delta: float) -> bool:
 	_n += 1
 	if _n == 1:  # the nodes are in the tree now, and the renderer's _ready has loaded the saved setting
 		ViewSettings.detailed_graphics = _detailed
+		if not _glass:
+			TransportGlass.on = false
 		_renderer.set_tower(_tower)
 		_camera.zoom = Vector2(_zoom, _zoom)
 		_camera.position = Vector2(1600, 3000)
 		_camera.make_current()
 		_last = now
 		return false
+	if _n == 10 and _links:  # placed as a player would, once the tower is on screen
+		_tower.ledger.balance = maxi(_tower.ledger.balance, 100000000)
+		var stairs_code: int = _tower.rooms.place_stairs(_tower.grid, _tower.floors, _tower.ledger, 0, 5, 330)
+		var escalator_code: int = _tower.rooms.place_escalator(_tower.grid, _tower.floors, _tower.ledger, 0, 1, 340)
+		print("links: stairs code %d, escalator code %d, link cells %d" % [stairs_code, escalator_code, _tower.rooms.links.occupant_count()])
 	if _phase == 0:
 		_idle = _idle + 1 if (not _renderer.has_method("pending_work") or int(_renderer.call("pending_work")) == 0) else 0
 	if _phase == 0 and _n >= REBUILD_FROM and _idle >= SETTLE_FRAMES:  # one forced full rebuild, timed frame by frame until every tile near the view is redrawn

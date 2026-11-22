@@ -6,6 +6,7 @@ const PeopleView := preload("res://scripts/view/people_view.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const RoomLook := preload("res://scripts/view/room_look.gd")
 const TransportLook := preload("res://scripts/view/transport_look.gd")
+const TransportGlass := preload("res://scripts/view/transport_glass.gd")
 const EventLook := preload("res://scripts/view/event_look.gd")
 const ActivityLook := preload("res://scripts/view/activity_look.gd")
 const SkyLook := preload("res://scripts/view/sky_look.gd")
@@ -49,6 +50,7 @@ var _since_tick: float = 0.0  ## Seconds since the sim last ticked.
 var _tick_len: float = 1.0 / 30.0  ## Seconds the last tick took; cars slide over this long.
 var _seen_revision: int = -1
 var _seen_see_through: bool = false
+var _seen_glass: bool = false  ## TransportGlass.on as last painted (#367).
 var _seen_style: GraphicsStyle = null
 var _seen_occupants: int = -1
 var _figures: Array[Dictionary] = []
@@ -137,11 +139,21 @@ var _dynamic_sprite: Sprite2D = null
 var _glow: Node2D = null  ## Detailed night lights, added on top of the world (#305).
 
 
+## U toggles the Detailed see-through transport option (#367).
+func _unhandled_key_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key != null and key.pressed and not key.echo and key.keycode == TransportGlass.HOTKEY and not key.ctrl_pressed and not key.alt_pressed:
+		TransportGlass.toggle()
+		get_viewport().set_input_as_handled()
+
+
 func _ready() -> void:
 	TransportLook.load_setting()
+	TransportGlass.load_setting()
 	ViewSettings.load_settings()
 	_seen_style = GraphicsStyle.current()
 	_seen_see_through = TransportLook.see_through
+	_seen_glass = TransportGlass.on
 	_make_outdoors()
 	_world = SubViewport.new()
 	_world.size = Vector2i(2, 2)
@@ -636,8 +648,9 @@ func _process(delta: float) -> void:
 			if figure["moving"]:
 				_has_moving = true
 				break
-	if TransportLook.see_through != _seen_see_through:  ## The view option changed: repaint the shafts.
+	if TransportLook.see_through != _seen_see_through or TransportGlass.on != _seen_glass:  ## A view option changed: repaint the shafts and links.
 		_seen_see_through = TransportLook.see_through
+		_seen_glass = TransportGlass.on
 		layout_changed = true
 		_mark_all_stale()
 	if GraphicsStyle.current() != _seen_style:  ## Graphics Classic/Detailed changed: repaint everything.
