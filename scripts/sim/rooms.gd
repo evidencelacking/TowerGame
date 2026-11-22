@@ -106,6 +106,10 @@ const FIRST_ID := 1000  ## Room occupant ids start here, clear of ids given to P
 ## coexist with them, so they hold their occupant cells here and not in the room grid. Ids come
 ## from the same counter as rooms, so an id is unique across both grids.
 var links := GridScript.new()
+## Bumps on every change to what Routes reads: the room list, stairs, escalators, shafts and their stops (#415). Derived: not saved or hashed.
+var layout_revision: int = 0
+## Routes' cached static graph, one per staff flag (#415). Derived: not saved or hashed. Owned by Routes.
+var route_cache: Array = [null, null]
 ## Room id to true while the room cannot be reached from the ground lobby by stairs, escalators or elevators (#368).
 ## Derived by Tower (refresh_reach, from Tenancy.reachable), never saved or hashed; empty means everything is connected.
 var cut_off: Dictionary = {}
@@ -250,6 +254,7 @@ func place_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at
 	if ledger.charge(at_tick, checked["cost"], kind_index) != LedgerScript.OK:
 		return SHORT_OF_FUNDS
 	var width: int = CatalogueScript.field(kind, "width")
+	layout_revision += 1
 	floors.fill_span(floor_number, x_left, x_left + width - 1)
 	if TALL_KINDS.has(kind):
 		var upper := floor_above(floor_number)
@@ -618,6 +623,7 @@ func _place_link(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, a
 	if ledger.charge(at_tick, checked["cost"], kind_index) != LedgerScript.OK:
 		return SHORT_OF_FUNDS
 	var width: int = CatalogueScript.field(kind, "width")
+	layout_revision += 1
 	while _id_taken(grid, _next_id) or _id_taken(grid, _next_id + 1):
 		_next_id += 1
 	_put_link(_next_id, floor_number, x_left, width)
@@ -801,6 +807,7 @@ func place_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, a
 		return SHORT_OF_FUNDS
 	var span: int = checked["span"]
 	var width: int = CatalogueScript.field(kind, "width")
+	layout_revision += 1
 	_fill_shaft_floors(floors, bottom, top, x_left, width)
 	var clear := false
 	while not clear:  # _next_id only grows, so this ends once a free run of span ids is found
@@ -875,6 +882,7 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, 
 	var old_bottom: int = info[1]
 	var x_left: int = info[2]
 	var old_base: int = info[4]
+	layout_revision += 1
 	_clear_shaft_cells(grid, floors, old_base, old_bottom, old_span, x_left, width)
 	_shafts.erase(id)
 	var checked := check_place_shaft(grid, floors, kind, bottom, top, x_left, false)
@@ -888,6 +896,7 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, 
 	if reason != OK:
 		_put_shaft_cells(grid, floors, old_base, old_bottom, old_span, x_left, width)
 		_shafts[id] = info
+		layout_revision += 1
 		return reason
 	if checked["cost"] > 0:
 		ledger.charge(at_tick, checked["cost"], _kind_of[id])
@@ -909,6 +918,7 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, 
 		if _in_shaft_span([span, bottom], floor_number):
 			off.append(floor_number)
 	_shafts[id] = [span, bottom, x_left, off, base]
+	layout_revision += 1
 	for n in _cars.size():
 		var car: Array = _cars[n]
 		if car[CarsScript.SHAFT] == id and (not _in_shaft_span([span, bottom], car[CarsScript.FLOOR]) or (car[CarsScript.STATE] != CarsScript.IDLE and not _in_shaft_span([span, bottom], car[CarsScript.TARGET]))):
@@ -1070,6 +1080,7 @@ func set_shaft_stop(id: int, floor_number: int, on: bool) -> int:
 		for car: Array in _cars:
 			if car[CarsScript.SHAFT] == id and car[CarsScript.HOME] == floor_number:
 				return HOME_STOP
+	layout_revision += 1
 	route_revision += 1
 	off.erase(floor_number)
 	if not on:
@@ -1294,6 +1305,7 @@ func stops_of(id: int) -> Array[int]:
 
 ## Removes a room's grid occupants (stairs have two, a shaft one per floor) and clears shaft marks.
 func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
+	layout_revision += 1
 	if not is_link_kind(kind_of(id)):
 		grid.remove(id)
 	if TALL_KINDS.has(kind_of(id)):
@@ -1509,6 +1521,7 @@ func replace_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, 
 	_kind_of.erase(id)
 	charred.erase(id)
 	_sold.erase(id)
+	layout_revision += 1
 	var width: int = CatalogueScript.field(kind, "width")
 	floors.fill_span(floor_number, x_left, x_left + width - 1)
 	while _id_taken(grid, _next_id):
@@ -1516,6 +1529,7 @@ func replace_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, 
 	grid.place(_next_id, floor_number, x_left, width)
 	_kind_of[_next_id] = kind_index
 	_next_id += 1
+	layout_revision += 1
 	return OK
 
 
@@ -1568,6 +1582,7 @@ func state_ints() -> Array[int]:
 func load_ints(ints: Array) -> bool:
 	if not valid_ints(ints, null):
 		return false
+	layout_revision += 1
 	_kind_of = {}
 	_sold = {}
 	for i in range(ints[1]):

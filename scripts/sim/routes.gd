@@ -63,9 +63,87 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 	if not floors.has_floor(from_floor, from_x) or not floors.has_floor(to_floor, to_x):
 		result["reason"] = NO_FLOOR
 		return result
+	var cache := _static_graph(floors, rooms, grid, staff)
+	var node_floor: Array[int] = cache["floor"]
+	var node_x: Array[int] = cache["x"]
+	var node_shaft: Array[int] = cache["shaft"]
+	var node_esc: Array[bool] = cache["esc"]
+	node_floor[0] = from_floor
+	node_x[0] = from_x
+	node_floor[1] = to_floor
+	node_x[1] = to_x
+	var count := node_floor.size()
+	# Edges per node, in node order: [to, cost, kind (0 walk, 1 stairs, 2 elevator), resets_count]. An elevator
+	# edge holds only its rise: _search adds the base cost of its source node from the waiting cars.
+	# The query's own edges (to nodes 0 and 1) go first in every list, as when every edge was built in node order.
+	var edges: Array = (cache["edges"] as Array).duplicate()
+	var on_floor: Dictionary = cache["on_floor"]
+	var list0: Array = []
+	var list1: Array = []
+	var levels: Array[int] = [from_floor]
+	if to_floor != from_floor:
+		levels.append(to_floor)
+	for level: int in levels:
+		var counts := floors.span_counts(level)
+		var unbuilt: PackedInt32Array = counts[0]
+		var lobbies: PackedInt32Array = counts[1]
+		var here: Array[int] = []
+		if level == from_floor:
+			here.append(0)
+		if level == to_floor:
+			here.append(1)
+		var others: Array[int] = on_floor.get(level, [] as Array[int])
+		for k: int in others:
+			var prefix: Array = []
+			for i: int in here:
+				var low := mini(node_x[i], node_x[k])
+				var high := maxi(node_x[i], node_x[k])
+				if unbuilt[high + 1] - unbuilt[low] == 0:
+					var resets: bool = lobbies[high + 1] - lobbies[low] > 0
+					prefix.append([i, high - low, 0, resets])
+					(list0 if i == 0 else list1).append([k, high - low, 0, resets])
+			if not prefix.is_empty():
+				prefix.append_array(edges[k])
+				edges[k] = prefix
+	if from_floor == to_floor:  # nodes 0 and 1 see each other first (lowest index)
+		var low := mini(from_x, to_x)
+		var high := maxi(from_x, to_x)
+		var counts := floors.span_counts(from_floor)
+		var unbuilt: PackedInt32Array = counts[0]
+		var lobbies: PackedInt32Array = counts[1]
+		if unbuilt[high + 1] - unbuilt[low] == 0:
+			var resets: bool = lobbies[high + 1] - lobbies[low] > 0
+			list0.push_front([1, high - low, 0, resets])
+			list1.push_front([0, high - low, 0, resets])
+	edges[0] = list0
+	edges[1] = list1
+	var waiting: Dictionary = {}  # what car_waiting_at would say, from one pass over the cars
+	for key: int in rooms.waiting_keys():
+		waiting[key] = true
+
+	if not _search(node_floor, node_x, node_shaft, node_esc, edges, floors, waiting, cache, true, result):
+		# Tell the refusals apart: no way at all, a transfer rule, or the stairs limit.
+		if not _reachable(edges, count):
+			result["reason"] = NO_ROUTE
+		elif _search(node_floor, node_x, node_shaft, node_esc, edges, floors, waiting, cache, false, {}):
+			result["reason"] = TOO_MANY_TRANSFERS
+		else:
+			result["reason"] = TOO_MANY_STAIRS
+	return result
+
+
+## The part of the graph that does not depend on the query, cached on the Rooms (one per staff flag) until the floors,
+## the room list or a shaft's stops change (#415). Returns {floor, x, shaft, esc, edges, on_floor}. Nodes 0 and 1 are
+## placeholders the query fills in; edges hold no edge to them, and an elevator edge holds its rise only.
+static func _static_graph(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, staff: bool) -> Dictionary:
+	var slot := 1 if staff else 0
+	var key: Array[int] = [floors.get_instance_id(), floors.revision, rooms.layout_revision, grid.get_instance_id()]
+	var held: Variant = rooms.route_cache[slot]
+	if held != null and (held as Dictionary)["key"] == key:
+		return held as Dictionary
 	# Nodes: 0 start, 1 goal, then a lower and an upper node per stairs.
-	var node_floor: Array[int] = [from_floor, to_floor]
-	var node_x: Array[int] = [from_x, to_x]
+	var node_floor: Array[int] = [0, 0]
+	var node_x: Array[int] = [0, 0]
 	var node_shaft: Array[int] = [0, 0]
 	var node_esc: Array[bool] = [false, false]
 	for spot: Array in _stair_spots(rooms, grid):
@@ -93,12 +171,11 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 			node_shaft.append(shaft)
 			node_esc.append(false)
 	var count := node_floor.size()
-	# Edges per node, in node order: [to, cost, kind (0 walk, 1 stairs, 2 elevator), resets_count].
 	var edges: Array = []
 	for i in count:
 		edges.append([])
-	var on_floor: Dictionary = {}  # floor -> node indices on it, ascending
-	for i in count:
+	var on_floor: Dictionary = {}  # floor -> cached node indices on it (2 and up), ascending
+	for i in range(2, count):
 		if not on_floor.has(node_floor[i]):
 			on_floor[node_floor[i]] = [] as Array[int]
 		on_floor[node_floor[i]].append(i)
@@ -120,28 +197,113 @@ static func find(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, fro
 		var cost := ESCALATOR_COST if node_esc[k] else STAIRS_COST
 		edges[k].append([k + 1, cost, kind, false])
 		edges[k + 1].append([k, cost, kind, false])
-	var waiting := rooms.waiting_keys()  # what car_waiting_at would say, from one pass over the cars
 	var group_start := stair_nodes  # a shaft's stop nodes are contiguous, in stop order
 	for i in range(stair_nodes, count):
 		if node_shaft[i] != node_shaft[group_start]:
 			group_start = i
-		var base := ELEVATOR_WAITING_COST if waiting.has(node_shaft[i] * 1000 + node_floor[i] + 100) else ELEVATOR_BASE_COST
 		var j := group_start
 		while j < count and node_shaft[j] == node_shaft[i]:
 			if j != i:
 				var rise := absi(GridScript.floor_to_index(node_floor[i]) - GridScript.floor_to_index(node_floor[j]))
-				edges[i].append([j, base + ELEVATOR_COST_PER_FLOOR * rise, 2, floors.is_lobby_floor(node_floor[j])])
+				edges[i].append([j, ELEVATOR_COST_PER_FLOOR * rise, 2, floors.is_lobby_floor(node_floor[j])])
 			j += 1
+	var states := count * (LEG_LIMIT + 1) * 4
+	var dist: Array[int] = []
+	var prev: Array[int] = []
+	var done: Array[bool] = []
+	dist.resize(states)
+	prev.resize(states)
+	done.resize(states)
+	dist.fill(_INF)
+	prev.fill(-1)
+	done.fill(false)
+	var built := {"dist": dist, "prev": prev, "done": done, "key": key, "floor": node_floor, "x": node_x, "shaft": node_shaft, "esc": node_esc, "edges": edges, "on_floor": on_floor}
+	rooms.route_cache[slot] = built
+	return built
 
-	if not _search(node_floor, node_x, node_shaft, node_esc, edges, floors, true, result):
-		# Tell the refusals apart: no way at all, a transfer rule, or the stairs limit.
-		if not _reachable(edges, count):
-			result["reason"] = NO_ROUTE
-		elif _search(node_floor, node_x, node_shaft, node_esc, edges, floors, false, {}):
-			result["reason"] = TOO_MANY_TRANSFERS
-		else:
-			result["reason"] = TOO_MANY_STAIRS
-	return result
+
+## Which floors and columns a walker starting at (from_floor, from_x) can stand on: the start and every stairs, escalator
+## and shaft node a route reaches within the same rules as find (stairs limit, transfers). Returns floor -> Array of
+## columns, empty when the start is not on a built floor. A cell is the goal of an OK find exactly when it is built and
+## some column in the map is walkable to it on its floor, see map_reaches. One search for every target (#415): reaching a
+## state does not depend on its cost, so this agrees with a find per target.
+static func reach_map(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, from_floor: int, from_x: int) -> Dictionary:
+	var map: Dictionary = {}
+	if not GridScript.is_valid_floor(from_floor) or not floors.has_floor(from_floor, from_x):
+		return map
+	var cache := _static_graph(floors, rooms, grid, false)
+	var node_floor: Array[int] = cache["floor"]
+	var node_x: Array[int] = cache["x"]
+	node_floor[0] = from_floor
+	node_x[0] = from_x
+	var edges: Array = (cache["edges"] as Array).duplicate()
+	var counts := floors.span_counts(from_floor)
+	var unbuilt: PackedInt32Array = counts[0]
+	var lobbies: PackedInt32Array = counts[1]
+	var list0: Array = []
+	for k: int in (cache["on_floor"] as Dictionary).get(from_floor, [] as Array[int]):
+		var low := mini(from_x, node_x[k])
+		var high := maxi(from_x, node_x[k])
+		if unbuilt[high + 1] - unbuilt[low] == 0:
+			var resets: bool = lobbies[high + 1] - lobbies[low] > 0
+			list0.append([k, high - low, 0, resets])
+			var prefix: Array = [[0, high - low, 0, resets]]
+			prefix.append_array(edges[k])
+			edges[k] = prefix
+	edges[0] = list0
+	edges[1] = []  # no goal node: nothing leads to it
+	var step := LEG_LIMIT + 1
+	var done: Array[bool] = cache["done"]
+	var touched := PackedInt32Array([0])
+	done[0] = true
+	var head := 0
+	while head < touched.size():  # touched grows by each new state and head catches up one a pass, so it ends
+		var state := touched[head]
+		head += 1
+		var es := state % 4
+		var node := state / 4 / step
+		var used := (state / 4) % step
+		var column: int = node_x[node]
+		if not map.has(node_floor[node]):
+			map[node_floor[node]] = []
+		if not (map[node_floor[node]] as Array).has(column):
+			(map[node_floor[node]] as Array).append(column)
+		for edge: Array in edges[node]:
+			var next_used := used
+			var next_es := es
+			if edge[2] == 1 or edge[2] == 3:
+				next_used += STAIRS_WEIGHT if edge[2] == 1 else ESCALATOR_WEIGHT
+				if next_used > LEG_LIMIT:
+					continue
+			elif edge[3]:
+				next_used = 0
+			if edge[2] == 2:
+				if es == 0:
+					next_es = 2 if edge[3] else 1
+				elif es == 2 and floors.is_lobby_floor(node_floor[node]):
+					next_es = 3
+				else:
+					continue
+			var next_state: int = ((edge[0] as int) * step + next_used) * 4 + next_es
+			if not done[next_state]:
+				done[next_state] = true
+				touched.append(next_state)
+	for state in touched:
+		done[state] = false
+	return map
+
+
+## True when a find to (to_floor, to_x) would say OK given reach_map's map: the cell is built and a reached column on
+## its floor can walk to it.
+static func map_reaches(floors: FloorsScript, map: Dictionary, to_floor: int, to_x: int) -> bool:
+	if not GridScript.is_valid_floor(to_floor) or not floors.has_floor(to_floor, to_x) or not map.has(to_floor):
+		return false
+	var counts := floors.span_counts(to_floor)
+	var unbuilt: PackedInt32Array = counts[0]
+	for column: int in map[to_floor]:
+		if unbuilt[maxi(column, to_x) + 1] - unbuilt[mini(column, to_x)] == 0:
+			return true
+	return false
 
 
 ## True when floor_number is a lobby floor, where elevator transfers are allowed: the ground
@@ -175,18 +337,23 @@ static func _stair_spots(rooms: RoomsScript, grid: GridScript) -> Array:
 ## ridden and landed off a lobby floor (no more rides), 2 one ridden and landed on a lobby floor
 ## (a second ride may start on a lobby floor), 3 two ridden. With limit_transfers false any number
 ## of rides is fine. Fills result.legs and returns true when the goal is reached.
-static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Array[int], node_esc: Array[bool], edges: Array, floors: FloorsScript, limit_transfers: bool, result: Dictionary) -> bool:
+## The state arrays come from the cached graph (scratch) and are put back after the search by resetting only the
+## states it touched, so a query does not pay to fill them.
+static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Array[int], node_esc: Array[bool], edges: Array, floors: FloorsScript, waiting: Dictionary, scratch: Dictionary, limit_transfers: bool, result: Dictionary) -> bool:
+	var dist: Array[int] = scratch["dist"]
+	var prev: Array[int] = scratch["prev"]
+	var done: Array[bool] = scratch["done"]
+	var touched := PackedInt32Array([0])
+	var found := _run_search(node_floor, node_x, node_shaft, node_esc, edges, floors, waiting, dist, prev, done, touched, limit_transfers, result)
+	for state in touched:
+		dist[state] = _INF
+		prev[state] = -1
+		done[state] = false
+	return found
+
+
+static func _run_search(node_floor: Array[int], node_x: Array[int], node_shaft: Array[int], node_esc: Array[bool], edges: Array, floors: FloorsScript, waiting: Dictionary, dist: Array[int], prev: Array[int], done: Array[bool], touched: PackedInt32Array, limit_transfers: bool, result: Dictionary) -> bool:
 	var step := LEG_LIMIT + 1
-	var states := node_floor.size() * step * 4
-	var dist: Array[int] = []
-	var prev: Array[int] = []
-	var done: Array[bool] = []
-	dist.resize(states)
-	prev.resize(states)
-	done.resize(states)
-	dist.fill(_INF)
-	prev.fill(-1)
-	done.fill(false)
 	dist[0] = 0
 	# Open states live in a binary heap of dist * HEAP_SHIFT + state, so the cheapest comes out
 	# first and equal costs come out lowest state first, as a linear scan for that pair would.
@@ -205,6 +372,9 @@ static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Arra
 		if node == 1:
 			goal_state = best
 			break
+		var base := 0  # a ride's boarding cost: a car waiting at this stop, or not
+		if node_shaft[node] != 0:
+			base = ELEVATOR_WAITING_COST if waiting.has(node_shaft[node] * 1000 + node_floor[node] + 100) else ELEVATOR_BASE_COST
 		for edge: Array in edges[node]:
 			var next_used := used
 			var next_es := es
@@ -222,8 +392,10 @@ static func _search(node_floor: Array[int], node_x: Array[int], node_shaft: Arra
 				else:
 					continue
 			var next_state: int = ((edge[0] as int) * step + next_used) * 4 + next_es
-			var next_dist: int = best_dist + (edge[1] as int)
+			var next_dist: int = best_dist + (edge[1] as int) + (base if edge[2] == 2 else 0)
 			if not done[next_state] and next_dist < dist[next_state]:
+				if dist[next_state] == _INF:
+					touched.append(next_state)
 				dist[next_state] = next_dist
 				prev[next_state] = best
 				_heap_push(open, next_dist * HEAP_SHIFT + next_state)

@@ -18,6 +18,7 @@ const PeopleScript := preload("res://scripts/sim/people.gd")
 const TripsScript := preload("res://scripts/sim/trips.gd")
 const CarsScript := preload("res://scripts/sim/cars.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
+const RoutesScript := preload("res://scripts/sim/routes.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
 const WordOfMouthScript := preload("res://scripts/sim/word_of_mouth.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
@@ -276,9 +277,12 @@ func refresh_reach() -> void:
 	if not floors.has_lobby():
 		return
 	var entry_x := floors.lobby_span()[0]
+	var map := RoutesScript.reach_map(floors, rooms, grid, TenancyScript.GROUND_FLOOR, entry_x)  # one search for every room (#415)
 	for id in rooms.room_ids():
-		if RoomsScript.needs_route(rooms.kind_of(id)) and not rooms.is_charred(id) and not tenancy.reachable(floors, rooms, grid, id, entry_x):
-			rooms.cut_off[id] = true
+		if RoomsScript.needs_route(rooms.kind_of(id)) and not rooms.is_charred(id):
+			var run := grid.run_of(id)
+			if run.is_empty() or not RoutesScript.map_reaches(floors, map, run[0], run[1]):
+				rooms.cut_off[id] = true
 
 
 ## Working parking spaces now, searched once per tick however many suites ask.
