@@ -89,6 +89,7 @@ func _run_all() -> void:
 	await _behind_cases()
 	await _fill_cases()
 	await _graphics_cases()
+	await _settings_cases()
 	await _synergy_cases()
 
 
@@ -275,6 +276,55 @@ func _fill_cases() -> void:
 	await _drag_case("fill.shaft", "fill", "local_shaft", 146, 3, 146, 4,
 		func() -> bool: return _shaft_span(146, 3, 4) and _tower.floors.has_floor(3, 140) and _tower.floors.has_floor(4, 143),
 		"Drag a shaft at columns 144 to 147 over floors 3 to 4, beside floor ending at column 139: the gap fills")
+
+
+## Settings window (#248): F10 opens it, a key is rebound by clicking its button then pressing the new key
+## (and the game obeys the new key), reset restores the defaults, the starting-funds preset changes the setting,
+## and Esc closes it. The saved values are put back afterwards.
+func _settings_cases() -> void:
+	var window := _main.find_child("SettingsWindow", true, false) as SettingsWindow
+	var was_funds: int = NewGameSettings.funds()
+	var opened := false
+	var rebound := false
+	var obeyed := false
+	var reset_ok := false
+	var funds_ok := false
+	var closed := false
+	if window != null:
+		await _key(KEY_F10)
+		await _frames(2)
+		opened = window.is_open()
+		var button := window.find_child("Key_tool_office", true, false) as Button
+		if button != null:
+			button.pressed.emit()
+			await _key(KEY_Q)
+			await _frames(2)
+			rebound = KeyBindings.keycode("tool_office") == KEY_Q and button.text == "Q"
+		await _key(KEY_ESCAPE)
+		await _frames(2)
+		closed = not window.is_open()
+		_ghost.set_tool("")
+		await _key(KEY_Q)
+		await _frames(2)
+		obeyed = _ghost.tool == "office"
+		_ghost.set_tool("")
+		window.open()
+		(window.find_child("ResetKeys", true, false) as Button).pressed.emit()
+		await _frames(2)
+		reset_ok = KeyBindings.keycode("tool_office") == KEY_O
+		var funds := window.find_child("StartingFunds", true, false) as OptionButton
+		funds.select(1)
+		funds.item_selected.emit(1)
+		funds_ok = NewGameSettings.funds() == (NewGameSettings.PRESETS[1] as Array)[1]
+		window.close_window()
+	NewGameSettings.set_preset(NewGameSettings.PRESETS.find_custom(func(p: Array) -> bool: return p[1] == was_funds))
+	KeyBindings.reset_and_save()
+	_record("settings.open", "settings", "F10 opens the Settings window and Esc closes it", "-", opened and closed,
+		"opened %s, closed %s" % [str(opened), str(closed)])
+	_record("settings.keys", "settings", "Rebinding a key in Settings makes the game use it; Reset restores the default", "-", rebound and obeyed and reset_ok,
+		"rebound %s, game obeyed %s, reset %s" % [str(rebound), str(obeyed), str(reset_ok)])
+	_record("settings.funds", "settings", "The starting-funds preset changes the saved new-game setting", "-", funds_ok,
+		"preset 1 saved %s" % str(funds_ok))
 
 
 ## Graphics setting (#301): choosing Detailed in the toolbar switches the style the renderer draws with, live,

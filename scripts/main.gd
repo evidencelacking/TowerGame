@@ -20,6 +20,12 @@ func _ready() -> void:
 		_tower.enqueue(Tower.Command.make(_tower.tick + 1, Tower.Command.DEBUG_UNLOCK_ALL, [1] as Array[int]))
 		_tower.enqueue(Tower.Command.make(_tower.tick + 1, Tower.Command.DEBUG_SET_STARS, [DemoMode.STARS] as Array[int]))
 	else:
+		# The starting-funds setting (#248) reaches the sim as the Tower's constructor argument, never by the sim
+		# reading settings. The default keeps the driver's own tower.
+		NewGameSettings.applied = NewGameSettings.funds()
+		if NewGameSettings.applied != NewGameSettings.DEFAULT_FUNDS:
+			$Hud/SimDriver.tower = Tower.new(0, NewGameSettings.applied)
+			_tower = $Hud/SimDriver.tower
 		# Demo content until building commands exist (refs #6).
 		for i in 20:
 			_tower.grid.place(i + 1, 1 + i % 8, 10 + (i * 7) % 60, 4 + i % 5)
@@ -27,6 +33,8 @@ func _ready() -> void:
 	# Debug switch (#156): `python tools/play.py -- --unlock-all`. Off unless asked for.
 	if "--unlock-all" in OS.get_cmdline_user_args():
 		_tower.enqueue(Tower.Command.make(_tower.tick + 1, Tower.Command.DEBUG_UNLOCK_ALL, [1] as Array[int]))
+	var settings_window := SettingsWindow.new()
+	add_child(settings_window)
 	var renderer: TowerRenderer = $TowerRenderer
 	renderer.set_tower(_tower)
 	var thoughts := ThoughtLayer.new()

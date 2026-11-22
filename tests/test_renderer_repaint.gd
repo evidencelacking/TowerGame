@@ -8,6 +8,7 @@ const Command := TowerSim.Command
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
+const TransportGlass := preload("res://scripts/view/transport_glass.gd")
 const TestRooms := preload("res://tests/test_rooms.gd")
 const TestShafts := preload("res://tests/test_shafts.gd")
 
@@ -70,6 +71,9 @@ static func _stop(pair: Array) -> void:
 static func run(check: Callable) -> void:
 	await _placed_room(check)
 	await _extended_shaft(check)
+	await _bulldozed_room(check)
+	await _transport_glass_key(check)
+	await _label_zoom(check)
 	_cursor(check)
 
 
@@ -129,7 +133,13 @@ static func _extended_shaft(check: Callable) -> void:
 	check.call(shaft["bottom"] == 21 and shaft["top"] == 50, "the shaft's span is the new one")
 	var want := _rect_of(shaft)
 	check.call(Rect2i(renderer._canvas).encloses(want), "the canvas covers the extended shaft")
-	check.call(renderer._seen_shafts.size() == 1 and renderer._seen_shafts[0][0] == want, "the renderer drew the shaft over its new span")
+	check.call(renderer._seen_shafts.size() == 1 and renderer._seen_shafts.values()[0] == want, "the renderer drew the shaft over its new span")
+	var floors_now := renderer._floor_rects.duplicate()
+	var rooms_now := renderer._room_runs.duplicate()
+	var links_now := renderer._link_runs.duplicate()
+	renderer._row_cache.clear()  # a from-scratch scan must find what the incremental one kept (#349)
+	renderer._rebuild_runs()
+	check.call(floors_now == renderer._floor_rects and rooms_now == renderer._room_runs and links_now == renderer._link_runs, "the incremental run scan matches a full one after the layout changed")
 	var all_framed := true
 	for piece: TowerRenderer.Piece in renderer._frame_pieces:
 		all_framed = all_framed and piece.rect == renderer._canvas and not piece.stale
@@ -140,6 +150,85 @@ static func _extended_shaft(check: Callable) -> void:
 		if tile.rect.intersects(want):
 			covered = covered and not tile.pending
 	check.call(covered, "every tile the extended shaft crosses is rendered")
+	await _stop(pair)
+
+
+## The see-through transport key (#367) flips the option and every frame piece is repainted after it.
+static func _transport_glass_key(check: Callable) -> void:
+	var tower := TestShafts._tall()
+	TestShafts._shaft(tower, 21, 25, 100)
+	var pair := await _start(tower)
+	var renderer: TowerRenderer = pair[0]
+	check.call(await _settle(renderer) >= 0, "the renderer settles before the glass key")
+	var was := TransportGlass.on
+	for piece: TowerRenderer.Piece in renderer._frame_pieces:
+		piece.cost_us = -1  # _paint_frame_piece sets it, so a repainted piece loses the marker
+	var key := InputEventKey.new()
+	key.keycode = KeyBindings.keycode("transport_glass") as Key
+	key.pressed = true
+	renderer._unhandled_key_input(key)
+	check.call(TransportGlass.on != was, "the bound key flips the see-through transport option")
+	check.call(await _settle(renderer) >= 0, "the renderer settles after the glass key")
+	var repainted := not renderer._frame_pieces.is_empty()
+	for piece: TowerRenderer.Piece in renderer._frame_pieces:
+		repainted = repainted and piece.cost_us >= 0 and not piece.stale
+	check.call(repainted, "every frame piece is repainted after the option changed")
+	check.call(_tiles_are_current(renderer), "no tile was rendered before its pieces were repainted after the option changed")
+	TransportGlass.set_on(was)
+	await _stop(pair)
+
+
+## Zooming across ShaftNumbers.ZOOM_ALL changes how many floors are labelled, so the shaft pieces are repainted (#431).
+static func _label_zoom(check: Callable) -> void:
+	var tower := TestShafts._tall()
+	TestShafts._shaft(tower, 21, 25, 100)
+	var pair := await _start(tower)
+	var renderer: TowerRenderer = pair[0]
+	var camera: Camera2D = pair[1]
+	check.call(await _settle(renderer) >= 0, "the renderer settles before the zoom")
+	check.call(renderer._label_step == ShaftNumbers.FAR_STEP, "zoomed out, shafts label every 5th floor")
+	for piece: TowerRenderer.Piece in renderer._frame_pieces:
+		piece.cost_us = -1
+	camera.zoom = Vector2(ShaftNumbers.ZOOM_ALL, ShaftNumbers.ZOOM_ALL)
+	await _tree().process_frame
+	await _tree().process_frame
+	check.call(renderer._label_step == 1, "zoomed in, shafts label every floor")
+	check.call(await _settle(renderer) >= 0, "the renderer settles after the zoom")
+	var repainted := not renderer._frame_pieces.is_empty()
+	for piece: TowerRenderer.Piece in renderer._frame_pieces:
+		repainted = repainted and piece.cost_us >= 0 and not piece.stale
+	check.call(repainted, "every frame piece is repainted after zooming across the label threshold")
+	await _stop(pair)
+
+
+## A bulldozed room's piece is gone and cannot paint, even when a redraw was queued and the renderer ran twice
+## with no engine frame between (the node waits for deletion until the frame ends).
+static func _bulldozed_room(check: Callable) -> void:
+	var tower := TestShafts._tall()
+	var office := CatalogueScript.IDS.find("office")
+	TestRooms._room(tower, office, 2, 100)
+	TestRooms._room(tower, office, 2, 110)
+	var pair := await _start(tower)
+	var renderer: TowerRenderer = pair[0]
+	check.call(await _settle(renderer) >= 0, "the renderer settles before the bulldoze")
+	var doomed: int = tower.grid.cell_at(2, 100)
+	check.call(doomed != 0 and renderer._room_pieces.size() > 0, "the office to bulldoze has a piece")
+	for piece: TowerRenderer.Piece in renderer._room_pieces.values():
+		piece.node.queue_redraw()  # a redraw is pending on every piece, the doomed one included
+	var rooms_before := renderer._room_pieces.size()
+	TestRooms._send(tower, Command.BULLDOZE, [2, 100] as Array[int])
+	tower.step()
+	renderer._process(1.0 / 60.0)
+	renderer._process(1.0 / 60.0)  # no engine frame in between
+	check.call(not tower.grid.has_occupant(doomed), "the office is gone from the grid")
+	check.call(renderer._room_pieces.size() == rooms_before - 1, "no piece is left for the removed room")
+	var waiting := 0
+	var painters_ok := true
+	for node: Node in renderer._statics.get_children():
+		if node.is_queued_for_deletion():
+			waiting += 1
+			painters_ok = painters_ok and not (node.get("painter") as Callable).is_valid()
+	check.call(waiting > 0 and painters_ok, "the piece waiting for deletion has no painter")
 	await _stop(pair)
 
 

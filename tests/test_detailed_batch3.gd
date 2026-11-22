@@ -12,6 +12,7 @@ const TransportLook := preload("res://scripts/view/transport_look.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
+const Glass := preload("res://scripts/view/transport_glass.gd")
 const Batch1 := preload("res://tests/test_detailed_batch1.gd")
 const Batch2 := preload("res://tests/test_detailed_batch2.gd")
 
@@ -88,8 +89,11 @@ static func _covers(rects: Array[Rect2], at: Vector2) -> bool:
 	return false
 
 
-## Stairs and escalators paint a background over their whole span, near every corner of both floors.
+## Stairs and escalators paint a background over their whole span, near every corner of both floors (in the
+## opaque look: the see-through one, #367, leaves the rooms behind showing).
 static func _backdrops(check: Callable, detailed: GraphicsStyle) -> void:
+	var glass_was := Glass.on
+	Glass.on = false
 	var filled := true
 	for kind: String in ["stairs", "escalator"]:
 		for row: int in [2, 3]:
@@ -98,6 +102,7 @@ static func _backdrops(check: Callable, detailed: GraphicsStyle) -> void:
 			detailed.link(rec, kind, span)
 			for corner: Vector2 in [Vector2(2, 2), Vector2(span.size.x - 3, 2), Vector2(2, VC.CELL_H + 2), Vector2(span.size.x - 3, VC.CELL_H + 2)]:
 				filled = filled and _covers(rec.rects, Vector2(span.position) + corner)
+	Glass.on = glass_was
 	check.call(filled, "detailed: stairs and escalators have a background panel on both floors of their span")
 
 

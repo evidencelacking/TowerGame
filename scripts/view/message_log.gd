@@ -87,8 +87,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
+	if KeyBindings.is_key(key, "messages"):
+		toggle()
+		return
 	match key.keycode:
-		KEY_M: toggle()
 		KEY_PAGEUP: if is_open(): scroll_by(-ROWS)
 		KEY_PAGEDOWN: if is_open(): scroll_by(ROWS)
 
