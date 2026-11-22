@@ -58,14 +58,14 @@ class MakeSounds(unittest.TestCase):
             tmp = Path(tmp)
             rows = ["| File | Pack | Original file | URL | Licence |", "|---|---|---|---|---|",
                     "| Rain.wav | Kenney Test | x.ogg | https://example.test | CC0 1.0 |",
-                    "| Bird1.wav | generated | tools/make_sounds.py | - | original |"]
+                    "| DanceHall1.wav | generated | tools/make_sounds.py | - | original |"]
             (tmp / "SOURCES.md").write_text(chr(10).join(rows), encoding="utf-8")
             (tmp / "Rain.wav").write_bytes(b"sourced")
             make_sounds.main(["make_sounds.py", str(tmp)])
             self.assertEqual((tmp / "Rain.wav").read_bytes(), b"sourced")
-            written = sorted(p.stem for p in tmp.glob("*.wav"))
+            written = sorted(p.stem for p in tmp.glob("*.wav") if p.stem != "Rain")
             self.assertEqual(written, sorted(set(make_sounds.RECIPES)))
-            self.assertEqual((tmp / "Bird1.wav").read_bytes(), make_sounds.wav_bytes("Bird1"))
+            self.assertEqual((tmp / "DanceHall1.wav").read_bytes(), make_sounds.wav_bytes("DanceHall1"))
 
     def test_generated_files_match_the_script(self):
         for name, cells in sources_rows().items():
@@ -88,7 +88,7 @@ class ShippedSounds(unittest.TestCase):
             self.assertTrue(pack and original and url and licence, name)
             if pack != "generated":
                 self.assertEqual(licence, "CC0 1.0", name)
-                self.assertTrue(url.startswith("https://kenney.nl/assets/"), name)
+                self.assertTrue(url.startswith(("https://kenney.nl/assets/", "https://bigsoundbank.com/")), name)
         self.assertEqual(sorted(rows), files, "SOURCES.md lists a file that is not there")
 
     def test_format_length_loudness_and_size(self):
