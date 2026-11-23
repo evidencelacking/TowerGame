@@ -82,3 +82,22 @@ static func run(check: Callable) -> void:
 			looked += 1
 			check.call(f["age"] == s.life.age_band_of(s, f["id"]) and f["child"] == s.life.is_child(f["id"]) and f["job"] == s.rooms.kind_of(s.people.work_of(j)), "people view: a figure's look matches the direct lookup")
 	check.call(looked == 3, "people view: every drawn person has a look")
+	# Packed rows and kept figures (#434): the rows say what the accessors say, and a view that kept its
+	# figures across ticks draws exactly what a fresh view draws at each of them.
+	var kept := PeopleView.new()
+	for n in 600:
+		s.step()
+		if n % 25 != 0:
+			continue
+		var packed := s.people.drawn_rows()
+		var drawn := 0
+		for i in s.people.count():
+			if s.people.location_of(i) == People.NONE and s.people.trip_state(i) == People.TRIP_IDLE:
+				continue
+			var at := drawn * People.DRAWN_ROW
+			drawn += 1
+			var same: bool = packed[at] == i and packed[at + 1] == s.people.id_at(i) and packed[at + 2] == s.people.trip_state(i) and packed[at + 3] == s.people.location_of(i) \
+				and packed[at + 4] == s.people.work_of(i) and packed[at + 5] == s.people.goal_of(i) and packed[at + 6] == s.people.stress_of(i)
+			check.call(same, "people view: drawn_rows row for person %d matches the accessors" % i)
+		check.call(packed.size() == drawn * People.DRAWN_ROW, "people view: drawn_rows holds one row per person drawn")
+		check.call(kept.figures(s) == PeopleView.new().figures(s), "people view: kept figures equal a fresh view's at tick %d" % s.tick)

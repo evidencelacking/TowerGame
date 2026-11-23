@@ -96,13 +96,10 @@ static func noise_cost(tower: Object, room: int, cache: Dictionary) -> int:
 static func pick(tower: Object, figures: Array[Dictionary], respect_window: bool = true, memo: Dictionary = {}, memo_ticks: int = 0) -> Array[Dictionary]:
 	var found: Array[Dictionary] = []
 	var noise_cache: Dictionary = {}
-	var index_of: Dictionary = {}  # id -> index, one pass instead of a scan per figure (#418)
-	for n in tower.people.count():
-		index_of[tower.people.id_at(n)] = n
 	for figure: Dictionary in figures:
-		if figure.get("staff", false) or not figure.has("id") or (respect_window and not is_showing(figure["id"], tower.tick)):
+		if not figure.has("id") or (respect_window and not is_showing(figure["id"], tower.tick)) or figure.get("staff", false):
 			continue
-		var i: int = index_of.get(figure["id"], -1)
+		var i: int = tower.people.index_of(figure["id"])
 		if i == -1:
 			continue
 		var icon: int
