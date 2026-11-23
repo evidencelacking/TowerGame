@@ -109,7 +109,10 @@ func _refresh() -> void:
 	var needs := format_demands(_driver.tower.demands)
 	_demands.text = needs
 	_demands.visible = needs != ""
-	_slow.visible = _driver.running_slow()
+	# The label always takes its space (toggling visible would reflow the speed buttons); only its alpha changes.
+	var slow := _driver.running_slow()
+	_slow.modulate.a = 1.0 if slow else 0.0
+	_slow.mouse_filter = Control.MOUSE_FILTER_STOP if slow else Control.MOUSE_FILTER_IGNORE
 	_pause.text = "Resume" if _driver.paused else "Pause"
 	for i in _speed_buttons.size():
 		_speed_buttons[i].disabled = i == _driver.speed_index
