@@ -65,9 +65,10 @@ static func is_showing(id: int, tick: int) -> bool:
 ## (room id -> mood points noise costs) lets a whole crowd share one noise lookup per room (#399).
 static func state_of(tower: Object, i: int, _counts: Dictionary = {}, noise_cache: Dictionary = {}) -> int:
 	var people: PeopleScript = tower.people
-	if people.stress_band(i) == PeopleScript.BAND_ANGRY:
+	if people.stress_of(i) > PeopleScript.ANGRY_OVER:  # the angry band
 		return CLOCK
-	if noise_cost(tower, MoodScript.room_of(people, i), noise_cache) >= NOISE_COST:
+	var work := people.work_of(i)  # Mood.room_of, read once
+	if noise_cost(tower, work if work != PeopleScript.NONE else people.home_of(i), noise_cache) >= NOISE_COST:
 		return NOISE
 	var mood := people.mood_of(i)
 	if mood < MoodScript.LOW_BELOW:
@@ -96,23 +97,25 @@ static func noise_cost(tower: Object, room: int, cache: Dictionary) -> int:
 static func pick(tower: Object, figures: Array[Dictionary], respect_window: bool = true, memo: Dictionary = {}, memo_ticks: int = 0) -> Array[Dictionary]:
 	var found: Array[Dictionary] = []
 	var noise_cache: Dictionary = {}
+	var tick: int = tower.tick
+	var people: PeopleScript = tower.people
 	for figure: Dictionary in figures:
-		if not figure.has("id") or (respect_window and not is_showing(figure["id"], tower.tick)) or figure.get("staff", false):
+		var id: int = figure.get("id", -1)  # the window test first: three in four people are out of it
+		if id < 0 or (respect_window and posmod(tick + id * PHASE_STEP, PERIOD_TICKS) >= SHOW_TICKS) or figure.get("staff", false):
 			continue
-		var i: int = tower.people.index_of(figure["id"])
+		var i: int = people.index_of(id)
 		if i == -1:
 			continue
 		var icon: int
-		var id: int = figure["id"]
-		var age: int = tower.tick - memo[id][1] if memo_ticks > 0 and memo.has(id) else -1
+		var age: int = tick - memo[id][1] if memo_ticks > 0 and memo.has(id) else -1
 		if age >= 0 and age < memo_ticks:
 			icon = memo[id][0]
 		else:
 			icon = state_of(tower, i, {}, noise_cache)
 			if memo_ticks > 0:
-				memo[id] = [icon, tower.tick]
+				memo[id] = [icon, tick]
 		if icon != NONE:
-			found.append({"id": figure["id"], "icon": icon, "at": head_of(figure)})
+			found.append({"id": id, "icon": icon, "at": head_of(figure)})
 	found.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["icon"] < b["icon"] or (a["icon"] == b["icon"] and a["id"] < b["id"]))
 	return found.slice(0, MAX_ICONS)
 
