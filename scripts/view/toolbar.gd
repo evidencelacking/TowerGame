@@ -25,7 +25,7 @@ const CATEGORIES: Array = [
 	["Shops", ["retail", "grocery"]],
 	["Entertainment", ["movie_theatre", "party_hall", "nightclub", "casino"]],
 	["Services", ["housekeeping", "security", "medical", "recycling", "clinic"]],
-	["Community", ["gym", "daycare", "pool"]],
+	["Community", ["gym", "daycare", "school", "pool"]],
 	["Parking", ["parking_ramp", "parking_space"]],
 	["Landmarks", ["metro", "cathedral", "observation_deck", "helipad"]],
 	["Tools", [Ghost.BULLDOZE, Ghost.REPLACE]],

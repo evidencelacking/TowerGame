@@ -64,7 +64,7 @@ const IDS: Array[String] = [
 	"movie_theatre", "party_hall", "medical", "recycling", "parking_ramp", "parking_space",
 	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino",
 	"cafe", "pizza", "sushi", "fine_dining", "bar",
-	"grocery", "deli", "pool", "helipad",
+	"grocery", "deli", "pool", "helipad", "school",
 ]
 
 const _ROWS: Dictionary = {
@@ -162,6 +162,10 @@ const _ROWS: Dictionary = {
 		"removable": true, "placement": PLACE_ANYWHERE, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"daycare": {"staff": 3, "width": 12, "height": 1, "cost": 80000, "per_unit": false, "star": 2,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# School (#370): the daycare's older sibling, children of school age, weekdays. 24 places, star 3, $150,000.
+	"school": {"staff": 4, "width": 16, "height": 1, "cost": 150000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"clinic": {"staff": 3, "width": 12, "height": 1, "cost": 200000, "per_unit": false, "star": 3,

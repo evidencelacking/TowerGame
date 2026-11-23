@@ -1,7 +1,7 @@
 extends RefCounted
 ## Room recipes, batch 3 (M13): our own kinds. The format and the coordinate rules are in room_recipes.gd.
 ## Gym (#291): treadmills along a mirror wall and a dumbbell rack. Daycare: play tables, an alphabet
-## shelf and a slide. Clinic: a red cross, an exam bed behind a curtain and a reception desk.
+## shelf and a slide. School (#370): a chalkboard and rows of desks. Clinic: a red cross, an exam bed behind a curtain and a reception desk.
 ## Pure data: build() only appends to a dictionary.
 
 
@@ -29,6 +29,20 @@ static func build() -> Dictionary:
 			[0, 23, 20, 2, "furn"], [3, 25, 2, 5, "furn"], [15, 25, 2, 5, "furn"],
 			[2, 18, 4, 5, "red"], [9, 19, 4, 4, "gold"], [14, 20, 3, 3, "green"]],
 			"spots": [[10, 30]]}],
+		"spots": [[-8, 30, "r"]],
+	}
+	# School (#370): a green chalkboard with a ruled line of chalk on the wall, a teacher's desk at the left, and a
+	# row of pupils' desks with chairs at each seat spot.
+	out["school"] = {
+		"hue": "party", "look": "full",
+		"fixed": [
+			[6, 6, 30, 14, "furn"], [8, 8, 26, 10, "green"], [10, 12, 18, 1, "white"], [48, 3, 4, 4, "gold"],
+			[-30, 22, 20, 8, "furn", "r"], [-26, 19, 6, 3, "red", "r"],
+		],
+		"repeats": [{"pad": 8, "every": 22, "lo": 0, "hi": 20, "reserve": 36, "shapes": [
+			[0, 23, 16, 2, "furn"], [2, 25, 2, 5, "furn"], [12, 25, 2, 5, "furn"],
+			[4, 20, 8, 3, "white"], [18, 26, 3, 4, "red"]],
+			"spots": [[8, 30]]}],
 		"spots": [[-8, 30, "r"]],
 	}
 	out["clinic"] = {

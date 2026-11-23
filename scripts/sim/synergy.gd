@@ -44,6 +44,7 @@ const CAPS: Array[int] = [20, 30, 12, 30, 10, 30]
 const RULES: Array = [
 	["daycare", "condo", CONDO_DEMAND, 10, 5, ANY],
 	["daycare", "condo", MOOD, 4, 5, ANY],
+	["school", "condo", CONDO_DEMAND, 14, 10, ANY],
 	["gym", "office", MOOD, 4, 3, ANY],
 	["clinic", "condo", MOOD, 3, 5, ANY],
 	["clinic", "office", MOOD, 3, 5, ANY],
