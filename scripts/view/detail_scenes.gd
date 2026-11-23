@@ -42,6 +42,8 @@ const PALETTES: Dictionary = {
 	"grocery": ["e4eccc", "6a9a58", "d4d0c0", "c4c0b0", "f6f4e4"],
 	"deli": ["f0dcb0", "b8453c", "d8c8a8", "c8b898", "f8f0d8"],
 	"gym": ["c0c8d4", "3a4a64", "4a4a54", "3e3e48", "e8a030"],
+	"ballroom": ["f0e2d0", "8a3a58", "c8a45a", "b8924a", "fff6dc"],
+	"conference_center": ["dce4ec", "3e5a78", "8a94a0", "7a8490", "f4f8fc"],
 	"school": ["e8d8b8", "a84e3a", "6a8a5a", "b89a6a", "f8f4e0"],
 	"daycare": ["f8e4a8", "e87a68", "8ac8a0", "7ab890", "f8f4e0"],
 	"clinic": ["e8f2f0", "88c0bc", "d8dcdc", "c4cccc", "ffffff"],

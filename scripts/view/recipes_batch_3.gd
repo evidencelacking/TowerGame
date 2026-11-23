@@ -45,6 +45,30 @@ static func build() -> Dictionary:
 			"spots": [[8, 30]]}],
 		"spots": [[-8, 30, "r"]],
 	}
+	# Ballroom (#359): a stage with a curtain at the left, a chandelier, and a round banquet table with chairs at each seat.
+	out["ballroom"] = {
+		"hue": "party", "look": "full",
+		"fixed": [
+			[2, 14, 34, 10, "furn", "l"], [4, 4, 30, 10, "red", "l"], [18, 2, 4, 2, "gold"], [14, 4, 12, 2, "gold"],
+			[-40, 4, 4, 22, "red", "r"],
+		],
+		"repeats": [{"pad": 8, "every": 30, "lo": 0, "hi": 20, "reserve": 44, "shapes": [
+			[2, 22, 20, 2, "white"], [10, 24, 4, 6, "furn"], [4, 20, 4, 3, "gold"], [16, 20, 4, 3, "gold"]],
+			"spots": [[11, 30]]}],
+		"spots": [[-8, 30, "r"]],
+	}
+	# Conference center (#359): a projector screen on the wall, a long table with chairs along it, a lectern.
+	out["conference_center"] = {
+		"hue": "office", "look": "full",
+		"fixed": [
+			[8, 5, 30, 14, "white"], [10, 7, 26, 10, "accent"], [-30, 20, 6, 10, "furn", "r"], [-28, 18, 2, 2, "gold", "r"],
+		],
+		"repeats": [{"pad": 8, "every": 36, "lo": 0, "hi": 20, "reserve": 44, "shapes": [
+			[0, 24, 32, 3, "furn"], [4, 27, 2, 3, "furn"], [26, 27, 2, 3, "furn"],
+			[4, 21, 5, 3, "accent"], [14, 21, 5, 3, "accent"], [24, 21, 5, 3, "accent"]],
+			"spots": [[14, 30]]}],
+		"spots": [[-8, 30, "r"]],
+	}
 	out["clinic"] = {
 		"hue": "medical", "look": "full",
 		"fixed": [

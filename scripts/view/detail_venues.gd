@@ -10,7 +10,7 @@ extends RefCounted
 const Furnish := preload("res://scripts/view/detail_furnish.gd")
 const Scenes := preload("res://scripts/view/detail_scenes.gd")
 
-const KINDS: Array[String] = ["casino", "nightclub", "observation_deck", "helipad", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "gym", "daycare", "school", "clinic", "coworking"]
+const KINDS: Array[String] = ["casino", "nightclub", "observation_deck", "helipad", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "gym", "daycare", "school", "ballroom", "conference_center", "clinic", "coworking"]
 const BRASS := Color("c9a85c")
 const FELT := Color("2f7a4a")
 const REACH := 16.0
@@ -56,6 +56,10 @@ static func draw(p: Object, kind: String, w: int, y0: int, seats: Array, lit: bo
 			_daycare(p, wf, yt, fy, seats, lit, taken)
 		"school":
 			_school(p, wf, yt, fy, seats, lit, taken)
+		"ballroom":
+			_ballroom(p, wf, yt, fy, seats, lit, taken)
+		"conference_center":
+			_conference(p, wf, yt, fy, seats, lit, taken)
 		"clinic":
 			_clinic(p, wf, yt, fy, seats, lit, taken)
 		"coworking":
@@ -665,6 +669,61 @@ static func _school(p: Object, w: float, yt: float, fy: float, seats: Array, lit
 		p.R(c, fy - 16, 1, 3, Color("8a5a38"))
 		p.item(c - 18, fy - 12, 4, 12, Color("a84e3a"), 1.5, false)  # a chair
 		_note(taken, c - 18.0, c + 14.0)
+
+
+## The ballroom: a stage with a red curtain and a gold trim at the left, a chandelier hung from the ceiling,
+## a polished dance floor, and a round banquet table with a gold candle and chairs at each seat.
+static func _ballroom(p: Object, w: float, yt: float, fy: float, seats: Array, lit: bool, taken: Array) -> void:
+	p.item(6, fy - 14, 78, 14, Color("8a5a38"), 2.0)  # the stage
+	p.R(10, yt + 6, 10, 38, Color("8a2a3e"))  # curtains either side
+	p.R(70, yt + 6, 10, 38, Color("8a2a3e"))
+	p.R(10, yt + 6, 70, 3, Color("c9a85c"))  # pelmet
+	p.R(30, fy - 30, 30, 2, Color("3a2a30"))  # a band stand
+	_note(taken, 4.0, 88.0)
+	var cx := w * 0.5 + 30.0  # the chandelier
+	p.R(cx, yt + 2, 1, 10, Color("c9a85c"))
+	p.ell(cx, yt + 14, 12, 5, Color("e8d28a"))
+	p.R(cx - 10, yt + 14, 20, 1, Color("c9a85c"))
+	if lit:
+		p.glow(cx, yt + 18, w * 0.45, 26.0, Color("fff0c0"), 0.28)
+	p.R(96, fy - 1, w - 100, 1, Color("d8c8a0"))  # the dance floor edge
+	for c: float in seats:
+		if c < 96.0:
+			continue
+		p.shadow(c, fy, 15, 0.4)
+		p.ell(c, fy - 14, 14, 4, Color("f8f2e4"))  # a round table cloth
+		p.R(c - 1, fy - 12, 3, 12, Color("c9a85c"))
+		p.R(c - 1, fy - 20, 2, 5, Color("fff0a8") if lit else Color("c8b878"))  # a candle
+		p.item(c - 20, fy - 10, 5, 10, Color("8a2a3e"), 1.5, false)  # chairs
+		p.item(c + 15, fy - 10, 5, 10, Color("8a2a3e"), 1.5, false)
+		_note(taken, c - 20.0, c + 20.0)
+
+
+## The conference center: a projector screen with a chart on the wall, a lectern at the left, and a long table
+## with a laptop and a row of chairs at each seat.
+static func _conference(p: Object, w: float, yt: float, fy: float, seats: Array, lit: bool, taken: Array) -> void:
+	p.item(24, yt + 6, 80, 36, Color("5a6470"), 2.0)  # the screen frame
+	p.R(27, yt + 9, 74, 30, Color("f4f8fc"))
+	p.R(33, yt + 30, 8, 6, Color("3e5a78"))  # a bar chart
+	p.R(45, yt + 24, 8, 12, Color("5a86b0"))
+	p.R(57, yt + 18, 8, 18, Color("3e5a78"))
+	p.R(70, yt + 14, 24, 1, Color("b84a3a"))
+	p.R(6, fy - 16, 10, 16, Color("7a5a3a"))  # the lectern
+	p.R(4, fy - 18, 14, 3, Color("9a7a52"))
+	_note(taken, 2.0, 112.0)
+	if lit:
+		p.glow(64, yt + 24, 50.0, 22.0, Color("e8f4ff"), 0.25)
+	for c: float in seats:
+		if c < 116.0:
+			continue
+		p.shadow(c, fy, 20, 0.4)
+		p.item(c - 18, fy - 13, 36, 3, Color("a8864e"), 1.5)  # the table top
+		p.R(c - 16, fy - 10, 2, 10, Color("6a4a2a"))
+		p.R(c + 14, fy - 10, 2, 10, Color("6a4a2a"))
+		p.R(c - 6, fy - 17, 10, 4, Color("c8ccd0"))  # a laptop
+		p.item(c - 14, fy - 9, 6, 9, Color("3e5a78"), 1.5, false)  # chairs
+		p.item(c + 8, fy - 9, 6, 9, Color("3e5a78"), 1.5, false)
+		_note(taken, c - 18.0, c + 18.0)
 
 
 ## The clinic: a reception desk under a red cross, waiting chairs at each seat, an eye chart and an exam bed
