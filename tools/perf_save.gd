@@ -16,21 +16,17 @@ extends SceneTree
 ## Args: save=<path> | mixed, [ticks=2550] [noview] [loop speed=1|2|3 frames=120 warmup=500]
 
 const BenchMixed := preload("res://tools/bench_mixed.gd")
-const CarsScript := preload("res://scripts/sim/cars.gd")
+const BenchBig := preload("res://tools/bench_big.gd")
+const SimSplit := preload("res://tools/sim_split.gd")
 const RendererScript := preload("res://scripts/view/tower_renderer.gd")
 const LayerScript := preload("res://scripts/view/thought_layer.gd")
 const IconsScript := preload("res://scripts/view/thought_icons.gd")
-const MoodScript := preload("res://scripts/sim/mood.gd")
-const EvaluationScript := preload("res://scripts/sim/evaluation.gd")
-const StarRulesScript := preload("res://scripts/sim/star_rules.gd")
-const HelipadScript := preload("res://scripts/sim/helipad.gd")
-const RunningCostsScript := preload("res://scripts/sim/running_costs.gd")
-const MessagesScript := preload("res://scripts/sim/messages.gd")
-const TripsScript := preload("res://scripts/sim/trips.gd")
-const RoomsScript := preload("res://scripts/sim/rooms.gd")
-const ClockScript := preload("res://scripts/sim/clock.gd")
 
+const RUSH_MS := 10  ## Ticks costing more than this many ms make up the rush-hour view.
 const MIXED_SEED := 42
+const BIG_SEED := 42
+const BIG_WARMUP := 400
+const MIN_BIG_PEOPLE := 5000  ## The big tower is reported short of this, but still profiled.
 const MIXED_WARMUP := 400  ## Ticks that let the mixed tower's tenants move in before it is measured.
 const MIN_PEOPLE := 1200  ## A mixed tower with fewer people, or no cut-off room, exits 1.
 const WARMUP_FRAMES := 2  ## Frames before the view is touched, so the renderer's _ready has run.
@@ -40,6 +36,8 @@ const LAYOUT_SAMPLES := 5
 
 var _path: String = ""
 var _mixed: bool = false
+var _big: bool = false
+var _tick_us: Dictionary = {}  ## system label -> microseconds in the tick being timed
 var _loop: bool = false
 var _view: bool = true
 var _ticks: int = 2550
@@ -73,6 +71,8 @@ func _initialize() -> void:
 			_path = arg.get_slice("=", 1)
 		elif arg == "mixed":
 			_mixed = true
+		elif arg == "big":
+			_big = true
 		elif arg == "loop":
 			_loop = true
 		elif arg == "noview":
@@ -85,8 +85,8 @@ func _initialize() -> void:
 			_frames = int(arg.get_slice("=", 1))
 		elif arg.begins_with("warmup="):
 			_warmup = int(arg.get_slice("=", 1))
-	if _path.is_empty() and not _mixed:
-		print("FAIL: give save=<path> or mixed")
+	if _path.is_empty() and not _mixed and not _big:
+		print("FAIL: give save=<path>, mixed or big")
 		_exit_code = 2
 		return
 	var t0 := Time.get_ticks_usec()
@@ -100,6 +100,10 @@ func _initialize() -> void:
 		if not _check_mixed(made):
 			_exit_code = 1
 			return
+	if _big:
+		print("big tower built and warmed %d ticks in %.1f s" % [BIG_WARMUP, (Time.get_ticks_usec() - t0) / 1e6])
+		var rooms_n := made.rooms.room_ids().size()
+		print("big: %d people, %d rooms, %d cut-off rooms, %d shafts, %d cars%s" % [made.people.count(), rooms_n, made.rooms.cut_off.size(), made.rooms.shaft_count(), made.rooms.total_cars(), "" if made.people.count() >= MIN_BIG_PEOPLE else " (SHORT of %d people)" % MIN_BIG_PEOPLE])
 	_print_size(made)
 	if not _loop:
 		_print_save_costs(made)
@@ -118,6 +122,11 @@ func _make(report: bool) -> Tower:
 	if _mixed:
 		var built := BenchMixed.build(MIXED_SEED)
 		for _i in MIXED_WARMUP:
+			built.step()
+		return built
+	if _big:
+		var built := BenchBig.build(BIG_SEED)
+		for _i in BIG_WARMUP:
 			built.step()
 		return built
 	var t0 := Time.get_ticks_usec()
@@ -166,10 +175,8 @@ func _process(_delta_unused: float) -> bool:
 		return false
 	if _loop:
 		return _loop_frame()
-	if _view:
-		_view_costs(_tower)
-		for _i in VIEW_STEPS:  # _view_costs stepped the tower; keep the twin level
-			_twin.step()
+	if _view:  # on a third copy: the view part steps the tower and bulldozes and rebuilds rooms, which would break the twin check
+		_view_costs(_make(false))
 	_sim_day(_tower, _ticks)
 	for _i in _ticks:
 		_twin.step()
@@ -269,99 +276,46 @@ func _real_layout_changes(t: Tower, r: TowerRenderer) -> void:
 	print("  real layout change, whole _process: bulldoze %.2f ms (worst %.2f), build %.2f ms (worst %.2f)" % [dozer_total / ROUNDS, worst_dozer, build_total / ROUNDS, worst_build])
 
 
-## Adds the time since the last mark to label's total and worst, then restarts the clock.
+## Adds the time since the last mark to label's total, worst and this tick's figure, then restarts the clock.
+## The label "" only restarts the clock (SimSplit.step calls it first).
 func _mark(label: String) -> void:
 	var now := Time.get_ticks_usec()
-	var d := now - _mark_at
-	_us[label] = int(_us.get(label, 0)) + d
-	_worst[label] = maxi(int(_worst.get(label, 0)), d)
+	if not label.is_empty():
+		var d := now - _mark_at
+		_us[label] = int(_us.get(label, 0)) + d
+		_worst[label] = maxi(int(_worst.get(label, 0)), d)
+		_tick_us[label] = int(_tick_us.get(label, 0)) + d
 	_mark_at = Time.get_ticks_usec()
 
 
-## One copy of Tower.step() and _run_systems with a timer around each system. The fidelity check in
-## _process fails if this drifts from the real loop, so update it whenever _run_systems changes.
+## One tick through SimSplit (a timed copy of Tower.step()). The fidelity check in _process fails if it
+## drifts from the real loop; tests/test_perf_split.gd guards it too.
 func _sim_day(t: Tower, ticks: int) -> void:
 	var totals: Array[int] = []
+	var mark := Callable(self, "_mark")
+	var rush_us: Dictionary = {}  # label -> microseconds summed over the ticks costing over RUSH_MS
+	var rush_n := 0
+	var hour_us: Array[int] = []
+	var hour_n: Array[int] = []
+	var hour_max: Array[int] = []
+	for _h in 24:
+		hour_us.append(0)
+		hour_n.append(0)
+		hour_max.append(0)
 	for _k in ticks:
 		var start := Time.get_ticks_usec()
-		t.tick += 1
-		_mark_at = Time.get_ticks_usec()
-		t._apply_due_commands()
-		_mark("commands")
-		t.clock.advance()
-		_mark("clock")
-		t.refresh_reach()
-		_mark("refresh_reach")
-		t.tenancy.tick(t.clock, t.floors, t.rooms, t.grid, t.people, t.rng, t.ledger, t.tick)
-		_mark("tenancy")
-		t.commerce.tick(t.clock, t.floors, t.rooms, t.grid, t.people, t.tenancy, t.rng, t.ledger, t.messages, t.tick, t.life)
-		_mark("commerce")
-		t.vip.tick(t.clock, t.stars, t.people, t.grades, t.messages, t.tick)
-		_mark("vip")
-		t.hotel.tick(t.clock, t.floors, t.people, t.rng, t.ledger, t.messages, t.tick)
-		_mark("hotel")
-		t.pests.tick(t.hotel, t.grid, t.rng, t.messages, t.tick)
-		_mark("pests")
-		t.housekeeping.tick(t.clock, t.floors, t.grid)
-		_mark("housekeeping")
-		t.recycling.tick(t.clock, t.population())
-		_mark("recycling")
-		if t.clock.day_started:
-			t.rent.collect(t.rooms, t.people, t.ledger, t.tick, t.clock.quarter_started, t.rent_bonus_percent())
-			t.commerce.collect_rent(t.rooms, t.rent, t.ledger, t.tick, t.clock.quarter_started)
-			HelipadScript.collect(t.rooms, t.ledger, t.tick)
-			_mark("daily rent")
-		if t.clock.quarter_started:
-			var rent_income := t._quarter_rent()
-			var running := RunningCostsScript.charge(t.rooms, t.floors, t.ledger, t.tick)
-			if rent_income > 0 or running > 0:
-				t.messages.add(t.tick, MessagesScript.QUARTER_SETTLED, rent_income, running)
-			_mark("quarter")
-		t.trips.tick(t.clock, t.floors, t.rooms, t.grid, t.people)
-		_mark("trips")
-		if t.trips.blocked_transfers > 0:
-			if not t.messages.recent(MessagesScript.TRIP_UNREACHABLE, t.tick - TripsScript.WARN_EVERY_TICKS + 1):
-				t.messages.add(t.tick, MessagesScript.TRIP_UNREACHABLE, t.trips.blocked_transfers)
-			t.trips.blocked_transfers = 0
-		t.grades.tick(t.people)
-		_mark("grades")
-		t.rooms.schedule_slot = RoomsScript.slot_for(t.clock.day_of_week() == ClockScript.WE, t.clock.period())
-		CarsScript.tick(t.rooms)
-		_mark("cars")
-		t.trips.collect_arrivals(t.floors, t.rooms, t.grid, t.people)
-		_mark("arrivals")
-		t.people.tick(t.clock)
-		_mark("people")
-		t.threat.population = t.population()
-		_mark("population")
-		t.events.tick(t.clock, t.stars, t.tick)
-		t.fire.tick(t.clock, t.events, t.grid, t.people, t.messages, t.tick)
-		t.threat.tick(t.events, t.grid, t.messages, t.tick)
-		_mark("events/fire/threat")
-		if not t.fire.burning_rooms().is_empty():
-			t.mood.note_event(MoodScript.FIRE_SHOCK, t.people)
-		if t.threat.is_active():
-			t.mood.note_event(MoodScript.THREAT_SHOCK, t.people)
-		for id in t.fire.take_burned():
-			t.char_room(id)
-		for id in t.threat.take_destroyed():
-			t.destroy_room(id)
-		_mark("fire aftermath")
-		if EvaluationScript.is_due(t.clock):  # Tower.evaluate_tenants, split to time each step
-			t.mood.update(t.rooms, t.grid, t.floors, t.grades, t.people)
-			_mark("eval: mood.update")
-			t.evaluation.evaluate(t.rooms, t.people, t.grades, t.grid, t.floors, t.tenancy, t.ledger, t.messages, t.rng, t.tick)
-			_mark("eval: evaluate")
-			t.evaluation.evaluate_moods(t.rooms, t.people, t.grades, t.grid, t.ledger, t.messages, t.tick)
-			_mark("eval: evaluate_moods")
-			t.life.daily(t)
-			_mark("eval: life.daily")
-			t.commerce.evaluate(t.floors, t.rooms, t.grid, t.tenancy, t.rent, t.messages, t.tick)
-			_mark("eval: commerce.evaluate")
-		if StarRulesScript.is_check_tick(t.tick):
-			t.promote_stars()
-			_mark("promote_stars")
-		totals.append(Time.get_ticks_usec() - start)
+		_tick_us = {}
+		SimSplit.step(t, mark)
+		var total := Time.get_ticks_usec() - start
+		totals.append(total)
+		var hour := t.clock.hour()
+		hour_us[hour] += total
+		hour_n[hour] += 1
+		hour_max[hour] = maxi(hour_max[hour], total)
+		if total > RUSH_MS * 1000:
+			rush_n += 1
+			for k: String in _tick_us:
+				rush_us[k] = int(rush_us.get(k, 0)) + int(_tick_us[k])
 	var sum := 0
 	for v in totals:
 		sum += v
@@ -372,6 +326,29 @@ func _sim_day(t: Tower, ticks: int) -> void:
 	keys.sort_custom(func(a: String, b: String) -> bool: return _us[a] > _us[b])
 	for k: String in keys:
 		print("  %-26s total %9.1f ms  per tick %7.3f ms  worst %8.1f ms" % [k, _us[k] / 1000.0, _us[k] / 1000.0 / ticks, _worst[k] / 1000.0])
+	_print_rush(rush_us, rush_n, ticks)
+	_print_hours(hour_us, hour_n, hour_max)
+
+
+## The per-system mean ms per tick over the ticks that cost more than RUSH_MS: what the rush hours spend.
+func _print_rush(rush_us: Dictionary, rush_n: int, ticks: int) -> void:
+	print("RUSH ticks over %d ms: %d of %d (%.1f%%)" % [RUSH_MS, rush_n, ticks, 100.0 * rush_n / maxi(ticks, 1)])
+	if rush_n == 0:
+		return
+	var keys := rush_us.keys()
+	keys.sort_custom(func(a: String, b: String) -> bool: return rush_us[a] > rush_us[b])
+	for k: String in keys:
+		print("  %-26s mean %7.3f ms per rush tick  worst %8.1f ms" % [k, rush_us[k] / 1000.0 / rush_n, _worst[k] / 1000.0])
+
+
+## Total ms per tick by sim hour (the clock's hour, 0 to 23) over the timed ticks.
+func _print_hours(hour_us: Array[int], hour_n: Array[int], hour_max: Array[int]) -> void:
+	print("BY SIM HOUR (total ms per tick)")
+	for h in 24:
+		if hour_n[h] == 0:
+			print("  %02d:00  no ticks" % h)
+		else:
+			print("  %02d:00  mean %7.2f ms  max %7.1f ms  (%d ticks)" % [h, hour_us[h] / 1000.0 / hour_n[h], hour_max[h] / 1000.0, hour_n[h]])
 
 
 ## Builds the driver, renderer and thought layer for loop mode, and runs the untimed warm-up.
