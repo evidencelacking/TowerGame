@@ -129,7 +129,7 @@ func _static_costs() -> void:
 		_tower.step()
 		step_us.append(Time.get_ticks_usec() - t0)
 		t0 = Time.get_ticks_usec()
-		figures = _renderer._people_view.figures(_tower)
+		figures = _renderer._people_view.figures(_tower, _renderer._people_area())
 		fig_us.append(Time.get_ticks_usec() - t0)
 		t0 = Time.get_ticks_usec()
 		IconsScript.pick(_tower, figures, true)

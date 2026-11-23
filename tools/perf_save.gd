@@ -208,7 +208,7 @@ func _view_costs(t: Tower) -> void:
 	for _i in VIEW_STEPS:
 		t.step()
 		a = Time.get_ticks_usec()
-		figures = r._people_view.figures(t)
+		figures = r._people_view.figures(t, r._people_area())
 		fig += Time.get_ticks_usec() - a
 		a = Time.get_ticks_usec()
 		IconsScript.pick(t, figures, true)
