@@ -42,7 +42,7 @@ static func write(tower: TowerSim, path: String, slot_name: String = "", is_demo
 		return false
 	file.store_pascal_string(MAGIC)
 	file.store_var(tower.save())
-	file.store_var({"name": slot_name, "demo": is_demo, "stars": tower.stars, "population": tower.population(), "day": day_number(tower)})
+	file.store_var({"name": slot_name, "demo": is_demo, "stars": tower.stars, "population": tower.permanent_population(), "day": day_number(tower)})
 	file.close()
 	return file.get_error() == OK
 

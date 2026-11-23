@@ -69,6 +69,9 @@ const _TRIP_LEG := 11  ## Route leg the person is on: the first leg of the walki
 
 var _next_id: int = 0
 var _last_minute: int = -1  ## The last minute of day the plan was checked at.
+## Ids of people whose trip was requested since Grades last took them (derived, not saved): Grades marks a first trip from
+## this list instead of scanning everyone every tick (#459). Tower rebuilds the same knowledge after a load.
+var trip_requests: Array[int] = []
 var _data: Array[int] = []  ## Flat: FIELDS ints per person, in id order.
 var _index: Dictionary = {}  ## Person id -> index into _data / FIELDS. Derived (rebuilt on load and removal), not saved.
 
@@ -112,6 +115,7 @@ func add_guest(room: int, rng: Object) -> int:
 	var offset: int = rng.next_below(ARRIVAL_SPREAD + 1)
 	_index[id] = count()
 	_data.append_array([id, room, NONE, offset, DEST_HOME, TRIP_REQUESTED, NONE, 0, 0, 0, NONE, 0, MOOD_START, 0] as Array[int])
+	trip_requests.append(id)
 	return id
 
 
@@ -223,6 +227,16 @@ func in_tower_count() -> int:
 		if _data[b + _LOCATION] != NONE or _data[b + _TRIP] != TRIP_IDLE:
 			n += 1
 	return n
+
+
+## Ids of the people in the tower now (in a room or on a trip), in index order: the people in_tower_count counts. One
+## pass over the flat data, for Mood.note_event.
+func inside_ids() -> Array[int]:
+	var ids: Array[int] = []
+	for b in range(0, _data.size(), FIELDS):
+		if _data[b + _LOCATION] != NONE or _data[b + _TRIP] != TRIP_IDLE:
+			ids.append(_data[b + _ID])
+	return ids
 
 
 ## The people the view may draw (in a room or on a trip, not idle outside), one row each in index order,
@@ -394,6 +408,7 @@ func tick(clock: Clock) -> void:
 			_data[i * FIELDS + _GOAL] = goal
 		if goal_room(i) != location_of(i) and trip_state(i) == TRIP_IDLE and trip_left(i) == 0:
 			_data[i * FIELDS + _TRIP] = TRIP_REQUESTED
+			trip_requests.append(id_at(i))
 
 
 ## Routing seam: marks a requested trip as under way (the person is between rooms).
@@ -495,6 +510,7 @@ func load_ints(ints: Array) -> void:
 	_next_id = ints[0]
 	_last_minute = ints[1]
 	_data = []
+	trip_requests.clear()
 	for i in range(3, ints.size()):
 		_data.append(ints[i])
 	_rebuild_index()

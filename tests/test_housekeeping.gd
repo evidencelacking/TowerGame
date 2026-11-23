@@ -71,16 +71,22 @@ static func _day_to(t: TowerSim, minute: int) -> void:
 	TestHotel._step_to(t, minute, 0)
 
 
+## One full slow cadence (#459): every slow system runs once, whatever tick the fixture starts on.
+static func _settle(t: TowerSim) -> void:
+	for i in TowerSim.SLOW_EVERY:
+		t.step()
+
+
 static func run(check: Callable) -> void:
 	# A station brings six staff; a second station doubles them; no station, no staff.
 	var s := _tower(6)
 	var station := s.grid.cell_at(STATION_FLOOR, STATION_X)
 	check.call(station > 0 and s.housekeeping.staff_count() == 0, "no staff before the first tick")
-	s.step()
+	_settle(s)
 	check.call(s.housekeeping.staff_count() == 6 and s.housekeeping.staff_of(station) == 6, "a station employs six housekeepers")
 	var second := _place(s, "housekeeping", 4, STATION_X)
 	TestHotel._jump(s, 8 * 60, 0)
-	s.step()
+	_settle(s)
 	check.call(second > 0 and s.housekeeping.staff_count() == 12 and s.housekeeping.staff_of(second) == 6, "a second station adds six more")
 	var bare := _tower(6, false)
 	bare.step()
@@ -95,7 +101,7 @@ static func run(check: Callable) -> void:
 	for f in range(3, 7):
 		rooms.append(_dirty_room(w, f, 120))
 	TestHotel._jump(w, HousekeepingScript.SHIFT_FROM, 0)
-	w.step()
+	_settle(w)
 	check.call(_dirty_count(w, rooms) == 4 and w.housekeeping.busy_count() == 4, "at the start of the shift all four rooms are dirty and four staff are on the way")
 	TestHotel._step_to(w, 12 * 60, 0)
 	check.call(_dirty_count(w, rooms) == 0, "with a service shaft all rooms are clean by noon")

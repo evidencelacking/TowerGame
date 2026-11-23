@@ -16,7 +16,7 @@ const TestCondos := preload("res://tests/test_condos.gd")
 const DAY_TICKS := 2550
 const SIZES: Array[String] = ["studio", "condo", "penthouse"]
 ## state_hash of old_tower_hash() taken on main before the sizes existed: existing saves must play the same.
-const OLD_TOWER_HASH := 2177821214623250566
+const OLD_TOWER_HASH := -8845084882433604523
 
 
 static func _floor_of(kind: String) -> int:

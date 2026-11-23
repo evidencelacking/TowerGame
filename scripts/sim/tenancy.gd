@@ -4,8 +4,8 @@ extends RefCounted
 ## SALE_RESUME, on any day. A sale marks it sold, credits its price and moves in its 3 residents.
 ## Office tenancy (3.2): each office takes its 6 workers when it is reachable from the ground
 ## lobby. Leasing happens on weekdays before LEASE_END only. Tenancy is derived from People (the
-## workers whose work room is the office), so it adds nothing to the save. The check runs once per
-## sim minute; an unreachable office stays empty and fills at the next eligible check.
+## workers whose work room is the office), so it adds nothing to the save. The check runs on the
+## slow cadence (every Tower.SLOW_EVERY ticks); an unreachable office stays empty and fills at the next eligible check.
 
 const Clock := preload("res://scripts/sim/clock.gd")
 const GridScript := preload("res://scripts/sim/grid.gd")
@@ -22,15 +22,11 @@ const SALE_STOP := 1260  ## 21:00: no condo sales from here until SALE_RESUME (d
 const SALE_RESUME := 420  ## 7:00.
 const GROUND_FLOOR := 1
 
-var _last_minute: int = -1  ## Not saved: a reload simply rechecks once, and the check is idempotent.
 
 
-## Called once per tick after the clock. Fills reachable offices, at most once per sim minute.
+## Called every Tower.SLOW_EVERY ticks (#459). Fills reachable offices and sells reachable condos.
 func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, rng: Object, ledger: LedgerScript, at_tick: int) -> void:
 	var minute := clock.minute_of_day()
-	if minute == _last_minute:
-		return
-	_last_minute = minute
 	if not floors.has_lobby():
 		return
 	var entry_x := floors.lobby_span()[0]  # left-edge entry

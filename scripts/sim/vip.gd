@@ -64,7 +64,6 @@ var _visits: int = 0
 var _rng := Rng.new()  ## Its own seeded stream (#409): one draw a day, whatever else is true, so it never shifts.
 var _roll_day: int = -1  ## The day the air-arrival draw was last made.
 var _by_air: bool = false  ## That day's draw came up "by air".
-var _last_minute: int = -1  ## Not saved: every step is idempotent, so a reload simply rechecks.
 
 
 func _init(rooms: RoomsScript, hotel: HotelScript) -> void:
@@ -128,12 +127,9 @@ func _eligible(suite: int) -> bool:
 		and not _hotel.is_infested(suite) and not _hotel.unreached(suite)
 
 
-## Called every tick after the clock; acts once per sim minute.
+## Called every tick after the clock; acts when called (Tower runs it every SLOW_EVERY ticks); a run in the same minute changes nothing.
 func tick(clock: ClockScript, stars: int, people: PeopleScript, grades: GradesScript, messages: MessagesScript, at_tick: int) -> void:
 	var minute := clock.minute_of_day()
-	if minute == _last_minute:
-		return
-	_last_minute = minute
 	var day := HotelScript.night_of(clock)
 	if day != _roll_day:  # one draw every day, with or without a pad, so the stream does not depend on the tower
 		_roll_day = day
@@ -201,4 +197,3 @@ func load_ints(ints: Array) -> void:
 	_rng.state = ints[6]
 	_roll_day = ints[7]
 	_by_air = ints[8] == 1
-	_last_minute = -1

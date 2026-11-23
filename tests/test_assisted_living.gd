@@ -21,7 +21,7 @@ const TestApartments := preload("res://tests/test_apartments.gd")
 
 const DAY_TICKS := 2550
 ## state_hash of old_tower_hash() taken on main before assisted living existed (condo, apartment, clinic, medical).
-const OLD_TOWER_HASH := -7203736841467152657
+const OLD_TOWER_HASH := 5666907917047703273
 
 
 static func _place(t: TowerSim, kind: String, floor_number: int, x: int) -> int:
@@ -122,7 +122,8 @@ static func run(check: Callable) -> void:
 	check.call(in_toolbar and Toolbar.item_state("assisted", 5)["enabled"], "assisted: on the toolbar and buildable")
 
 	# An old tower, without the new kind, plays exactly as it did on main.
-	check.call(old_tower_hash() == OLD_TOWER_HASH, "regression: a tower without assisted living keeps its state_hash")
+	var hash_now := old_tower_hash()
+	check.call(hash_now == OLD_TOWER_HASH, "regression: a tower without assisted living keeps its state_hash (%d)" % hash_now)
 
 	# Fill: residents arrive over days, only seniors, up to four; an unreached room stays empty.
 	var f := _tower()

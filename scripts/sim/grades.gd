@@ -48,15 +48,15 @@ func tripped(id: int) -> bool:
 	return _tripped.has(id)
 
 
-## Marks people who are travelling as having made their first trip. Run each tick, after
-## trips.tick starts trips and before they finish.
+## Marks people who have asked for a trip as having made their first trip. Takes People.trip_requests, so it costs
+## nothing on a tick when nobody asked. Tower runs it every tick right after People.tick, so nothing is pending between
+## ticks and a save needs no extra state (#459).
 func tick(people: PeopleScript) -> void:
-	for i in people.count():
-		if people.trip_state(i) != PeopleScript.TRIP_IDLE:
-			var id := people.id_at(i)
-			if not _tripped.has(id):
-				_tripped[id] = true
-				_order.append(id)
+	for id in people.trip_requests:
+		if not _tripped.has(id):
+			_tripped[id] = true
+			_order.append(id)
+	people.trip_requests.clear()
 
 
 ## Registers a stress modifier: Callable(room_id: int) -> int, added to the room's average stress.

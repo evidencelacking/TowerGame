@@ -51,6 +51,7 @@ var _seen: int = 0  ## Id of the last fire event started.
 var _read: int = 0  ## Id of the last fire event whose answer was read.
 var _rescue_at: int = 0  ## Tick the rescue craft arrives, 0 for none.
 var _burning: Array[Array] = []  ## [room id, periods burned, guards arrive tick or 0], oldest first.
+var started: bool = false  ## True for the tick a fire event began (derived, not saved): Tower notes the mood shock then.
 var _burned: Array[int] = []  ## Rooms charred since Tower last took them (not saved).
 
 
@@ -158,12 +159,14 @@ func has_unguarded_fire() -> bool:
 
 ## Called once a tick, after Events.tick.
 func tick(clock: ClockScript, events: EventsScript, grid: GridScript, people: Object, messages: MessagesScript, at_tick: int) -> void:
+	started = false
 	_forget_gone()
 	if clock.ticks_in_period() == 0 and not _burning.is_empty():  # before a fire that starts this tick, which has burned no time yet
 		_period(grid, messages, at_tick)
 	for event in events.open_events():
 		if event[1] == KIND and event[0] > _seen:
 			_seen = event[0]
+			started = true
 			_start(grid, people, messages, at_tick)
 	for entry in events.resolved():
 		if entry[1] == KIND and entry[0] > _read:

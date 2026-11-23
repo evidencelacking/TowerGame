@@ -21,7 +21,7 @@ const RoomInfo := preload("res://scripts/view/room_info.gd")
 const DAY_TICKS := 2550
 const KINDS: Array[String] = ["emergency_room", "operating_room", "imaging", "patient_ward"]
 ## state_hash of old_tower_hash() taken on main before the hospital existed (office, condo, clinic, medical, assisted).
-const OLD_TOWER_HASH := 7641371090663017657
+const OLD_TOWER_HASH := -8559877193199727974
 
 
 static func _place(t: TowerSim, kind: String, floor_number: int, x: int) -> int:
