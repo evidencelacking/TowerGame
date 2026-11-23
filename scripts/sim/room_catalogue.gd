@@ -65,6 +65,7 @@ const IDS: Array[String] = [
 	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino",
 	"cafe", "pizza", "sushi", "fine_dining", "bar",
 	"grocery", "deli", "pool", "helipad", "school",
+	"ballroom", "conference_center",
 ]
 
 const _ROWS: Dictionary = {
@@ -166,6 +167,13 @@ const _ROWS: Dictionary = {
 		"limit_group": "", "limit_scope": "tower"},
 	# School (#370): the daycare's older sibling, children of school age, weekdays. 24 places, star 3, $150,000.
 	"school": {"staff": 4, "width": 16, "height": 1, "cost": 150000, "per_unit": false, "star": 3,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# Ballroom and conference center (#359, own design): bookable event rooms (bookings.gd). Star 4 $600,000 and star 3 $400,000.
+	"ballroom": {"staff": 6, "width": 32, "height": 1, "cost": 600000, "per_unit": false, "star": 4,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"conference_center": {"staff": 4, "width": 24, "height": 1, "cost": 400000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"clinic": {"staff": 3, "width": 12, "height": 1, "cost": 200000, "per_unit": false, "star": 3,
