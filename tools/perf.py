@@ -3,7 +3,8 @@
   python tools/perf.py [samples=300] [frames=400] [warmup=700]
   python tools/perf.py save=<path> [ticks=2550] [noview]   per-system day profile of a save (#419)
   python tools/perf.py mixed [ticks=2550] [noview]         the same on the mixed fixture
-  python tools/perf.py loop save=<path>|mixed speed=1|2|3 [frames=120 warmup=500]   real frame loop
+  python tools/perf.py big [ticks=2550] [noview]           the same on the huge fixture (about 100 floors, 5,000+ people, #447)
+  python tools/perf.py loop save=<path>|mixed|big speed=1|2|3 [frames=120 warmup=500]   real frame loop
 
 Builds a 60-floor tower with a dozen elevators and several hundred people, headless, and prints the
 mean and p95 milliseconds of a sim tick, the view's figures, thought-icon picking, the renderer's
@@ -22,8 +23,8 @@ TIMEOUT_SECONDS = 900  # a day of a large real save can take minutes
 
 
 def script_for(args):
-    """The save and fixture profiler for save=, mixed or loop; else the synthetic tower."""
-    if any(a.startswith("save=") or a in ("mixed", "loop") for a in args):
+    """The save and fixture profiler for save=, mixed, big or loop; else the synthetic tower."""
+    if any(a.startswith("save=") or a in ("mixed", "big", "loop") for a in args):
         return "res://tools/perf_save.gd"
     return "res://tools/perf.gd"
 
