@@ -70,7 +70,8 @@ const _TRIP_LEG := 11  ## Route leg the person is on: the first leg of the walki
 var _next_id: int = 0
 var _last_minute: int = -1  ## The last minute of day the plan was checked at.
 ## Ids of people whose trip was requested since Grades last took them (derived, not saved): Grades marks a first trip from
-## this list instead of scanning everyone every tick (#459). Tower rebuilds the same knowledge after a load.
+## this list instead of scanning everyone every tick (#459). Grades drains it every tick and load clears it, so a
+## request is never carried across a save.
 var trip_requests: Array[int] = []
 var _data: Array[int] = []  ## Flat: FIELDS ints per person, in id order.
 var _index: Dictionary = {}  ## Person id -> index into _data / FIELDS. Derived (rebuilt on load and removal), not saved.

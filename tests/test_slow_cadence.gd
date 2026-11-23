@@ -22,6 +22,7 @@ const QUALITY_TOLERANCE_PERCENT := 2
 static func run(check: Callable) -> void:
 	run_membership(check)
 	run_permanent_population(check)
+	run_threat_population_after_load(check)
 	run_daily_totals(check)
 
 
@@ -48,6 +49,23 @@ static func run_permanent_population(check: Callable) -> void:
 	check.call(t.permanent_population() >= t.people.in_tower_count(), "the permanent population is never below the people inside now")
 	check.call(t.star_facts()["population"] == t.permanent_population(), "star_facts reads the permanent population")
 
+
+## The threat gate's population is set on every Events roll tick from the live count, so a game loaded between
+## cadence runs rolls with the same number as one that never stopped (rules-keeper on #462).
+static func run_threat_population_after_load(check: Callable) -> void:
+	var t := TestPopulation._tower()
+	TestPopulation._at(t, 10 * 60)
+	t.step()  # off any cadence boundary on purpose: the save lands between runs
+	var copy := Tower.new()
+	check.call(copy.load_state(t.save()), "threat fixture: the tower saves and loads")
+	var rolled := false
+	for _i in 3000:  # a period is far shorter than this, so a roll tick comes; the loop always ends
+		t.step()
+		copy.step()
+		if t.clock.ticks_in_period() == 0:
+			rolled = true
+			break
+	check.call(rolled and copy.threat.population == t.threat.population and t.threat.population == t.population(), "after a load the next roll sees the same live population (%d, %d)" % [copy.threat.population, t.threat.population])
 
 ## Three days on the mixed tower stay within tolerance of the per-tick reference.
 static func run_daily_totals(check: Callable) -> void:

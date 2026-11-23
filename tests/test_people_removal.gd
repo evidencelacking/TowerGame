@@ -89,7 +89,7 @@ static func run(check: Callable) -> void:
 	var old_office := r.grid.cell_at(3, 112)
 	var office_kind := CatalogueScript.IDS.find("office")
 	check.call(TestRooms._send(r, Command.REPLACE_ROOM, [office_kind, 3, 110] as Array[int]) == 0, "the office is replaced by a new office")
-	check.call(not _has_room(r, old_office) and r.people.workers_in(old_office) == 0, "replacing an office removes its 6 workers")
+	check.call(not _has_room(r, old_office) and r.people.workers_in(old_office) == 0 and r.people.count() - r.people.workers_in(r.grid.cell_at(3, 112)) == 3, "replacing an office removes its 6 workers and no one else (any already hired by the new office aside)")
 	TestPopulation._at(r, 10 * 60, 10)
 	var new_office := r.grid.cell_at(3, 112)
 	check.call(new_office != old_office and r.people.workers_in(new_office) == 6 and r.people.count() == 9, "the replacement office refills through tenancy")

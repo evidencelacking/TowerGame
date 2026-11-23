@@ -72,7 +72,7 @@ static func step(t: Tower, mark: Callable) -> void:
 	t.people.tick(t.clock)
 	t.grades.tick(t.people)
 	mark.call("people")
-	if t._slow_due(Tower.THREAT_POP_AT):
+	if t.clock.ticks_in_period() == 0:
 		t.threat.population = t.population()
 	mark.call("population")
 	t.events.tick(t.clock, t.stars, t.tick)

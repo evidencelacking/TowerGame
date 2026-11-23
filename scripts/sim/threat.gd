@@ -41,7 +41,7 @@ const MORNING_PERIODS: Array[int] = [1, 2]
 const SEARCH_TICKS := 20  ## Ticks an office spends on each floor of its sweep.
 const BLAST_FLOORS := 2  ## Floors destroyed above and below the device's floor.
 
-var population: int = 0  ## People in the tower, set by Tower each tick (derived, not saved).
+var population: int = 0  ## People in the tower, set by Tower on each Events roll tick (derived, not saved).
 var started: bool = false  ## True for the tick a threat notice came (derived, not saved): Tower notes the mood shock then.
 var _rooms: Rooms
 var _rng := Rng.new()

@@ -105,7 +105,6 @@ const VIP_AT := 4  ## vip.tick.
 const PESTS_AT := 5  ## pests.tick: once a day.
 const HOUSEKEEPING_AT := 6  ## housekeeping.tick: counts the minutes since its last run.
 const RECYCLING_AT := 7  ## recycling.tick and the population it reads: once an hour.
-const THREAT_POP_AT := 8  ## threat.population.
 
 var tick: int = 0
 var rng := Rng.new()
@@ -511,7 +510,7 @@ func _run_systems() -> void:
 	trips.collect_arrivals(floors, rooms, grid, people)
 	people.tick(clock)
 	grades.tick(people)  # every tick, right after the requests are made: it only reads People.trip_requests, so a quiet tick costs nothing
-	if _slow_due(THREAT_POP_AT):
+	if clock.ticks_in_period() == 0:  # the only ticks Events rolls (and the threat gate reads it): always fresh, so a load cannot change it
 		threat.population = population()
 	events.tick(clock, stars, tick)
 	fire.tick(clock, events, grid, people, messages, tick)

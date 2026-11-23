@@ -70,6 +70,7 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 | Top rank | 5 stars, population 15,000, a cathedral on floor 100, and a wedding there on a weekend (M p28, W) |
 
 - Population counts people currently in the tower, so hotels swell it at night (W).
+  - **Ours differs (owner ruling 2026-11-23, #456):** stars and the HUD count the permanent population, meaning residents, workers and checked-in hotel guests registered to rooms, whether inside or not. Outside visitors are left out; they were measured at under 1% of the peak.
 - *Unverified* (K): hotel guests count toward 3 stars but no longer once there.
 - The VIP may be unhappy; another VIP comes later (K, F).
 
