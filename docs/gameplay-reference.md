@@ -42,6 +42,7 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 - Offices are empty on weekends; shops and food do most weekend trade (K, I).
 - Office rent arrives at the start of each quarter, on the 1st WD (K, S). V puts the renewal
   at 5:00 that day (*unverified*; V hedges).
+- Office workers eat lunch at fast food if available and leave the tower if not (V). No source reports a direct penalty for a missed lunch; our NO_FOOD penalty (#439) is our own design, unverified.
 - Condos do not sell between 21:00 and 7:00; offices lease only until 13:00 on weekdays (V).
 - Some events happen only on the 1st WD or only on the weekend (F). Known: rent on the 1st WD
   (K, S); the wedding and the weekend shop and food trade on WE (M p28, W, K, I). Any other

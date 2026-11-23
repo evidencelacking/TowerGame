@@ -194,6 +194,7 @@ static func _demand_name(id: int) -> String:
 		3: return "medical care"
 		4: return "recycling"
 		5: return "parking"
+		6: return "lunch places"
 	return "something"
 
 

@@ -516,6 +516,33 @@ static func school_age_split(kind: String, person_id: int, has_school: bool) -> 
 	return kind == "daycare" and has_school and person_id % 2 == 1
 
 
+## Office lunch (#439, our own design, unverified): the kinds that run a lunch wave, with that wave's window. The cafe has
+## no lunch wave (morning and 10:30 only) and dinner-only restaurants none, so neither counts.
+const LUNCH_KINDS: Dictionary = {"fast_food": LUNCH_WINDOW, "pizza": PIZZA_LUNCH_WINDOW, "sushi": PIZZA_LUNCH_WINDOW}
+const WORKERS_PER_OFFICE := 6
+
+
+## Lunch places in the tower: seats x lunch window / linger, summed over the lunch-serving shops. Integers only.
+static func lunch_capacity(rooms: RoomsScript) -> int:
+	var total := 0
+	for id in rooms.room_ids():
+		var kind := rooms.kind_of(id)
+		if LUNCH_KINDS.has(kind):
+			total += seats_per_meal(kind, int(LUNCH_KINDS[kind]))
+	return total
+
+
+## Percent of office workers the lunch places cover, or -1 when there are no offices. Can exceed 100.
+static func lunch_coverage(rooms: RoomsScript) -> int:
+	var offices := 0
+	for id in rooms.room_ids():
+		if rooms.kind_of(id) == "office":
+			offices += 1
+	if offices == 0:
+		return -1
+	return lunch_capacity(rooms) * 100 / (offices * WORKERS_PER_OFFICE)
+
+
 static func seats_per_meal(kind: String, window: int) -> int:
 	var profile: Dictionary = PROFILES[kind]
 	return int(profile["seats"]) * maxi(1, window / int(profile["linger_minutes"]))

@@ -172,6 +172,7 @@ func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_START
 	grades.add_modifier(rent.grade_modifier)
 	complaints.attach(grades, rooms, grid, people, rent)
 	complaints.hotel = hotel
+	complaints.clock = clock
 	hotel.pests = pests
 	hotel.reserved_room = vip.reserved_suite
 	hotel.working_spaces = _parking_spaces
@@ -548,14 +549,14 @@ func star_facts() -> Dictionary:
 ## Runs every StarRules.CHECK_EVERY ticks; public so tests can call it at any tick. The cheap
 ## population test goes first so the room scan only runs when the next star is within reach.
 func promote_stars() -> void:
-	demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid), "recycling_short": 1 if recycling.short() else 0})
+	demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid), "recycling_short": 1 if recycling.short() else 0, "lunch_coverage": CommerceScript.lunch_coverage(rooms)})
 	var people_now := population()
 	while stars < 5 and people_now >= StarRulesScript.population_for(stars + 1):
 		if not StarRulesScript.meets(stars + 1, star_facts()):
 			break
 		stars += 1
 		messages.add(tick, MessagesScript.STAR_PROMOTED, stars)
-		demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid), "recycling_short": 1 if recycling.short() else 0})
+		demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid), "recycling_short": 1 if recycling.short() else 0, "lunch_coverage": CommerceScript.lunch_coverage(rooms)})
 
 
 ## Grades every tenanted office and condo: A brings a friend, C leaves (see Evaluation). Runs once
