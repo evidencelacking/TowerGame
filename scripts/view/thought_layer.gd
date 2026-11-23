@@ -15,6 +15,7 @@ var respect_window: bool = true  ## Off only for captures that want every icon a
 var _picks: Array[Dictionary] = []
 var _memo: Dictionary = {}
 var _seen_tick: int = -1
+var _seen_version: int = -1  ## The renderer's figures_version the picks were made from.
 
 
 func bind(tower_value: Tower, renderer_value: TowerRenderer) -> void:
@@ -28,9 +29,10 @@ func picks() -> Array[Dictionary]:
 
 
 func _process(_delta: float) -> void:
-	if tower == null or renderer == null or tower.tick == _seen_tick:
+	if tower == null or renderer == null or (tower.tick == _seen_tick and renderer.figures_version == _seen_version):
 		return
 	_seen_tick = tower.tick
+	_seen_version = renderer.figures_version
 	_picks = ThoughtIcons.pick(tower, renderer.figures(), respect_window, _memo, MEMO_TICKS) if enabled else ([] as Array[Dictionary])
 	queue_redraw()
 

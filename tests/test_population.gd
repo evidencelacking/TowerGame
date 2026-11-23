@@ -53,7 +53,7 @@ static func run(check: Callable) -> void:
 	check.call(m.population() == 0, "arriving or leaving at NONE stops counting")
 
 	# HUD text equals the sim value.
-	check.call(Hud.format_population(t.population()) == "Pop %d" % t.population(), "the HUD text shows the sim value")
+	check.call(Hud.format_population(t.people.count()) == "Pop %d" % t.people.count(), "the HUD text shows the permanent population (registered people)")
 
 
 ## Current vs overall population and the grouped breakdown (#383).
@@ -81,8 +81,8 @@ static func run_breakdown(check: Callable) -> void:
 	check.call(g.commerce.state_ints()[g.commerce.state_ints().size() - 1] == 25, "breakdown: the visitors-today counter is saved")
 
 	var tip := Hud.population_tooltip(t.population_breakdown())
-	check.call(tip.contains("now") and tip.contains("Overall per day: 9") and tip.contains("visitors"), "the tooltip lists both numbers by group")
-	check.call(Hud.format_population(3, 9) == "Pop 3 (9/day)", "the HUD label shows both numbers")
+	check.call(tip.contains("Permanent population: 9") and tip.contains("guests") and not tip.contains("visitors"), "the tooltip splits the permanent population by group, without visitors")
+	check.call(Hud.format_population(3) == "Pop 3", "the HUD label shows the one number")
 
 
 static func _with_visitors_today(ints: Array[int], n: int) -> Array[int]:
