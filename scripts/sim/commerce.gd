@@ -32,6 +32,7 @@ const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
 const SynergyScript := preload("res://scripts/sim/synergy.gd")
 const PoolLifeScript := preload("res://scripts/sim/pool_life.gd")
+const BookingsScript := preload("res://scripts/sim/bookings.gd")
 
 ## Meal times (minute of day), windows (minutes a meal lasts) and the percent of people inside
 ## the tower who buy. All tunable.
@@ -97,6 +98,8 @@ const MEALS: Array = [
 	[SUSHI_EVENING, PIZZA_EVENING_WINDOW, SUSHI_EVENING_PERCENT, "sushi"],
 	[FINE_EVENING, FINE_WINDOW, FINE_PERCENT, "fine_dining"],
 	[BAR_LATE, BAR_WINDOW, BAR_LATE_PERCENT, "bar"],
+	[BALLROOM_EVENING, BALLROOM_WINDOW, 100, "ballroom"],
+	[CONFERENCE_MORNING, CONFERENCE_WINDOW, 100, "conference_center"],
 ]
 
 ## Our own kinds (M13, #291), all unverified tunables. A gym is busy before work, at the break and
@@ -238,6 +241,17 @@ const WHO_ADULTS := "adults"
 const WHO_ALL := "all"
 const WHO_CHILDREN := "children"
 const WHO_LOW_MOOD := "low_mood"
+
+## Bookable event rooms (#359, own design, unverified; see bookings.gd). A ballroom is booked on weekend evenings
+## (18:00 to 23:00), a conference center on weekdays (09:00 to 17:00), once per window, automatically while their needs
+## are met. Guests: up to "tower_guests" of the tower's hotel guests (each with BOOKING_GUEST_PERCENT) plus a fixed
+## "outside" crowd who arrive by the lobby. Outside guests are visitors: they are not counted in the population
+## (nothing is added to _visitors_in). The fee is the tier for the guest count; a day with no booking earns and costs nothing.
+const BALLROOM_EVENING := 1080  ## 18:00.
+const BALLROOM_WINDOW := 300  ## to 23:00.
+const CONFERENCE_MORNING := 540  ## 09:00.
+const CONFERENCE_WINDOW := 480  ## to 17:00.
+const BOOKING_GUEST_PERCENT := 60
 
 ## Retail (#153): shoppers come at lunch and after work (percent of people inside who shop).
 const SHOP_LUNCH := 750  ## 12:30.
@@ -388,6 +402,20 @@ const PROFILES: Dictionary = {
 		"seats": 40, "linger_minutes": 60, "grade_cap": 60, "grade_a": 45, "grade_b": 25,
 		"tiers": [[0, -4000]],
 		"food": ["Lap lanes", "Diving board", "Family swim", "Water aerobics", "Night swim"],
+	},
+	# Ballroom (#359): one booking at a time on weekend evenings: up to 30 hotel guests of the tower and 30 outside guests; paid per booking.
+	"ballroom": {
+		"seats": 60, "linger_minutes": 300, "grade_cap": 60, "grade_a": 45, "grade_b": 25, "weekends": true,
+		"booking": true, "tower_guests": 30, "outside": 30,
+		"tiers": [[0, 0], [30, 10000], [45, 16000], [60, 24000]],
+		"food": ["Wedding", "Gala dinner", "Charity ball", "Prom", "Anniversary"],
+	},
+	# Conference center (#359): a weekday booking of 40 delegates, all from outside.
+	"conference_center": {
+		"seats": 40, "linger_minutes": 480, "grade_cap": 40, "grade_a": 30, "grade_b": 15, "weekdays": true,
+		"booking": true, "tower_guests": 0, "outside": 40,
+		"tiers": [[0, 0], [20, 5000], [30, 8000], [40, 12000]],
+		"food": ["Sales summit", "Trade fair", "Training day", "Board retreat", "Convention"],
 	},
 	# Clinic (#291): 6 consulting seats, 20 minute visits; only the unwell (low mood) come.
 	"clinic": {
@@ -630,6 +658,11 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		return
 	if day == Clock.WE and bool(PROFILES[kind].get("weekdays", false)):
 		return
+	if day != Clock.WE and bool(PROFILES[kind].get("weekends", false)):
+		return
+	if bool(PROFILES[kind].get("booking", false)):
+		_serve_booking(kind, shops, rooms, people, rng)
+		return
 	if kind == PoolLifeScript.KIND and PoolLifeScript.is_cleaning(at_minute, PoolLifeScript.has_housekeeping(rooms)):
 		return  # the pool is drained and being scrubbed: nobody swims
 	var who: String = PROFILES[kind].get("who", WHO_ALL)
@@ -680,6 +713,31 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		_visitors_until = maxi(_visitors_until, at_minute + window)
 
 
+## An automatic booking (#359): each open room of the kind, while its needs are met, takes its guests for the window.
+## Hotel guests inside the tower come by a seeded draw up to the room's share; the outside crowd is fixed and is not
+## counted as population.
+func _serve_booking(kind: String, shops: Array[int], rooms: RoomsScript, people: PeopleScript, rng: Object) -> void:
+	if not BookingsScript.needs_met(kind, rooms):
+		return
+	var profile: Dictionary = PROFILES[kind]
+	var taken: Dictionary = {}
+	for shop in shops:
+		var guests := 0
+		for i in people.count():
+			if guests >= int(profile["tower_guests"]):
+				break
+			if taken.has(i) or (people.location_of(i) == PeopleScript.NONE and people.trip_state(i) == PeopleScript.TRIP_IDLE):
+				continue
+			var home := people.home_of(i)
+			if home == PeopleScript.NONE or not rooms.has_room(home) or not HotelScript.is_hotel_kind(rooms.kind_of(home)):
+				continue
+			if rng.next_below(100) >= BOOKING_GUEST_PERCENT:
+				continue
+			taken[i] = true
+			guests += 1
+		_today[shop] = customers_today(shop) + mini(int(profile["seats"]), guests + int(profile["outside"]))
+
+
 func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy: TenancyScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int, rng: Object = null) -> void:
 	var open := _open_shops(floors, rooms, grid, tenancy)
 	var net := 0
@@ -690,6 +748,8 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 			continue
 		sellers += 1
 		var amount := income_for(rooms.kind_of(id), customers_today(id))
+		if customers_today(id) == 0 and bool(PROFILES[rooms.kind_of(id)].get("booking", false)):
+			amount = 0  # no booking today: the staff are paid per event (#359)
 		if rooms.kind_of(id) == "casino":
 			amount = casino_takings(customers_today(id), rng)
 			_casino_incident(rooms, ledger, messages, at_tick, id, customers_today(id), rng)

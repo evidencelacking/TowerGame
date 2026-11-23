@@ -64,7 +64,8 @@ const IDS: Array[String] = [
 	"movie_theatre", "party_hall", "medical", "recycling", "parking_ramp", "parking_space",
 	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino",
 	"cafe", "pizza", "sushi", "fine_dining", "bar",
-	"grocery", "deli", "pool", "helipad", "school", "apartment",
+	"grocery", "deli", "pool", "helipad", "school",
+	"ballroom", "conference_center", "apartment",
 ]
 
 const _ROWS: Dictionary = {
@@ -171,6 +172,13 @@ const _ROWS: Dictionary = {
 	# Rental apartment (#379, our own kind): a home that is rented, not sold. Two residents move in over days (apartments.gd),
 	# pay rent on the quarterly cycle at four levels (default the third, $4,000), and some move out over time. Every number a tunable.
 	"apartment": {"people": 2, "rent": [2000, 3000, 4000, 6000], "width": 12, "height": 1, "cost": 50000, "per_unit": false, "star": 2,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# Ballroom and conference center (#359, own design): bookable event rooms (bookings.gd). Star 4 $600,000 and star 3 $400,000.
+	"ballroom": {"staff": 6, "width": 32, "height": 1, "cost": 600000, "per_unit": false, "star": 4,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"conference_center": {"staff": 4, "width": 24, "height": 1, "cost": 400000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	"clinic": {"staff": 3, "width": 12, "height": 1, "cost": 200000, "per_unit": false, "star": 3,

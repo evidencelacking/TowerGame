@@ -40,6 +40,8 @@ const NIGHTCLUB_COLOR := Color(0.36, 0.20, 0.52)
 const COWORKING_COLOR := Color(0.86, 0.80, 0.62)
 const DECK_COLOR := Color(0.40, 0.66, 0.84)
 const PAD_COLOR := Color(0.46, 0.50, 0.56)  ## The helicopter pad (#409).
+const BALLROOM_COLOR := Color(0.62, 0.30, 0.46)  ## The ballroom (#359): claret.
+const CONFERENCE_COLOR := Color(0.36, 0.50, 0.66)  ## The conference center (#359): slate blue.
 const SCHOOL_COLOR := Color(0.78, 0.40, 0.30)  ## The school (#370): brick red.
 const GROCERY_COLOR := Color(0.52, 0.72, 0.42)
 const DELI_COLOR := Color(0.88, 0.70, 0.40)
@@ -71,7 +73,7 @@ const INK := Color(0.10, 0.08, 0.08)
 const SPLASH_FRAME_TICKS := 2  ## Sim ticks per frame of the cannonball; PoolLife.SPLASH_TICKS / this frames in all.
 const SPLASH_FRAMES := 5
 const PoolLifeScript := preload("res://scripts/sim/pool_life.gd")
-const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "helipad", "school", "pool"]
+const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "helipad", "school", "ballroom", "conference_center", "pool"]
 
 
 static func handles(kind: String) -> bool:
@@ -98,6 +100,8 @@ static func base_color(kind: String) -> Color:
 		"observation_deck": return DECK_COLOR
 		"helipad": return PAD_COLOR
 		"school": return SCHOOL_COLOR
+		"ballroom": return BALLROOM_COLOR
+		"conference_center": return CONFERENCE_COLOR
 		"grocery": return GROCERY_COLOR
 		"deli": return DELI_COLOR
 		"cafe": return CAFE_COLOR

@@ -76,7 +76,7 @@ static func run(check: Callable) -> void:
 			check.call(meal[1] == 45 and meal[2] == 70 and (meal[0] == 495 or meal[0] == 915), "school: drop-off 08:15 and pick-up 15:15, 45 minute window, 70 percent")
 	check.call(rows == 2, "school: two visit rows")
 	check.call(int(Commerce.PROFILES["school"]["linger_minutes"]) == 360 and bool(Commerce.PROFILES["school"]["weekdays"]), "school: six hour stay, weekdays only")
-	check.call(Catalogue.IDS.find("school") == Catalogue.IDS.size() - 2, "school: appended to the ids (the apartment came after), so existing saves keep their numbering")
+	check.call(Catalogue.IDS.find("school") == Catalogue.IDS.find("helipad") + 1, "school: appended to the ids, so existing saves keep their numbering")
 
 	# Who: children only; weekdays only; school-age (odd id) children only; 24 seats a row.
 	var t := _tower()
