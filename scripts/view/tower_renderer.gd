@@ -131,6 +131,8 @@ var _plan_workers: Dictionary = {}  ## Office room id -> workers, for the vacanc
 var _plan_broken: Array[int] = []
 var _frame_due: int = 0  ## Tick at which the frame pieces (shafts and so on) are marked stale again.
 var _dynamic_view: SubViewport = null
+var figures_version: int = 0  ## Counts the times the figures were built, so a layer on top can follow a camera move while paused.
+var _figures_for: Rect2 = Rect2()  ## World rect the figures were built for; empty when built for everyone.
 var _people_painted_for: Rect2 = Rect2()  ## World rect the people were last drawn for (culled to it); empty when not culled.
 var _dynamic_layer: Node2D = null
 var _outdoors: Array[Node2D] = []  ## The far and near skylines and the street (#306), behind everything else.
@@ -645,9 +647,13 @@ func _process(delta: float) -> void:
 		_in_use = _rooms_in_use()
 		_note_layout_changes()
 		_sync_pieces()
-	if new_tick or layout_changed:
-		_remember_positions()
-		_figures = _people_view.figures(tower)
+	var area := _people_area()
+	if new_tick or layout_changed or _view_left_figures(area):  # also when the camera moved past the people built for (#451)
+		if new_tick or layout_changed:
+			_remember_positions()
+		_figures_for = area
+		figures_version += 1
+		_figures = _people_view.figures(tower, area)
 		_has_moving = false
 		for figure: Dictionary in _figures:
 			if figure["moving"]:
@@ -694,6 +700,23 @@ func _visible_world() -> Rect2:
 		return Rect2()
 	var view := get_global_transform_with_canvas().affine_inverse() * get_viewport_rect()
 	return view if view.size.x > 0.0 and view.size.y > 0.0 else Rect2()
+
+
+## The world rect people are built and painted for: the camera's view with half a view of margin on each
+## side, so small pans change nothing. Empty when the view is unknown (then nobody is culled).
+func _people_area() -> Rect2:
+	var view := _visible_world()
+	if view.size == Vector2.ZERO:
+		return Rect2()
+	return view.grow_individual(view.size.x * 0.5, view.size.y * 0.5, view.size.x * 0.5, view.size.y * 0.5).grow(float(VC.CELL_H * 2))
+
+
+## True when the camera sees beyond the area the figures were built for, so people must be built again.
+func _view_left_figures(area: Rect2) -> bool:
+	if _figures_for.size == Vector2.ZERO:
+		return area.size != Vector2.ZERO  # built for everyone, or not at all, and now the view is known
+	var view := _visible_world()
+	return view.size != Vector2.ZERO and not _figures_for.encloses(view)
 
 
 ## True when the camera now sees beyond the area the people were last painted for.
@@ -758,20 +781,8 @@ func refresh_palette() -> void:
 
 ## Rooms with someone resting in them, from the figures drawn this tick.
 func _rooms_in_use() -> Dictionary:
-	var used: Dictionary = {}
-	var sleeping: Dictionary = {}
-	for figure: Dictionary in _figures:
-		if figure["moving"]:
-			continue
-		var id: int = tower.grid.cell_at(figure["floor"], figure["x"])
-		if id == Tower.Grid.EMPTY:
-			continue
-		if figure["act"] == ActivityLook.SLEEPING:
-			sleeping[tower.rooms.room_of(id)] = true
-		else:
-			used[tower.rooms.room_of(id)] = true
-	_asleep = sleeping
-	return used
+	_asleep = _people_view.asleep  # filled by figures() for everyone, on screen or not (#451)
+	return _people_view.in_use
 
 
 ## The floor, room and link runs as rects, found once per layout change and reused by every redraw. Only the
@@ -1098,10 +1109,9 @@ func figures() -> Array[Dictionary]:
 func _draw_people(canvas: CanvasItem) -> void:
 	var skin: Color = Palette.get_palette()["skin"]
 	var types: Array = Palette.get_palette()["people"]
-	var view := _visible_world()
-	var cull := view.size != Vector2.ZERO
-	var keep := view.grow_individual(view.size.x * 0.5, view.size.y * 0.5, view.size.x * 0.5, view.size.y * 0.5).grow(float(VC.CELL_H * 2))  # a margin, so small pans need no repaint
-	_people_painted_for = keep if cull else Rect2()
+	var keep := _people_area()  # a margin, so small pans need no repaint
+	var cull := keep.size != Vector2.ZERO
+	_people_painted_for = keep
 	for figure: Dictionary in _figures:
 		if cull:
 			var where := Vector2(figure["px"], figure["pfeet"]) if figure.has("px") else Vector2(float(figure["fx"]) * VC.CELL_W, float(figure["frow"]) * VC.CELL_H)

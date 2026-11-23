@@ -18,6 +18,18 @@ static func run(check: Callable) -> void:
 	TestCondos._at(t, 22 * 60, 0)
 	var homes := view.figures(t)
 	check.call(homes.size() == 3 and not (homes[0]["moving"] as bool) and homes[0]["floor"] == 3, "people view: residents at home are drawn in their condo")
+	var all_rooms := view.in_use.duplicate()
+	var all_asleep := view.asleep.duplicate()
+	var culled := PeopleView.new()
+	var far := culled.figures(t, Rect2(1000000.0, 1000000.0, 100.0, 100.0))
+	check.call(far.is_empty(), "people view: residents in rooms off the area are skipped")
+	check.call(culled.in_use == all_rooms and culled.asleep == all_asleep and (not all_rooms.is_empty() or not all_asleep.is_empty()), "people view: rooms in use still count everyone, on the area or not")
+	var floor_row := VC.floor_to_row(3)
+	var near := culled.figures(t, Rect2(0.0, float(floor_row * VC.CELL_H), 100000.0, float(VC.CELL_H)))
+	check.call(near == homes, "people view: people on the area are built, the same as with no area")
+	var panned := culled.figures(t, Rect2(0.0, float((floor_row + 10) * VC.CELL_H), 100000.0, float(VC.CELL_H)))
+	check.call(panned.is_empty(), "people view: moving the area off their floor drops them")
+	check.call(culled.figures(t, Rect2(0.0, float(floor_row * VC.CELL_H), 100000.0, float(VC.CELL_H))) == homes, "people view: moving the area back brings them straight back")
 
 	TestCondos._at(t, 8 * 60 - 1, 1)
 	var lobby_left: int = t.floors.lobby_span()[0]
