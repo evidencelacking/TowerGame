@@ -442,14 +442,18 @@ func _free_piece(piece: Piece, urgent: bool = false) -> void:
 func _signature(piece: Piece) -> Array:
 	var out: Array = []
 	for run: Array in piece.runs:
-		var look := RoomLook.describe(tower, run[0], _plan_broken, _plan_workers)
-		out.append([look["state"], look["fill"], look["empty"], look.get("cut_off", false), _in_use.has(run[1]), _asleep.has(run[1]), look.get("anim", 0)])
+		var id := tower.rooms.room_of(run[0])
+		var kind := tower.rooms.kind_of(id)
+		out.append_array(RoomLook.state_facts(tower, id, kind, _plan_broken, _plan_workers))
+		out.append(_in_use.has(run[1]))
+		out.append(_asleep.has(run[1]))
+		if kind == RoomLook.PoolLifeScript.KIND:
+			out.append(RoomLook._pool_life(tower, id)["anim"])
 	return out
 
 
 ## Marks the room pieces whose state changed since they were last marked.
 func _mark_changed_rooms() -> void:
-	_plan_broken = Parking.broken_ids(tower.rooms, tower.grid)
 	_plan_workers = tower.people.worker_counts()  # one pass, so each office's vacancy is a lookup
 	for key: Variant in _room_pieces:
 		var piece: Piece = _room_pieces[key]

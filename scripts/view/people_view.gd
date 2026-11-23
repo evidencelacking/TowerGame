@@ -28,8 +28,25 @@ const POSE_ESCALATOR := 2
 ## Routes already found, keyed by trip ends; the caller keeps it and it is cleared when the
 ## floors or rooms change (see tower_renderer.gd).
 var route_cache: Dictionary = {}
-var _rest_key: int = 0  ## Hash of the resting people and tenanted rooms _rest_placed was made for.
-var _rest_placed: Array[Dictionary] = []  ## The placed resting figures, in pending order.
+var _seen: Dictionary = {}  ## Person id -> Seen: what was worked out for them, kept while nothing it hangs on changed (#434).
+var _seen_key: int = -1  ## What _seen was made for: the tower, its layout and the day.
+var _seen_tick: int = 0
+
+
+## What figures() keeps per person, so a tick redoes only what moved: the room's run and kind, the
+## Detailed look, the activity, and the placed figure of a resting person.
+class Seen extends RefCounted:
+	var room: int = -2  ## The room run, kind and column were read for (-2: none yet).
+	var work: int = -2  ## The work room the look was read for.
+	var run: Array[int] = []
+	var kind: String = ""
+	var column: int = 0
+	var hotel: bool = false
+	var look: Dictionary = {}
+	var act_key: int = -1
+	var act: int = 0
+	var place_key: int = -1
+	var figure: Dictionary = {}
 
 
 static func color_of(band: int) -> Color:
@@ -98,51 +115,93 @@ static func _leg_weight(leg: Dictionary) -> int:
 
 ## One entry per person drawn: {"id", "floor", "x", "fx", "frow", "pose", "band", "moving"}. A resting
 ## person also has "act" (an ActivityLook activity) and "px", "pfeet": where the pose is drawn, in native
-## pixels, on a recipe spot of the room.
+## pixels, on a recipe spot of the room. Figures of resting people are kept between ticks while nothing
+## they depend on changes, so treat them as read-only.
 func figures(tower: Object) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var people: PeopleScript = tower.people
+	_forget_if_stale(tower)
 	var pending: Array[Array] = []  # resting people, placed once every room's use is known
 	var minute: int = tower.clock.minute_of_day()
-	var looks: Dictionary = {}  # person id -> {"age", "child", "job"}, for the Detailed figures (#304)
-	for i in people.count():
-		var band := people.stress_band(i)
-		if people.trip_state(i) == PeopleScript.TRIP_RIDING:
+	var night := ActivityLook.is_night(minute)
+	var rows := people.drawn_rows()
+	for at: int in range(0, rows.size(), PeopleScript.DRAWN_ROW):
+		var state := rows[at + 2]
+		if state == PeopleScript.TRIP_RIDING:
 			continue  # queued at a shaft or riding: elevator_view draws the queue and the car's load
-		if people.trip_state(i) == PeopleScript.TRIP_MOVING:
+		var i := rows[at]
+		var id := rows[at + 1]
+		var band := PeopleScript.band_of(rows[at + 6])
+		var seen: Seen = _seen.get(id)
+		if seen == null:
+			seen = Seen.new()
+			_seen[id] = seen
+		if state == PeopleScript.TRIP_MOVING:
 			var spot := _moving_spot(tower, i)
 			if not spot.is_empty():
-				looks[people.id_at(i)] = _look_of(tower, people, i)
-				out.append({"id": people.id_at(i), "floor": spot["floor"], "x": roundi(spot["fx"]), "fx": spot["fx"], "frow": spot["frow"],
-					"pose": spot["pose"], "band": band, "moving": true})
+				_read_look(tower, people, i, seen)
+				var figure := {"id": id, "floor": spot["floor"], "x": roundi(spot["fx"]), "fx": spot["fx"], "frow": spot["frow"],
+					"pose": spot["pose"], "band": band, "moving": true}
+				figure.merge(seen.look, true)
+				out.append(figure)
 			continue
-		var room := people.location_of(i)
-		var run: Array[int] = tower.grid.run_of(room)
-		if run.is_empty():
+		var room := rows[at + 3]
+		var work := rows[at + 4]
+		if seen.room != room or seen.work != work:
+			_read_room(tower, people, i, seen)
+		if seen.run.is_empty():
 			continue
-		looks[people.id_at(i)] = _look_of(tower, people, i)
-		var column: int = run[1] + people.id_at(i) % maxi(run[2], 1)
-		var kind: String = tower.rooms.kind_of(room)
-		var staying: bool = tower.hotel.is_hotel(room) and tower.hotel.state_of(room) == HotelScript.STAYING
-		var act := ActivityLook.classify(kind, people.work_of(i) == room, people.goal_of(i), staying, minute, people.trip_state(i) == PeopleScript.TRIP_REQUESTED)
-		pending.append([out.size(), run, people.id_at(i), kind, act, band, column, room])
+		var staying: bool = seen.hotel and tower.hotel.state_of(room) == HotelScript.STAYING
+		var works_here := work == room
+		var goal := rows[at + 5]
+		var waiting := state == PeopleScript.TRIP_REQUESTED
+		var act_key := ((((goal + 1) * 2 + int(works_here)) * 2 + int(waiting)) * 2 + int(staying)) * 2 + int(night)
+		if act_key != seen.act_key:
+			seen.act_key = act_key
+			seen.act = ActivityLook.classify(seen.kind, works_here, goal, staying, minute, waiting)
+		pending.append([out.size(), seen.run, id, seen.kind, seen.act, band, seen.column, room, seen])
 		out.append({})  # filled in below, once the suites are known
-	var tenanted := Suites.tenanted_rooms(tower)
-	var key := [pending, tenanted].hash()
-	if key == _rest_key and _rest_placed.size() == pending.size():  # nobody resting moved: reuse the placing (#399)
-		for n in pending.size():
-			out[(pending[n] as Array)[0]] = (_rest_placed[n] as Dictionary).duplicate()
-	else:
-		_place_resting(out, pending, tenanted)
-		_rest_key = key
-		_rest_placed.clear()
-		for item: Array in pending:
-			_rest_placed.append((out[item[0]] as Dictionary).duplicate())
-	for figure: Dictionary in out:
-		if not figure.is_empty():
-			figure.merge(looks.get(figure["id"], {}), true)
+	if not pending.is_empty():
+		_place_resting(out, pending, Suites.tenanted_rooms(tower))
 	out.append_array(_cleaners(tower))
 	return out
+
+
+## Clears what was kept per person when the tower, its layout or the day changed (a person's room, work
+## and age band can then differ), or when time ran backwards (a load).
+func _forget_if_stale(tower: Object) -> void:
+	var clock: Object = tower.clock
+	var key := [tower.get_instance_id(), tower.floors.revision, tower.grid.occupant_count(), tower.rooms.links.occupant_count(),
+		tower.rooms.links_over.occupant_count(), clock.year(), clock.quarter(), clock.day_of_week()].hash()
+	if key != _seen_key or tower.tick < _seen_tick or _seen.size() > 2 * tower.people.count() + 64:
+		_seen.clear()
+		_seen_key = key
+	_seen_tick = tower.tick
+
+
+## Reads what a person's room and work fix: the run, kind, column and look.
+func _read_room(tower: Object, people: PeopleScript, i: int, seen: Seen) -> void:
+	var room := people.location_of(i)
+	seen.room = room
+	seen.act_key = -1
+	seen.place_key = -1
+	seen.run = tower.grid.run_of(room)
+	if seen.run.is_empty():
+		return
+	seen.kind = tower.rooms.kind_of(room)
+	seen.hotel = tower.hotel.is_hotel(room)
+	seen.column = seen.run[1] + people.id_at(i) % maxi(seen.run[2], 1)
+	seen.work = -2
+	_read_look(tower, people, i, seen)
+
+
+## Reads the Detailed look of person i once per work room.
+func _read_look(tower: Object, people: PeopleScript, i: int, seen: Seen) -> void:
+	var work := people.work_of(i)
+	if seen.work != work:
+		seen.work = work
+		seen.look = _look_of(tower, people, i)
+		seen.place_key = -1
 
 
 ## The Detailed look of person i: {"age", "child", "job"}. Built only for people who are drawn (#418).
@@ -159,9 +218,9 @@ static func _place_resting(out: Array[Dictionary], pending: Array[Array], tenant
 	for item: Array in pending:
 		var run: Array[int] = item[1]
 		var room: int = item[7]
-		var entry: Dictionary = rooms.get(room, {"key": VC.floor_to_row(run[0]), "x": run[1] * VC.CELL_W, "w": run[2] * VC.CELL_W, "kind": item[3], "in_use": false, "room": room})
-		entry["in_use"] = tenanted.has(room)
-		rooms[room] = entry
+		if rooms.has(room):
+			continue
+		rooms[room] = {"key": VC.floor_to_row(run[0]), "x": run[1] * VC.CELL_W, "w": run[2] * VC.CELL_W, "kind": item[3], "in_use": tenanted.has(room), "room": room}
 	var entries: Array = rooms.values()
 	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["key"] < b["key"] or (a["key"] == b["key"] and a["x"] < b["x"]))
 	var suite_of: Dictionary = {}  # room id -> [left px, width px, first room of the suite]
@@ -176,7 +235,18 @@ static func _place_resting(out: Array[Dictionary], pending: Array[Array], tenant
 		var seat: int = suite[2] if not suite.is_empty() else room
 		var turn: int = turns.get(seat, 0)
 		turns[seat] = turn + 1
-		out[item[0]] = _resting(item[1], item[2], item[3], item[4], turn, item[5], item[6], room, suite)
+		var seen: Seen = item[8]
+		var band: int = item[5]
+		var act: int = item[4]
+		var suite_key := 0
+		if not suite.is_empty():
+			suite_key = (suite[0] as int) * 65536 + (suite[1] as int) + 1
+		var key := ((turn * 16 + act) * 4 + band) * 4294967296 + suite_key
+		if seen.place_key != key:  # a person whose turn, activity, mood and suite are as before keeps the figure
+			seen.place_key = key
+			seen.figure = _resting(item[1], item[2], item[3], act, turn, band, item[6], room, suite)
+			seen.figure.merge(seen.look, true)
+		out[item[0]] = seen.figure
 
 
 ## A resting figure of a run [floor, column, width, ...] doing `act`, placed on a spot of its room.
