@@ -68,7 +68,7 @@ def find_godot():
     return matches[0] if matches else None
 
 
-GAME_TEST_SECONDS = 240
+GAME_TEST_SECONDS = 480  # the suite takes about 3 min locally and longer on CI runners (2026-11-23); trim slow tests rather than raise this again
 IMPORT_SECONDS = 120
 CLASS_CACHE = Path(".godot") / "global_script_class_cache.cfg"
 
