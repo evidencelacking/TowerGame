@@ -18,6 +18,7 @@ const PeopleScript := preload("res://scripts/sim/people.gd")
 const TripsScript := preload("res://scripts/sim/trips.gd")
 const CarsScript := preload("res://scripts/sim/cars.gd")
 const TenancyScript := preload("res://scripts/sim/tenancy.gd")
+const ApartmentsScript := preload("res://scripts/sim/apartments.gd")
 const RoutesScript := preload("res://scripts/sim/routes.gd")
 const GradesScript := preload("res://scripts/sim/grades.gd")
 const WordOfMouthScript := preload("res://scripts/sim/word_of_mouth.gd")
@@ -108,6 +109,8 @@ var people := PeopleScript.new()
 var names := NamesScript.new()
 ## Office tenancy: moves workers in (see Tenancy). Derived from people, so not saved.
 var tenancy := TenancyScript.new()
+## Rental apartments: residents arrive and leave over the days (#379). Derived from people and rooms, so not saved.
+var apartments := ApartmentsScript.new()
 ## Trip executor: moves people along routes and charges travel stress (see Trips). Not saved.
 var trips := TripsScript.new()
 ## Quality score and A/B/C grade of tenant rooms (see Grades). Saved: who has made a first trip.
@@ -566,6 +569,7 @@ func evaluate_tenants() -> void:
 	evaluation.evaluate(rooms, people, grades, grid, floors, tenancy, ledger, messages, rng, tick)
 	evaluation.evaluate_moods(rooms, people, grades, grid, ledger, messages, tick)
 	life.daily(self)
+	apartments.daily(self)
 	commerce.evaluate(floors, rooms, grid, tenancy, rent, messages, tick)
 
 

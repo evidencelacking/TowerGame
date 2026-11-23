@@ -277,6 +277,14 @@ static func _build() -> Dictionary:
 			[44, 4, 12, 8, "furn"], [45, 5, 10, 6, "accent"], [10, 2, 10, 1, "lamp"], [44, 2, 10, 1, "lamp"]],
 			"spots": [[8, 30], [35, 30], [62, 30]]}],
 	}
+	# Rental apartment (#379): a compact studio. A bed against the left wall, a desk with a lamp, and a small sofa.
+	out["apartment"] = {
+		"hue": "rental", "look": "full",
+		"fixed": _bed(1, 17) + _nightstand(22) + _win(33, 4, 10, 10) + [
+			[48, 22, 12, 8, "furn"], [48, 18, 12, 4, "accent"], [60, 20, 6, 10, "furn"], [62, 14, 3, 6, "lamp"],
+			[-30, 14, 5, 16, "furn", "r"], [-24, 20, 10, 2, "furn", "r"]],
+		"spots": [[9, 30], [56, 30]],
+	}
 	out["hotel_single"] = {
 		"hue": "hotel", "look": "full",
 		"fixed": _bed(1, 17) + _nightstand(22) + [[4, 5, 10, 7, "furn"], [5, 6, 8, 5, "accent"], [8, 2, 8, 1, "lamp"]],

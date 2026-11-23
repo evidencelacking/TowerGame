@@ -95,7 +95,7 @@ const EXPRESS_CAR_CAPACITY := 36  ## People an express car holds (owner ruling 2
 const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
-const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool", "helipad", "school"]
+const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool", "helipad", "school", "apartment"]
 ## Rooms two floors tall, underground (recycling) or above ground (a kind whose placement is not underground,
 ## #328; see _check_place_tall). Their grid run is on the lower (deeper) floor under the room's id, and the
 ## upper floor is a second grid occupant under id + 1 that is not a room of its own (see room_of).

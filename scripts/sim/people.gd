@@ -147,6 +147,15 @@ func workers_in(room: int) -> int:
 	return n
 
 
+## Residents (people whose home is the room) in one room.
+func homes_in(room: int) -> int:
+	var n := 0
+	for i in count():
+		if _data[i * FIELDS + _HOME] == room:
+			n += 1
+	return n
+
+
 ## Workers per room, room id -> count, for callers that ask about many rooms at once.
 func worker_counts() -> Dictionary:
 	var counts: Dictionary = {}

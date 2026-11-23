@@ -4,7 +4,7 @@ extends RefCounted
 ## command. Each level has a rent in the catalogue row ("rent": four dollar amounts, lowest to
 ## highest) and a stress offset below. A higher rent adds stress to the room's average, so the same
 ## real stress gives a worse grade (docs/gameplay-reference.md: higher rent, harsher evaluation).
-## Rent is collected once a quarter from each rentable room that has workers (offices). Condos cannot
+## Rent is collected once a quarter from each rentable room that has workers (offices) or, for an apartment, residents. Condos cannot
 ## have their rent changed (the reference). Hotel rooms also have the four levels, but their amount is
 ## the nightly price, paid at check-out by Hotel (never by collect); shops are not rented by level.
 ##
@@ -120,9 +120,11 @@ static func day_share(quarterly: int, last_day: bool) -> int:
 func collect(rooms: RoomsScript, people: PeopleScript, ledger: LedgerScript, at_tick: int, last_day: bool = true, bonus_percent: int = 0) -> int:
 	var total := 0
 	for id in rooms.room_ids():
-		if is_rentable(rooms.kind_of(id)) and not rooms.is_charred(id) and not rooms.is_cut_off(id) and people.workers_in(id) > 0:
+		var kind := rooms.kind_of(id)
+		if is_rentable(kind) and not rooms.is_charred(id) and not rooms.is_cut_off(id) and (people.homes_in(id) if kind == "apartment" else people.workers_in(id)) > 0:
 			var amount := day_share(rent_of(rooms, id), last_day)
-			amount += amount * bonus_percent / 100  # a connected tower (a metro station) rents for more (synergy.gd)
+			if kind != "apartment":  # the metro bonus is for offices; an apartment pays its level's rent (#379)
+				amount += amount * bonus_percent / 100  # a connected tower (a metro station) rents for more (synergy.gd)
 			ledger.income(at_tick, amount, id)
 			total += amount
 	return total

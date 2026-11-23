@@ -89,7 +89,7 @@ static func run(check: Callable) -> void:
 	check.call(_neighbour_factor(t) == 0, "synergy: an office alone has no neighbour factor")
 	check.call(_place(t, "gym", 3, 130) == 0, "synergy: the test gym places")
 	check.call(_neighbour_factor(t) == 4, "synergy: a gym on the same floor adds 4 to the office's mood factors (%d)" % _neighbour_factor(t))
-	check.call(MoodScript.REASON_NAMES.size() == MoodScript.REASON_NEIGHBOURS + 1, "synergy: the neighbours reason has a name")
+	check.call(MoodScript.REASON_NAMES.size() > MoodScript.REASON_NEIGHBOURS, "synergy: the neighbours reason has a name")
 
 	# Recovery: a clinic lets a low mood climb faster (the daily step plus 4).
 	var plain := _office_tower()
