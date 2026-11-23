@@ -38,12 +38,13 @@ const ANY := -1  ## Reach: the whole tower.
 const EVERYONE := "*"  ## Target of a tower-wide effect on people rather than on a kind of room.
 
 ## Most one effect can add up to, either way (a total beyond this is cut).
-const CAPS: Array[int] = [20, 30, 12, 30, 10, 30]
+const CAPS: Array[int] = [20, 20, 12, 30, 10, 30]
 
 ## [source, target, effect, amount, floors, columns]
 const RULES: Array = [
 	["daycare", "condo", CONDO_DEMAND, 10, 5, ANY],
 	["daycare", "condo", MOOD, 4, 5, ANY],
+	["school", "condo", CONDO_DEMAND, 14, 10, ANY],
 	["gym", "office", MOOD, 4, 3, ANY],
 	["clinic", "condo", MOOD, 3, 5, ANY],
 	["clinic", "office", MOOD, 3, 5, ANY],

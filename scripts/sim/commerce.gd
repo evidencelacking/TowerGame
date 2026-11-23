@@ -63,6 +63,8 @@ const MEALS: Array = [
 	[GYM_BREAK, GYM_BREAK_WINDOW, GYM_BREAK_PERCENT, "gym"],
 	[GYM_EVENING, GYM_EVENING_WINDOW, GYM_EVENING_PERCENT, "gym"],
 	[DAYCARE_DROP_OFF, DAYCARE_WINDOW, DAYCARE_PERCENT, "daycare"],
+	[SCHOOL_DROP_OFF, SCHOOL_WINDOW, SCHOOL_PERCENT, "school"],
+	[SCHOOL_PICK_UP, SCHOOL_WINDOW, SCHOOL_PERCENT, "school"],
 	[CLINIC_MORNING, CLINIC_WINDOW, CLINIC_PERCENT, "clinic"],
 	[CLINIC_AFTERNOON, CLINIC_WINDOW, CLINIC_PERCENT, "clinic"],
 	[CLUB_EVENING, CLUB_WINDOW, CLUB_EVENING_PERCENT, "nightclub"],
@@ -113,6 +115,13 @@ const GYM_EVENING_PERCENT := 15
 const DAYCARE_DROP_OFF := 480  ## 08:00; the children stay until the evening.
 const DAYCARE_WINDOW := 60
 const DAYCARE_PERCENT := 80
+## School (#370, unverified tunables): children of school age (an odd person id; the rest are daycare age
+## while a school stands) go on weekdays only. They are dropped off at 08:15 and fetched at 15:15, two
+## visit rows that make the school-run peaks; each row seats the school's 24 places.
+const SCHOOL_DROP_OFF := 495  ## 08:15.
+const SCHOOL_PICK_UP := 915  ## 15:15.
+const SCHOOL_WINDOW := 45
+const SCHOOL_PERCENT := 70
 const CLINIC_MORNING := 570  ## 09:30.
 const CLINIC_AFTERNOON := 930  ## 15:30.
 const CLINIC_WINDOW := 120
@@ -304,6 +313,12 @@ const PROFILES: Dictionary = {
 		"tiers": [[0, -3000], [6, 1500], [10, 3500], [12, 5000]],
 		"food": ["Toddlers", "Story time", "Playgroup", "Art room", "Nap room"],
 	},
+	# School (#370): 24 places for a 6 hour school day, children only, weekdays only; the 4 staff make an empty day lose $4,000.
+	"school": {
+		"seats": 24, "linger_minutes": 360, "grade_cap": 48, "grade_a": 36, "grade_b": 20, "who": WHO_CHILDREN, "weekdays": true,
+		"tiers": [[0, -4000], [12, 2000], [24, 4000], [40, 6000]],
+		"food": ["Reception class", "Primary class", "Science lab", "Art room", "Library"],
+	},
 	# Nightclub (#292): 60 places, 90 minute stays, adults only; the 5 staff make an empty night lose $8,000.
 	"nightclub": {
 		"seats": 60, "linger_minutes": 90, "grade_cap": 40, "grade_a": 30, "grade_b": 18, "who": WHO_ADULTS,
@@ -493,6 +508,14 @@ static func _guest_percent(kind: String) -> int:
 	return GUEST_PERCENT
 
 
+## True when a child of this id is not for this kind (#370): school takes the odd ids (school age), and while
+## a school stands the daycare keeps only the even ones, so the two share one pool without overlap.
+static func school_age_split(kind: String, person_id: int, has_school: bool) -> bool:
+	if kind == "school":
+		return person_id % 2 == 0
+	return kind == "daycare" and has_school and person_id % 2 == 1
+
+
 static func seats_per_meal(kind: String, window: int) -> int:
 	var profile: Dictionary = PROFILES[kind]
 	return int(profile["seats"]) * maxi(1, window / int(profile["linger_minutes"]))
@@ -584,10 +607,17 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		return  # the pool is drained and being scrubbed: nobody swims
 	var who: String = PROFILES[kind].get("who", WHO_ALL)
 	var served: Dictionary = {}  # this meal, per shop
+	var has_school := false
+	if kind == "daycare":
+		for id in rooms.room_ids():
+			if rooms.kind_of(id) == "school":
+				has_school = true
 	for i in people.count():
 		if people.location_of(i) == PeopleScript.NONE and people.trip_state(i) == PeopleScript.TRIP_IDLE:
 			continue  # outside the tower
 		if who == WHO_CHILDREN and (life == null or not life.is_child(people.id_at(i))):
+			continue
+		if who == WHO_CHILDREN and life != null and school_age_split(kind, people.id_at(i), has_school):
 			continue
 		if who == WHO_ADULTS and life != null and life.is_child(people.id_at(i)):
 			continue

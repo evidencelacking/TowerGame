@@ -10,7 +10,7 @@ extends RefCounted
 const Furnish := preload("res://scripts/view/detail_furnish.gd")
 const Scenes := preload("res://scripts/view/detail_scenes.gd")
 
-const KINDS: Array[String] = ["casino", "nightclub", "observation_deck", "helipad", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "gym", "daycare", "clinic", "coworking"]
+const KINDS: Array[String] = ["casino", "nightclub", "observation_deck", "helipad", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "gym", "daycare", "school", "clinic", "coworking"]
 const BRASS := Color("c9a85c")
 const FELT := Color("2f7a4a")
 const REACH := 16.0
@@ -54,6 +54,8 @@ static func draw(p: Object, kind: String, w: int, y0: int, seats: Array, lit: bo
 			_gym(p, wf, yt, fy, seats, lit, taken)
 		"daycare":
 			_daycare(p, wf, yt, fy, seats, lit, taken)
+		"school":
+			_school(p, wf, yt, fy, seats, lit, taken)
 		"clinic":
 			_clinic(p, wf, yt, fy, seats, lit, taken)
 		"coworking":
@@ -632,6 +634,37 @@ static func _daycare(p: Object, w: float, yt: float, fy: float, seats: Array, li
 		p.item(c - 4, fy - 20, 6, 6, Color("e0a83a"), 1.0)  # an alphabet block
 		p.R(c - 2, fy - 18, 2, 2, Color("2a2230"))
 		_note(taken, c - 18.0, c + 18.0)
+
+
+## The school: a green chalkboard with a ruled chalk line and a clock on the wall, a globe at the right,
+## and a wooden desk with a chair and an open book at each seat.
+static func _school(p: Object, w: float, yt: float, fy: float, seats: Array, lit: bool, taken: Array) -> void:
+	p.item(24, yt + 8, 90, 34, Color("8a5a38"), 2.0)  # the board frame
+	p.R(27, yt + 11, 84, 28, Color("2e5a46"))
+	p.R(33, yt + 19, 52, 1, Color("e8e8dc"))
+	p.R(33, yt + 27, 38, 1, Color("e8e8dc"))
+	p.R(88, yt + 33, 8, 2, Color("f0f0e4"))  # chalk on the ledge
+	p.ell(w * 0.5, yt + 18, 7, 7, Color("f4f0e0"))  # a wall clock
+	p.R(w * 0.5, yt + 12, 1, 6, Color("2a2230"))
+	p.R(w * 0.5, yt + 18, 4, 1, Color("2a2230"))
+	var gx := w - 44.0  # a globe on a stand
+	p.R(gx + 10, fy - 14, 3, 14, Color("5a3a28"))
+	p.ell(gx + 11, fy - 22, 9, 9, Color("4a8ac8"))
+	p.R(gx + 6, fy - 25, 5, 3, Color("6ab060"))
+	_note(taken, gx - 2.0, gx + 26.0)
+	if lit:
+		p.glow(w * 0.5, yt + 26, w * 0.4, 22.0, Color("fff4d0"), 0.22)
+	for c: float in seats:
+		if c > gx - 16.0:
+			continue
+		p.shadow(c, fy, 14, 0.4)
+		p.item(c - 12, fy - 13, 24, 3, Color("c89a62"), 1.5)  # a desk top
+		p.R(c - 10, fy - 10, 2, 10, Color("8a5a38"))
+		p.R(c + 8, fy - 10, 2, 10, Color("8a5a38"))
+		p.R(c - 5, fy - 16, 10, 3, Color("f4f0e0"))  # an open book
+		p.R(c, fy - 16, 1, 3, Color("8a5a38"))
+		p.item(c - 18, fy - 12, 4, 12, Color("a84e3a"), 1.5, false)  # a chair
+		_note(taken, c - 18.0, c + 14.0)
 
 
 ## The clinic: a reception desk under a red cross, waiting chairs at each seat, an eye chart and an exam bed
