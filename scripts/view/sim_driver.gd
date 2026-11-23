@@ -5,9 +5,9 @@ extends Node
 
 const Tower := preload("res://scripts/sim/tower.gd")
 
-const BASE_TICKS_PER_SECOND := 30.0
-const SPEEDS: Array[int] = [1, 2, 3]  ## Multipliers of the base rate; index 0 is speed 1.
-const MAX_TICKS_PER_FRAME := 4  ## Caps catch-up after a stall so a hitch can't spiral (top speed needs 1.5 a frame at 60 fps).
+const BASE_TICKS_PER_SECOND := 15.0  ## With SPEEDS this gives 15, 45 and 90 ticks a second (#438).
+const SPEEDS: Array[int] = [1, 3, 6]  ## Multipliers of the base rate; index 0 is the 1x button, 1 is 2x, 2 is 3x.
+const MAX_TICKS_PER_FRAME := 4  ## Caps catch-up after a stall so a hitch can't spiral (top speed, 90 ticks/s, needs 1.5 a frame at 60 fps).
 const FRAME_BUDGET_USEC := 8000  ## Stops stepping once the frame's sim work has spent this long (#417).
 
 var tower: Tower = Tower.new()

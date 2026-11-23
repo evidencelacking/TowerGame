@@ -154,10 +154,10 @@ func _static_costs() -> void:
 
 
 func _process(_delta: float) -> bool:
-	# One frame at speed 1: 30 ticks a second over 60 frames a second is half a tick a frame.
+	# One frame at speed 1: 15 ticks a second over 60 frames a second is a quarter tick a frame.
 	var now := Time.get_ticks_usec()
 	var gap := now - _frame_end  # engine time since our last frame ended: the draw commands run here
-	_carry += 0.5
+	_carry += 0.25
 	while _carry >= 1.0:
 		_tower.step()
 		_carry -= 1.0
