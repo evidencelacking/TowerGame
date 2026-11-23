@@ -26,6 +26,7 @@ const RUSH_MS := 10  ## Ticks costing more than this many ms make up the rush-ho
 const MIXED_SEED := 42
 const BIG_SEED := 42
 const BIG_WARMUP := 400
+const NIGHT_HOURS := 4  ## _print_night covers the clock hours before this.
 const MIN_BIG_PEOPLE := 5000  ## The big tower is reported short of this, but still profiled.
 const MIXED_WARMUP := 400  ## Ticks that let the mixed tower's tenants move in before it is measured.
 const MIN_PEOPLE := 1200  ## A mixed tower with fewer people, or no cut-off room, exits 1.
@@ -295,6 +296,8 @@ func _sim_day(t: Tower, ticks: int) -> void:
 	var mark := Callable(self, "_mark")
 	var rush_us: Dictionary = {}  # label -> microseconds summed over the ticks costing over RUSH_MS
 	var rush_n := 0
+	var night_us: Dictionary = {}  # label -> microseconds summed over the ticks from 00:00 to 03:59 (#453)
+	var night_n := 0
 	var hour_us: Array[int] = []
 	var hour_n: Array[int] = []
 	var hour_max: Array[int] = []
@@ -312,6 +315,10 @@ func _sim_day(t: Tower, ticks: int) -> void:
 		hour_us[hour] += total
 		hour_n[hour] += 1
 		hour_max[hour] = maxi(hour_max[hour], total)
+		if hour < NIGHT_HOURS:
+			night_n += 1
+			for k: String in _tick_us:
+				night_us[k] = int(night_us.get(k, 0)) + int(_tick_us[k])
 		if total > RUSH_MS * 1000:
 			rush_n += 1
 			for k: String in _tick_us:
@@ -327,6 +334,7 @@ func _sim_day(t: Tower, ticks: int) -> void:
 	for k: String in keys:
 		print("  %-26s total %9.1f ms  per tick %7.3f ms  worst %8.1f ms" % [k, _us[k] / 1000.0, _us[k] / 1000.0 / ticks, _worst[k] / 1000.0])
 	_print_rush(rush_us, rush_n, ticks)
+	_print_night(night_us, night_n)
 	_print_hours(hour_us, hour_n, hour_max)
 
 
@@ -339,6 +347,15 @@ func _print_rush(rush_us: Dictionary, rush_n: int, ticks: int) -> void:
 	keys.sort_custom(func(a: String, b: String) -> bool: return rush_us[a] > rush_us[b])
 	for k: String in keys:
 		print("  %-26s mean %7.3f ms per rush tick  worst %8.1f ms" % [k, rush_us[k] / 1000.0 / rush_n, _worst[k] / 1000.0])
+
+
+## The per-system mean ms per tick from 00:00 to 03:59, when almost nothing moves (#453).
+func _print_night(night_us: Dictionary, night_n: int) -> void:
+	print("NIGHT 00:00-%02d:00 ticks: %d" % [NIGHT_HOURS, night_n])
+	var keys := night_us.keys()
+	keys.sort_custom(func(a: String, b: String) -> bool: return night_us[a] > night_us[b])
+	for k: String in keys:
+		print("  %-26s mean %7.3f ms per night tick" % [k, night_us[k] / 1000.0 / maxi(night_n, 1)])
 
 
 ## Total ms per tick by sim hour (the clock's hour, 0 to 23) over the timed ticks.
