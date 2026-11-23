@@ -40,6 +40,10 @@ const EVERYONE := "*"  ## Target of a tower-wide effect on people rather than on
 ## Most one effect can add up to, either way (a total beyond this is cut).
 const CAPS: Array[int] = [20, 30, 12, 30, 10, 30]
 
+## Rooms that give care to assisted living (#378): one of these within CARE_FLOORS floors keeps its residents content.
+const CARE_KINDS: Array[String] = ["clinic", "medical"]
+const CARE_FLOORS := 5
+
 ## [source, target, effect, amount, floors, columns]
 const RULES: Array = [
 	["daycare", "condo", CONDO_DEMAND, 10, 5, ANY],
@@ -126,6 +130,14 @@ static func total(effect: int, target_kind: String, run: Array, others: Array) -
 	return clampi(sum, -CAPS[effect], CAPS[effect])
 
 
+## True if a clinic or medical center in `others` is within CARE_FLOORS floors of `run` (#378).
+static func has_care(run: Array, others: Array) -> bool:
+	for other: Array in others:
+		if CARE_KINDS.has(other[0]) and in_reach(run, other[1], CARE_FLOORS, ANY):
+			return true
+	return false
+
+
 ## Mood added to the people of a room by its neighbours (negative is a harm).
 static func mood_delta(target_kind: String, run: Array, others: Array) -> int:
 	return total(MOOD, target_kind, run, others)
@@ -163,7 +175,7 @@ static func others_of(grid: GridScript, rooms: RoomsScript, linked: bool = true)
 			continue  # a room no route reaches gives nothing (#368)
 		if rooms.is_closed_up(grid, id):
 			continue  # a deck the tower has grown past is closed (#318)
-		if is_source(kind) and grid.has_occupant(id):
+		if (is_source(kind) or CARE_KINDS.has(kind)) and grid.has_occupant(id):
 			list.append([kind, grid.run_of(id)])
 	return list
 

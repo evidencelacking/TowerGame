@@ -20,7 +20,7 @@ const SoundControlsScript := preload("res://scripts/view/sound/sound_controls.gd
 const CATEGORIES: Array = [
 	["Structure", ["lobby", "floor", "stairs", "escalator"]],
 	["Elevators", ["local_shaft", "local_car", "service_shaft", "service_car", "express_shaft", "express_car"]],
-	["Rooms", ["office", "coworking", "studio", "condo", "penthouse", "apartment", "hotel_single", "hotel_twin", "hotel_suite"]],
+	["Rooms", ["office", "coworking", "studio", "condo", "penthouse", "apartment", "assisted", "hotel_single", "hotel_twin", "hotel_suite"]],
 	["Dining", ["fast_food", "restaurant", "cafe", "pizza", "sushi", "deli", "fine_dining", "bar"]],
 	["Shops", ["retail", "grocery"]],
 	["Entertainment", ["movie_theatre", "party_hall", "ballroom", "conference_center", "nightclub", "casino"]],
@@ -45,6 +45,7 @@ const TOOL_TIPS: Dictionary = {
 	"medical": "Medical Center: a required service. The tower needs one per 20 offices, and it is needed for 4 stars. Cannot be removed.",
 	"ballroom": "Ballroom: booked automatically on weekend evenings for 60 guests, half from your hotels and half from outside. Needs a restaurant or fine dining room. Outside guests do not add to the population.",
 	"conference_center": "Conference Center: booked automatically on weekdays 09:00 to 17:00 for 40 delegates from outside. Needs a hotel room. Lifts office rents tower-wide.",
+	"assisted": "Assisted Living: a rented home for four seniors, steady low rent. Needs a clinic or medical center within 5 floors, or residents lose 15 mood. Noise bothers them twice as much.",
 	"clinic": "Wellness Clinic: lifts the mood of unhappy people. An optional amenity, not the required Medical Center.",
 	"helipad": "Helicopter Pad: one on the roof. A reachable pad cuts the fire rescue to $300,000 and half the wait, lets a VIP fly in without a parking space, and earns $5,000 a day (costs $2,000 a day). It is loud for hotels and condos up to 3 floors below.",
 	"service_car": CAR_TIP,

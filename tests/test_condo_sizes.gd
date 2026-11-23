@@ -68,8 +68,8 @@ static func run(check: Callable) -> void:
 		var row: Dictionary = Catalogue.row(kind)
 		check.call([int(row["cost"]), int(row["width"]), int(row["people"])] == want[kind], "%s: cost, width and residents" % kind)
 		check.call(Rooms.PLACEABLE.has(kind) and Names.TITLES.has(kind) and Grades.is_graded(kind) and Catalogue.is_condo(kind), "%s: placeable, titled, graded and a condo size" % kind)
-	check.call(Catalogue.IDS.find("condo") == 6 and Catalogue.IDS.find("apartment") == Catalogue.IDS.size() - 3, "ids: the condo keeps id 6 and the apartment stays where it was")
-	check.call(Catalogue.IDS.find("studio") == Catalogue.IDS.size() - 2 and Catalogue.IDS.find("penthouse") == Catalogue.IDS.size() - 1, "ids: studio and penthouse are appended last")
+	check.call(Catalogue.IDS.find("condo") == 6 and Catalogue.IDS.find("apartment") == Catalogue.IDS.size() - 4, "ids: the condo keeps id 6 and the apartment stays where it was")
+	check.call(Catalogue.IDS.find("studio") == Catalogue.IDS.size() - 3 and Catalogue.IDS.find("penthouse") == Catalogue.IDS.size() - 2, "ids: studio and penthouse are appended last")
 	check.call(not Catalogue.is_condo("apartment") and not Catalogue.is_condo("office"), "is_condo: the three sizes only")
 
 	# The penthouse floor rule: floors 3 and 20 refused, floor 21 allowed; studio and condo go low.

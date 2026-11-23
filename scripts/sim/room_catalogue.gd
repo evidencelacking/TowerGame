@@ -18,7 +18,7 @@ extends RefCounted
 ##   placement      a PLACE_* rule, a hint for the building issues to enforce.
 ##   limit          most allowed per tower, or 0 for no limit.
 ##   limit_group    rooms sharing one limit share this group name; "" counts alone.
-##   people         workers (office), residents (condo, apartment) or guests (hotel: single 1, twin 2, suite 2) the room holds; absent elsewhere for now.
+##   people         workers (office), residents (condo, apartment, assisted) or guests (hotel: single 1, twin 2, suite 2) the room holds; absent elsewhere for now.
 ##                  Population is People.in_tower_count().
 ##   rent           quarterly rent in dollars at each of 4 levels, lowest to highest (office only;
 ##                  UNVERIFIED tunables; the third is the $10,000 default, see rent.gd).
@@ -66,12 +66,14 @@ const IDS: Array[String] = [
 	"cafe", "pizza", "sushi", "fine_dining", "bar",
 	"grocery", "deli", "pool", "helipad", "school",
 	"ballroom", "conference_center", "apartment",
-	"studio", "penthouse",
+	"studio", "penthouse", "assisted",
 ]
 
 ## The sold homes (#369): the standard condo and the two sizes added after it. Anything that treats a condo
 ## specially (sale, refund, mood, grocery, synergy, families) asks is_condo, so every size gets the same rules.
 const CONDO_KINDS: Array[String] = ["condo", "studio", "penthouse"]
+## The rented homes (#379, #378): residents come and go over the days and pay rent each quarter (apartments.gd).
+const RENTAL_KINDS: Array[String] = ["apartment", "assisted"]
 ## A penthouse stands only above this floor (#369, own design).
 const PENTHOUSE_MIN_FLOOR := 21
 
@@ -189,6 +191,12 @@ const _ROWS: Dictionary = {
 	"penthouse": {"people": 5, "width": 24, "height": 1, "cost": 140000, "per_unit": false, "star": 1,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
+	# Assisted living (#378, own design, every number a tunable): a rented home for seniors only. Four residents,
+	# steady low rent (default the third level, $3,000), low turnover (apartments.gd). Without a clinic or medical room
+	# within 5 floors their mood drops (synergy.gd CARE_KINDS, mood.gd); noise counts double (noise.gd). Appended last.
+	"assisted": {"people": 4, "rent": [2000, 2500, 3000, 4000], "width": 14, "height": 1, "cost": 70000, "per_unit": false, "star": 3,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
 	# Ballroom and conference center (#359, own design): bookable event rooms (bookings.gd). Star 4 $600,000 and star 3 $400,000.
 	"ballroom": {"staff": 6, "width": 32, "height": 1, "cost": 600000, "per_unit": false, "star": 4,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
@@ -260,12 +268,18 @@ const DISPLAY_NAMES: Dictionary = {
 	"local_shaft": "Local elevator", "service_shaft": "Service elevator", "express_shaft": "Express elevator",
 	"local_car": "Local car", "service_car": "Service car", "express_car": "Express car",
 	"medical": "Medical Center", "clinic": "Wellness Clinic",  # #384
+	"assisted": "Assisted Living",  # #378
 }
 
 
 ## The player-facing name of a room or tool id, e.g. "Local elevator" for "local_shaft".
 static func display_name(room_id: String) -> String:
 	return DISPLAY_NAMES.get(room_id, room_id.replace("_", " ").capitalize())
+
+
+## True for a rented home: the apartment and assisted living.
+static func is_rental(room_id: String) -> bool:
+	return RENTAL_KINDS.has(room_id)
 
 
 ## True for a sold home of any size: the condo, the studio and the penthouse (#369).

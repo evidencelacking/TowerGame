@@ -17,6 +17,7 @@ const PALETTES: Dictionary = {
 	"condo": ["dcc0cc", "a8788e", "8f6a4a", "7c5a3e", "e8d8d0"],
 	"penthouse": ["e4d4b8", "7a5a8e", "6a5a4a", "584a3c", "f0e4c8"],
 	"studio": ["dcc0cc", "a8788e", "8f6a4a", "7c5a3e", "e8d8d0"],
+	"assisted": ["d6e4dc", "7aa89a", "9a8a6e", "857559", "f0f2ec"],
 	"apartment": ["c8dcd4", "5a9a8e", "8a7a62", "78694f", "eaf0ea"],
 	"hotel": ["d8c0b8", "9a6e5c", "a89a88", "988a78", "eee4dc"],
 	"service": ["c6d2cc", "86a096", "7a8aa0", "6a7a92", "a8b8b0"],

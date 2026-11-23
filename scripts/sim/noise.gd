@@ -23,7 +23,7 @@ const SOURCES: Dictionary = {
 	"movie_theatre": 6, "party_hall": 8, "nightclub": 9, "cafe": 2, "pizza": 3, "sushi": 1, "fine_dining": 1, "bar": 6, "casino": 8, "deli": 2, "pool": 3, "helipad": 6, "ballroom": 6, "conference_center": 2,
 }
 ## Kinds that can be disturbed: residential and hotel rooms.
-const SENSITIVE: Array[String] = ["condo", "studio", "penthouse", "apartment", "hotel_single", "hotel_twin", "hotel_suite"]
+const SENSITIVE: Array[String] = ["condo", "studio", "penthouse", "apartment", "assisted", "hotel_single", "hotel_twin", "hotel_suite"]
 ## Desirable things nearby that mute noise: each one in range removes this much.
 const BUFFERS: Dictionary = {"medical": 2, "security": 1, "cathedral": 4}
 
@@ -33,6 +33,7 @@ const FALLOFF_PER_STEP := 1  ## A source loses this much per floor and per sidew
 ## Sources that reach further than RANGE_FLOORS, and only downward from themselves (#409): the helicopter pad
 ## disturbs hotel rooms and condos up to 3 floors below it, with the usual falloff per floor.
 const REACH_BELOW: Dictionary = {"helipad": 3}
+const ASSISTED_FACTOR := 2  ## Assisted living feels noise this many times over (#378, tunable).
 const MAX_LEVEL := 10  ## Noise level never exceeds this.
 const STRESS_PER_NOISE_LEVEL := 5  ## Stress added to a room's grade average per noise level (tunable, unverified; 0 turns it off).
 
@@ -78,7 +79,10 @@ static func level_among(kind: String, run: Array, others: Array) -> int:
 			loud += maxi(int(SOURCES[other_kind]) - FALLOFF_PER_STEP * d, 0)
 		elif BUFFERS.has(other_kind):
 			muting += int(BUFFERS[other_kind])
-	return clampi(loud - muting, 0, MAX_LEVEL)
+	var level := clampi(loud - muting, 0, MAX_LEVEL)
+	if kind == "assisted":  # seniors are twice as bothered (#378)
+		level = mini(level * ASSISTED_FACTOR, MAX_LEVEL)
+	return level
 
 
 ## Noise level on one placed room: 0 for a quiet room, an unknown id, or a room that is not sensitive.

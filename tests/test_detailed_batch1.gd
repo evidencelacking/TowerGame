@@ -74,7 +74,7 @@ static func _draws(check: Callable) -> void:
 					DetailRooms.draw(rec, kind, rect, Palette.hue(RoomRecipes.hue_key(kind)), lit, false, id)
 					drawn = drawn and not rec.rects.is_empty()
 					inside = inside and _inside(rec.rects, bounds)
-	check.call(kinds == 10, "detailed: batch 1 has ten kinds (lobby, office, condo, studio, penthouse, apartment, three hotel rooms, housekeeping)")
+	check.call(kinds == 11, "detailed: batch 1 has eleven kinds (lobby, office, condo, studio, penthouse, apartment, assisted, three hotel rooms, housekeeping)")
 	check.call(all_variants, "detailed: the room ids tried reach every variant of every batch 1 kind")
 	check.call(drawn, "detailed: every batch 1 kind and variant draws, in use and empty")
 	check.call(inside, "detailed: a batch 1 room paints only inside its own rect")
