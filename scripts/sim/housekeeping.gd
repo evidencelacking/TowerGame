@@ -56,7 +56,6 @@ const _MINUTES := 4
 var _rooms: RoomsScript
 var _hotel: HotelScript
 var _staff: Array = []  ## Array of Array[int] RECORD ints, ordered by station then hire order.
-var _last_minute: int = -1  ## Not saved: a reload rechecks once and every step is idempotent.
 
 
 func _init(rooms: RoomsScript = null, hotel: HotelScript = null) -> void:
@@ -95,34 +94,37 @@ func is_claimed(room: int) -> bool:
 	return false
 
 
-## Called once per tick after the hotel; acts once per sim minute.
-func tick(clock: ClockScript, floors: FloorsScript, grid: GridScript) -> void:
+## Called every `every` ticks (Tower's slow cadence, #459; 1 means every tick), after the hotel. Every countdown (the retry
+## wait, travel, cleaning) drops by the whole minutes of those ticks, read from the clock alone so a save and load changes
+## nothing: a day's work is the same however often this runs. A countdown that runs out between two runs carries its
+## overshoot into the next phase. Does nothing when no whole minute has passed.
+func tick(clock: ClockScript, floors: FloorsScript, grid: GridScript, every: int = 1) -> void:
 	var minute := clock.minute_of_day()
-	if minute == _last_minute:
+	var elapsed := clock.minutes_over_last(every)
+	if elapsed == 0:
 		return
-	_last_minute = minute
 	_sync_staff()
 	for r: Array in _staff:
 		match r[_PHASE]:
 			IDLE:
 				if r[_MINUTES] > 0:
-					r[_MINUTES] -= 1
+					r[_MINUTES] = maxi(r[_MINUTES] - elapsed, 0)
 				elif minute >= SHIFT_FROM and minute < SHIFT_TO:
 					_pick(r, floors, grid)
 			TRAVEL:
 				if not _target_ok(r[_TARGET]):
 					_drop_job(r)
 				else:
-					r[_MINUTES] -= 1
+					r[_MINUTES] -= elapsed
 					if r[_MINUTES] <= 0:
 						r[_LOCATION] = r[_TARGET]
 						r[_PHASE] = CLEAN
-						r[_MINUTES] = CLEAN_MINUTES
+						r[_MINUTES] = maxi(CLEAN_MINUTES + r[_MINUTES], 1)
 			CLEAN:
 				if not _target_ok(r[_TARGET]):
 					_drop_job(r)
 				else:
-					r[_MINUTES] -= 1
+					r[_MINUTES] -= elapsed
 					if r[_MINUTES] <= 0:
 						_hotel.mark_clean(r[_TARGET])
 						_drop_job(r)

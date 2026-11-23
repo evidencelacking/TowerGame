@@ -59,16 +59,16 @@ const FRIEND_REACH_BONUS := 6  ## Extra cells a happy room's friend may come fro
 var shock: int = 0
 ## Ids of the people who were inside the tower while an event was on since the last evaluation. Saved.
 var _shocked: Array[int] = []
+## The same ids as keys, so membership is one lookup (#448). Derived: rebuilt on load, cleared with the array.
+var _shocked_set: Dictionary = {}
 
 
 ## Records an event shock (the larger of today's shocks counts) against everyone inside the tower now.
 func note_event(amount: int, people: PeopleScript) -> void:
 	shock = maxi(shock, amount)
-	for i in people.count():
-		if people.location_of(i) == PeopleScript.NONE and people.trip_state(i) == PeopleScript.TRIP_IDLE:
-			continue
-		var id := people.id_at(i)
-		if not _shocked.has(id):
+	for id in people.inside_ids():
+		if not _shocked_set.has(id):
+			_shocked_set[id] = true
 			_shocked.append(id)
 
 
@@ -126,7 +126,7 @@ func _room_terms(rooms: RoomsScript, grid: GridScript, grades: GradesScript, peo
 
 
 func _shocked_has(id: int, tables: EvalTablesScript) -> bool:
-	return tables.shocked.has(id) if tables != null else _shocked.has(id)
+	return tables.shocked.has(id) if tables != null else _shocked_set.has(id)
 
 
 ## The factors on person i as [reason, change] pairs (changes are not zero), worst first.
@@ -175,6 +175,7 @@ func update(rooms: RoomsScript, grid: GridScript, floors: FloorsScript, grades: 
 	grades.batch = null
 	shock = 0
 	_shocked.clear()
+	_shocked_set.clear()
 
 
 ## Average mood of the people who work or live in a room, or -1 if there are none. tables (EvalTables,
@@ -217,5 +218,7 @@ static func valid_ints(ints: Array) -> bool:
 func load_ints(ints: Array) -> void:
 	shock = ints[0]
 	_shocked.clear()
+	_shocked_set.clear()
 	for k in range(2, ints.size()):
 		_shocked.append(ints[k])
+		_shocked_set[ints[k]] = true

@@ -40,6 +40,7 @@ const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite"]
 
 const CHECK_IN_FROM := 1080  ## 18:00 (tunable guess).
 const CHECK_IN_TO := 1380  ## 23:00: no check-in at or after this (tunable guess).
+const CHECK_IN_LATE := 40  ## Minutes past CHECK_IN_TO a planned arrival may still check in: the hotel runs every few ticks (#459), and at night a tick spans about 3 minutes.
 const CHECK_IN_MARGIN := 5  ## Arrival minutes are drawn this far before CHECK_IN_TO: one tick can span a few minutes.
 const CHECK_OUT_FROM := 420  ## 7:00 (tunable guess).
 const CHECK_OUT_TO := 600  ## 10:00: check-out minutes are drawn from [CHECK_OUT_FROM, CHECK_OUT_TO).
@@ -67,7 +68,7 @@ const _UNREACHED := 7  ## 1 while the latest stay failed because the guests coul
 var _rooms: RoomsScript
 var _rent: RentScript  ## The room's nightly price is its rent level.
 var _records: Dictionary = {}  ## Room id -> Array[int] of RECORD ints.
-var _last_minute: int = -1  ## Not saved: a reload rechecks once and every step is idempotent.
+var _arrived: Variant = null  ## _count_guests for the run in progress (derived, not saved).
 
 
 func _init(rooms: RoomsScript = null, rent: RentScript = null) -> void:
@@ -181,13 +182,14 @@ static func night_of(clock: ClockScript) -> int:
 	return ((clock.year() - 1) * ClockScript.QUARTERS_PER_YEAR + clock.quarter() - 1) * ClockScript.DAYS_PER_QUARTER + clock.day_of_week()
 
 
-## Called once per tick after the clock; acts once per sim minute.
+## Called on Tower's slow cadence (every SLOW_EVERY ticks, #459), not every tick. Every step reads
+## minutes with >= and <=, never ==, so a run that lands a few minutes late misses nothing. Guests walk and ride in People and
+## Trips, which still run every tick; this only books, checks in, counts arrivals and checks out.
 func tick(clock: ClockScript, floors: FloorsScript, people: PeopleScript, rng: Object, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:
 	var minute := clock.minute_of_day()
-	if minute == _last_minute:
-		return
-	_last_minute = minute
 	var night := night_of(clock)
+	_arrived = null
+	var lobby := floors.has_lobby()  # a column scan: once a run, not once a room
 	for id in _rooms.room_ids():
 		if not is_hotel(id) or _rooms.is_charred(id):
 			continue
@@ -197,15 +199,15 @@ func tick(clock: ClockScript, floors: FloorsScript, people: PeopleScript, rng: O
 		var r: Array[int] = _records[id]
 		match r[_STATE]:
 			VACANT:
-				_vacant(id, r, minute, night, floors, people, rng)
+				_vacant(id, r, minute, night, lobby, people, rng)
 			ARRIVING:
 				_arriving(id, r, minute, people, messages, at_tick)
 			STAYING:
 				_staying(id, r, minute, night, people, ledger, messages, at_tick)
 
 
-func _vacant(id: int, r: Array[int], minute: int, night: int, floors: FloorsScript, people: PeopleScript, rng: Object) -> void:
-	if r[_DIRTY_SINCE] >= 0 or is_infested(id) or not floors.has_lobby() or _rooms.is_cut_off(id):  # no booking while no route reaches it (#368)
+func _vacant(id: int, r: Array[int], minute: int, night: int, lobby: bool, people: PeopleScript, rng: Object) -> void:
+	if r[_DIRTY_SINCE] >= 0 or is_infested(id) or not lobby or _rooms.is_cut_off(id):  # no booking while no route reaches it (#368)
 		return
 	if reserved_room.is_valid() and int(reserved_room.call()) == id:
 		return
@@ -217,7 +219,7 @@ func _vacant(id: int, r: Array[int], minute: int, night: int, floors: FloorsScri
 			r[_LEAVE] = CHECK_OUT_FROM + rng.next_below(CHECK_OUT_TO - CHECK_OUT_FROM)
 	if r[_ARRIVE] < 0 or r[_PLANNED_NIGHT] != night:
 		return
-	if minute >= CHECK_IN_TO or minute < CHECK_IN_FROM:  # the window closed before they came
+	if minute >= CHECK_IN_TO + CHECK_IN_LATE or minute < CHECK_IN_FROM:  # the window closed before they came
 		r[_ARRIVE] = -1
 		return
 	if minute < r[_ARRIVE] or not _parking_ok(id):
@@ -226,7 +228,7 @@ func _vacant(id: int, r: Array[int], minute: int, night: int, floors: FloorsScri
 		people.add_guest(id, rng)
 	r[_STATE] = ARRIVING
 	r[_CHECKIN_NIGHT] = night
-	r[_CHECKIN_MINUTE] = minute
+	r[_CHECKIN_MINUTE] = r[_ARRIVE]  # the planned minute, so patience counts from when they were due
 	r[_ARRIVE] = -1
 
 
@@ -236,14 +238,10 @@ func _parking_ok(room: int) -> bool:
 
 
 func _arriving(id: int, r: Array[int], minute: int, people: PeopleScript, messages: MessagesScript, at_tick: int) -> void:
-	var inside := 0
-	var moving := false
-	for i in people.count():
-		if people.home_of(i) == id:
-			if people.location_of(i) == id:
-				inside += 1
-			elif people.trip_state(i) == PeopleScript.TRIP_MOVING or people.trip_state(i) == PeopleScript.TRIP_RIDING:
-				moving = true
+	if _arrived == null:
+		_arrived = _count_guests(people)
+	var inside: int = _arrived[0].get(id, 0)
+	var moving: bool = _arrived[1].has(id)
 	if inside >= capacity(id):
 		r[_STATE] = STAYING
 		r[_UNREACHED] = 0
@@ -254,6 +252,22 @@ func _arriving(id: int, r: Array[int], minute: int, people: PeopleScript, messag
 		r[_STATE] = VACANT
 		r[_UNREACHED] = 1
 		messages.add(at_tick, MessagesScript.GUEST_UNREACHED, id)
+
+
+## One pass over everyone: [home room -> guests inside it, home room -> true while one is on a trip]. Built at most
+## once per run, the first time a room is ARRIVING, so a night with nobody arriving costs no scan (#453).
+func _count_guests(people: PeopleScript) -> Array[Dictionary]:
+	var inside := {}
+	var moving := {}
+	for i in people.count():
+		var home := people.home_of(i)
+		if home == PeopleScript.NONE:
+			continue
+		if people.location_of(i) == home:
+			inside[home] = int(inside.get(home, 0)) + 1
+		elif people.trip_state(i) == PeopleScript.TRIP_MOVING or people.trip_state(i) == PeopleScript.TRIP_RIDING:
+			moving[home] = true
+	return [inside, moving]
 
 
 func _staying(id: int, r: Array[int], minute: int, night: int, people: PeopleScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:

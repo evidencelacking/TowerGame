@@ -96,11 +96,27 @@ func ticks_in_period() -> int:
 
 ## In-game minutes since midnight, 0 to 1,439, derived from the tick position in the period.
 func minute_of_day() -> int:
-	var start := period_start(_period)
-	var span := posmod(period_start(_period + 1) - start, MINUTES_PER_DAY)  # posmod: the night period wraps past midnight, and % would go negative
+	return _minute_at(_period, _ticks_in_period)
+
+
+## In-game minutes since midnight at a position in a period (see minute_of_day).
+static func _minute_at(period_index: int, ticks_in: int) -> int:
+	var start := period_start(period_index)
+	var span := posmod(period_start(period_index + 1) - start, MINUTES_PER_DAY)  # posmod: the night period wraps past midnight, and % would go negative
 	if span == 0:
 		span = MINUTES_PER_DAY
-	return (start + _ticks_in_period * span / period_ticks(_period)) % MINUTES_PER_DAY
+	return (start + ticks_in * span / period_ticks(period_index)) % MINUTES_PER_DAY
+
+
+## Sim minutes that passed over the last `ticks` ticks, read from the clock alone (no history kept), so it is the same
+## after a save and load. Slow systems (#459) use it to count a whole cadence's minutes in one run.
+func minutes_over_last(ticks: int) -> int:
+	var period_index := _period
+	var ticks_in := _ticks_in_period - ticks
+	while ticks_in < 0:
+		period_index = (period_index + PERIODS - 1) % PERIODS
+		ticks_in += period_ticks(period_index)
+	return posmod(minute_of_day() - _minute_at(period_index, ticks_in), MINUTES_PER_DAY)
 
 
 ## Ticks until the clock next reaches a minute of the day (at least 1; a full day when it is the

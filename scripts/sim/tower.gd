@@ -95,6 +95,17 @@ const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
 
+## Slow cadence (#459): state that changes slowly is checked every SLOW_EVERY ticks, not every tick. Each system has its
+## own offset so the costs land on different ticks. Anything that moves people or cars still runs every tick.
+const SLOW_EVERY := 10
+const TENANCY_AT := 1  ## tenancy.tick: leasing and condo sales (once per sim minute inside).
+const HOTEL_AT := 2  ## hotel.tick: bookings, check-in, check-out (windows tolerate the gap, see Hotel).
+const MOOD_AT := 3  ## mood.note_event while a fire or threat burns (also once when one starts).
+const VIP_AT := 4  ## vip.tick.
+const PESTS_AT := 5  ## pests.tick: once a day.
+const HOUSEKEEPING_AT := 6  ## housekeeping.tick: counts the minutes since its last run.
+const RECYCLING_AT := 7  ## recycling.tick and the population it reads: once an hour.
+
 var tick: int = 0
 var rng := Rng.new()
 var clock := Clock.new()
@@ -199,6 +210,14 @@ func enqueue(command: Command) -> bool:
 ## People in the tower right now (derived from people, not saved).
 func population() -> int:
 	return people.in_tower_count() + commerce.visitors_inside(clock.minute_of_day())
+
+
+## The permanent population (#456): everyone registered with the tower (residents, workers and hotel guests, each once),
+## with no outside visitors. It changes only when people move in or out, not as they come and go through the day.
+## The star rules, the goals panel and the save slots read it; population() (inside this minute) feeds recycling,
+## threat and sound.
+func permanent_population() -> int:
+	return people.count()
 
 
 ## Population by group, for the top bar (#383). "now" is people in the tower this minute (its total is
@@ -458,13 +477,19 @@ func _note_refusal(code: int, detail: int) -> bool:
 func _run_systems() -> void:
 	clock.advance()
 	refresh_reach()
-	tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
+	if _slow_due(TENANCY_AT):
+		tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
 	commerce.tick(clock, floors, rooms, grid, people, tenancy, rng, ledger, messages, tick, life)
-	vip.tick(clock, stars, people, grades, messages, tick)
-	hotel.tick(clock, floors, people, rng, ledger, messages, tick)
-	pests.tick(hotel, grid, rng, messages, tick)
-	housekeeping.tick(clock, floors, grid)
-	recycling.tick(clock, population())
+	if _slow_due(VIP_AT):
+		vip.tick(clock, stars, people, grades, messages, tick)
+	if _slow_due(HOTEL_AT):
+		hotel.tick(clock, floors, people, rng, ledger, messages, tick)
+	if _slow_due(PESTS_AT):
+		pests.tick(hotel, grid, rng, messages, tick)
+	if _slow_due(HOUSEKEEPING_AT):
+		housekeeping.tick(clock, floors, grid, SLOW_EVERY)
+	if _slow_due(RECYCLING_AT):
+		recycling.tick(clock, population())
 	if clock.day_started:  # rent comes in daily (#261); the quarter's last day pays the remainder
 		rent.collect(rooms, people, ledger, tick, clock.quarter_started, rent_bonus_percent())
 		commerce.collect_rent(rooms, rent, ledger, tick, clock.quarter_started)
@@ -480,19 +505,21 @@ func _run_systems() -> void:
 		if not messages.recent(MessagesScript.TRIP_UNREACHABLE, tick - TripsScript.WARN_EVERY_TICKS + 1):
 			messages.add(tick, MessagesScript.TRIP_UNREACHABLE, trips.blocked_transfers)
 		trips.blocked_transfers = 0
-	grades.tick(people)
 	rooms.schedule_slot = RoomsScript.slot_for(clock.day_of_week() == Clock.WE, clock.period())
 	CarsScript.tick(rooms)
 	trips.collect_arrivals(floors, rooms, grid, people)
 	people.tick(clock)
-	threat.population = population()
+	grades.tick(people)  # every tick, right after the requests are made: it only reads People.trip_requests, so a quiet tick costs nothing
+	if clock.ticks_in_period() == 0:  # the only ticks Events rolls (and the threat gate reads it): always fresh, so a load cannot change it
+		threat.population = population()
 	events.tick(clock, stars, tick)
 	fire.tick(clock, events, grid, people, messages, tick)
 	threat.tick(events, grid, messages, tick)
-	if not fire.burning_rooms().is_empty():
-		mood.note_event(MoodScript.FIRE_SHOCK, people)
-	if threat.is_active():
-		mood.note_event(MoodScript.THREAT_SHOCK, people)
+	if _slow_due(MOOD_AT) or fire.started or threat.started:  # when an event starts, then refreshed on the cadence (#459)
+		if not fire.burning_rooms().is_empty():
+			mood.note_event(MoodScript.FIRE_SHOCK, people)
+		if threat.is_active():
+			mood.note_event(MoodScript.THREAT_SHOCK, people)
 	for id in fire.take_burned():
 		char_room(id)
 	for id in threat.take_destroyed():
@@ -501,6 +528,11 @@ func _run_systems() -> void:
 		evaluate_tenants()
 	if StarRulesScript.is_check_tick(tick):
 		promote_stars()
+
+
+## True on this tick for a slow system with the given offset (see SLOW_EVERY).
+func _slow_due(at: int) -> bool:
+	return tick % SLOW_EVERY == at
 
 
 ## Rent credited in the quarter that just closed: the ledger's rent lines of the last quarter's ticks.
@@ -543,7 +575,7 @@ func star_facts() -> Dictionary:
 			"security": security += 1
 			"metro": metro += 1
 	var facts := {
-		"population": population(), "security": security, "suites": suites, "metro": metro,
+		"population": permanent_population(), "security": security, "suites": suites, "metro": metro,
 		"demands_met": demands.all_met(),  # no open demand (transport demands will join them)
 		"vip_good": vip.is_good(),
 	}
@@ -555,7 +587,7 @@ func star_facts() -> Dictionary:
 ## population test goes first so the room scan only runs when the next star is within reach.
 func promote_stars() -> void:
 	demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid), "recycling_short": 1 if recycling.short() else 0, "lunch_coverage": CommerceScript.lunch_coverage(rooms)})
-	var people_now := population()
+	var people_now := permanent_population()
 	while stars < 5 and people_now >= StarRulesScript.population_for(stars + 1):
 		if not StarRulesScript.meets(stars + 1, star_facts()):
 			break

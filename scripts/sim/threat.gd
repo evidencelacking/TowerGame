@@ -41,7 +41,8 @@ const MORNING_PERIODS: Array[int] = [1, 2]
 const SEARCH_TICKS := 20  ## Ticks an office spends on each floor of its sweep.
 const BLAST_FLOORS := 2  ## Floors destroyed above and below the device's floor.
 
-var population: int = 0  ## People in the tower, set by Tower each tick (derived, not saved).
+var population: int = 0  ## People in the tower, set by Tower on each Events roll tick (derived, not saved).
+var started: bool = false  ## True for the tick a threat notice came (derived, not saved): Tower notes the mood shock then.
 var _rooms: Rooms
 var _rng := Rng.new()
 var _seen: int = 0
@@ -124,9 +125,11 @@ func found(grid: GridScript, at_tick: int) -> bool:
 
 ## Called once a tick, after Events.tick.
 func tick(events: EventsScript, grid: GridScript, messages: MessagesScript, at_tick: int) -> void:
+	started = false
 	for event in events.open_events():
 		if event[1] == KIND and event[0] > _seen:
 			_seen = event[0]
+			started = true
 			_notice(event, events, grid, messages, at_tick)
 	for entry in events.resolved():
 		if entry[1] == KIND and entry[0] > _read:

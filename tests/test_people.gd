@@ -73,6 +73,7 @@ static func run(check: Callable) -> void:
 
 	# Determinism and save/load, including a stable id across save.
 	t.people.set_stress(0, 200)
+	t.grades.tick(t.people)  # take the trip request the test just ended by hand, as a tick would
 	var saved := t.save()
 	var u := TowerSim.new(7)
 	check.call(u.load_state(saved) and u.people.state_ints() == t.people.state_ints() and u.state_hash() == t.state_hash(), "people save and load exactly")

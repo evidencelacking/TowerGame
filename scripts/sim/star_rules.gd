@@ -7,7 +7,7 @@ extends RefCounted
 ## swings with the time of day. Stars never drop (owner ruling 2026-11-14): promotion only.
 
 ## Each row lists what a tower needs for that star. A tower meets a row when every field holds:
-##   population    people in the tower at the check (hotel guests always count, #37).
+##   population    the permanent population at the check: everyone registered with the tower, in or out (#456).
 ##   security      at least this many security offices.
 ##   suites        at least this many hotel suites.
 ##   demands_met   true: no open demand of any kind (medical, recycling, parking, transport; owner

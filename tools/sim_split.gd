@@ -26,19 +26,25 @@ static func step(t: Tower, mark: Callable) -> void:
 	mark.call("clock")
 	t.refresh_reach()
 	mark.call("refresh_reach")
-	t.tenancy.tick(t.clock, t.floors, t.rooms, t.grid, t.people, t.rng, t.ledger, t.tick)
+	if t._slow_due(Tower.TENANCY_AT):
+		t.tenancy.tick(t.clock, t.floors, t.rooms, t.grid, t.people, t.rng, t.ledger, t.tick)
 	mark.call("tenancy")
 	t.commerce.tick(t.clock, t.floors, t.rooms, t.grid, t.people, t.tenancy, t.rng, t.ledger, t.messages, t.tick, t.life)
 	mark.call("commerce")
-	t.vip.tick(t.clock, t.stars, t.people, t.grades, t.messages, t.tick)
+	if t._slow_due(Tower.VIP_AT):
+		t.vip.tick(t.clock, t.stars, t.people, t.grades, t.messages, t.tick)
 	mark.call("vip")
-	t.hotel.tick(t.clock, t.floors, t.people, t.rng, t.ledger, t.messages, t.tick)
+	if t._slow_due(Tower.HOTEL_AT):
+		t.hotel.tick(t.clock, t.floors, t.people, t.rng, t.ledger, t.messages, t.tick)
 	mark.call("hotel")
-	t.pests.tick(t.hotel, t.grid, t.rng, t.messages, t.tick)
+	if t._slow_due(Tower.PESTS_AT):
+		t.pests.tick(t.hotel, t.grid, t.rng, t.messages, t.tick)
 	mark.call("pests")
-	t.housekeeping.tick(t.clock, t.floors, t.grid)
+	if t._slow_due(Tower.HOUSEKEEPING_AT):
+		t.housekeeping.tick(t.clock, t.floors, t.grid, Tower.SLOW_EVERY)
 	mark.call("housekeeping")
-	t.recycling.tick(t.clock, t.population())
+	if t._slow_due(Tower.RECYCLING_AT):
+		t.recycling.tick(t.clock, t.population())
 	mark.call("recycling")
 	if t.clock.day_started:
 		t.rent.collect(t.rooms, t.people, t.ledger, t.tick, t.clock.quarter_started, t.rent_bonus_percent())
@@ -57,7 +63,6 @@ static func step(t: Tower, mark: Callable) -> void:
 		if not t.messages.recent(MessagesScript.TRIP_UNREACHABLE, t.tick - TripsScript.WARN_EVERY_TICKS + 1):
 			t.messages.add(t.tick, MessagesScript.TRIP_UNREACHABLE, t.trips.blocked_transfers)
 		t.trips.blocked_transfers = 0
-	t.grades.tick(t.people)
 	mark.call("grades")
 	t.rooms.schedule_slot = RoomsScript.slot_for(t.clock.day_of_week() == ClockScript.WE, t.clock.period())
 	CarsScript.tick(t.rooms)
@@ -65,17 +70,20 @@ static func step(t: Tower, mark: Callable) -> void:
 	t.trips.collect_arrivals(t.floors, t.rooms, t.grid, t.people)
 	mark.call("arrivals")
 	t.people.tick(t.clock)
+	t.grades.tick(t.people)
 	mark.call("people")
-	t.threat.population = t.population()
+	if t.clock.ticks_in_period() == 0:
+		t.threat.population = t.population()
 	mark.call("population")
 	t.events.tick(t.clock, t.stars, t.tick)
 	t.fire.tick(t.clock, t.events, t.grid, t.people, t.messages, t.tick)
 	t.threat.tick(t.events, t.grid, t.messages, t.tick)
 	mark.call("events/fire/threat")
-	if not t.fire.burning_rooms().is_empty():
-		t.mood.note_event(MoodScript.FIRE_SHOCK, t.people)
-	if t.threat.is_active():
-		t.mood.note_event(MoodScript.THREAT_SHOCK, t.people)
+	if t._slow_due(Tower.MOOD_AT) or t.fire.started or t.threat.started:
+		if not t.fire.burning_rooms().is_empty():
+			t.mood.note_event(MoodScript.FIRE_SHOCK, t.people)
+		if t.threat.is_active():
+			t.mood.note_event(MoodScript.THREAT_SHOCK, t.people)
 	for id in t.fire.take_burned():
 		t.char_room(id)
 	for id in t.threat.take_destroyed():
