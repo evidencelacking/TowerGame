@@ -50,6 +50,7 @@ const BAND_ANGRY := 2
 const UNEASY_FROM := 80  ## Stress at or above this is uneasy.
 const ANGRY_OVER := 120  ## Stress above this is angry.
 
+const DRAWN_ROW := 7  ## Ints per person in drawn_rows().
 const FIELDS := 14  ## Per person: id, home, work, offset, goal, trip_state, location, stress, trip_left, trip_total, trip_from, trip_leg, mood, low_days.
 const _ID := 0
 const _HOME := 1
@@ -149,9 +150,12 @@ func workers_in(room: int) -> int:
 ## Workers per room, room id -> count, for callers that ask about many rooms at once.
 func worker_counts() -> Dictionary:
 	var counts: Dictionary = {}
-	for i in count():
-		var room: int = _data[i * FIELDS + _WORK]
+	var n := _data.size()
+	var b := _WORK
+	while b < n:
+		var room := _data[b]
 		counts[room] = int(counts.get(room, 0)) + 1
+		b += FIELDS
 	return counts
 
 
@@ -201,6 +205,29 @@ func in_tower_count() -> int:
 		if _data[b + _LOCATION] != NONE or _data[b + _TRIP] != TRIP_IDLE:
 			n += 1
 	return n
+
+
+## The people the view may draw (in a room or on a trip, not idle outside), one row each in index order,
+## as DRAWN_ROW ints: index, id, trip state, location, work room, goal, stress. A read-only copy of the
+## current state, built in one pass so the view reads a packed array instead of calling an accessor per
+## field per person (#434).
+func drawn_rows() -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var n := _data.size()
+	var b := 0
+	while b < n:
+		var location := _data[b + _LOCATION]
+		var trip := _data[b + _TRIP]
+		if location != NONE or trip != TRIP_IDLE:
+			out.append(b / FIELDS)
+			out.append(_data[b + _ID])
+			out.append(trip)
+			out.append(location)
+			out.append(_data[b + _WORK])
+			out.append(_data[b + _GOAL])
+			out.append(_data[b + _STRESS])
+		b += FIELDS
+	return out
 
 
 func stress_of(i: int) -> int:

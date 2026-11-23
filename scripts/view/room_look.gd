@@ -119,29 +119,52 @@ static func base_color(kind: String) -> Color:
 static func describe(tower: Tower, room_id: int, broken: Variant = null, workers: Variant = null) -> Dictionary:
 	var id := tower.rooms.room_of(room_id)
 	var kind := tower.rooms.kind_of(id)
+	var facts := state_facts(tower, id, kind, broken, workers)
+	var state: String = facts[0]
+	var color := base_color(kind)
+	match state:
+		CHARRED:
+			return {"kind": kind, "state": CHARRED, "color": CHARRED_COLOR, "fill": 0, "empty": false}
+		INFESTED:
+			color = INFESTED_TINT
+		DIRTY:
+			color = DIRTY_TINT
+		OCCUPIED:
+			color = color.lerp(GLOW_COLOR, 0.55)
+		VACANT:
+			color = VACANT_COLOR
+		IDLE:
+			color = IDLE_TINT
+		BROKEN:
+			color = color.darkened(0.35)
+	var out := {"kind": kind, "state": state, "color": color, "fill": facts[1], "empty": facts[2], "cut_off": facts[3]}
+	if kind == PoolLifeScript.KIND:
+		out.merge(_pool_life(tower, id))
+	return out
+
+
+## What describe() says of a room without its colours, the part a repaint hangs on: [state, fill, empty,
+## cut_off]. id is the owning room and kind its kind. One source of truth for describe and the renderer's
+## cheap per-tick signature, which skips building colours and a dictionary per room (#434).
+static func state_facts(tower: Tower, id: int, kind: String, broken: Variant = null, workers: Variant = null) -> Array:
+	if tower.rooms.is_charred(id):
+		return [CHARRED, 0, false, false]
 	var fill := 0
 	var state := OPEN
-	var color := base_color(kind)
-	if tower.rooms.is_charred(id):
-		return {"kind": kind, "state": CHARRED, "color": CHARRED_COLOR, "fill": 0, "empty": false}
 	var empty := false  ## Unrented or unoccupied: drawn with the vacant look (#358).
-	if tower.hotel.is_hotel(id):
+	if HotelScript.is_hotel_kind(kind):
 		if tower.hotel.is_infested(id):
 			state = INFESTED
-			color = INFESTED_TINT
 		elif tower.hotel.is_dirty(id):
 			state = DIRTY
-			color = DIRTY_TINT
 		elif tower.hotel.state_of(id) == HotelScript.STAYING:
 			state = OCCUPIED
-			color = color.lerp(GLOW_COLOR, 0.55)
 		else:
 			state = CLEAN
 			empty = true
 	elif kind == "retail":
 		if tower.commerce.is_vacant(id):
 			state = VACANT
-			color = VACANT_COLOR
 			empty = true
 		else:
 			state = LEASED
@@ -154,16 +177,11 @@ static func describe(tower: Tower, room_id: int, broken: Variant = null, workers
 		fill = tower.recycling.fill_of(id) * 1000 / RecyclingScript.CAPACITY
 		if tower.recycling.is_idle(id):
 			state = IDLE
-			color = IDLE_TINT
 	elif Parking.is_parking(kind):
 		var cut_off: Array[int] = broken if broken != null else Parking.broken_ids(tower.rooms, tower.grid)
 		if cut_off.has(id):
 			state = BROKEN
-			color = color.darkened(0.35)
-	var out := {"kind": kind, "state": state, "color": color, "fill": fill, "empty": empty, "cut_off": tower.rooms.is_cut_off(id)}
-	if kind == PoolLifeScript.KIND:
-		out.merge(_pool_life(tower, id))
-	return out
+	return [state, fill, empty, tower.rooms.is_cut_off(id)]
 
 
 ## The pool's moving parts for one frame (#328), from the clock and the room id, as the sim (pool_life.gd) has them: the
