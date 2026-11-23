@@ -23,6 +23,7 @@ const VACANT := "vacant"
 const OPEN := "open"
 const IDLE := "idle"  ## A full recycling centre: it takes nothing until the truck comes.
 const BROKEN := "broken"  ## Parking cut off from its ramp.
+const DEGRADED := "degraded"  ## A hospital room whose needs fail (#377): it stands but serves nobody.
 const CHARRED := "charred"  ## Burned out by a fire (#373): blackened, empty, earning nothing until repaired.
 
 const SINGLE_COLOR := Color(0.93, 0.80, 0.55)
@@ -43,6 +44,10 @@ const DECK_COLOR := Color(0.40, 0.66, 0.84)
 const PAD_COLOR := Color(0.46, 0.50, 0.56)  ## The helicopter pad (#409).
 const BALLROOM_COLOR := Color(0.62, 0.30, 0.46)  ## The ballroom (#359): claret.
 const CONFERENCE_COLOR := Color(0.36, 0.50, 0.66)  ## The conference center (#359): slate blue.
+const ER_COLOR := Color(0.90, 0.36, 0.36)  ## The hospital chain (#377): a red emergency room, a green operating room, a blue imaging suite and a pale ward.
+const OPERATING_COLOR := Color(0.42, 0.72, 0.62)
+const IMAGING_COLOR := Color(0.40, 0.55, 0.80)
+const WARD_COLOR := Color(0.82, 0.88, 0.92)
 const SCHOOL_COLOR := Color(0.78, 0.40, 0.30)  ## The school (#370): brick red.
 const GROCERY_COLOR := Color(0.52, 0.72, 0.42)
 const DELI_COLOR := Color(0.88, 0.70, 0.40)
@@ -74,7 +79,7 @@ const INK := Color(0.10, 0.08, 0.08)
 const SPLASH_FRAME_TICKS := 2  ## Sim ticks per frame of the cannonball; PoolLife.SPLASH_TICKS / this frames in all.
 const SPLASH_FRAMES := 5
 const PoolLifeScript := preload("res://scripts/sim/pool_life.gd")
-const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "helipad", "school", "ballroom", "conference_center", "pool"]
+const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "helipad", "school", "ballroom", "conference_center", "pool", "emergency_room", "operating_room", "imaging", "patient_ward"]
 
 
 static func handles(kind: String) -> bool:
@@ -103,6 +108,10 @@ static func base_color(kind: String) -> Color:
 		"school": return SCHOOL_COLOR
 		"ballroom": return BALLROOM_COLOR
 		"conference_center": return CONFERENCE_COLOR
+		"emergency_room": return ER_COLOR
+		"operating_room": return OPERATING_COLOR
+		"imaging": return IMAGING_COLOR
+		"patient_ward": return WARD_COLOR
 		"grocery": return GROCERY_COLOR
 		"deli": return DELI_COLOR
 		"cafe": return CAFE_COLOR
@@ -140,7 +149,7 @@ static func describe(tower: Tower, room_id: int, broken: Variant = null, workers
 			color = VACANT_COLOR
 		IDLE:
 			color = IDLE_TINT
-		BROKEN:
+		BROKEN, DEGRADED:
 			color = color.darkened(0.35)
 	var out := {"kind": kind, "state": state, "color": color, "fill": facts[1], "empty": facts[2], "cut_off": facts[3]}
 	if kind == PoolLifeScript.KIND:
@@ -184,6 +193,9 @@ static func state_facts(tower: Tower, id: int, kind: String, broken: Variant = n
 		fill = tower.recycling.fill_of(id) * 1000 / RecyclingScript.CAPACITY
 		if tower.recycling.is_idle(id):
 			state = IDLE
+	elif CatalogueScript.is_hospital(kind):
+		if tower.rooms.service_degraded(tower.grid, id):
+			state = DEGRADED
 	elif Parking.is_parking(kind):
 		var cut_off: Array[int] = broken if broken != null else Parking.broken_ids(tower.rooms, tower.grid)
 		if cut_off.has(id):
@@ -231,7 +243,7 @@ static func appearance(look: Dictionary, lit: bool, dark: bool) -> Array:
 		return [look["color"], false]
 	if state == DIRTY or state == INFESTED or state == IDLE or state == VACANT:
 		base = look["color"]
-	elif state == BROKEN or bool(look.get("cut_off", false)):  # parking cut off from its ramp, or any room no route reaches (#368)
+	elif state == BROKEN or state == DEGRADED or bool(look.get("cut_off", false)):  # parking cut off from its ramp, or any room no route reaches (#368)
 		base = base.darkened(0.35)
 	return [base, (lit or state == OCCUPIED or state == LEASED) and not dark]
 
@@ -253,7 +265,7 @@ static func draw_marks(canvas: Object, look: Dictionary, rect: Rect2i, upper: bo
 	if state == BROKEN or bool(look.get("cut_off", false)):  # a red cross: this parking does not count, or no stairs or lift reach this room (#368)
 		canvas.draw_line(Vector2(interior.position), Vector2(interior.end), p["red"], 1.0)
 		canvas.draw_line(Vector2(interior.position.x, interior.end.y), Vector2(interior.end.x, interior.position.y), p["red"], 1.0)
-	if state == IDLE or state == INFESTED:
+	if state == IDLE or state == INFESTED or state == DEGRADED:  # a red frame: this hospital room serves nobody (#377)
 		canvas.draw_rect(interior.grow(-1), p["red"], false, 1.0)
 	if state == INFESTED:
 		_bug(canvas, Vector2i(interior.position.x + interior.size.x / 2, interior.position.y + 11), p)

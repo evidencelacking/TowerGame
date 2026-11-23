@@ -115,7 +115,7 @@ static func run(check: Callable) -> void:
 	check.call(int(row["cost"]) == 70000 and int(row["width"]) == 14 and int(row["people"]) == 4, "assisted: $70,000, 14 wide, four residents")
 	check.call(row["rent"] == [2000, 2500, 3000, 4000] and Rent.is_rentable("assisted") and Grades.is_graded("assisted"), "assisted: four rent levels, the third $3,000, graded")
 	check.call(Rooms.PLACEABLE.has("assisted") and Names.TITLES.has("assisted") and Catalogue.is_rental("assisted") and not Catalogue.is_condo("assisted"), "assisted: placeable, titled, a rented home and not a condo")
-	check.call(Catalogue.IDS.find("assisted") == Catalogue.IDS.size() - 1 and Catalogue.IDS.find("penthouse") == Catalogue.IDS.size() - 2, "assisted: appended last, so existing saves keep their numbering")
+	check.call(Catalogue.IDS.find("assisted") == Catalogue.IDS.size() - 5 and Catalogue.IDS.find("penthouse") == Catalogue.IDS.size() - 6, "assisted: appended last, so existing saves keep their numbering")
 	var in_toolbar := false
 	for category: Array in Toolbar.CATEGORIES:
 		in_toolbar = in_toolbar or (category[1] as Array).has("assisted")
