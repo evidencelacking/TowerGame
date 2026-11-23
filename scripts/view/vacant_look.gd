@@ -9,6 +9,7 @@ extends RefCounted
 
 const VC := preload("res://scripts/view/view_consts.gd")
 const CommerceScript := preload("res://scripts/sim/commerce.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 
 const GLYPH_W := 3
 const GLYPH_H := 5
@@ -42,7 +43,7 @@ static func family(kind: String) -> String:
 		return SHOP
 	if kind == "office":
 		return OFFICE
-	if kind == "condo" or kind == "apartment" or kind.begins_with("hotel_"):
+	if CatalogueScript.is_condo(kind) or kind == "apartment" or kind.begins_with("hotel_"):
 		return HOME
 	return ""
 

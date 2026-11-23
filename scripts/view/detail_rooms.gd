@@ -19,7 +19,7 @@ const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const SkyLook := preload("res://scripts/view/sky_look.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
-const KINDS: Array[String] = ["lobby", "office", "condo", "apartment", "hotel_single", "hotel_twin", "hotel_suite", "housekeeping"]
+const KINDS: Array[String] = ["lobby", "office", "condo", "studio", "penthouse", "apartment", "hotel_single", "hotel_twin", "hotel_suite", "housekeeping"]
 const SKY_LOBBY := "sky_lobby"  ## A sky lobby floor (#357): drawn by draw() with the floor number as its id; not a room kind.
 const SUB := 2  ## Mock-up pixels per world pixel.
 const FLOOR_H := Scenes.FLOOR
@@ -68,6 +68,10 @@ static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bo
 			_office(pen, w, y0, seats, lit, night, id, pal, variant)
 		"condo":
 			_condo(pen, w, y0, seats, lit, night, id, pal)
+		"studio":
+			_studio(pen, w, y0, seats, lit, night, id, pal)
+		"penthouse":
+			_penthouse(pen, w, y0, seats, lit, night, id, pal)
 		"apartment":
 			_apartment(pen, w, y0, seats, lit, night, id, pal)
 		"hotel_single", "hotel_twin", "hotel_suite":
@@ -277,6 +281,38 @@ static func _condo(p: Object, w: int, y0: int, seats: Array, lit: bool, night: b
 		Scenes.ceiling_light(p, lx, yt, 30.0, lit, 70.0)
 	if bx + 58.0 + 14.0 < c1 - 10.0:
 		Scenes.nightstand(p, bx + 58.0, fy, lit)
+
+
+## A studio (#369): one room, a bed with its nightstand, a window, a kitchenette corner and a small plant.
+static func _studio(p: Object, w: int, y0: int, seats: Array, lit: bool, night: bool, id: int, pal: Array) -> void:
+	var fy := float(y0 + 58)
+	var yt := float(y0)
+	Scenes.shell_room(p, 0, yt, w, 1, pal)
+	var c0: float = seats[0] if seats.size() > 0 else 30.0
+	var bx := maxf(c0 - 16.0, 6.0)
+	var quilts: Array = [Color("c8606a"), Color("5a7fb4"), Color("c8a05a")]
+	Scenes.bed(p, bx, fy, 44.0, quilts[id % quilts.size()], Color("f4eee2"))
+	Scenes.nightstand(p, bx + 46.0, fy, lit)
+	Scenes.window(p, bx + 62.0, yt + 10, 26, 22, Color("f0e8dc"), Color(CURTAINS[id % CURTAINS.size()]), id + 9, night, id % 3 == 0)
+	var fxx := w - 28.0
+	if fxx > bx + 100.0:
+		Scenes.fridge(p, fxx, fy)
+		Scenes.counter(p, fxx - 30.0, fy, 28.0, id)
+	Scenes.ceiling_light(p, w * 0.5, yt, 26.0, lit, 64.0)
+
+
+## A penthouse (#369): the condo's rooms on a grander scale, with a second window wall, a sofa, plants and a gold-framed picture.
+static func _penthouse(p: Object, w: int, y0: int, seats: Array, lit: bool, night: bool, id: int, pal: Array) -> void:
+	_condo(p, w, y0, seats, lit, night, id, pal)
+	var fy := float(y0 + 58)
+	var yt := float(y0)
+	var curtain := Color(CURTAINS[(id + 2) % CURTAINS.size()])
+	var sx := w * 0.5 - 40.0
+	Scenes.window(p, sx, yt + 8, 44, 30, Color("f0e8dc"), curtain, id + 11, night, id % 2 == 0)
+	Scenes.picture(p, sx + 56.0, yt + 12, Color("d8b04a"), Color("8a6ab0"))
+	Scenes.sofa(p, w * 0.5 - 20.0, fy, Color("7a5a8a"))
+	Scenes.plant(p, w * 0.5 + 40.0, fy, 28.0, Color("d8b04a"))
+	Scenes.ceiling_light(p, w * 0.5, yt, 34.0, lit, 76.0)
 
 
 ## A rental apartment (#379): a studio with a bed and nightstand, a window, a desk with a screen, a sofa and a small plant.

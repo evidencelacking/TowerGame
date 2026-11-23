@@ -8,6 +8,7 @@ extends RefCounted
 ## condo's sale price, plus percent of a shop's takings. Noise has its own rule (noise.gd) and is not folded in.
 
 const SynergyScript := preload("res://scripts/sim/synergy.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
 const FULL := 20  ## A net of this many points (or more, either way) shows the strongest tint.
@@ -25,7 +26,7 @@ static var on: bool = false
 ## Net synergy points of a room of `kind` at `run` among `others` ([kind, run] source pairs).
 static func net_of(kind: String, run: Array, others: Array) -> int:
 	var net := SynergyScript.mood_delta(kind, run, others)
-	if kind == "condo":
+	if CatalogueScript.is_condo(kind):
 		net += SynergyScript.demand_percent(run, others)
 	net += SynergyScript.sales_percent(kind, run, others)
 	return net

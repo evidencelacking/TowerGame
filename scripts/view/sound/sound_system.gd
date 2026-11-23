@@ -154,7 +154,7 @@ func _messages(tower: Tower) -> void:
 
 
 func _is_condo(catalogue_index: int) -> bool:
-	return catalogue_index >= 0 and catalogue_index < CatalogueScript.IDS.size() and CatalogueScript.IDS[catalogue_index] == CatalogScript.CONDO_KIND
+	return catalogue_index >= 0 and catalogue_index < CatalogueScript.IDS.size() and CatalogueScript.is_condo(CatalogueScript.IDS[catalogue_index])
 
 
 ## The world rectangle on screen, and the zoom.
