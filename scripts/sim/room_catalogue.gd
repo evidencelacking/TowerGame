@@ -18,7 +18,7 @@ extends RefCounted
 ##   placement      a PLACE_* rule, a hint for the building issues to enforce.
 ##   limit          most allowed per tower, or 0 for no limit.
 ##   limit_group    rooms sharing one limit share this group name; "" counts alone.
-##   people         workers (office), residents (condo) or guests (hotel: single 1, twin 2, suite 2) the room holds; absent elsewhere for now.
+##   people         workers (office), residents (condo, apartment) or guests (hotel: single 1, twin 2, suite 2) the room holds; absent elsewhere for now.
 ##                  Population is People.in_tower_count().
 ##   rent           quarterly rent in dollars at each of 4 levels, lowest to highest (office only;
 ##                  UNVERIFIED tunables; the third is the $10,000 default, see rent.gd).
@@ -65,7 +65,7 @@ const IDS: Array[String] = [
 	"metro", "cathedral", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino",
 	"cafe", "pizza", "sushi", "fine_dining", "bar",
 	"grocery", "deli", "pool", "helipad", "school",
-	"ballroom", "conference_center",
+	"ballroom", "conference_center", "apartment",
 ]
 
 const _ROWS: Dictionary = {
@@ -167,6 +167,11 @@ const _ROWS: Dictionary = {
 		"limit_group": "", "limit_scope": "tower"},
 	# School (#370): the daycare's older sibling, children of school age, weekdays. 24 places, star 3, $150,000.
 	"school": {"staff": 4, "width": 16, "height": 1, "cost": 150000, "per_unit": false, "star": 3,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	# Rental apartment (#379, our own kind): a home that is rented, not sold. Two residents move in over days (apartments.gd),
+	# pay rent on the quarterly cycle at four levels (default the third, $4,000), and some move out over time. Every number a tunable.
+	"apartment": {"people": 2, "rent": [2000, 3000, 4000, 6000], "width": 12, "height": 1, "cost": 50000, "per_unit": false, "star": 2,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
 	# Ballroom and conference center (#359, own design): bookable event rooms (bookings.gd). Star 4 $600,000 and star 3 $400,000.

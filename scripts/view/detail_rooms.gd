@@ -19,7 +19,7 @@ const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const SkyLook := preload("res://scripts/view/sky_look.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
-const KINDS: Array[String] = ["lobby", "office", "condo", "hotel_single", "hotel_twin", "hotel_suite", "housekeeping"]
+const KINDS: Array[String] = ["lobby", "office", "condo", "apartment", "hotel_single", "hotel_twin", "hotel_suite", "housekeeping"]
 const SKY_LOBBY := "sky_lobby"  ## A sky lobby floor (#357): drawn by draw() with the floor number as its id; not a room kind.
 const SUB := 2  ## Mock-up pixels per world pixel.
 const FLOOR_H := Scenes.FLOOR
@@ -68,6 +68,8 @@ static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bo
 			_office(pen, w, y0, seats, lit, night, id, pal, variant)
 		"condo":
 			_condo(pen, w, y0, seats, lit, night, id, pal)
+		"apartment":
+			_apartment(pen, w, y0, seats, lit, night, id, pal)
 		"hotel_single", "hotel_twin", "hotel_suite":
 			_hotel(pen, kind, w, y0, seats, lit, night, id, pal)
 		"housekeeping":
@@ -275,6 +277,26 @@ static func _condo(p: Object, w: int, y0: int, seats: Array, lit: bool, night: b
 		Scenes.ceiling_light(p, lx, yt, 30.0, lit, 70.0)
 	if bx + 58.0 + 14.0 < c1 - 10.0:
 		Scenes.nightstand(p, bx + 58.0, fy, lit)
+
+
+## A rental apartment (#379): a studio with a bed and nightstand, a window, a desk with a screen, a sofa and a small plant.
+static func _apartment(p: Object, w: int, y0: int, seats: Array, lit: bool, night: bool, id: int, pal: Array) -> void:
+	var fy := float(y0 + 58)
+	var yt := float(y0)
+	Scenes.shell_room(p, 0, yt, w, 1, pal)
+	var c0: float = seats[0] if seats.size() > 0 else 30.0
+	var c1: float = seats[1] if seats.size() > 1 else c0 + 54.0
+	var bx := maxf(c0 - 16.0, 6.0)
+	var quilts: Array = [Color("4f9a8e"), Color("c8a05a"), Color("7a8ab8")]
+	Scenes.bed(p, bx, fy, 50.0, quilts[id % quilts.size()], Color("f4eee2"))
+	Scenes.nightstand(p, bx + 52.0, fy, lit)
+	var wx := (c0 + c1) * 0.5 - 18.0
+	Scenes.window(p, wx, yt + 10, 30, 24, Color("f0e8dc"), Color(CURTAINS[id % CURTAINS.size()]), id + 3, night, id % 3 == 1)
+	Scenes.desk(p, c1 - 14.0, fy, lit)
+	if w - 40.0 > c1 + 50.0:
+		Scenes.sofa(p, c1 + 28.0, fy, quilts[(id + 1) % quilts.size()])
+	Scenes.plant(p, w - 20.0, fy, 24.0, Color("a8785a"))
+	Scenes.ceiling_light(p, w * 0.5, yt, 30.0, lit, 70.0)
 
 
 ## A hotel room: a bed with its nightstand and lamp, then by size a window, a sofa and an armchair.

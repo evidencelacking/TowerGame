@@ -20,7 +20,7 @@ const SoundControlsScript := preload("res://scripts/view/sound/sound_controls.gd
 const CATEGORIES: Array = [
 	["Structure", ["lobby", "floor", "stairs", "escalator"]],
 	["Elevators", ["local_shaft", "local_car", "service_shaft", "service_car", "express_shaft", "express_car"]],
-	["Rooms", ["office", "coworking", "condo", "hotel_single", "hotel_twin", "hotel_suite"]],
+	["Rooms", ["office", "coworking", "condo", "apartment", "hotel_single", "hotel_twin", "hotel_suite"]],
 	["Dining", ["fast_food", "restaurant", "cafe", "pizza", "sushi", "deli", "fine_dining", "bar"]],
 	["Shops", ["retail", "grocery"]],
 	["Entertainment", ["movie_theatre", "party_hall", "ballroom", "conference_center", "nightclub", "casino"]],

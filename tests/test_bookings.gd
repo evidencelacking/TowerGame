@@ -64,7 +64,7 @@ static func run(check: Callable) -> void:
 	for kind: String in Bookings.KINDS:
 		check.call(Rooms.PLACEABLE.has(kind) and Commerce.is_shop(kind) and Names.TITLES.has(kind), "%s: placeable, trades like a shop, has titles" % kind)
 	var n := Catalogue.IDS.size()
-	check.call(Catalogue.IDS[n - 2] == "ballroom" and Catalogue.IDS[n - 1] == "conference_center", "ballroom and conference center are appended to the ids, so existing saves keep their numbering")
+	check.call(Catalogue.IDS.find("conference_center") == Catalogue.IDS.find("ballroom") + 1 and Catalogue.IDS.find("ballroom") == Catalogue.IDS.find("school") + 1, "ballroom and conference center are appended to the ids, so existing saves keep their numbering")
 	var rows := {}
 	for meal: Array in Commerce.MEALS:
 		if Bookings.is_bookable(meal[3]):

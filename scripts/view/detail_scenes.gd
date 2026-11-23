@@ -15,6 +15,7 @@ const LEAF: Color = Color("3f8a52")
 const PALETTES: Dictionary = {
 	"office": ["bccdc3", "86a196", "6e7f96", "5f6f86", "a9bab1"],
 	"condo": ["dcc0cc", "a8788e", "8f6a4a", "7c5a3e", "e8d8d0"],
+	"apartment": ["c8dcd4", "5a9a8e", "8a7a62", "78694f", "eaf0ea"],
 	"hotel": ["d8c0b8", "9a6e5c", "a89a88", "988a78", "eee4dc"],
 	"service": ["c6d2cc", "86a096", "7a8aa0", "6a7a92", "a8b8b0"],
 	"lobby": ["eadfc8", "b99f74", "e8e2d8", "b0aaa8", "c9a85c"],

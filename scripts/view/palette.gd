@@ -21,7 +21,7 @@ const PALETTES: Array[Dictionary] = [
 		"sky_day": Color("5cb8f0"), "sky_horizon": Color("f8e4a8"), "sky_night": Color("1a1440"), "sky_night_horizon": Color("68305c"),
 		"wall": Color("3a2216"), "slab": Color("22120c"), "outline": Color("160a06"), "slab_hi": Color("5a3a28"),
 		"hues": {
-			"lobby": Color("e8b458"), "office": Color("58a0e0"), "condo": Color("c880d8"), "hotel": Color("e0648c"),
+			"lobby": Color("e8b458"), "office": Color("58a0e0"), "condo": Color("c880d8"), "rental": Color("58b8a0"), "hotel": Color("e0648c"),
 			"food": Color("f08030"), "shop": Color("88cc58"), "service": Color("48b8b0"), "medical": Color("e8f0f0"),
 			"recycling": Color("78a850"), "parking": Color("8c8c98"), "civic": Color("d8a8e8"), "stairs": Color("c8b070"),
 			"escalator": Color("58c0c8"), "shaft": Color("2a1a12"), "car": Color("e4c43c"), "floor": Color("22120c"),
@@ -38,7 +38,7 @@ const PALETTES: Array[Dictionary] = [
 		"sky_day": Color("b4c6d4"), "sky_horizon": Color("e0e6ea"), "sky_night": Color("0a1222"), "sky_night_horizon": Color("1a2438"),
 		"wall": Color("1e242c"), "slab": Color("303a46"), "outline": Color("7a8c9e"), "slab_hi": Color("46525f"),
 		"hues": {
-			"lobby": Color("b4a88e"), "office": Color("86a0b2"), "condo": Color("a898a8"), "hotel": Color("c09e76"),
+			"lobby": Color("b4a88e"), "office": Color("86a0b2"), "condo": Color("a898a8"), "rental": Color("98a8a0"), "hotel": Color("c09e76"),
 			"food": Color("c8a078"), "shop": Color("9ab096"), "service": Color("88aeb0"), "medical": Color("dce4e6"),
 			"recycling": Color("98ac84"), "parking": Color("9aa0a8"), "civic": Color("b8a8c4"), "stairs": Color("9a9484"),
 			"escalator": Color("8ab4bc"), "shaft": Color("161c22"), "car": Color("9aaab6"), "floor": Color("303a46"),
@@ -55,7 +55,7 @@ const PALETTES: Array[Dictionary] = [
 		"sky_day": Color("38a0ff"), "sky_horizon": Color("38a0ff"), "sky_night": Color("0c0c2c"), "sky_night_horizon": Color("0c0c2c"),
 		"wall": Color("000000"), "slab": Color("000000"), "outline": Color("000000"), "slab_hi": Color("000000"),
 		"hues": {
-			"lobby": Color("ffd000"), "office": Color("2850ff"), "condo": Color("a040ff"), "hotel": Color("ff2a88"),
+			"lobby": Color("ffd000"), "office": Color("2850ff"), "condo": Color("a040ff"), "rental": Color("20ffc0"), "hotel": Color("ff2a88"),
 			"food": Color("ff5a00"), "shop": Color("00d060"), "service": Color("00c8d0"), "medical": Color("ffffff"),
 			"recycling": Color("30b030"), "parking": Color("a0a0a0"), "civic": Color("ff80c0"), "stairs": Color("ffffff"),
 			"escalator": Color("00e0ff"), "shaft": Color("101010"), "car": Color("ffffff"), "floor": Color("000000"),
@@ -72,7 +72,7 @@ const PALETTES: Array[Dictionary] = [
 		"sky_day": Color("5cb8f0"), "sky_horizon": Color("f8e4a8"), "sky_night": Color("1a1440"), "sky_night_horizon": Color("68305c"),
 		"wall": Color("3a2216"), "slab": Color("22120c"), "outline": Color("160a06"), "slab_hi": Color("75645c"),
 		"hues": {
-			"lobby": Color("e8b458"), "office": Color("58a0e0"), "condo": Color("c880d8"), "hotel": Color("e0648c"),
+			"lobby": Color("e8b458"), "office": Color("58a0e0"), "condo": Color("c880d8"), "rental": Color("58b8a0"), "hotel": Color("e0648c"),
 			"food": Color("f08030"), "shop": Color("88cc58"), "service": Color("48b8b0"), "medical": Color("e8f0f0"),
 			"recycling": Color("78a850"), "parking": Color("8c8c98"), "civic": Color("d8a8e8"), "stairs": Color("c8b070"),
 			"escalator": Color("58c0c8"), "shaft": Color("2a1a12"), "car": Color("e4c43c"), "floor": Color("22120c"),

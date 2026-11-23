@@ -42,7 +42,7 @@ static func family(kind: String) -> String:
 		return SHOP
 	if kind == "office":
 		return OFFICE
-	if kind == "condo" or kind.begins_with("hotel_"):
+	if kind == "condo" or kind == "apartment" or kind.begins_with("hotel_"):
 		return HOME
 	return ""
 

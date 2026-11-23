@@ -46,7 +46,7 @@ static func is_night(minute: int) -> bool:
 ## The activity of a person resting in a room of `kind`. works_here: their work room is this one.
 ## goal: PeopleScript.DEST_*. staying: a hotel guest in residence. waiting: a trip is requested.
 static func classify(kind: String, works_here: bool, goal: int, staying: bool, minute: int, waiting: bool) -> int:
-	var sleeps_here := kind.begins_with("hotel_") or kind == "condo"
+	var sleeps_here := kind.begins_with("hotel_") or kind == "condo" or kind == "apartment"
 	if sleeps_here and is_night(minute) and (staying or goal == PeopleScript.DEST_HOME):
 		return SLEEPING
 	if waiting:
