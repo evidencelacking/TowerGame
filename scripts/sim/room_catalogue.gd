@@ -32,6 +32,9 @@ extends RefCounted
 ##   staff          workers a room employs (our own kinds: gym, daycare, clinic, ...). Their wages are folded into
 ##                  the shop's empty-day loss in commerce.gd; names.gd gives them job titles. All tunable.
 ##   capacity       passengers per car (car rows only; 0 elsewhere).
+##   needs          optional list of [kind, scope, floors]: rooms this one needs to give full service (#377). scope is
+##                  NEEDS_SAME_FLOOR, NEEDS_NEAR (within `floors` floors) or NEEDS_TOWER; a room whose need fails still
+##                  stands but its service is degraded (Rooms.service_degraded). Absent means no needs.
 ##   limit_scope    "tower", or "shaft" for elevator cars (limit is cars per shaft).
 
 const FLOOR_COST_PER_UNIT := 500  ## Dollars per unit for the floor under any room.
@@ -39,7 +42,7 @@ const RESCUE_COST := 500000  ## Fire rescue, dollars (decided 2026-11-10).
 
 ## Kinds whose upkeep is a guess: only the $10,000 per elevator (local shaft) is in the reference.
 const UPKEEP_UNVERIFIED: Array[String] = [
-	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp", "metro", "observation_deck", "casino", "pool", "helipad",
+	"lobby", "service_shaft", "express_shaft", "housekeeping", "security", "escalator", "recycling", "parking_ramp", "metro", "observation_deck", "casino", "pool", "helipad", "emergency_room", "operating_room", "imaging", "patient_ward",
 ]
 
 const PLACE_ANYWHERE := 0  ## Above or below ground.
@@ -56,6 +59,14 @@ const PLACE_CHAIN := 10  ## Must chain to a ramp; broken chains stop working.
 const PLACE_BOTTOM_B10 := 11  ## Metro: bottom at B10, nothing below.
 const PLACE_FLOOR_100 := 12  ## Cathedral: floor 100 only.
 
+## Scopes of a "needs" entry (#377).
+const NEEDS_SAME_FLOOR := 0
+const NEEDS_NEAR := 1
+const NEEDS_TOWER := 2
+## The hospital chain (#377): an optional prestige and income chain, never a star requirement (hospital.gd).
+const HOSPITAL_KINDS: Array[String] = ["emergency_room", "operating_room", "imaging", "patient_ward"]
+const HOSPITAL_REACH := 6  ## Floors within which a hospital room finds the room it needs.
+
 ## Room id order, for stable iteration.
 const IDS: Array[String] = [
 	"lobby", "floor", "stairs", "local_shaft", "local_car", "office", "condo", "fast_food",
@@ -67,6 +78,7 @@ const IDS: Array[String] = [
 	"grocery", "deli", "pool", "helipad", "school",
 	"ballroom", "conference_center", "apartment",
 	"studio", "penthouse", "assisted",
+	"emergency_room", "operating_room", "imaging", "patient_ward",
 ]
 
 ## The sold homes (#369): the standard condo and the two sizes added after it. Anything that treats a condo
@@ -197,6 +209,21 @@ const _ROWS: Dictionary = {
 	"assisted": {"people": 4, "rent": [2000, 2500, 3000, 4000], "width": 14, "height": 1, "cost": 70000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
+	# The hospital (#377, own design, every number a tunable): an optional chain that earns from patients (hospital.gd) and
+	# never gates a star. The emergency room stands alone; the operating room and imaging need an emergency room within
+	# 6 floors and the ward an operating room. A room whose need fails still stands but earns nothing. Appended last.
+	"emergency_room": {"staff": 6, "upkeep": 12000, "width": 20, "height": 1, "cost": 700000, "per_unit": false, "star": 4,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"operating_room": {"staff": 5, "upkeep": 10000, "width": 16, "height": 1, "cost": 900000, "per_unit": false, "star": 4,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower", "needs": [["emergency_room", NEEDS_NEAR, HOSPITAL_REACH]]},
+	"imaging": {"staff": 3, "upkeep": 6000, "width": 14, "height": 1, "cost": 600000, "per_unit": false, "star": 4,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower", "needs": [["emergency_room", NEEDS_NEAR, HOSPITAL_REACH]]},
+	"patient_ward": {"staff": 4, "upkeep": 6000, "width": 20, "height": 1, "cost": 500000, "per_unit": false, "star": 4,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower", "needs": [["operating_room", NEEDS_NEAR, HOSPITAL_REACH]]},
 	# Ballroom and conference center (#359, own design): bookable event rooms (bookings.gd). Star 4 $600,000 and star 3 $400,000.
 	"ballroom": {"staff": 6, "width": 32, "height": 1, "cost": 600000, "per_unit": false, "star": 4,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
@@ -269,12 +296,18 @@ const DISPLAY_NAMES: Dictionary = {
 	"local_car": "Local car", "service_car": "Service car", "express_car": "Express car",
 	"medical": "Medical Center", "clinic": "Wellness Clinic",  # #384
 	"assisted": "Assisted Living",  # #378
+	"emergency_room": "Emergency Room", "operating_room": "Operating Room", "imaging": "Imaging Suite", "patient_ward": "Patient Ward",  # #377
 }
 
 
 ## The player-facing name of a room or tool id, e.g. "Local elevator" for "local_shaft".
 static func display_name(room_id: String) -> String:
 	return DISPLAY_NAMES.get(room_id, room_id.replace("_", " ").capitalize())
+
+
+## True for a room of the hospital chain (#377).
+static func is_hospital(room_id: String) -> bool:
+	return HOSPITAL_KINDS.has(room_id)
 
 
 ## True for a rented home: the apartment and assisted living.
