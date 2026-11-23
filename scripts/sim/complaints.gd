@@ -26,6 +26,7 @@ const GridScript := preload("res://scripts/sim/grid.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
 const NoiseScript := preload("res://scripts/sim/noise.gd")
+const SynergyScript := preload("res://scripts/sim/synergy.gd")
 const HotelScript := preload("res://scripts/sim/hotel.gd")
 const CommerceScript := preload("res://scripts/sim/commerce.gd")
 const ClockScript := preload("res://scripts/sim/clock.gd")
@@ -37,9 +38,10 @@ const RENT := 3
 const UNREACHED := 4
 const NO_GROCERY := 5
 const NO_FOOD := 6
+const NO_CARE := 7  ## Assisted living with no clinic or medical center within 5 floors (#378).
 
 ## Priority order of the reasons: first match is the main one.
-const PRIORITY: Array[int] = [NOISE, DISTANCE, RENT, NO_FOOD, UNREACHED, NO_GROCERY]
+const PRIORITY: Array[int] = [NOISE, DISTANCE, RENT, NO_FOOD, UNREACHED, NO_GROCERY, NO_CARE]
 
 const NOISE_FROM := 3  ## Noise level at or above this is a complaint (unverified, tunable).
 ## A tower with this many condos and no grocery store gives every condo a complaint (#322, our own design, tunable).
@@ -123,6 +125,8 @@ func has_reason(room: int, reason: int) -> bool:
 			return hotel != null and hotel.unreached(room)
 		NO_GROCERY:
 			return CatalogueScript.is_condo(_rooms.kind_of(room)) and lacks_grocery()
+		NO_CARE:
+			return _rooms.kind_of(room) == "assisted" and not _grid.run_of(room).is_empty() and not SynergyScript.has_care(_grid.run_of(room), SynergyScript.others_of(_grid, _rooms))
 		NO_FOOD:
 			return _rooms.kind_of(room) == "office" and _food_applies() and _food_coverage < FOOD_LOW_PERCENT
 	return false
@@ -168,6 +172,8 @@ static func label(reason: int) -> String:
 			return "Guests could not reach the room"
 		NO_GROCERY:
 			return "No grocery store in the tower"
+		NO_CARE:
+			return "No clinic or medical center nearby"
 		NO_FOOD:
 			return "Nowhere to eat lunch"
 	return ""

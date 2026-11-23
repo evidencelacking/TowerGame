@@ -15,10 +15,17 @@ const GradesScript := preload("res://scripts/sim/grades.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 
+const NamesScript := preload("res://scripts/sim/names.gd")
+
 const KIND := "apartment"
+const ASSISTED := "assisted"  ## Assisted living (#378): same cycle, seniors only, steadier (see _fill_percent, _leave_percent).
+const SKIP_LIMIT := 64  ## Most ids passed over to find a senior one.
 const FILL_PERCENT := 50  ## Daily chance a reachable apartment with a vacancy takes one resident.
 const LEAVE_PERCENT := 2  ## Daily chance each resident leaves.
 const LEAVE_PERCENT_C := 10  ## ...in an apartment graded C.
+const ASSISTED_FILL_PERCENT := 40  ## Assisted living (#378): fills a little slower...
+const ASSISTED_LEAVE_PERCENT := 1  ## ...and loses fewer residents: a low-turnover home.
+const ASSISTED_LEAVE_PERCENT_C := 4
 
 
 ## One day's arrivals and departures, for every apartment in id order. t is the Tower.
@@ -30,7 +37,8 @@ func daily(t: Object) -> void:
 	if linked:
 		entry_x = t.floors.lobby_span()[0]
 	for id in ids:
-		if t.rooms.kind_of(id) != KIND:
+		var kind: String = t.rooms.kind_of(id)
+		if kind != KIND and kind != ASSISTED:
 			continue
 		_leave(t, id)
 		if linked and t.tenancy.routed(t.floors, t.rooms, t.grid, id, entry_x):
@@ -40,14 +48,36 @@ func daily(t: Object) -> void:
 func _fill(t: Object, id: int) -> void:
 	if t.people.homes_in(id) >= t.rooms.people_in(id):
 		return
-	if t.rng.next_below(100) < FILL_PERCENT:
-		t.people.add_person(id, PeopleScript.NONE, t.rng)
+	var assisted: bool = t.rooms.kind_of(id) == ASSISTED
+	if t.rng.next_below(100) < (ASSISTED_FILL_PERCENT if assisted else FILL_PERCENT):
+		if assisted:
+			add_senior(t, id)
+		else:
+			t.people.add_person(id, PeopleScript.NONE, t.rng)
+
+
+## Moves a senior resident into a room: passes over ids whose age band is not senior (a bounded, fixed scan),
+## then adds the person. Used by the daily fill and by Life when a retiree stays on (#378). Returns the id.
+static func add_senior(t: Object, room: int) -> int:
+	var passed := 0
+	while passed < SKIP_LIMIT and NamesScript.age_band(t.names.name_seed, t.people.next_id()) != NamesScript.BAND_SENIOR:
+		t.people.skip_id()
+		passed += 1
+	return t.people.add_person(room, PeopleScript.NONE, t.rng)
+
+
+## True if an assisted-living room has space for another resident.
+static func has_place(t: Object, room: int) -> bool:
+	return t.rooms.kind_of(room) == ASSISTED and t.people.homes_in(room) < t.rooms.people_in(room)
 
 
 func _leave(t: Object, id: int) -> void:
 	if t.rent.never_leaves(t.rooms, id):
 		return
-	var percent := LEAVE_PERCENT_C if t.grades.grade(t.rooms, t.people, id) == GradesScript.GRADE_C else LEAVE_PERCENT
+	var c_grade: bool = t.grades.grade(t.rooms, t.people, id) == GradesScript.GRADE_C
+	var percent := LEAVE_PERCENT_C if c_grade else LEAVE_PERCENT
+	if t.rooms.kind_of(id) == ASSISTED:
+		percent = ASSISTED_LEAVE_PERCENT_C if c_grade else ASSISTED_LEAVE_PERCENT
 	var leavers: Array[int] = []
 	for i in t.people.count():
 		if t.people.home_of(i) == id and t.rng.next_below(100) < percent:
@@ -56,4 +86,4 @@ func _leave(t: Object, id: int) -> void:
 		t.people.remove_person(t.people.index_of(who))
 	if not leavers.is_empty():
 		var run: Array[int] = t.grid.run_of(id)
-		t.messages.add(t.tick, MessagesScript.TENANT_LEFT, CatalogueScript.IDS.find(KIND), run[0] if not run.is_empty() else 0)
+		t.messages.add(t.tick, MessagesScript.TENANT_LEFT, CatalogueScript.IDS.find(t.rooms.kind_of(id)), run[0] if not run.is_empty() else 0)

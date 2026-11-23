@@ -22,6 +22,7 @@ const GradesScript := preload("res://scripts/sim/grades.gd")
 const FloorsScript := preload("res://scripts/sim/floors.gd")
 const NoiseScript := preload("res://scripts/sim/noise.gd")
 const SynergyScript := preload("res://scripts/sim/synergy.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const EvalTablesScript := preload("res://scripts/sim/eval_tables.gd")
 
 const REASON_TRAVEL := 0
@@ -31,12 +32,14 @@ const REASON_CROWD := 3
 const REASON_EVENT := 4
 const REASON_NEIGHBOURS := 5  ## Gyms, daycares, clinics, nightclubs nearby (synergy.gd).
 const REASON_RENTER := 6  ## Renting rather than owning (#379).
-const REASON_NAMES: Array[String] = ["travel waits", "noise", "room grade", "crowding", "a fire or threat", "neighbours", "renting"]
+const REASON_CARE := 7  ## Assisted living with no clinic or medical center within reach (#378).
+const REASON_NAMES: Array[String] = ["travel waits", "noise", "room grade", "crowding", "a fire or threat", "neighbours", "renting", "no clinic nearby"]
 
 const BASE := 100
 const TRAVEL_MAX := 50  ## Travel stress at STRESS_MAX costs this much.
 const NOISE_PER_LEVEL := 8
 const NOISE_MAX := 24
+const CARE_PENALTY := 15  ## Assisted living without care in reach (#378, tunable).
 const RENTER_PENALTY := 5  ## An apartment's mood baseline sits this far under a condo's.
 const GRADE_A_BONUS := 5
 const GRADE_C_PENALTY := 25
@@ -109,7 +112,9 @@ func _room_terms(rooms: RoomsScript, grid: GridScript, grades: GradesScript, peo
 			found.append([REASON_RENTER, -RENTER_PENALTY])
 		if not run.is_empty():
 			var others: Array = tables.others if tables != null else SynergyScript.others_of(grid, rooms)
-			var nearby := SynergyScript.mood_delta("condo" if rooms.kind_of(room) == "apartment" else rooms.kind_of(room), run, others)  # neighbours treat a rented home as a condo
+			var nearby := SynergyScript.mood_delta("condo" if CatalogueScript.is_rental(rooms.kind_of(room)) else rooms.kind_of(room), run, others)  # neighbours treat a rented home as a condo
+			if rooms.kind_of(room) == "assisted" and not SynergyScript.has_care(run, others):
+				found.append([REASON_CARE, -CARE_PENALTY])
 			if nearby != 0:
 				found.append([REASON_NEIGHBOURS, nearby])
 			var over: int = counts.get(run[0], 0) - CROWD_FREE

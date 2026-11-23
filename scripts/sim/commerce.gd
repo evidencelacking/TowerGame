@@ -684,7 +684,7 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 		if who == WHO_LOW_MOOD and people.mood_of(i) >= CLINIC_MOOD_BELOW:
 			continue
 		var home := people.home_of(i)
-		if who == WHO_RESIDENTS and not (home != PeopleScript.NONE and rooms.has_room(home) and (CatalogueScript.is_condo(rooms.kind_of(home)) or rooms.kind_of(home) == "apartment" or HotelScript.is_hotel_kind(rooms.kind_of(home)))):
+		if who == WHO_RESIDENTS and not (home != PeopleScript.NONE and rooms.has_room(home) and (CatalogueScript.is_condo(rooms.kind_of(home)) or CatalogueScript.is_rental(rooms.kind_of(home)) or HotelScript.is_hotel_kind(rooms.kind_of(home)))):
 			continue
 		var guest := (kind == "restaurant" or kind == "casino" or kind == "fine_dining" or kind == "pool") and home != PeopleScript.NONE and rooms.has_room(home) and HotelScript.is_hotel_kind(rooms.kind_of(home))
 		if rng.next_below(100) >= (_guest_percent(kind) if guest else percent):

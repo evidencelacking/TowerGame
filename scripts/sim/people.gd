@@ -90,6 +90,15 @@ func add_person(home: int, work: int, rng: Object) -> int:
 	return id
 
 
+## The id the next added person will get, and a way to pass one by (assisted living picks a senior, #378).
+func next_id() -> int:
+	return _next_id
+
+
+func skip_id() -> void:
+	_next_id += 1
+
+
 ## Hotel seam: set by Tower to a Callable(room: int) -> bool that is true for hotel rooms. A guest
 ## stays put in their room, so the resident day plan (out 8:00, back 18:00) does not apply to them.
 var guest_home: Callable = Callable()

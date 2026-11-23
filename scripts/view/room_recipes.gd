@@ -301,6 +301,13 @@ static func _build() -> Dictionary:
 			[-30, 14, 5, 16, "furn", "r"], [-24, 20, 10, 2, "furn", "r"]],
 		"spots": [[9, 30], [56, 30]],
 	}
+	# Assisted living (#378): a bed with a nightstand, an armchair, a window and a lamp, in the apartment's calmer colours.
+	out["assisted"] = {
+		"hue": "rental", "look": "full",
+		"fixed": _bed(1, 17) + _nightstand(22) + _win(33, 4, 10, 10) + [
+			[46, 22, 10, 8, "furn"], [46, 18, 10, 4, "accent"], [58, 24, 6, 6, "furn"], [60, 12, 3, 6, "lamp"]],
+		"spots": [[9, 30], [50, 30]],
+	}
 	out["hotel_single"] = {
 		"hue": "hotel", "look": "full",
 		"fixed": _bed(1, 17) + _nightstand(22) + [[4, 5, 10, 7, "furn"], [5, 6, 8, 5, "accent"], [8, 2, 8, 1, "lamp"]],
