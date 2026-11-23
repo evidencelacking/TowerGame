@@ -10,6 +10,8 @@ extends RefCounted
 ##   DISTANCE  its occupants' travel stress (average before modifiers) is at or above DISTANCE_FROM,
 ##             which means long walks, queues or rides to the lobby.
 ##   RENT      its rent level adds stress (Rent.stress_offset > 0).
+##   NO_FOOD   an office on a weekday in a tower of FOOD_NEEDED_FROM or more offices whose lunch places cover under
+##             FOOD_LOW_PERCENT of the workers (#439).
 ##   UNREACHED a hotel room whose latest guests could not reach it and left (Hotel.unreached).
 ## reasons(room) lists every reason that applies, in priority order; reason(room) is the first.
 ## Priority (unverified, tunable): noise, then distance, then rent. Ties are therefore fixed.
@@ -24,6 +26,8 @@ const PeopleScript := preload("res://scripts/sim/people.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
 const NoiseScript := preload("res://scripts/sim/noise.gd")
 const HotelScript := preload("res://scripts/sim/hotel.gd")
+const CommerceScript := preload("res://scripts/sim/commerce.gd")
+const ClockScript := preload("res://scripts/sim/clock.gd")
 
 const NONE := 0
 const NOISE := 1
@@ -31,13 +35,22 @@ const DISTANCE := 2
 const RENT := 3
 const UNREACHED := 4
 const NO_GROCERY := 5
+const NO_FOOD := 6
 
 ## Priority order of the reasons: first match is the main one.
-const PRIORITY: Array[int] = [NOISE, DISTANCE, RENT, UNREACHED, NO_GROCERY]
+const PRIORITY: Array[int] = [NOISE, DISTANCE, RENT, NO_FOOD, UNREACHED, NO_GROCERY]
 
 const NOISE_FROM := 3  ## Noise level at or above this is a complaint (unverified, tunable).
 ## A tower with this many condos and no grocery store gives every condo a complaint (#322, our own design, tunable).
 const GROCERY_NEEDED_FROM := 10
+## Office lunch (#439, our own design, tunable, unverified): from this many offices, on a weekday, lunch coverage under
+## FOOD_LOW_PERCENT adds FOOD_LOW_STRESS and under FOOD_VERY_LOW_PERCENT adds FOOD_VERY_LOW_STRESS to every office. NO_FOOD
+## is the complaint under FOOD_LOW_PERCENT.
+const FOOD_NEEDED_FROM := 10
+const FOOD_LOW_PERCENT := 50
+const FOOD_VERY_LOW_PERCENT := 25
+const FOOD_LOW_STRESS := 10
+const FOOD_VERY_LOW_STRESS := 20
 const DISTANCE_FROM := PeopleScript.UNEASY_FROM  ## Travel stress at or above this is a complaint (unverified, tunable).
 
 var _grades: GradesScript
@@ -46,6 +59,10 @@ var _grid: GridScript
 var _people: PeopleScript
 var _rent: RentScript
 var hotel: HotelScript  ## Set by Tower; the source of UNREACHED.
+var clock: ClockScript  ## Set by Tower; food penalties apply on weekdays only.
+var _food_revision: int = -1  ## Rooms.layout_revision the cached coverage is for.
+var _food_coverage: int = -1
+var _food_offices: int = 0
 
 
 ## Wires the reasons to the tower's parts and registers noise as a grade modifier. Tower calls
@@ -57,11 +74,37 @@ func attach(grades: GradesScript, rooms: RoomsScript, grid: GridScript, people: 
 	_people = people
 	_rent = rent
 	grades.add_modifier(noise_stress)
+	grades.add_modifier(food_stress)
 
 
 ## Extra stress for a room from noise (the Grades modifier).
 func noise_stress(room: int) -> int:
 	return NoiseScript.stress_for(NoiseScript.noise_at(_grid, _rooms, room))
+
+
+## Extra stress for an office from a lunch shortfall (the Grades modifier). Zero for other rooms.
+func food_stress(room: int) -> int:
+	if _rooms.kind_of(room) != "office" or not _food_applies():
+		return 0
+	if _food_coverage < FOOD_VERY_LOW_PERCENT:
+		return FOOD_VERY_LOW_STRESS
+	if _food_coverage < FOOD_LOW_PERCENT:
+		return FOOD_LOW_STRESS
+	return 0
+
+
+## True on a weekday in a tower with enough offices (refreshes the cached coverage when the layout changed).
+func _food_applies() -> bool:
+	if clock != null and clock.day_of_week() == ClockScript.WE:
+		return false
+	if _food_revision != _rooms.layout_revision:
+		_food_revision = _rooms.layout_revision
+		_food_coverage = CommerceScript.lunch_coverage(_rooms)
+		_food_offices = 0
+		for id in _rooms.room_ids():
+			if _rooms.kind_of(id) == "office":
+				_food_offices += 1
+	return _food_offices >= FOOD_NEEDED_FROM
 
 
 ## True if the reason applies to the room right now.
@@ -79,6 +122,8 @@ func has_reason(room: int, reason: int) -> bool:
 			return hotel != null and hotel.unreached(room)
 		NO_GROCERY:
 			return _rooms.kind_of(room) == "condo" and lacks_grocery()
+		NO_FOOD:
+			return _rooms.kind_of(room) == "office" and _food_applies() and _food_coverage < FOOD_LOW_PERCENT
 	return false
 
 
@@ -122,4 +167,6 @@ static func label(reason: int) -> String:
 			return "Guests could not reach the room"
 		NO_GROCERY:
 			return "No grocery store in the tower"
+		NO_FOOD:
+			return "Nowhere to eat lunch"
 	return ""

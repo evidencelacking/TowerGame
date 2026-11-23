@@ -10,11 +10,13 @@ extends RefCounted
 ##   MEDICAL    from 3 stars, fewer medical centres than one per OFFICES_PER_MEDICAL offices (rounded up).
 ##   RECYCLING  from 3 stars, at least one office, and no recycling centre, or rubbish overflowing
 ##              (kind_counts "recycling_short", set from Recycling.short()).
+##   FOOD       at least one office and lunch places (kind_counts "lunch_coverage", Commerce.lunch_coverage) cover
+##              under 100 percent of the workers (#439, our own design).
 ##   PARKING    from 3 stars, at least one office, fewer working parking spaces than the larger of the
 ##              offices and the suites (kind_counts "parking_working"; Parking.needed, owner ruling #172).
 ## A demand only opens once its remedy can be built (its room kind is in Rooms.PLACEABLE), so
 ## the demands for rooms that do not exist yet stay quiet instead of blocking star 4 for ever
-## (decision on #168). Any open demand blocks star 4 (StarRules "demands_met"). Integers only.
+## (decision on #168). Any open demand except FOOD blocks star 4 (StarRules "demands_met"). Integers only.
 ##
 ## Saved state: one int, the bitmask of open demands (bit = 1 << (id - 1)).
 
@@ -23,12 +25,13 @@ const SUITE := 2
 const MEDICAL := 3
 const RECYCLING := 4
 const PARKING := 5
-const IDS: Array[int] = [SECURITY, SUITE, MEDICAL, RECYCLING, PARKING]
+const FOOD := 6
+const IDS: Array[int] = [SECURITY, SUITE, MEDICAL, RECYCLING, PARKING, FOOD]
 
 const OFFICES_PER_MEDICAL := 20  ## Offices one medical centre serves, no distance (owner ruling, #170; tunable).
 const SUITES_FOR_STAR_4 := 2  ## Mirrors StarRules.REQUIREMENTS[4]["suites"].
-const _REMEDY: Dictionary = {SECURITY: "security", MEDICAL: "medical", RECYCLING: "recycling", PARKING: "parking_space"}
-const _MIN_STARS: Dictionary = {SECURITY: 2, SUITE: 3, MEDICAL: 3, RECYCLING: 3, PARKING: 3}
+const _REMEDY: Dictionary = {SECURITY: "security", MEDICAL: "medical", RECYCLING: "recycling", PARKING: "parking_space", FOOD: "fast_food"}
+const _MIN_STARS: Dictionary = {SECURITY: 2, SUITE: 3, MEDICAL: 3, RECYCLING: 3, PARKING: 3, FOOD: 1}
 
 var _open: int = 0
 
@@ -46,9 +49,10 @@ func open_count() -> int:
 	return n
 
 
-## True when no demand is open (the star rules' "demands_met").
+## True when no star demand is open (the star rules' "demands_met"). FOOD is advice only: it is our own
+## design (#439), so it never blocks a star; its cost is the office stress instead.
 func all_met() -> bool:
-	return _open == 0
+	return _open & ~(1 << (FOOD - 1)) == 0
 
 
 ## The demands that hold for a tower: stars, and a count of rooms per kind. Pure.
@@ -62,6 +66,9 @@ static func compute(stars: int, kind_counts: Dictionary, buildable: Array[String
 		var wanted := false
 		if id == MEDICAL:
 			wanted = buildable.has("medical") and int(kind_counts.get("medical", 0)) * OFFICES_PER_MEDICAL < offices
+		elif id == FOOD:
+			# Our own design (#439): lunch places cover under 100 percent of the office workers (kind_counts "lunch_coverage"; absent means unknown, so no demand).
+			wanted = buildable.has(_REMEDY[FOOD]) and offices > 0 and int(kind_counts.get("lunch_coverage", 100)) < 100
 		elif id == SUITE:
 			wanted = buildable.has("hotel_suite") and int(kind_counts.get("hotel_suite", 0)) < SUITES_FOR_STAR_4
 		else:
