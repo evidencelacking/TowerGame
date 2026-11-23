@@ -49,6 +49,7 @@ const EXPECTED: Array = [
 	["deli", 60000, 1, true, 0, ""],
 	["pool", 700000, 3, true, 0, ""],
 	["helipad", 400000, 3, true, 0, ""],
+	["school", 150000, 3, true, 0, ""],
 ]
 
 
