@@ -65,7 +65,7 @@ static func compute(stars: int, kind_counts: Dictionary, buildable: Array[String
 			continue
 		var wanted := false
 		if id == MEDICAL:
-			wanted = buildable.has("medical") and int(kind_counts.get("medical", 0)) * OFFICES_PER_MEDICAL < offices
+			wanted = buildable.has("medical") and (int(kind_counts.get("medical", 0)) + int(kind_counts.get("emergency_room", 0))) * OFFICES_PER_MEDICAL < offices  # an emergency room counts as a medical center (#377)
 		elif id == FOOD:
 			# Our own design (#439): lunch places cover under 100 percent of the office workers (kind_counts "lunch_coverage"; absent means unknown, so no demand).
 			wanted = buildable.has(_REMEDY[FOOD]) and offices > 0 and int(kind_counts.get("lunch_coverage", 100)) < 100

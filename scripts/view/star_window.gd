@@ -97,7 +97,7 @@ static func demand_lines(t: Object) -> Array[String]:
 				lines.append("Suites: %d / %d hotel suites" % [suites, DemandsScript.SUITES_FOR_STAR_4])
 			DemandsScript.MEDICAL:
 				var need_med := (offices + DemandsScript.OFFICES_PER_MEDICAL - 1) / DemandsScript.OFFICES_PER_MEDICAL
-				lines.append("Medical: %d / %d medical centres for %d offices" % [int(counts.get("medical", 0)), need_med, offices])
+				lines.append("Medical: %d / %d medical centres for %d offices" % [int(counts.get("medical", 0)) + int(counts.get("emergency_room", 0)), need_med, offices])
 			DemandsScript.RECYCLING:
 				lines.append("Recycling: " + ("build a recycling centre" if int(counts.get("recycling", 0)) == 0 else "rubbish is overflowing, add recycling capacity"))
 			DemandsScript.PARKING:

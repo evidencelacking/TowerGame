@@ -69,6 +69,46 @@ static func build() -> Dictionary:
 			"spots": [[14, 30]]}],
 		"spots": [[-8, 30, "r"]],
 	}
+	# The hospital chain (#377). Emergency room: a red cross over a stretcher bay and a triage desk. Operating room: an
+	# overhead lamp over a table. Imaging: a scanner ring with a bed. Ward: a row of beds with curtains.
+	out["emergency_room"] = {
+		"hue": "medical", "look": "full",
+		"fixed": [
+			[8, 5, 5, 15, "red"], [3, 10, 15, 5, "red"],
+			[-34, 22, 28, 8, "furn", "r"], [-32, 19, 8, 3, "lamp", "r"], [-20, 19, 8, 3, "red", "r"],
+		],
+		"repeats": [{"pad": 24, "every": 30, "lo": 0, "hi": 24, "reserve": 36, "shapes": [
+			[0, 25, 24, 3, "furn"], [2, 22, 20, 3, "white"], [3, 28, 2, 2, "furn"], [19, 28, 2, 2, "furn"]],
+			"spots": [[11, 30]]}],
+		"spots": [[-8, 30, "r"]],
+	}
+	out["operating_room"] = {
+		"hue": "medical", "look": "full",
+		"fixed": [
+			[6, 3, 12, 3, "lamp"], [11, 6, 2, 8, "furn"], [4, 22, 18, 3, "furn"], [6, 25, 3, 5, "furn"], [17, 25, 3, 5, "furn"],
+			[-28, 6, 20, 14, "white", "r"], [-24, 10, 12, 6, "green", "r"],
+		],
+		"spots": [[2, 30], [-8, 30, "r"]],
+	}
+	out["imaging"] = {
+		"hue": "medical", "look": "full",
+		"fixed": [
+			[4, 8, 20, 18, "furn"], [8, 12, 12, 10, "accent"], [11, 15, 6, 4, "white"],
+			[2, 26, 26, 3, "furn"], [-24, 14, 16, 12, "white", "r"], [-22, 16, 12, 6, "green", "r"],
+		],
+		"spots": [[2, 30], [-8, 30, "r"]],
+	}
+	out["patient_ward"] = {
+		"hue": "medical", "look": "full",
+		"fixed": [
+			[2, 4, 4, 4, "red"], [-30, 20, 24, 10, "furn", "r"], [-28, 17, 6, 3, "lamp", "r"],
+		],
+		"repeats": [{"pad": 8, "every": 26, "lo": 0, "hi": 24, "reserve": 36, "shapes": [
+			[0, 24, 20, 4, "furn"], [1, 22, 8, 3, "white"], [0, 28, 2, 2, "furn"], [18, 28, 2, 2, "furn"],
+			[22, 6, 1, 24, "accent"]],
+			"spots": [[11, 30]]}],
+		"spots": [[-8, 30, "r"]],
+	}
 	out["clinic"] = {
 		"hue": "medical", "look": "full",
 		"fixed": [

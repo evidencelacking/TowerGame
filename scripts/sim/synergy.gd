@@ -41,7 +41,7 @@ const EVERYONE := "*"  ## Target of a tower-wide effect on people rather than on
 const CAPS: Array[int] = [20, 30, 12, 30, 10, 30]
 
 ## Rooms that give care to assisted living (#378): one of these within CARE_FLOORS floors keeps its residents content.
-const CARE_KINDS: Array[String] = ["clinic", "medical"]
+const CARE_KINDS: Array[String] = ["clinic", "medical", "emergency_room", "operating_room", "imaging", "patient_ward"]  # the hospital counts as care (#377)
 const CARE_FLOORS := 5
 
 ## [source, target, effect, amount, floors, columns]

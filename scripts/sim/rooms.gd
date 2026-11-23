@@ -96,7 +96,7 @@ const EXPRESS_CAR_CAPACITY := 36  ## People an express car holds (owner ruling 2
 const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
-const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool", "helipad", "school", "ballroom", "conference_center", "apartment", "studio", "penthouse", "assisted"]
+const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool", "helipad", "school", "ballroom", "conference_center", "apartment", "studio", "penthouse", "assisted", "emergency_room", "operating_room", "imaging", "patient_ward"]
 ## Rooms two floors tall, underground (recycling) or above ground (a kind whose placement is not underground,
 ## #328; see _check_place_tall). Their grid run is on the lower (deeper) floor under the room's id, and the
 ## upper floor is a second grid occupant under id + 1 that is not a room of its own (see room_of).
@@ -392,6 +392,42 @@ static func needs_route(kind: String) -> bool:
 ## stairs or elevators reach it. Always false for rooms Tower has not checked yet and for kinds in ALWAYS_OPEN_KINDS.
 func is_cut_off(id: int) -> bool:
 	return cut_off.has(id)
+
+
+## Needs (#377): the kinds in a room's catalogue "needs" list that nothing standing satisfies, in list order. A supplier
+## counts while it is placed, not burned out and not cut off; its scope (same floor, within N floors, whole tower) is read
+## against the room's own run. Empty for a room with no needs or an unknown id.
+func unmet_needs(grid: GridScript, id: int) -> Array[String]:
+	var missing: Array[String] = []
+	var kind := kind_of(id)
+	if kind == "" or not grid.has_occupant(id):
+		return missing
+	var run: Array[int] = grid.run_of(id)
+	for need: Array in CatalogueScript.row(kind).get("needs", []):
+		var found := false
+		for other in room_ids():
+			if kind_of(other) != need[0] or is_charred(other) or is_cut_off(other) or not grid.has_occupant(other):
+				continue
+			var there: Array[int] = grid.run_of(other)
+			if int(need[1]) == CatalogueScript.NEEDS_TOWER or _floors_between(run[0], there[0]) <= (0 if int(need[1]) == CatalogueScript.NEEDS_SAME_FLOOR else int(need[2])):
+				found = true
+				break
+		if not found:
+			missing.append(need[0])
+	return missing
+
+
+## True while a room's needs are not met: it stands, but gives no service (#377).
+func service_degraded(grid: GridScript, id: int) -> bool:
+	return not unmet_needs(grid, id).is_empty()
+
+
+## Floors between two floor numbers; ground is one floor across the gap (no floor 0).
+static func _floors_between(a: int, b: int) -> int:
+	var apart := absi(a - b)
+	if (a > 0) != (b > 0):
+		apart -= 1
+	return apart
 
 
 ## The id of the tower's helicopter pad, or 0 when there is none (#409).

@@ -73,6 +73,7 @@ static func describe(tower: Object, room: int) -> Dictionary:
 		"reasons": tower.complaint_reasons(room),
 		"dirty": tower.hotel.is_dirty(room),
 		"needs_unmet": BookingsScript.need_text(kind) if BookingsScript.is_bookable(kind) and not BookingsScript.needs_met(kind, tower.rooms) else "",
+		"degraded_by": ", ".join(PackedStringArray(Array(tower.rooms.unmet_needs(tower.grid, room)).map(func(k: String) -> String: return CatalogueScript.display_name(k)))),
 	}
 
 
@@ -87,6 +88,8 @@ static func lines_for(info: Dictionary) -> Array[String]:
 		lines.append("Occupants: %d of %d" % [names.size(), info["capacity"]])
 		for n in names:
 			lines.append("  " + n)
+	if info.get("degraded_by", "") != "":
+		lines.append("Service degraded: needs a %s nearby" % info["degraded_by"])
 	if info.get("needs_unmet", "") != "":
 		lines.append("No bookings: needs %s in the tower" % info["needs_unmet"])
 	if info.get("dirty", false):
