@@ -5,7 +5,7 @@ extends CanvasLayer
 const Clock := preload("res://scripts/sim/clock.gd")
 const Driver := preload("res://scripts/view/sim_driver.gd")
 const DemandsScript := preload("res://scripts/sim/demands.gd")
-const DEMAND_NAMES: Dictionary = {1: "security", 2: "suite", 3: "medical", 4: "recycling", 5: "parking"}
+const DEMAND_NAMES: Dictionary = {1: "security", 2: "suite", 3: "medical", 4: "recycling", 5: "parking", 6: "food"}
 const DAY_NAMES: Array[String] = ["WD1", "WD2", "WE"]
 
 @onready var _driver: Driver = $SimDriver
