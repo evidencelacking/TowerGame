@@ -10,7 +10,7 @@ const CarsScript := preload("res://scripts/sim/cars.gd")
 const Bench := preload("res://tools/bench_tower.gd")
 const ElevatorTools := preload("res://scripts/view/elevator_tools.gd")
 
-## sim_driver.gd: 30 base ticks/s x top speed 3 = 90 ticks/s, so 1.5 ticks per 60 fps frame
+## sim_driver.gd: 15 base ticks/s x top multiplier 6 = 90 ticks/s (3x), so 1.5 ticks per 60 fps frame
 ## (2 on some frames). The 16 ms frame budget therefore allows about 10.6 ms per tick.
 const TICKS_PER_FRAME_AT_TOP := 1.5
 const FRAME_MS := 16.0
