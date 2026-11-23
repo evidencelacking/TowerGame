@@ -16,6 +16,7 @@ const MessagesScript := preload("res://scripts/sim/messages.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 
 const NamesScript := preload("res://scripts/sim/names.gd")
+const EvalTablesScript := preload("res://scripts/sim/eval_tables.gd")
 
 const KIND := "apartment"
 const ASSISTED := "assisted"  ## Assisted living (#378): same cycle, seniors only, steadier (see _fill_percent, _leave_percent).
@@ -36,17 +37,32 @@ func daily(t: Object) -> void:
 	var linked: bool = t.floors.has_lobby()
 	if linked:
 		entry_x = t.floors.lobby_span()[0]
+	# One pass over the people instead of one per apartment (#452): each apartment's residents as person ids in
+	# index order, which is the order the draws below must follow. Leavers are the only change to anyone's
+	# home before an apartment is reached, and they leave their own apartment's list. The stress tables
+	# keep grades equal to a fresh scan as people go.
+	var residents: Dictionary = {}
+	for i in t.people.count():
+		var home: int = t.people.home_of(i)
+		if home != PeopleScript.NONE:
+			if not residents.has(home):
+				residents[home] = [] as Array[int]
+			residents[home].append(t.people.id_at(i))
+	var tables := EvalTablesScript.build_stress(t.people, t.grades)
+	t.grades.batch = tables
 	for id in ids:
 		var kind: String = t.rooms.kind_of(id)
 		if kind != KIND and kind != ASSISTED:
 			continue
-		_leave(t, id)
+		var living: Array[int] = residents.get(id, [] as Array[int])
+		_leave_among(t, id, living, tables)
 		if linked and t.tenancy.routed(t.floors, t.rooms, t.grid, id, entry_x):
-			_fill(t, id)
+			_fill(t, id, living.size())
+	t.grades.batch = null
 
 
-func _fill(t: Object, id: int) -> void:
-	if t.people.homes_in(id) >= t.rooms.people_in(id):
+func _fill(t: Object, id: int, residents: int) -> void:
+	if residents >= t.rooms.people_in(id):
 		return
 	var assisted: bool = t.rooms.kind_of(id) == ASSISTED
 	if t.rng.next_below(100) < (ASSISTED_FILL_PERCENT if assisted else FILL_PERCENT):
@@ -71,7 +87,20 @@ static func has_place(t: Object, room: int) -> bool:
 	return t.rooms.kind_of(room) == ASSISTED and t.people.homes_in(room) < t.rooms.people_in(room)
 
 
+## One apartment's departures on its own: finds the residents and the stress tables itself. For tests; daily shares them.
 func _leave(t: Object, id: int) -> void:
+	var living: Array[int] = []
+	for i in t.people.count():
+		if t.people.home_of(i) == id:
+			living.append(t.people.id_at(i))
+	var tables := EvalTablesScript.build_stress(t.people, t.grades)
+	var was = t.grades.batch
+	t.grades.batch = tables
+	_leave_among(t, id, living, tables)
+	t.grades.batch = was
+
+
+func _leave_among(t: Object, id: int, living: Array[int], tables: RefCounted) -> void:
 	if t.rent.never_leaves(t.rooms, id):
 		return
 	var c_grade: bool = t.grades.grade(t.rooms, t.people, id) == GradesScript.GRADE_C
@@ -79,11 +108,14 @@ func _leave(t: Object, id: int) -> void:
 	if t.rooms.kind_of(id) == ASSISTED:
 		percent = ASSISTED_LEAVE_PERCENT_C if c_grade else ASSISTED_LEAVE_PERCENT
 	var leavers: Array[int] = []
-	for i in t.people.count():
-		if t.people.home_of(i) == id and t.rng.next_below(100) < percent:
-			leavers.append(t.people.id_at(i))
+	for who in living:
+		if t.rng.next_below(100) < percent:
+			leavers.append(who)
 	for who in leavers:
-		t.people.remove_person(t.people.index_of(who))
+		var at: int = t.people.index_of(who)
+		tables.forget_leaver(t.people, t.grades, at)
+		t.people.remove_person(at)
+		living.erase(who)
 	if not leavers.is_empty():
 		var run: Array[int] = t.grid.run_of(id)
 		t.messages.add(t.tick, MessagesScript.TENANT_LEFT, CatalogueScript.IDS.find(t.rooms.kind_of(id)), run[0] if not run.is_empty() else 0)

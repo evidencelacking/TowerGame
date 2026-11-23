@@ -28,6 +28,11 @@ var workers: Dictionary = {}
 var terms: Dictionary = {}
 ## Memo of a room's grade for the callers that read it again and again.
 var grades: Dictionary = {}
+## Room id -> its grade without word of mouth (a word-of-mouth source's own grade), memoised for this batch (#452).
+var source_grades: Dictionary = {}
+## Floor -> the rooms on it whose source grade is C, valid when source_c_ready (word of mouth, #452).
+var source_c: Dictionary = {}
+var source_c_ready: bool = false
 ## Ids of the people shocked by an event since the last evaluation (empty when there was none).
 var shocked: Dictionary = {}
 
@@ -36,32 +41,110 @@ var shocked: Dictionary = {}
 static func build(rooms: RoomsScript, grid: GridScript, people: PeopleScript, grades_of: RefCounted, leave_days: int) -> RefCounted:
 	var t := new()
 	t.others = SynergyScript.others_of(grid, rooms)
-	for i in people.count():
-		var work := people.work_of(i)
-		var home := people.home_of(i)
-		var mood := people.mood_of(i)
-		var low := people.low_days_of(i) >= leave_days
+	var rows := people.eval_rows()
+	var stride := PeopleScript.EVAL_ROW
+	var n := rows.size()
+	# Sums per room go into packed arrays indexed by room id (a dictionary update per person is the slow part), then
+	# into the dictionaries the callers read, which are only ever looked up (#452).
+	var size := 1
+	var b := 0
+	while b < n:
+		size = maxi(size, maxi(int(rows[b + 1]), int(rows[b + 2])) + 1)
+		b += stride
+	var workers_n := PackedInt64Array()
+	var mood_sum := PackedInt64Array()
+	var mood_count := PackedInt64Array()
+	var low_flag := PackedInt64Array()
+	var w_stress := PackedInt64Array()
+	var w_n := PackedInt64Array()
+	var h_stress := PackedInt64Array()
+	var h_n := PackedInt64Array()
+	workers_n.resize(size)
+	mood_sum.resize(size)
+	mood_count.resize(size)
+	low_flag.resize(size)
+	w_stress.resize(size)
+	w_n.resize(size)
+	h_stress.resize(size)
+	h_n.resize(size)
+	b = 0
+	while b < n:
+		var work := int(rows[b + 2])
+		var home := int(rows[b + 1])
+		var mood := int(rows[b + 4])
+		var low := 1 if int(rows[b + 5]) >= leave_days else 0
 		if work != PeopleScript.NONE:
-			t.workers[work] = int(t.workers.get(work, 0)) + 1
-			_note(t, work, mood, low)
+			workers_n[work] += 1
+			mood_sum[work] += mood
+			mood_count[work] += 1
+			low_flag[work] |= low
 		if home != PeopleScript.NONE and home != work:
-			_note(t, home, mood, low)
-		if grades_of.tripped(people.id_at(i)):
-			var stress := people.stress_of(i)
+			mood_sum[home] += mood
+			mood_count[home] += 1
+			low_flag[home] |= low
+		if grades_of.tripped(int(rows[b])):
+			var stress := int(rows[b + 3])
 			if work != PeopleScript.NONE:
-				t.work_stress[work] = int(t.work_stress.get(work, 0)) + stress
-				t.work_n[work] = int(t.work_n.get(work, 0)) + 1
+				w_stress[work] += stress
+				w_n[work] += 1
 			if home != PeopleScript.NONE:
-				t.home_stress[home] = int(t.home_stress.get(home, 0)) + stress
-				t.home_n[home] = int(t.home_n.get(home, 0)) + 1
+				h_stress[home] += stress
+				h_n[home] += 1
+		b += stride
+	for room in size:
+		if workers_n[room] > 0:
+			t.workers[room] = workers_n[room]
+		if mood_count[room] > 0:
+			t.mood_total[room] = mood_sum[room]
+			t.mood_n[room] = mood_count[room]
+		if low_flag[room] > 0:
+			t.notice[room] = true
+		if w_n[room] > 0:
+			t.work_stress[room] = w_stress[room]
+			t.work_n[room] = w_n[room]
+		if h_n[room] > 0:
+			t.home_stress[room] = h_stress[room]
+			t.home_n[room] = h_n[room]
 	return t
 
 
-static func _note(t: RefCounted, room: int, mood: int, low: bool) -> void:
-	t.mood_total[room] = int(t.mood_total.get(room, 0)) + mood
-	t.mood_n[room] = int(t.mood_n.get(room, 0)) + 1
-	if low:
-		t.notice[room] = true
+## Only the stress tables, for a caller that reads grades while it removes people (#452): pair it with forget_leaver.
+static func build_stress(people: PeopleScript, grades_of: RefCounted) -> RefCounted:
+	var t := new()
+	for i in people.count():
+		if grades_of.tripped(people.id_at(i)):
+			_note_stress(t, people, i)
+	return t
+
+
+static func _note_stress(t: RefCounted, people: PeopleScript, i: int) -> void:
+	var work := people.work_of(i)
+	var home := people.home_of(i)
+	var stress := people.stress_of(i)
+	if work != PeopleScript.NONE:
+		t.work_stress[work] = int(t.work_stress.get(work, 0)) + stress
+		t.work_n[work] = int(t.work_n.get(work, 0)) + 1
+	if home != PeopleScript.NONE:
+		t.home_stress[home] = int(t.home_stress.get(home, 0)) + stress
+		t.home_n[home] = int(t.home_n.get(home, 0)) + 1
+
+
+## Takes person i out of the stress tables, as before remove_person: the tables then answer what a fresh scan would.
+## Clears the memoised source grades, which may have read the leaver's stress.
+func forget_leaver(people: PeopleScript, grades_of: RefCounted, i: int) -> void:
+	if not grades_of.tripped(people.id_at(i)):
+		return
+	var work := people.work_of(i)
+	var home := people.home_of(i)
+	var stress := people.stress_of(i)
+	if work != PeopleScript.NONE:
+		work_stress[work] = int(work_stress.get(work, 0)) - stress
+		work_n[work] = int(work_n.get(work, 0)) - 1
+	if home != PeopleScript.NONE:
+		home_stress[home] = int(home_stress.get(home, 0)) - stress
+		home_n[home] = int(home_n.get(home, 0)) - 1
+	source_grades.clear()
+	source_c_ready = false
 
 
 ## Grades.average_stress for a room of a graded kind: -1 when no occupant has travelled.
