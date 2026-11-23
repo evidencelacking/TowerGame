@@ -66,7 +66,14 @@ const IDS: Array[String] = [
 	"cafe", "pizza", "sushi", "fine_dining", "bar",
 	"grocery", "deli", "pool", "helipad", "school",
 	"ballroom", "conference_center", "apartment",
+	"studio", "penthouse",
 ]
+
+## The sold homes (#369): the standard condo and the two sizes added after it. Anything that treats a condo
+## specially (sale, refund, mood, grocery, synergy, families) asks is_condo, so every size gets the same rules.
+const CONDO_KINDS: Array[String] = ["condo", "studio", "penthouse"]
+## A penthouse stands only above this floor (#369, own design).
+const PENTHOUSE_MIN_FLOOR := 21
 
 const _ROWS: Dictionary = {
 	"lobby": {"upkeep": 2000, "width": 1, "height": 1, "cost": 5000, "per_unit": true, "star": 1,
@@ -174,6 +181,14 @@ const _ROWS: Dictionary = {
 	"apartment": {"people": 2, "rent": [2000, 3000, 4000, 6000], "width": 12, "height": 1, "cost": 50000, "per_unit": false, "star": 2,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
+	# Condo sizes (#369, own design, every number a tunable): sold homes like the condo. The studio is small and cheap,
+	# the penthouse big and dear and only above floor 20 (Rooms.TOO_LOW). Appended last so saved catalogue ids stay valid.
+	"studio": {"people": 1, "width": 10, "height": 1, "cost": 50000, "per_unit": false, "star": 1,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"penthouse": {"people": 5, "width": 24, "height": 1, "cost": 140000, "per_unit": false, "star": 1,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
 	# Ballroom and conference center (#359, own design): bookable event rooms (bookings.gd). Star 4 $600,000 and star 3 $400,000.
 	"ballroom": {"staff": 6, "width": 32, "height": 1, "cost": 600000, "per_unit": false, "star": 4,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
@@ -251,6 +266,11 @@ const DISPLAY_NAMES: Dictionary = {
 ## The player-facing name of a room or tool id, e.g. "Local elevator" for "local_shaft".
 static func display_name(room_id: String) -> String:
 	return DISPLAY_NAMES.get(room_id, room_id.replace("_", " ").capitalize())
+
+
+## True for a sold home of any size: the condo, the studio and the penthouse (#369).
+static func is_condo(room_id: String) -> bool:
+	return CONDO_KINDS.has(room_id)
 
 
 static func has(room_id: String) -> bool:

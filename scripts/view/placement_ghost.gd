@@ -56,6 +56,7 @@ const ROOM_TEXT: Dictionary = {
 	RoomsScript.TALL_REPLACE: "Bulldoze first, then build it",
 	RoomsScript.NOT_BASEMENT: "Parking and the metro station go below ground",
 	RoomsScript.ONE_STATION: "The tower already has its metro station",
+	RoomsScript.TOO_LOW: "Penthouses stand above floor 20",
 	RoomsScript.NOT_TOP: "The observation deck and helicopter pad go on the top floor, with no room above it",
 	RoomsScript.ONE_HELIPAD: "The tower already has its helicopter pad",
 	RoomsScript.ONE_CASINO: "The tower already has its casino",

@@ -89,7 +89,7 @@ func set_rent(rooms: RoomsScript, room: int, level: int) -> int:
 	if not rooms.has_room(room):
 		return NO_SUCH_ROOM
 	var kind := rooms.kind_of(room)
-	if kind == "condo":
+	if CatalogueScript.is_condo(kind):
 		return CONDO_LOCKED
 	if not is_rentable(kind):
 		return NOT_RENTABLE

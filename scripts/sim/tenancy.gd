@@ -44,7 +44,7 @@ func tick(clock: Clock, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 			if need > 0 and routed(floors, rooms, grid, id, entry_x):
 				for n in need:
 					people.add_person(PeopleScript.NONE, id, rng)
-		elif kind == "condo" and selling and not rooms.is_sold(id) and routed(floors, rooms, grid, id, entry_x):
+		elif CatalogueScript.is_condo(kind) and selling and not rooms.is_sold(id) and routed(floors, rooms, grid, id, entry_x):
 			rooms.set_sold(id, true)
 			var price := CatalogueScript.cost(kind)
 			price += price * SynergyScript.demand_percent(grid.run_of(id), SynergyScript.others_of(grid, rooms, transit_linked(floors, rooms, grid))) / 100  # daycares and a metro lift demand

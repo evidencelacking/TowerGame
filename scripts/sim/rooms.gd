@@ -55,6 +55,7 @@ const BAD_CALL := 53  ## Place call: the direction is not UP or DOWN, or no car 
 const OVERLAPS_LINK := 54  ## Stairs, escalator or shaft: another link (stairs, escalator or shaft) is in the way.
 const NO_FLOOR_FOR_ESCALATOR := 55  ## Escalator: one of the two floors is not built under the escalator.
 const ONE_STATION := 74  ## Metro: the tower already has its one station.
+const TOO_LOW := 80  ## Penthouse: only above floor 20 (#369).
 const NOT_TOP := 75  ## Observation deck: only on the tower's top floor, with no room above it (#318).
 const ONE_DECK := 76  ## Observation deck: the tower already has its one deck.
 const ONE_HELIPAD := 79  ## Helicopter pad: the tower already has its one pad (#409).
@@ -95,7 +96,7 @@ const EXPRESS_CAR_CAPACITY := 36  ## People an express car holds (owner ruling 2
 const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
-const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool", "helipad", "school", "ballroom", "conference_center", "apartment"]
+const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool", "helipad", "school", "ballroom", "conference_center", "apartment", "studio", "penthouse"]
 ## Rooms two floors tall, underground (recycling) or above ground (a kind whose placement is not underground,
 ## #328; see _check_place_tall). Their grid run is on the lower (deeper) floor under the room's id, and the
 ## upper floor is a second grid occupant under id + 1 that is not a room of its own (see room_of).
@@ -206,6 +207,9 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 		if floor_number < highest_room_floor(grid):
 			result["reason"] = NOT_TOP
 			return result
+	if kind == "penthouse" and floor_number < CatalogueScript.PENTHOUSE_MIN_FLOOR:
+		result["reason"] = TOO_LOW
+		return result
 	if floor_number == 1:
 		result["reason"] = LOBBY_FLOOR
 		return result
@@ -1352,7 +1356,7 @@ static func is_stair_kind(kind: String) -> bool:
 ## Marks a room sold (or not). Only a condo can be sold; returns false otherwise. Sales
 ## themselves come in M3; this lets tests and later code set the flag.
 func set_sold(id: int, sold: bool) -> bool:
-	if kind_of(id) != "condo":
+	if not CatalogueScript.is_condo(kind_of(id)):
 		return false
 	if sold:
 		_sold[id] = true

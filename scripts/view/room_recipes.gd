@@ -277,6 +277,22 @@ static func _build() -> Dictionary:
 			[44, 4, 12, 8, "furn"], [45, 5, 10, 6, "accent"], [10, 2, 10, 1, "lamp"], [44, 2, 10, 1, "lamp"]],
 			"spots": [[8, 30], [35, 30], [62, 30]]}],
 	}
+	# Studio (#369): one small room: a bed, a nightstand, a window and a kitchenette counter on the right.
+	out["studio"] = {
+		"hue": "condo", "look": "full",
+		"fixed": _bed(1, 15) + _nightstand(19) + _win(29, 4, 10, 10) + [
+			[-28, 20, 22, 10, "furn", "r"], [-28, 18, 22, 2, "accent", "r"], [-24, 22, 4, 4, "lamp", "r"], [-12, 24, 4, 3, "white", "r"]] + _plant(-34, "r"),
+		"spots": [[9, 30], [44, 30]],
+	}
+	# Penthouse (#369): a wide home with a big bed, a sofa and rug, a window wall, a kitchen island and a gold trim line.
+	out["penthouse"] = {
+		"hue": "condo", "look": "full",
+		"fixed": _bed(2, 34) + _nightstand(38) + _win(50, 4, 30, 14) + [
+			[88, 29, 40, 1, "gold"], [84, 24, 32, 6, "furn"], [84, 18, 3, 12, "furn"], [113, 21, 3, 9, "furn"], [90, 12, 20, 8, "furn"], [91, 13, 18, 6, "accent"],
+			[2, 2, 188, 1, "gold"],
+			[-66, 22, 34, 8, "furn", "r"], [-66, 20, 34, 2, "gold", "r"], [-60, 24, 6, 6, "white", "r"]] + _win(-70, 4, 30, 14, "r") + _plant(-28, "r") + _wardrobe(-20, "r"),
+		"spots": [[10, 30], [56, 30], [96, 30], [138, 30], [164, 30]],
+	}
 	# Rental apartment (#379): a compact studio. A bed against the left wall, a desk with a lamp, and a small sofa.
 	out["apartment"] = {
 		"hue": "rental", "look": "full",

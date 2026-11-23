@@ -60,7 +60,7 @@ static func run(check: Callable) -> void:
 	var row: Dictionary = Catalogue.row("apartment")
 	check.call(int(row["cost"]) == 50000 and int(row["width"]) == 12 and int(row["people"]) == 2, "apartment: $50,000, 12 wide, 2 residents")
 	check.call(Catalogue.star("apartment") == 2 and Rooms.PLACEABLE.has("apartment") and Names.TITLES.has("apartment"), "apartment: unlocks at 2 stars, placeable, has titles")
-	check.call(Catalogue.IDS.find("apartment") == Catalogue.IDS.size() - 1 and Catalogue.IDS.find("apartment") == Catalogue.IDS.find("conference_center") + 1, "apartment: appended last, so existing saves keep their numbering")
+	check.call(Catalogue.IDS.find("apartment") == Catalogue.IDS.find("conference_center") + 1, "apartment: appended last, so existing saves keep their numbering")
 	check.call(row["rent"] == [2000, 3000, 4000, 6000] and Rent.is_rentable("apartment") and Grades.is_graded("apartment"), "apartment: four rent levels around $4,000, graded")
 	var built := TowerSim.new(1, 1000000)
 	built.floors.build_lobby(built.ledger, 0, 1, 100, 163, 2)

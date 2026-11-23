@@ -32,6 +32,7 @@ func _ready() -> void:
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_panel)
 	var column := VBoxContainer.new()
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE  # the banner only informs: clicks pass to the toolbar under it
 	_panel.add_child(column)
 	_headline = Label.new()
 	_headline.name = "Headline"
