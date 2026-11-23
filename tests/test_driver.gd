@@ -6,7 +6,9 @@ const Driver := preload("res://scripts/view/sim_driver.gd")
 
 static func run(check: Callable) -> void:
 	var d := Driver.new()
-	check.call(d.run_frame(1.0 / 30.0) == 1 and d.tower.tick == 1, "driver: 1x runs 1 tick per 1/30 s")
+	check.call(d.run_frame(1.0 / 15.0) == 1 and d.tower.tick == 1, "driver: 1x runs 1 tick per 1/15 s")
+	d.set_speed(1)
+	check.call(d.run_frame(1.0 / 15.0) == 3, "driver: 2x runs 3 ticks per 1/15 s")
 	d.set_speed(2)
 	check.call(d.run_frame(1.0 / 30.0) == 3, "driver: 3x runs 3 ticks per 1/30 s")
 	d.set_paused(true)

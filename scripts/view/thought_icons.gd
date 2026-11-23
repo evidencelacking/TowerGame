@@ -23,7 +23,7 @@ const KIND_COUNT := 6
 const NAMES: Array[String] = ["none", "waiting", "noisy", "unhappy", "hungry", "happy"]
 
 const NOISE_COST := 16  ## Mood points noise must cost (two levels of noise) before the zigzag shows.
-const PERIOD_TICKS := 360  ## 12 seconds at the base rate of 30 ticks a second.
+const PERIOD_TICKS := 360  ## 24 seconds at 1x (15 ticks a second), 4 at 3x.
 const SHOW_TICKS := 90  ## An icon stays up for 3 of them.
 const PHASE_STEP := 53  ## Per id; coprime to PERIOD_TICKS so neighbours are spread across it.
 const MAX_ICONS := 12
