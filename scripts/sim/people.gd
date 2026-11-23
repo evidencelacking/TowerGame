@@ -182,6 +182,42 @@ func worker_counts() -> Dictionary:
 	return counts
 
 
+const EVAL_ROW := 7  ## Ints per person in eval_rows().
+
+
+## One row per person in index order, as EVAL_ROW ints: id, home, work, stress, mood, low days, location. A read-only
+## copy built in one pass, so the daily evaluation reads a packed array instead of an accessor per field (#452).
+func eval_rows() -> PackedInt64Array:
+	var n := _data.size() / FIELDS
+	var out := PackedInt64Array()
+	out.resize(n * EVAL_ROW)
+	var b := 0
+	var o := 0
+	while o < n * EVAL_ROW:
+		out[o] = _data[b + _ID]
+		out[o + 1] = _data[b + _HOME]
+		out[o + 2] = _data[b + _WORK]
+		out[o + 3] = _data[b + _STRESS]
+		out[o + 4] = _data[b + _MOOD]
+		out[o + 5] = _data[b + _LOW_DAYS]
+		out[o + 6] = _data[b + _LOCATION]
+		b += FIELDS
+		o += EVAL_ROW
+	return out
+
+
+## Residents per room, room id -> count, for callers that ask about many rooms at once (#452).
+func home_counts() -> Dictionary:
+	var counts: Dictionary = {}
+	var n := _data.size()
+	var b := _HOME
+	while b < n:
+		var room := _data[b]
+		counts[room] = int(counts.get(room, 0)) + 1
+		b += FIELDS
+	return counts
+
+
 ## Index of the person with this id, or -1.
 func index_of(id: int) -> int:
 	return _index.get(id, -1)

@@ -119,9 +119,11 @@ static func day_share(quarterly: int, last_day: bool) -> int:
 ## Returns the total.
 func collect(rooms: RoomsScript, people: PeopleScript, ledger: LedgerScript, at_tick: int, last_day: bool = true, bonus_percent: int = 0) -> int:
 	var total := 0
+	var workers := people.worker_counts()  # one pass each, not one per room (#452)
+	var homes := people.home_counts()
 	for id in rooms.room_ids():
 		var kind := rooms.kind_of(id)
-		if is_rentable(kind) and not rooms.is_charred(id) and not rooms.is_cut_off(id) and (people.homes_in(id) if CatalogueScript.is_rental(kind) else people.workers_in(id)) > 0:
+		if is_rentable(kind) and not rooms.is_charred(id) and not rooms.is_cut_off(id) and int((homes if CatalogueScript.is_rental(kind) else workers).get(id, 0)) > 0:
 			var amount := day_share(rent_of(rooms, id), last_day)
 			if not CatalogueScript.is_rental(kind):  # the metro bonus is for offices; an apartment pays its level's rent (#379)
 				amount += amount * bonus_percent / 100  # a connected tower (a metro station) rents for more (synergy.gd)

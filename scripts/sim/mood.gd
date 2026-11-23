@@ -80,14 +80,20 @@ static func room_of(people: PeopleScript, i: int) -> int:
 ## People currently located on each floor: floor -> count. Lobby and sky-lobby floors are left out
 ## (they are busy by design, so they never count as crowded).
 static func floor_counts(people: PeopleScript, grid: GridScript, floors: FloorsScript) -> Dictionary:
+	var by_room := {}  # location room -> how many people are in it
+	var rows := people.eval_rows()
+	var b := 6
+	var n := rows.size()
+	while b < n:
+		var here := int(rows[b])
+		if here != PeopleScript.NONE:
+			by_room[here] = int(by_room.get(here, 0)) + 1
+		b += PeopleScript.EVAL_ROW
 	var counts := {}
-	for i in people.count():
-		var here := people.location_of(i)
-		if here == PeopleScript.NONE:
-			continue
+	for here: int in by_room:  # one run lookup per room, not per person (#452)
 		var run := grid.run_of(here)
 		if not run.is_empty() and not floors.is_lobby_floor(run[0]):
-			counts[run[0]] = counts.get(run[0], 0) + 1
+			counts[run[0]] = counts.get(run[0], 0) + by_room[here]
 	return counts
 
 
@@ -167,11 +173,31 @@ func update(rooms: RoomsScript, grid: GridScript, floors: FloorsScript, grades: 
 		tables.shocked[id] = true
 	grades.batch = tables
 	var recovery := SynergyScript.recovery_bonus(tables.others)  # clinics: moods rise faster
-	for i in people.count():
-		var mood := people.mood_of(i)
-		mood += clampi(target(rooms, grid, grades, people, counts, i, tables) - mood, -STEP, STEP + recovery)
+	# The same sum target() gives, from one packed pass over the people (#452): the room's terms add up once per room.
+	var rows := people.eval_rows()
+	var stride := PeopleScript.EVAL_ROW
+	var room_sums: Dictionary = {}
+	var event := shock > 0
+	var b := 0
+	var i := 0
+	var n := rows.size()
+	while b < n:
+		var work := rows[b + 2]
+		var room: int = work if work != PeopleScript.NONE else rows[b + 1]
+		if not room_sums.has(room):
+			var sum := 0
+			for factor in _room_terms(rooms, grid, grades, people, counts, room, tables):
+				sum += factor[1]
+			room_sums[room] = sum
+		var total: int = BASE - mini(int(rows[b + 3]) * TRAVEL_MAX / PeopleScript.STRESS_MAX, TRAVEL_MAX) + int(room_sums[room])
+		if event and tables.shocked.has(rows[b]):
+			total -= shock
+		var mood := int(rows[b + 4])
+		mood += clampi(clampi(total, 0, PeopleScript.MOOD_MAX) - mood, -STEP, STEP + recovery)
 		people.set_mood(i, mood)
-		people.set_low_days(i, people.low_days_of(i) + 1 if people.mood_of(i) < LOW_BELOW else 0)
+		people.set_low_days(i, int(rows[b + 5]) + 1 if clampi(mood, 0, PeopleScript.MOOD_MAX) < LOW_BELOW else 0)
+		b += stride
+		i += 1
 	grades.batch = null
 	shock = 0
 	_shocked.clear()

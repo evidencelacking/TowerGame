@@ -199,14 +199,21 @@ func couple_up(t: Object) -> void:
 	var by_room := {}  # room -> ids of uncoupled adults, in id order
 	var kids := _set_of(_kids)
 	var coupled := _set_of(_couples)
-	for i in t.people.count():
-		var id: int = t.people.id_at(i)
-		var room := MoodScript.room_of(t.people, i)
-		var kind: String = t.rooms.kind_of(room) if room != PeopleScript.NONE else ""
-		if (kind == "office" or CatalogueScript.is_condo(kind)) and not coupled.has(id) and _age_band_in(kids, t, id) == NamesScript.BAND_ADULT:
+	var rows: PackedInt64Array = t.people.eval_rows()  # one packed pass, and the kind test once per room (#452)
+	var eligible := {}  # room -> true when its people may couple
+	var b := 0
+	while b < rows.size():
+		var work := int(rows[b + 2])
+		var room := work if work != PeopleScript.NONE else int(rows[b + 1])
+		if not eligible.has(room):
+			var kind: String = t.rooms.kind_of(room) if room != PeopleScript.NONE else ""
+			eligible[room] = kind == "office" or CatalogueScript.is_condo(kind)
+		var id := int(rows[b])
+		if eligible[room] and not coupled.has(id) and _age_band_in(kids, t, id) == NamesScript.BAND_ADULT:
 			if not by_room.has(room):
 				by_room[room] = [] as Array[int]
 			by_room[room].append(id)
+		b += PeopleScript.EVAL_ROW
 	var rooms: Array = by_room.keys()
 	rooms.sort()
 	for room: int in rooms:
@@ -259,6 +266,7 @@ func _vacate_if_empty(t: Object, room: int) -> void:
 
 
 func have_children(t: Object) -> void:
+	var homes: Dictionary = t.people.home_counts()  # residents per room, kept up as kids are born (#452)
 	for n in _couples.size() / 2:
 		var a: int = _couples[2 * n]
 		var ia: int = t.people.index_of(a)
@@ -266,10 +274,11 @@ func have_children(t: Object) -> void:
 		if ia == -1 or ib == -1:
 			continue
 		var home: int = t.people.home_of(ia)
-		if home == PeopleScript.NONE or home != t.people.home_of(ib) or not _has_place(t, home):
+		if home == PeopleScript.NONE or home != t.people.home_of(ib) or not (CatalogueScript.is_condo(t.rooms.kind_of(home)) and t.rooms.is_sold(home) and int(homes.get(home, 0)) < t.rooms.people_in(home)):
 			continue
 		if t.rng.next_below(100) < child_percent:
 			var kid: int = t.people.add_person(home, PeopleScript.NONE, t.rng)
+			homes[home] = int(homes.get(home, 0)) + 1
 			_kids.append(kid)
 			_record(t.tick, CHILD, a, kid, home)
 
@@ -278,12 +287,19 @@ func promote(t: Object) -> void:
 	var chosen: Array[int] = []
 	var kids := _set_of(_kids)
 	var promoted := _set_of(_promoted)
-	for i in t.people.count():
-		var id: int = t.people.id_at(i)
-		var work: int = t.people.work_of(i)
-		if work != PeopleScript.NONE and t.rooms.kind_of(work) == "office" and _age_band_in(kids, t, id) == NamesScript.BAND_ADULT and not promoted.has(id):
-			if t.rng.next_below(100) < promotion_percent:
-				chosen.append(id)
+	var rows: PackedInt64Array = t.people.eval_rows()
+	var offices := {}  # room -> true for an office
+	var b := 0
+	while b < rows.size():
+		var work := int(rows[b + 2])
+		if work != PeopleScript.NONE:
+			if not offices.has(work):
+				offices[work] = t.rooms.kind_of(work) == "office"
+			var id := int(rows[b])
+			if offices[work] and _age_band_in(kids, t, id) == NamesScript.BAND_ADULT and not promoted.has(id):
+				if t.rng.next_below(100) < promotion_percent:
+					chosen.append(id)
+		b += PeopleScript.EVAL_ROW
 	for id in chosen:
 		var i: int = t.people.index_of(id)
 		_promoted.append(id)
@@ -294,11 +310,18 @@ func promote(t: Object) -> void:
 func retire(t: Object) -> void:
 	var chosen: Array[int] = []
 	var kids := _set_of(_kids)
-	for i in t.people.count():
-		var work: int = t.people.work_of(i)
-		if work != PeopleScript.NONE and t.rooms.kind_of(work) == "office" and _age_band_in(kids, t, t.people.id_at(i)) == NamesScript.BAND_SENIOR:
-			if t.rng.next_below(100000) < retire_per_100000:
-				chosen.append(t.people.id_at(i))
+	var rows: PackedInt64Array = t.people.eval_rows()
+	var offices := {}
+	var b := 0
+	while b < rows.size():
+		var work := int(rows[b + 2])
+		if work != PeopleScript.NONE:
+			if not offices.has(work):
+				offices[work] = t.rooms.kind_of(work) == "office"
+			if offices[work] and _age_band_in(kids, t, int(rows[b])) == NamesScript.BAND_SENIOR:
+				if t.rng.next_below(100000) < retire_per_100000:
+					chosen.append(int(rows[b]))
+		b += PeopleScript.EVAL_ROW
 	for id in chosen:
 		var i: int = t.people.index_of(id)
 		var office: int = t.people.work_of(i)

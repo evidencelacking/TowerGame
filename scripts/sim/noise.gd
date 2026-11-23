@@ -94,8 +94,16 @@ static func noise_at(grid: GridScript, rooms: RoomsScript, room_id: int) -> int:
 	if cache.has(room_id):
 		return cache[room_id]
 	if not cache.has(_OTHERS):
-		cache[_OTHERS] = _others(grid, rooms, 0)
-	var level := level_among(kind, grid.run_of(room_id), cache[_OTHERS])
+		cache[_OTHERS] = _index(_others(grid, rooms, 0))
+	var run := grid.run_of(room_id)
+	var index: Dictionary = cache[_OTHERS]
+	# Only the sources and buffers a room can hear: its own floor and the ones beside it (across the ground
+	# the raw floor numbers are two apart for one floor), plus the roof sources, which reach further down.
+	var near: Array = (index["roof"] as Array).duplicate()
+	var by_floor: Dictionary = index["floors"]
+	for f in range(int(run[0]) - RANGE_FLOORS - 1, int(run[0]) + RANGE_FLOORS + 2):
+		near.append_array(by_floor.get(f, []))
+	var level := level_among(kind, run, near)
 	cache[room_id] = level
 	return level
 
@@ -128,6 +136,26 @@ static func _cache(grid: GridScript, rooms: RoomsScript) -> Dictionary:
 		rooms.noise_key = key
 		rooms.noise_cache = {}
 	return rooms.noise_cache
+
+
+## The placed rooms that make or mute noise, as {"floors": floor -> [kind, run] pairs, "roof": the pairs whose kind reaches
+## further down}. A room that is neither a source nor a buffer never changes a level, so it is left out. Sums are
+## order-free, so bucketing cannot change a level (#452).
+static func _index(others: Array) -> Dictionary:
+	var floors := {}
+	var roof := []
+	for other: Array in others:
+		var other_kind: String = other[0]
+		if not (SOURCES.has(other_kind) or BUFFERS.has(other_kind)):
+			continue
+		if REACH_BELOW.has(other_kind):
+			roof.append(other)
+			continue
+		var floor_number: int = other[1][0]
+		if not floors.has(floor_number):
+			floors[floor_number] = []
+		floors[floor_number].append(other)
+	return {"floors": floors, "roof": roof}
 
 
 static func _others(grid: GridScript, rooms: RoomsScript, except_id: int) -> Array:
