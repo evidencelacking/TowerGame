@@ -108,12 +108,12 @@ static func run(check: Callable) -> void:
 	check.call(d.commerce.customers_today(daycare) == d_kids.size() - _odd(d_kids), "daycare: with a school it takes only the even ids (%d)" % d.commerce.customers_today(daycare))
 	check.call(not Commerce.school_age_split("daycare", 3, false), "daycare: without a school it takes every child")
 
-	# Synergy: +14 condo demand within 10 floors, never past the cap of 20 (a daycare's 10 included).
+	# Synergy: +14 condo demand within 10 floors, never past the condo cap of 30; school 14 plus daycare 10 is 24.
 	var run_condo := [8, 100, 8]
 	var near_school := [["school", [12, 100, 16]]]
 	check.call(Synergy.demand_percent(run_condo, near_school) == 14, "synergy: a school adds 14 to condo demand within 10 floors")
 	check.call(Synergy.demand_percent(run_condo, [["school", [20, 100, 16]]]) == 0, "synergy: a school 12 floors away adds nothing")
-	check.call(Synergy.demand_percent(run_condo, near_school + [["daycare", [9, 100, 12]]]) == 20, "synergy: school and daycare stop at the cap of 20")
+	check.call(Synergy.demand_percent(run_condo, near_school + [["daycare", [9, 100, 12]]]) == 24, "synergy: school and daycare add up to 24, under the cap of 30")
 
 	# A fixed-seed day: children inside attend, the day settles, and a second run agrees.
 	var a := _tower()

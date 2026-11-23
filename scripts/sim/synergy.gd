@@ -38,7 +38,7 @@ const ANY := -1  ## Reach: the whole tower.
 const EVERYONE := "*"  ## Target of a tower-wide effect on people rather than on a kind of room.
 
 ## Most one effect can add up to, either way (a total beyond this is cut).
-const CAPS: Array[int] = [20, 20, 12, 30, 10, 30]
+const CAPS: Array[int] = [20, 30, 12, 30, 10, 30]
 
 ## [source, target, effect, amount, floors, columns]
 const RULES: Array = [
