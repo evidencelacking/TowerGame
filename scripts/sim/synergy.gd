@@ -117,6 +117,8 @@ static func in_reach(a: Array, b: Array, floors: int, columns: int) -> bool:
 ## The sum of one effect on a room of `target_kind` at `run` from `others` ([kind, run] pairs), capped.
 static func total(effect: int, target_kind: String, run: Array, others: Array) -> int:
 	var sum := 0
+	if CatalogueScript.is_condo(target_kind):
+		target_kind = "condo"  # every home size takes the condo's rules (#369)
 	for other: Array in others:
 		for rule: Array in RULES:
 			if rule[2] == effect and rule[0] == other[0] and rule[1] == target_kind and in_reach(run, other[1], rule[4], rule[5]):

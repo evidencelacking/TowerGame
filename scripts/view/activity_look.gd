@@ -6,6 +6,7 @@ extends RefCounted
 ## seated, lying or standing poses with a small prop (cup, fork, broom, bag) that moves a little.
 
 const PeopleScript := preload("res://scripts/sim/people.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
@@ -46,7 +47,7 @@ static func is_night(minute: int) -> bool:
 ## The activity of a person resting in a room of `kind`. works_here: their work room is this one.
 ## goal: PeopleScript.DEST_*. staying: a hotel guest in residence. waiting: a trip is requested.
 static func classify(kind: String, works_here: bool, goal: int, staying: bool, minute: int, waiting: bool) -> int:
-	var sleeps_here := kind.begins_with("hotel_") or kind == "condo" or kind == "apartment"
+	var sleeps_here := kind.begins_with("hotel_") or CatalogueScript.is_condo(kind) or kind == "apartment"
 	if sleeps_here and is_night(minute) and (staying or goal == PeopleScript.DEST_HOME):
 		return SLEEPING
 	if waiting:

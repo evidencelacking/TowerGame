@@ -23,7 +23,7 @@ const SOURCES: Dictionary = {
 	"movie_theatre": 6, "party_hall": 8, "nightclub": 9, "cafe": 2, "pizza": 3, "sushi": 1, "fine_dining": 1, "bar": 6, "casino": 8, "deli": 2, "pool": 3, "helipad": 6, "ballroom": 6, "conference_center": 2,
 }
 ## Kinds that can be disturbed: residential and hotel rooms.
-const SENSITIVE: Array[String] = ["condo", "apartment", "hotel_single", "hotel_twin", "hotel_suite"]
+const SENSITIVE: Array[String] = ["condo", "studio", "penthouse", "apartment", "hotel_single", "hotel_twin", "hotel_suite"]
 ## Desirable things nearby that mute noise: each one in range removes this much.
 const BUFFERS: Dictionary = {"medical": 2, "security": 1, "cathedral": 4}
 

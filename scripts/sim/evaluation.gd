@@ -56,21 +56,21 @@ func _occupied(rooms: RoomsScript, tables: EvalTablesScript, id: int) -> bool:
 	var kind := rooms.kind_of(id)
 	if kind == "office":
 		return tables.workers.get(id, 0) > 0
-	return kind == "condo" and rooms.is_sold(id)
+	return CatalogueScript.is_condo(kind) and rooms.is_sold(id)
 
 
 func _vacant_in(rooms: RoomsScript, tables: EvalTablesScript, id: int) -> bool:
 	var kind := rooms.kind_of(id)
 	if kind == "office":
 		return tables.workers.get(id, 0) == 0
-	return kind == "condo" and not rooms.is_sold(id)
+	return CatalogueScript.is_condo(kind) and not rooms.is_sold(id)
 
 
 func _vacant(rooms: RoomsScript, people: PeopleScript, id: int) -> bool:
 	var kind := rooms.kind_of(id)
 	if kind == "office":
 		return people.workers_in(id) == 0
-	return kind == "condo" and not rooms.is_sold(id)
+	return CatalogueScript.is_condo(kind) and not rooms.is_sold(id)
 
 
 ## Vacant offices and condos grouped by kind and floor, each list in ascending id order, for _vacancy_near.
@@ -129,7 +129,7 @@ func evaluate(rooms: RoomsScript, people: PeopleScript, grades: GradesScript, gr
 					_left(rooms, grid, messages, at_tick, id)
 			else:
 				_red_days.erase(id)
-		elif kind == "condo" and grade == GradesScript.GRADE_C and (CONDO_LEAVE_PERCENT >= 100 or rng.next_below(100) < CONDO_LEAVE_PERCENT):
+		elif CatalogueScript.is_condo(kind) and grade == GradesScript.GRADE_C and (CONDO_LEAVE_PERCENT >= 100 or rng.next_below(100) < CONDO_LEAVE_PERCENT):
 			var price := CatalogueScript.cost(kind)
 			rooms.set_sold(id, false)
 			people.remove_room(id)
@@ -150,7 +150,7 @@ func evaluate_moods(rooms: RoomsScript, people: PeopleScript, grades: GradesScri
 		var kind := rooms.kind_of(id)
 		if not _occupied(rooms, tables, id) or not MoodScript.gave_notice(people, id, tables) or grades.grade(rooms, people, id) != GradesScript.GRADE_C:
 			continue
-		if kind == "condo":
+		if CatalogueScript.is_condo(kind):
 			var price := CatalogueScript.cost(kind)
 			rooms.set_sold(id, false)
 			people.remove_room(id)
@@ -189,11 +189,11 @@ func _vacancy_near(rooms: RoomsScript, grid: GridScript, floors: FloorsScript, t
 ## Moves tenants into a vacant office or condo (a sold condo credits its price).
 func _fill(rooms: RoomsScript, people: PeopleScript, grid: GridScript, ledger: LedgerScript, messages: MessagesScript, rng: Object, at_tick: int, id: int) -> void:
 	var kind := rooms.kind_of(id)
-	if kind == "condo":
+	if CatalogueScript.is_condo(kind):
 		rooms.set_sold(id, true)
 		ledger.income(at_tick, CatalogueScript.cost(kind), id)
 	for n in rooms.people_in(id):
-		if kind == "condo":
+		if CatalogueScript.is_condo(kind):
 			people.add_person(id, PeopleScript.NONE, rng)
 		else:
 			people.add_person(PeopleScript.NONE, id, rng)

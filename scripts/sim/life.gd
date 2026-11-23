@@ -168,7 +168,7 @@ func _residents(people: PeopleScript, room: int) -> int:
 
 
 func _has_place(t: Object, room: int) -> bool:
-	return t.rooms.kind_of(room) == "condo" and t.rooms.is_sold(room) and _residents(t.people, room) < t.rooms.people_in(room)
+	return CatalogueScript.is_condo(t.rooms.kind_of(room)) and t.rooms.is_sold(room) and _residents(t.people, room) < t.rooms.people_in(room)
 
 
 ## Makes two people a couple (lower id first). Public so tests can set one up.
@@ -202,7 +202,7 @@ func couple_up(t: Object) -> void:
 		var id: int = t.people.id_at(i)
 		var room := MoodScript.room_of(t.people, i)
 		var kind: String = t.rooms.kind_of(room) if room != PeopleScript.NONE else ""
-		if (kind == "office" or kind == "condo") and not coupled.has(id) and _age_band_in(kids, t, id) == NamesScript.BAND_ADULT:
+		if (kind == "office" or CatalogueScript.is_condo(kind)) and not coupled.has(id) and _age_band_in(kids, t, id) == NamesScript.BAND_ADULT:
 			if not by_room.has(room):
 				by_room[room] = [] as Array[int]
 			by_room[room].append(id)
@@ -246,13 +246,14 @@ func _freed(t: Object, old: int, target: int, a: int, b: int) -> void:
 ## A sold condo with no residents left is vacated and its sale price refunded, as when an owner
 ## leaves (Evaluation), so it can be sold again and vacate-then-resell nets zero.
 func _vacate_if_empty(t: Object, room: int) -> void:
-	if room == PeopleScript.NONE or t.rooms.kind_of(room) != "condo" or not t.rooms.is_sold(room) or _residents(t.people, room) > 0:
+	if room == PeopleScript.NONE or not CatalogueScript.is_condo(t.rooms.kind_of(room)) or not t.rooms.is_sold(room) or _residents(t.people, room) > 0:
 		return
 	var run: Array[int] = t.grid.run_of(room)
-	var price: int = CatalogueScript.cost("condo")
+	var kind: String = t.rooms.kind_of(room)
+	var price: int = CatalogueScript.cost(kind)
 	t.rooms.set_sold(room, false)
 	t.ledger.payout(t.tick, price, room)
-	t.messages.add(t.tick, MessagesScript.TENANT_LEFT, CatalogueScript.IDS.find("condo"), run[0] if not run.is_empty() else 0)
+	t.messages.add(t.tick, MessagesScript.TENANT_LEFT, CatalogueScript.IDS.find(kind), run[0] if not run.is_empty() else 0)
 	t.messages.add(t.tick, MessagesScript.CONDO_REFUND, price)
 
 

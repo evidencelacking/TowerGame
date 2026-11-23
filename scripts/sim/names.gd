@@ -64,6 +64,8 @@ const TITLES: Dictionary = {
 	"security": [["Junior Guard"], ["Guard", "Patrol Officer"], ["Chief of Security"]],
 	"housekeeping": [["Trainee Maid"], ["Housekeeper", "Linen Porter"], ["Head Housekeeper"]],
 	"condo": [["Student", "Apprentice", "Young Professional"], ["Resident", "Commuter", "Homeowner"], ["Retiree", "Pensioner", "Elder"]],
+	"studio": [["Student", "Apprentice", "Young Professional"], ["Resident", "Commuter", "Homeowner"], ["Retiree", "Pensioner", "Elder"]],
+	"penthouse": [["Heir", "Young Professional", "Investor"], ["Executive", "Magnate", "Homeowner"], ["Retiree", "Dowager", "Elder"]],
 	"apartment": [["Student", "Intern", "Flatmate"], ["Tenant", "Renter", "Commuter"], ["Lodger", "Pensioner", "Long-term Tenant"]],
 	"hotel_single": [["Backpacker", "Guest"], ["Guest", "Traveller"], ["Guest", "Retired Traveller"]],
 	"hotel_twin": [["Guest", "Backpacker"], ["Guest", "Traveller"], ["Guest", "Retired Traveller"]],

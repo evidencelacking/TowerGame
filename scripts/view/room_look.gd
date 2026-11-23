@@ -6,6 +6,7 @@ extends RefCounted
 ## No images. The colour constants below are the info-panel and legend colours.
 
 const HotelScript := preload("res://scripts/sim/hotel.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const RecyclingScript := preload("res://scripts/sim/recycling.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
@@ -175,7 +176,7 @@ static func state_facts(tower: Tower, id: int, kind: String, broken: Variant = n
 	elif kind == "office":
 		var staff: int = int((workers as Dictionary).get(id, 0)) if workers != null else tower.people.workers_in(id)
 		empty = staff == 0
-	elif kind == "condo":
+	elif CatalogueScript.is_condo(kind):
 		empty = not tower.rooms.is_sold(id)
 	elif kind == "apartment":
 		empty = tower.people.homes_in(id) == 0

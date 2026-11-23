@@ -20,6 +20,7 @@ extends RefCounted
 ## Noise.stress_for(level) to the room's average.
 
 const GradesScript := preload("res://scripts/sim/grades.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const GridScript := preload("res://scripts/sim/grid.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
@@ -121,7 +122,7 @@ func has_reason(room: int, reason: int) -> bool:
 		UNREACHED:
 			return hotel != null and hotel.unreached(room)
 		NO_GROCERY:
-			return _rooms.kind_of(room) == "condo" and lacks_grocery()
+			return CatalogueScript.is_condo(_rooms.kind_of(room)) and lacks_grocery()
 		NO_FOOD:
 			return _rooms.kind_of(room) == "office" and _food_applies() and _food_coverage < FOOD_LOW_PERCENT
 	return false
@@ -134,7 +135,7 @@ func lacks_grocery() -> bool:
 		var kind := _rooms.kind_of(id)
 		if kind == "grocery":
 			return false
-		if kind == "condo":
+		if CatalogueScript.is_condo(kind):
 			condos += 1
 	return condos >= GROCERY_NEEDED_FROM
 
