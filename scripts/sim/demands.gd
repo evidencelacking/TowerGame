@@ -16,7 +16,7 @@ extends RefCounted
 ##              offices and the suites (kind_counts "parking_working"; Parking.needed, owner ruling #172).
 ## A demand only opens once its remedy can be built (its room kind is in Rooms.PLACEABLE), so
 ## the demands for rooms that do not exist yet stay quiet instead of blocking star 4 for ever
-## (decision on #168). Any open demand blocks star 4 (StarRules "demands_met"). Integers only.
+## (decision on #168). Any open demand except FOOD blocks star 4 (StarRules "demands_met"). Integers only.
 ##
 ## Saved state: one int, the bitmask of open demands (bit = 1 << (id - 1)).
 
@@ -49,9 +49,10 @@ func open_count() -> int:
 	return n
 
 
-## True when no demand is open (the star rules' "demands_met").
+## True when no star demand is open (the star rules' "demands_met"). FOOD is advice only: it is our own
+## design (#439), so it never blocks a star; its cost is the office stress instead.
 func all_met() -> bool:
-	return _open == 0
+	return _open & ~(1 << (FOOD - 1)) == 0
 
 
 ## The demands that hold for a tower: stars, and a count of rooms per kind. Pure.

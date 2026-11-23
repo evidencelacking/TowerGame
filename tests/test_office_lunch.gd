@@ -70,6 +70,7 @@ static func run(check: Callable) -> void:
 	bare.promote_stars()
 	fed.promote_stars()
 	check.call(bare.demands.is_open(Demands.FOOD) and _raised(bare) == 1, "lunch: the food demand opens with one message")
+	check.call(bare.demands.open_count() != 1 or bare.demands.all_met(), "lunch: the food demand alone never blocks a star (demands_met)")
 	bare.promote_stars()
 	check.call(_raised(bare) == 1, "lunch: the demand message is one-shot")
 	check.call(not fed.demands.is_open(Demands.FOOD) and _raised(fed) == 0, "lunch: enough food leaves the demand closed")
