@@ -19,7 +19,7 @@ const RoomRecipes := preload("res://scripts/view/room_recipes.gd")
 const SkyLook := preload("res://scripts/view/sky_look.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
-const KINDS: Array[String] = ["lobby", "office", "condo", "studio", "penthouse", "apartment", "hotel_single", "hotel_twin", "hotel_suite", "housekeeping"]
+const KINDS: Array[String] = ["lobby", "office", "condo", "studio", "penthouse", "apartment", "assisted", "hotel_single", "hotel_twin", "hotel_suite", "housekeeping"]
 const SKY_LOBBY := "sky_lobby"  ## A sky lobby floor (#357): drawn by draw() with the floor number as its id; not a room kind.
 const SUB := 2  ## Mock-up pixels per world pixel.
 const FLOOR_H := Scenes.FLOOR
@@ -74,6 +74,8 @@ static func draw(canvas: Object, kind: String, rect: Rect2i, hue: Color, lit: bo
 			_penthouse(pen, w, y0, seats, lit, night, id, pal)
 		"apartment":
 			_apartment(pen, w, y0, seats, lit, night, id, pal)
+		"assisted":
+			_assisted(pen, w, y0, seats, lit, night, id, pal)
 		"hotel_single", "hotel_twin", "hotel_suite":
 			_hotel(pen, kind, w, y0, seats, lit, night, id, pal)
 		"housekeeping":
@@ -313,6 +315,22 @@ static func _penthouse(p: Object, w: int, y0: int, seats: Array, lit: bool, nigh
 	Scenes.sofa(p, w * 0.5 - 20.0, fy, Color("7a5a8a"))
 	Scenes.plant(p, w * 0.5 + 40.0, fy, 28.0, Color("d8b04a"))
 	Scenes.ceiling_light(p, w * 0.5, yt, 34.0, lit, 76.0)
+
+
+## Assisted living (#378): a calm room with a bed and nightstand, a window, an armchair and a plant.
+static func _assisted(p: Object, w: int, y0: int, seats: Array, lit: bool, night: bool, id: int, pal: Array) -> void:
+	var fy := float(y0 + 58)
+	var yt := float(y0)
+	Scenes.shell_room(p, 0, yt, w, 1, pal)
+	var c0: float = seats[0] if seats.size() > 0 else 30.0
+	var bx := maxf(c0 - 16.0, 6.0)
+	Scenes.bed(p, bx, fy, 50.0, Color("9ab8a8"), Color("f4eee2"))
+	Scenes.nightstand(p, bx + 52.0, fy, lit)
+	Scenes.window(p, bx + 74.0, yt + 10, 30, 24, Color("f0e8dc"), Color(CURTAINS[id % CURTAINS.size()]), id + 5, night, false)
+	if w - 70.0 > bx + 110.0:
+		Scenes.armchair(p, bx + 120.0, fy, 1, Color("b08a6a"))
+	Scenes.plant(p, w - 20.0, fy, 24.0, Color("a8785a"))
+	Scenes.ceiling_light(p, w * 0.5, yt, 30.0, lit, 70.0)
 
 
 ## A rental apartment (#379): a studio with a bed and nightstand, a window, a desk with a screen, a sofa and a small plant.

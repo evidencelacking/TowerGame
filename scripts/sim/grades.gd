@@ -34,7 +34,7 @@ const NEUTRAL_QUALITY := 175  ## Quality of a room with no trips yet: mid B.
 ## Kinds graded by stress: occupants are the people who work there (offices) or live there
 ## (condos, hotel guests).
 const WORK_KINDS: Array[String] = ["office"]
-const HOME_KINDS: Array[String] = ["condo", "studio", "penthouse", "apartment", "hotel_single", "hotel_twin", "hotel_suite"]
+const HOME_KINDS: Array[String] = ["condo", "studio", "penthouse", "apartment", "assisted", "hotel_single", "hotel_twin", "hotel_suite"]
 
 var _tripped: Dictionary = {}  ## Person id -> true once they have made a trip.
 var _order: Array[int] = []  ## The same ids in the order first seen, for saving.

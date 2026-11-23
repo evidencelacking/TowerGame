@@ -121,9 +121,9 @@ func collect(rooms: RoomsScript, people: PeopleScript, ledger: LedgerScript, at_
 	var total := 0
 	for id in rooms.room_ids():
 		var kind := rooms.kind_of(id)
-		if is_rentable(kind) and not rooms.is_charred(id) and not rooms.is_cut_off(id) and (people.homes_in(id) if kind == "apartment" else people.workers_in(id)) > 0:
+		if is_rentable(kind) and not rooms.is_charred(id) and not rooms.is_cut_off(id) and (people.homes_in(id) if CatalogueScript.is_rental(kind) else people.workers_in(id)) > 0:
 			var amount := day_share(rent_of(rooms, id), last_day)
-			if kind != "apartment":  # the metro bonus is for offices; an apartment pays its level's rent (#379)
+			if not CatalogueScript.is_rental(kind):  # the metro bonus is for offices; an apartment pays its level's rent (#379)
 				amount += amount * bonus_percent / 100  # a connected tower (a metro station) rents for more (synergy.gd)
 			ledger.income(at_tick, amount, id)
 			total += amount

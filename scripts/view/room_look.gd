@@ -178,7 +178,7 @@ static func state_facts(tower: Tower, id: int, kind: String, broken: Variant = n
 		empty = staff == 0
 	elif CatalogueScript.is_condo(kind):
 		empty = not tower.rooms.is_sold(id)
-	elif kind == "apartment":
+	elif CatalogueScript.is_rental(kind):
 		empty = tower.people.homes_in(id) == 0
 	elif kind == "recycling":
 		fill = tower.recycling.fill_of(id) * 1000 / RecyclingScript.CAPACITY

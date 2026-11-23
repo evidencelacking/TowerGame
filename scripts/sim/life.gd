@@ -19,6 +19,7 @@ extends RefCounted
 ## so tests can force them. All unverified and tunable.
 
 const NamesScript := preload("res://scripts/sim/names.gd")
+const ApartmentsScript := preload("res://scripts/sim/apartments.gd")
 const PeopleScript := preload("res://scripts/sim/people.gd")
 const MoodScript := preload("res://scripts/sim/mood.gd")
 const MessagesScript := preload("res://scripts/sim/messages.gd")
@@ -313,6 +314,11 @@ func retire(t: Object) -> void:
 				if _has_place(t, room):
 					stays = t.people.add_person(room, PeopleScript.NONE, t.rng)
 					break
+			if stays < 0:  # no condo has a place: a retiree may take a room in assisted living (#378)
+				for room in ids:
+					if ApartmentsScript.has_place(t, room):
+						stays = ApartmentsScript.add_senior(t, room)
+						break
 		_record(t.tick, RETIREMENT, id, stays, office)
 
 
