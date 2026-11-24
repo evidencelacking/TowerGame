@@ -13,7 +13,7 @@ extends SceneTree
 ## Wall-clock timing lives in tools/ only, never in scripts/sim/. Not part of the test suite.
 ## Startup order: _initialize loads the tower (and the twin); the view and the timed runs start in _process
 ## from frame 2, once the tree is live. Every loop is over a fixed count, so the run ends.
-## Args: save=<path> | mixed, [ticks=2550] [noview] [loop speed=1|2|3 frames=120 warmup=500 overlay=disruptions|synergies|income|mood|traffic|rent|grade|hotel]
+## Args: save=<path> | mixed, [ticks=2550] [noview] [loop speed=1|2|3 frames=120 warmup=500 overlay=disruptions|synergies|income|mood|traffic|rent|grade|hotel|map|map:<filter>]
 
 const BenchMixed := preload("res://tools/bench_mixed.gd")
 const BenchBig := preload("res://tools/bench_big.gd")
@@ -24,6 +24,7 @@ const IconsScript := preload("res://scripts/view/thought_icons.gd")
 const HeatLook := preload("res://scripts/view/heat_look.gd")
 const DisruptionLook := preload("res://scripts/view/disruption_look.gd")
 const SynergyLook := preload("res://scripts/view/synergy_look.gd")
+const OverviewMapScript := preload("res://scripts/view/overview_map.gd")
 
 const RUSH_MS := 10  ## Ticks costing more than this many ms make up the rush-hour view.
 const MIXED_SEED := 42
@@ -47,6 +48,8 @@ var _view: bool = true
 var _ticks: int = 2550
 var _speed: int = 1
 var _overlay: String = ""  ## overlay=<name> (loop mode): a view overlay held on, to time its cost against the same run with it off.
+var _map: OverviewMap = null  ## overlay=map or map:<filter> (#489): the overview map, refreshed each frame as its _process does.
+var _map_us: int = 0  ## Microseconds spent in the map's refresh over the loop.
 var _overlay_tick: int = -1000000  ## Tick the overlay was last painted at (it repaints every 30 ticks, 10 for traffic, 120 for the slow ones).
 var _canvas := NullCanvas.new()
 var _disruption_cache: Dictionary = {}
@@ -424,6 +427,9 @@ class NullCanvas:
 
 ## Switches the named overlay on (the options are statics, so this is the whole of "toggling" it).
 func _set_overlay() -> void:
+	if _overlay.begins_with("map"):
+		_set_map()
+		return
 	SynergyLook.on = _overlay == "synergies"
 	DisruptionLook.on = _overlay == "disruptions"
 	var names: Array[String] = []
@@ -435,8 +441,31 @@ func _set_overlay() -> void:
 		_exit_code = 2
 
 
+## Opens the overview map on the tower with the filter named after "map:" (none: Off). Its image rebuilds are real work
+## (Image fills and a texture update), so they are timed as they are; only the engine's own drawing is missing here.
+func _set_map() -> void:
+	SynergyLook.on = false
+	DisruptionLook.on = false
+	HeatLook.mode = HeatLook.OFF
+	_map = OverviewMapScript.new()
+	root.add_child(_map)
+	_map.bind(_tower, null)
+	var which: String = _overlay.get_slice(":", 1) if _overlay.contains(":") else "off"
+	var at: int = OverviewMapScript.FILTER_NAMES.map(func(n: String) -> String: return n.to_lower()).find(which)
+	if at < 0:
+		print("FAIL: unknown map filter %s" % which)
+		_exit_code = 2
+		return
+	_map.set_filter(at)
+
+
 ## The overlay's share of a frame: a repaint when its refresh interval has passed, as the overlay nodes do.
 func _overlay_frame() -> void:
+	if _map != null:
+		var started := Time.get_ticks_usec()
+		_map.refresh()
+		_map_us += Time.get_ticks_usec() - started
+		return
 	if _overlay == "":
 		return
 	var every := 30  # the overlay nodes' own intervals: see their REFRESH_TICKS
@@ -481,5 +510,7 @@ func _loop_frame() -> bool:
 	print("speed %d, ticks:ms per frame: %s" % [_speed, _line])
 	var target := SimDriver.BASE_TICKS_PER_SECOND * SimDriver.SPEEDS[_speed - 1]
 	print("LOOP speed %d: delivered %.1f ticks/s against %.0f; mean frame %.1f ms (view %.1f ms, %.0f%%); %d of %d frames hit the cap of %d ticks" % [_speed, _loop_ticks * 1000000.0 / _loop_us, target, _loop_us / 1000.0 / _frames, _view_us / 1000.0 / _frames, 100.0 * _view_us / maxi(_loop_us, 1), _capped, _frames, _cap])
+	if _map != null:
+		print("MAP: refresh %.2f ms a frame (%d image builds, %d mark redraws in %d frames)" % [_map_us / 1000.0 / _frames, _map.image_builds, _map.mark_draws, _frames])
 	quit(0)
 	return true
