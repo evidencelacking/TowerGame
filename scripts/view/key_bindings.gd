@@ -32,6 +32,7 @@ const ACTIONS: Array = [
 	["see_through", "Elevators see-through", KEY_V],
 	["transport_glass", "Transport see-through (Detailed)", KEY_U],
 	["synergies", "Synergy overlay", KEY_Y],
+	["disruptions", "Disruptions view", KEY_I],
 	["heat", "Heat map overlay", KEY_H],
 	["messages", "Message log", KEY_M],
 	["finance", "Finance window", KEY_T],
