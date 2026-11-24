@@ -17,6 +17,7 @@ const GraphicsStyle := preload("res://scripts/view/graphics_style.gd")
 const ViewSettings := preload("res://scripts/view/view_settings.gd")
 const PixelLayer := preload("res://scripts/view/pixel_layer.gd")
 const ExteriorLayer := preload("res://scripts/view/exterior_layer.gd")
+const FlypastLayer := preload("res://scripts/view/flypast_layer.gd")
 ## Draws the tower on a low-resolution canvas (10.2). World space is native pixels (8 px per column,
 ## 24 px per floor, see view_consts.gd). The rooms, links, floors and shafts go into one SubViewport
 ## that is redrawn only when the floors or rooms change or every STATIC_REFRESH_TICKS ticks (the in-use
@@ -143,6 +144,7 @@ var _figures_for: Rect2 = Rect2()  ## World rect the figures were built for; emp
 var _people_painted_for: Rect2 = Rect2()  ## World rect the people were last drawn for (culled to it); empty when not culled.
 var _dynamic_layer: Node2D = null
 var _outdoors: Array[Node2D] = []  ## The far and near skylines and the street (#306), behind everything else.
+var _flypast: Node2D = null  ## The seasonal lantern craft (#222), behind the rooms; hidden outside its window.
 var _outdoors_todo: Array[Node2D] = []  ## Outdoor layers waiting for their redraw.
 var _outdoors_key: Array = []  ## What the outdoors were last drawn for: stars, daylight, rain, density, layout.
 var _dynamic_sprite: Sprite2D = null
@@ -205,6 +207,9 @@ func _make_outdoors() -> void:
 			from += span
 			if spec[0] == ExteriorLayer.STREET or from >= world_w + 2000:
 				break
+	_flypast = FlypastLayer.new()
+	_flypast.visible = false
+	add_child(_flypast)  # after the skylines, before the rooms: the tower hides it where they overlap
 
 
 ## Keeps the outdoors in step: skylines trail the camera, and everything redraws when the star rating, the
@@ -708,6 +713,7 @@ func _process(delta: float) -> void:
 	_follow_sky()
 	_follow_zoom()
 	_follow_outdoors()
+	_follow_flypast()
 	var new_tick := tower.tick != _seen_tick
 	if _elevators.observe(tower):
 		_tick_len = maxf(_since_tick, 0.001)
@@ -824,9 +830,20 @@ func _motion_in_view() -> bool:
 	return false
 
 
+## The lantern craft of a Q4 weekend night (#222): placed from the sim's clock and the camera, drawn only while the window is open.
+func _follow_flypast() -> void:
+	var camera := get_viewport().get_camera_2d()
+	if camera == null:
+		_flypast.call("follow", -1, Vector2.ZERO, Vector2.ONE)
+		return
+	var view_size := get_viewport_rect().size / camera.zoom
+	_flypast.call("follow", Weather.flypast_progress(tower.clock), camera.get_screen_center_position(), view_size)
+
+
 ## Copies the time of day into SkyLook (rooms read it when drawn) and redraws the sky and every room when
 ## daylight has moved a step or the rain flag changed, so night falls in a few dozen steps a day.
 func _follow_sky() -> void:
+	SkyLook.set_rain(tower.weather.is_raining(tower.clock))  # the sim says when it rains (#221); the sky only draws it
 	var step := SkyLook.quantized(tower.clock.minute_of_day())
 	if step == SkyLook.daylight and _seen_rain == SkyLook.rain:
 		return

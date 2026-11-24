@@ -48,6 +48,8 @@ const THREAT_FOUND := 50  ## a: floor. Guards found the device in time.
 const THREAT_EXPLODED := 51  ## a: lowest floor, b: highest floor destroyed.
 const CASINO_INCIDENT := 52  ## a: casino room id. A brawl or a cheat with no security office to stop it (#319).
 const ROOM_REPAIRED := 53  ## a: catalogue index, b: floor number. A burned-out room was repaired (#373).
+const TREASURE_FOUND := 54  ## a: floor number, b: dollars. Digging uncovered the tower's buried treasure (#220).
+const FLYPAST := 55  ## A lantern craft drifts across the night sky on a Q4 weekend (#222).
 const ROOM_DIRTY := 34  ## a: room id. Hotel guests checked out; the room needs cleaning (#147).
 
 const CAP := 500  ## Entries kept; the oldest drop first.

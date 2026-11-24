@@ -44,6 +44,7 @@ const HospitalScript := preload("res://scripts/sim/hospital.gd")
 const ThreatScript := preload("res://scripts/sim/threat.gd")
 const MoodScript := preload("res://scripts/sim/mood.gd")
 const LifeScript := preload("res://scripts/sim/life.gd")
+const WeatherScript := preload("res://scripts/sim/weather.gd")
 const SaveMigrationScript := preload("res://scripts/sim/save_migration.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
@@ -90,7 +91,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 46  ## Every bump needs a step in save_migration.gd (a test enforces it).
+const SAVE_VERSION := 47  ## Every bump needs a step in save_migration.gd (a test enforces it).
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -149,6 +150,8 @@ var events := EventsScript.new()  ## The event scheduler (#214): its own seeded 
 var mood := MoodScript.new()
 ## Life events (12.3): couples, children, promotions and the story log. Saved.
 var life := LifeScript.new()
+## Treasure, rain and the fly-past (M9 9.5 to 9.7): see Weather. Saved: the rain stream, today's rain, the treasure taken.
+var weather := WeatherScript.new()
 var threat := ThreatScript.new(rooms)  ## Threats (#218): the notice, the search, the blast. Saved.
 var fire := FireScript.new(rooms)  ## Fires (#217): burning rooms, the rescue craft. Saved.
 ## Why a tenant room is unhappy: noise, distance or rent (see Complaints). Derived, so not saved.
@@ -180,6 +183,8 @@ func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_START
 	fire.reseed(seed_value)
 	vip.reseed(seed_value)
 	threat.reseed(seed_value)
+	weather.reseed(seed_value)
+	commerce.weather = weather
 	events.kinds = [fire.kind(), threat.kind()] as Array[Dictionary]
 	ledger = LedgerScript.new(starting_funds)
 	rooms.floors = floors
@@ -463,6 +468,22 @@ func _apply_command(command: Command) -> void:
 				names.apply_args(command.args)
 		_:
 			push_error("Unknown sim command kind %d" % command.kind)
+	_dig_treasure()
+
+
+## The tower's buried treasure spot: x is the column, y the floor (B3 to B8). A pure function of the tower seed.
+func treasure_spot() -> Vector2i:
+	return WeatherScript.spot_for(names.name_seed)
+
+
+## Pays the treasure once, when a floor unit stands over its spot (checked after every command, so a floor, a room
+## or a shaft that digs there all find it). Never again in this tower (#220).
+func _dig_treasure() -> void:
+	var spot := treasure_spot()
+	if weather.treasure_due(spot, floors):
+		weather.treasure_found = true
+		ledger.refund(tick, WeatherScript.TREASURE_PAYS, spot.y)
+		messages.add(tick, MessagesScript.TREASURE_FOUND, spot.y, WeatherScript.TREASURE_PAYS)
 
 
 ## Logs the refusal in last_refusal, if it is one. Returns true if it was.
@@ -476,6 +497,9 @@ func _note_refusal(code: int, detail: int) -> bool:
 ## Per-tick systems, in a fixed order: the clock first, then (later) the grid and the rest.
 func _run_systems() -> void:
 	clock.advance()
+	weather.tick(clock)
+	if WeatherScript.flypast_opens(clock):
+		messages.add(tick, MessagesScript.FLYPAST)
 	refresh_reach()
 	if _slow_due(TENANCY_AT):
 		tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
@@ -676,6 +700,7 @@ func _state_ints() -> Array[int]:
 	ints.append_array(threat.state_ints())
 	ints.append_array(mood.state_ints())
 	ints.append_array(life.state_ints())
+	ints.append_array(weather.hash_ints())  # empty on a dry day with the treasure unfound, so a quiet tower hashes as before
 	ints.append(last_refusal)
 	if unlock_all:
 		ints.append(1)  # Only while on, so a normal game hashes exactly as before.
@@ -699,7 +724,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "recycling": recycling.state_ints(), "vip": vip.state_ints(), "demands": demands.state_ints(), "events": events.state_ints(), "fire": fire.state_ints(), "threat": threat.state_ints(), "mood": mood.state_ints(), "life": life.state_ints(), "evaluation": evaluation.state_ints(), "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "recycling": recycling.state_ints(), "vip": vip.state_ints(), "demands": demands.state_ints(), "events": events.state_ints(), "fire": fire.state_ints(), "threat": threat.state_ints(), "mood": mood.state_ints(), "life": life.state_ints(), "weather": weather.state_ints(), "evaluation": evaluation.state_ints(), "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -740,8 +765,9 @@ func load_state(data: Dictionary) -> bool:
 	var threat_ints: Variant = data.get("threat")
 	var mood_ints: Variant = data.get("mood")
 	var life_ints: Variant = data.get("life")
+	var weather_ints: Variant = data.get("weather")
 	var queue_data: Variant = data.get("queue")
-	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and rent_ints is Array and hotel_ints is Array and commerce_ints is Array and housekeeping_ints is Array and recycling_ints is Array and vip_ints is Array and pests_ints is Array and evaluation_ints is Array and demands_ints is Array and events_ints is Array and fire_ints is Array and threat_ints is Array and mood_ints is Array and life_ints is Array and queue_data is Array):
+	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and rent_ints is Array and hotel_ints is Array and commerce_ints is Array and housekeeping_ints is Array and recycling_ints is Array and vip_ints is Array and pests_ints is Array and evaluation_ints is Array and demands_ints is Array and events_ints is Array and fire_ints is Array and threat_ints is Array and mood_ints is Array and life_ints is Array and weather_ints is Array and queue_data is Array):
 		return false
 	var loaded_grid := Grid.new()
 	if not Clock.valid_ints(clock_ints) or not loaded_grid.load_ints(grid_ints) or not LedgerScript.valid_ints(ledger_ints) or not FloorsScript.valid_ints(floors_ints):
@@ -754,7 +780,7 @@ func load_state(data: Dictionary) -> bool:
 		return false
 	if not GradesScript.valid_ints(grades_ints) or not NamesScript.valid_ints(names_ints) or not EvaluationScript.valid_ints(evaluation_ints):
 		return false
-	if not RentScript.valid_ints(rent_ints) or not HotelScript.valid_ints(hotel_ints) or not CommerceScript.valid_ints(commerce_ints) or not HousekeepingScript.valid_ints(housekeeping_ints) or not RecyclingScript.valid_ints(recycling_ints) or not VipScript.valid_ints(vip_ints) or not PestsScript.valid_ints(pests_ints) or not DemandsScript.valid_ints(demands_ints) or not EventsScript.valid_ints(events_ints) or not FireScript.valid_ints(fire_ints) or not ThreatScript.valid_ints(threat_ints) or not MoodScript.valid_ints(mood_ints) or not LifeScript.valid_ints(life_ints):
+	if not RentScript.valid_ints(rent_ints) or not HotelScript.valid_ints(hotel_ints) or not CommerceScript.valid_ints(commerce_ints) or not HousekeepingScript.valid_ints(housekeeping_ints) or not RecyclingScript.valid_ints(recycling_ints) or not VipScript.valid_ints(vip_ints) or not PestsScript.valid_ints(pests_ints) or not DemandsScript.valid_ints(demands_ints) or not EventsScript.valid_ints(events_ints) or not FireScript.valid_ints(fire_ints) or not ThreatScript.valid_ints(threat_ints) or not MoodScript.valid_ints(mood_ints) or not LifeScript.valid_ints(life_ints) or not WeatherScript.valid_ints(weather_ints):
 		return false
 	var loaded_queue: Array[Command] = []
 	for entry in queue_data:
@@ -793,6 +819,7 @@ func load_state(data: Dictionary) -> bool:
 	threat.load_ints(threat_ints)
 	mood.load_ints(mood_ints)
 	life.load_ints(life_ints)
+	weather.load_ints(weather_ints)
 	last_refusal = data["last_refusal"]
 	tick = data["tick"]
 	rng.state = data["rng_state"]
