@@ -81,7 +81,7 @@ func tick(clock: Object, floors: FloorsScript, rooms: RoomsScript, grid: GridScr
 	if not floors.has_lobby():
 		return
 	var entry: Array[int] = [GROUND_FLOOR, floors.lobby_span()[0]]  # left-edge entry, outside the tower
-	for i in people.count():
+	for i in people.active_indices():  # everyone else is idle with nothing to ease, for whom this minute changes nothing (#454)
 		match people.trip_state(i):
 			PeopleScript.TRIP_REQUESTED:
 				people.add_stress(i, STRESS_PER_WAIT_MINUTE)
@@ -93,8 +93,7 @@ func tick(clock: Object, floors: FloorsScript, rooms: RoomsScript, grid: GridScr
 			PeopleScript.TRIP_RIDING:
 				pass  # queued for a car (stress above, at STRESS_PER_QUEUE_MINUTE) or riding one
 			_:
-				people.cool_down(i)
-				people.add_stress(i, -STRESS_RECOVERY_PER_MINUTE)
+				people.recover_idle(i, STRESS_RECOVERY_PER_MINUTE)
 
 
 func _spot(room: int, grid: GridScript, entry: Array[int]) -> Array[int]:
@@ -199,10 +198,7 @@ func _segment_done(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridS
 ## After the cars have moved: people who alighted at their ride's destination carry on.
 ## Only reads the log while somebody is riding, so other users of it are left alone.
 func collect_arrivals(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript) -> void:
-	var riding := false
-	for i in people.count():
-		riding = riding or people.trip_state(i) == PeopleScript.TRIP_RIDING
-	if not riding or not floors.has_lobby():
+	if people.riding_count() == 0 or not floors.has_lobby():
 		return
 	var entry: Array[int] = [GROUND_FLOOR, floors.lobby_span()[0]]
 	_waiting_known = false  # the cars have moved since the last read
@@ -224,6 +220,6 @@ func collect_arrivals(floors: FloorsScript, rooms: RoomsScript, grid: GridScript
 			_enter_leg(i, leg + 1, legs, rooms, people)
 
 	# A rider whose shaft was bulldozed is neither queued nor in a car: the trip is given up.
-	for i in people.count():
+	for i in people.rider_indices():
 		if people.trip_state(i) == PeopleScript.TRIP_RIDING and not rooms.in_elevator(people.id_at(i)):
 			_give_up(i, people)
