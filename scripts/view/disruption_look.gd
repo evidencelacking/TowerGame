@@ -13,6 +13,7 @@ const NoiseScript := preload("res://scripts/sim/noise.gd")
 const SynergyScript := preload("res://scripts/sim/synergy.gd")
 const ComplaintsScript := preload("res://scripts/sim/complaints.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
+const GradeReader := preload("res://scripts/view/grade_reader.gd")
 const SynergyLook := preload("res://scripts/view/synergy_look.gd")
 
 const FULL := 20  ## This many points of suffering (or more) shows the strongest tint. UNVERIFIED tunable.
@@ -118,17 +119,28 @@ static func harm_causes(kind: String, run: Array, ctx: Dictionary) -> Array:
 	return found
 
 
+## The complaints the tint counts besides noise, which has its own points. The cheap ones: complaint_reasons would
+## also ask whether the tower lacks a grocery for every condo, which scans every room each time.
+const TINT_REASONS: Array[int] = [ComplaintsScript.DISTANCE, ComplaintsScript.RENT]
+
+
 ## Suffering points of one placed room, and the complaint reasons behind them: {"points", "noise", "harm", "reasons"}.
-static func suffering_of(tower: Object, id: int, ctx: Dictionary) -> Dictionary:
+## The reasons are TINT_REASONS only, unless `all_reasons` (the hovered room asks for every one).
+static func suffering_of(tower: Object, id: int, ctx: Dictionary, all_reasons: bool = false) -> Dictionary:
 	var kind: String = tower.rooms.kind_of(id)
 	var run: Array[int] = tower.grid.run_of(id)
 	var level: int = NoiseScript.noise_at(tower.grid, tower.rooms, id)
 	var net := SynergyLook.net_of(kind, run, ctx["others"])
 	var harm := maxi(-net, 0)
 	var others: Array[int] = []
-	for reason: int in tower.complaint_reasons(id):
-		if reason != ComplaintsScript.NOISE:
-			others.append(reason)
+	if all_reasons:
+		for reason: int in tower.complaint_reasons(id):
+			if reason != ComplaintsScript.NOISE:
+				others.append(reason)
+	else:
+		for reason: int in TINT_REASONS:
+			if tower.complaints.has_reason(id, reason):
+				others.append(reason)
 	return {"points": level * NOISE_POINTS + harm + REASON_POINTS * others.size(), "noise": level, "harm": harm, "reasons": others}
 
 
@@ -137,12 +149,14 @@ static func suffering_rooms(tower: Object, ctx: Dictionary = {}) -> Array[Dictio
 	var found: Array[Dictionary] = []
 	if ctx.is_empty():
 		ctx = context(tower)
+	var batch: Variant = GradeReader.begin(tower)
 	for id: int in tower.rooms.room_ids():
 		if not tower.grid.has_occupant(id):
 			continue
 		var s := suffering_of(tower, id, ctx)
 		if int(s["points"]) > 0:
 			found.append({"id": id, "rect": SynergyLook.rect_of(tower.grid.run_of(id)), "points": s["points"], "reasons": s["reasons"]})
+	GradeReader.end(tower, batch)
 	return found
 
 
@@ -183,12 +197,20 @@ static func cause_rects(tower: Object, suffering: Array[Dictionary], ctx: Dictio
 
 ## Paints the view: a tint over every suffering room, an orange outline round each cause, and for the hovered
 ## room (hover_id, or -1 for none) a link to each cause with its label and its own reasons in words.
-static func draw(canvas: Object, tower: Object, hover_id: int) -> void:
-	var ctx := context(tower)
-	var suffering := suffering_rooms(tower, ctx)
+## `cache` (optional, owned by the caller) keeps the readings between paints: pass the same empty dictionary each
+## time and clear it when the tower should be read afresh, so moving the cursor does not re-read the whole tower.
+static func draw(canvas: Object, tower: Object, hover_id: int, cache: Dictionary = {}) -> void:
+	if not cache.has("suffering"):
+		var fresh := context(tower)
+		var rooms := suffering_rooms(tower, fresh)
+		cache["ctx"] = fresh
+		cache["suffering"] = rooms
+		cache["causes"] = cause_rects(tower, rooms, fresh)
+	var ctx: Dictionary = cache["ctx"]
+	var suffering: Array[Dictionary] = cache["suffering"]
 	for room: Dictionary in suffering:
 		canvas.draw_rect(Rect2(room["rect"]), tint(room["points"]))
-	for rect: Rect2i in cause_rects(tower, suffering, ctx):
+	for rect: Rect2i in cache["causes"]:
 		canvas.draw_rect(Rect2(rect).grow(-1.0), CAUSE_EDGE, false, 2.0)
 	if hover_id <= 0 or not tower.grid.has_occupant(hover_id):
 		return
@@ -201,7 +223,7 @@ static func draw(canvas: Object, tower: Object, hover_id: int) -> void:
 		canvas.draw_rect(there.grow(-1.0), LINK, false, 1.0)
 		_label(canvas, font, there.get_center() + Vector2(-float(FONT_SIZE), -2.0), link["label"])
 	var line := 0
-	for reason: int in suffering_of(tower, hover_id, ctx)["reasons"]:
+	for reason: int in suffering_of(tower, hover_id, ctx, true)["reasons"]:
 		_label(canvas, font, here.get_center() + Vector2(-float(FONT_SIZE), float(FONT_SIZE * (line - 1)) + 2.0), reason_text(reason))
 		line += 1
 

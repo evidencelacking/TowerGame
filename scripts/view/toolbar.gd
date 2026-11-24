@@ -162,7 +162,7 @@ func _ready() -> void:
 	row.add_child(_disruptions)
 	_heat = Button.new()
 	_heat.name = "HeatOverlay"
-	_heat.tooltip_text = "Cycle the heat maps: daily income per room (loss red to profit green), then mood. View only."
+	_heat.tooltip_text = "Cycle the heat maps: daily income, mood, lift traffic, rent level, grade, then hotel rooms. A legend shows the colours. View only."
 	_heat.focus_mode = Control.FOCUS_NONE
 	_heat.pressed.connect(cycle_heat)
 	row.add_child(_heat)
@@ -189,7 +189,7 @@ func _ready() -> void:
 	_refresh()
 
 
-## Steps the heat map Off, Income, Mood, Off (button and H key).
+## Steps the heat map Off, Income, Mood, Traffic, Rent, Grade, Hotel, Off (button and H key).
 func cycle_heat() -> void:
 	HeatLook.cycle()
 	_sync_heat()
