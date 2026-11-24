@@ -135,14 +135,28 @@ func add_guest(room: int, rng: Object) -> int:
 ## mid-trip included. Returns how many went. Keeps _data compact and in id order; ids are not
 ## reused. They vanish at once: no walk-out animation (a possible later improvement).
 func remove_room(room: int) -> int:
+	return remove_rooms({room: true})
+
+
+## remove_room for every room id in rooms (a Dictionary used as a set), in one pass and one index rebuild: the same people go
+## and the survivors keep their order. Hotel check-outs on a rush tick use it instead of one pass per room (#467).
+func remove_rooms(rooms: Dictionary) -> int:
 	var kept: Array[int] = []
 	var removed := 0
-	for i in count():
-		var b := i * FIELDS
-		if _data[b + _HOME] == room or _data[b + _WORK] == room:
+	var run_start := 0  ## Start of the run of survivors not yet copied.
+	var end := _data.size()
+	var b := 0
+	while b < end:
+		if rooms.has(_data[b + _HOME]) or rooms.has(_data[b + _WORK]):
 			removed += 1
-		else:
-			kept.append_array(_data.slice(b, b + FIELDS))
+			if b > run_start:
+				kept.append_array(_data.slice(run_start, b))
+			run_start = b + FIELDS
+		b += FIELDS
+	if removed == 0:
+		return 0
+	if run_start < end:
+		kept.append_array(_data.slice(run_start, end))
 	_data = kept
 	_rebuild_index()
 	return removed
@@ -269,6 +283,26 @@ func work_of(i: int) -> int:
 
 func goal_of(i: int) -> int:
 	return _data[i * FIELDS + _GOAL]
+
+
+## Hotel guests per home room in one pass (#467): [home room -> people inside it, home room -> true while one of them is on a
+## trip that is moving or riding]. Everyone with a home counts, as Hotel._count_guests did with an accessor per field.
+func home_presence() -> Array[Dictionary]:
+	var inside := {}
+	var moving := {}
+	var end := _data.size()
+	var b := 0
+	while b < end:
+		var home := _data[b + _HOME]
+		if home != NONE:
+			if _data[b + _LOCATION] == home:
+				inside[home] = int(inside.get(home, 0)) + 1
+			else:
+				var trip := _data[b + _TRIP]
+				if trip == TRIP_MOVING or trip == TRIP_RIDING:
+					moving[home] = true
+		b += FIELDS
+	return [inside, moving]
 
 
 func trip_state(i: int) -> int:
