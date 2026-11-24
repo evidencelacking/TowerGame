@@ -33,6 +33,7 @@ const ACTIONS: Array = [
 	["transport_glass", "Transport see-through (Detailed)", KEY_U],
 	["synergies", "Synergy overlay", KEY_Y],
 	["heat", "Heat map overlay", KEY_H],
+	["bulk_rent", "Bulk rent", KEY_K],
 	["messages", "Message log", KEY_M],
 	["finance", "Finance window", KEY_T],
 	["stars", "Star window", KEY_G],

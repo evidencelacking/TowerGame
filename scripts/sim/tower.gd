@@ -73,6 +73,7 @@ class Command:
 	const ADD_CAR := 16  ## Adds an elevator car: args are shaft id, home floor. See Rooms.add_car.
 	const REMOVE_CAR := 17  ## Removes a shaft's newest car: args are shaft id. See Rooms.remove_car.
 	const SET_RENT := 19  ## Sets a room's rent level: args are room id, level (0 lowest to 3 highest). See Rent.set_rent.
+	const SET_RENT_MANY := 22  ## Bulk rent (#28): args are level, then room ids. Applies Rent.set_rent to each id in ascending order, as that many SET_RENT commands would; condos and non-rentable rooms are skipped and counted in last_bulk_rent.
 	const RENAME_PERSON := 40  ## Renames a person: args are person id, then the new name as code points (none restores the generated name). See PersonNames.
 	const PLACE_ESCALATOR := 18  ## Places an escalator between two floors: args are lower floor, x_left. See Rooms.place_escalator.
 	const DEBUG_UNLOCK_ALL := 90  ## Debug only: args[0] 1 unlocks every room kind, 0 restores star gating. See Tower.unlock_all.
@@ -171,6 +172,8 @@ var complaints := ComplaintsScript.new()
 ## Result of the most recent PURCHASE, BUILD_FLOOR, BUILD_LOBBY, PLACE_ROOM, PLACE_STAIRS, BULLDOZE or REPLACE_ROOM command (OK or a refusal reason; see
 ## Ledger and Floors for the codes).
 var last_refusal: int = 0
+## The last SET_RENT_MANY (#28): rooms set, rooms skipped, and the tick it applied at. Not saved or hashed; the view reads it.
+var last_bulk_rent: Array[int] = [0, 0, -1]
 ## Placeholder state that commands change, so tests can see them. Replaced as real state lands.
 var notes: int = 0
 ## The tower's star rating, 1 to 5. Only promote_stars raises it and nothing lowers it. The HUD, toolbar and ghost read it.
@@ -422,6 +425,9 @@ func _apply_command(command: Command) -> void:
 				last_refusal = rent.set_rent(rooms, command.args[0], command.args[1])
 				if not _note_refusal(MessagesScript.RENT_REFUSED, command.args[0]):
 					messages.add(tick, MessagesScript.RENT_SET, command.args[0], command.args[1])
+		Command.SET_RENT_MANY:
+			if command.args.size() >= 2:
+				_set_rent_many(command.args)
 		Command.PLACE_STAIRS:
 			if command.args.size() == 2:
 				last_refusal = rooms.place_stairs(grid, floors, ledger, tick, command.args[0], command.args[1])
@@ -500,6 +506,26 @@ func _dig_treasure() -> void:
 		weather.treasure_found = true
 		ledger.windfall(tick, WeatherScript.TREASURE_PAYS, spot.y)
 		messages.add(tick, MessagesScript.TREASURE_FOUND, spot.y, WeatherScript.TREASURE_PAYS)
+
+
+## SET_RENT_MANY (#28): the same as one SET_RENT per id, ascending, each id once. A room that cannot take
+## a rent level (condo, not rentable, gone) is skipped and counted; it logs nothing. The #36 reset stays per room.
+func _set_rent_many(args: Array[int]) -> void:
+	var ids: Array[int] = args.slice(1)
+	ids.sort()
+	var done := 0
+	var skipped := 0
+	var previous := -1
+	for id in ids:
+		if id == previous:
+			continue
+		previous = id
+		if rent.set_rent(rooms, id, args[0]) == RentScript.OK:
+			messages.add(tick, MessagesScript.RENT_SET, id, args[0])
+			done += 1
+		else:
+			skipped += 1
+	last_bulk_rent = [done, skipped, tick]
 
 
 ## Logs the refusal in last_refusal, if it is one. Returns true if it was.
@@ -881,6 +907,7 @@ func load_state(data: Dictionary) -> bool:
 	demands.load_ints(demands_ints)
 	events.load_ints(events_ints)
 	fire.load_ints(fire_ints)
+	people.remove_rooms(rooms.charred)  # a charred room is empty (#486): saves from before the retiree fix may hold a resident in one
 	threat.load_ints(threat_ints)
 	mood.load_ints(mood_ints)
 	life.load_ints(life_ints)
