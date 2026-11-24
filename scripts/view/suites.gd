@@ -54,12 +54,17 @@ static func tenanted_rooms(tower: Object) -> Dictionary:
 	var out: Dictionary = {}
 	var workers: Dictionary = tower.people.worker_counts()  # one pass, not one per room (#399)
 	for id: int in tower.rooms.room_ids():
-		var kind: String = tower.rooms.kind_of(id)
-		if not joins(kind) or tower.rooms.is_charred(id):
-			continue
-		if (kind == "retail" and not tower.commerce.is_vacant(id)) or int(workers.get(id, 0)) > 0:
+		if is_tenanted(tower, id, int(workers.get(id, 0))):
 			out[id] = true
 	return out
+
+
+## Whether room id has a tenant, given how many people work in it.
+static func is_tenanted(tower: Object, id: int, workers: int) -> bool:
+	var kind: String = tower.rooms.kind_of(id)
+	if not joins(kind) or tower.rooms.is_charred(id):
+		return false
+	return (kind == "retail" and not tower.commerce.is_vacant(id)) or workers > 0
 
 
 ## The entries groups() takes, from the renderer's room runs ([id, owning room, rect]) in floor-then-column
