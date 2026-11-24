@@ -39,6 +39,8 @@ const HOME_KINDS: Array[String] = ["condo", "studio", "penthouse", "apartment", 
 var _tripped: Dictionary = {}  ## Person id -> true once they have made a trip.
 var _order: Array[int] = []  ## The same ids in the order first seen, for saving.
 var _modifiers: Array[Callable] = []
+## Modifiers that read other rooms' grades (word of mouth): applied after the rest, which a batch memoises per room.
+var _late_modifiers: Array[Callable] = []
 ## While set (a mood update or an evaluation is running), average_stress reads these tables instead of scanning everyone (#416).
 var batch: EvalTablesScript = null
 
@@ -60,8 +62,13 @@ func tick(people: PeopleScript) -> void:
 
 
 ## Registers a stress modifier: Callable(room_id: int) -> int, added to the room's average stress.
-func add_modifier(modifier: Callable) -> void:
-	_modifiers.append(modifier)
+## late is for a modifier that depends on other rooms' grades: the sum of the others is memoised per room during a
+## batch (EvalTables.base_stress), and a late one is added on top each time. Order does not matter: it is a sum.
+func add_modifier(modifier: Callable, late: bool = false) -> void:
+	if late:
+		_late_modifiers.append(modifier)
+	else:
+		_modifiers.append(modifier)
 
 
 ## True for room kinds that are graded by stress.
@@ -115,7 +122,14 @@ func quality(rooms: RoomsScript, people: PeopleScript, room: int) -> int:
 	var average := average_stress(rooms, people, room)
 	if average < 0:
 		return NEUTRAL_QUALITY
-	for modifier in _modifiers:
+	if batch != null and batch.base_stress.has(room):
+		average = batch.base_stress[room]
+	else:
+		for modifier in _modifiers:
+			average += modifier.call(room)
+		if batch != null:
+			batch.base_stress[room] = average  # the average and every modifier but the late ones, until the stress tables change
+	for modifier in _late_modifiers:
 		average += modifier.call(room)
 	return PeopleScript.STRESS_MAX - clampi(average, 0, PeopleScript.STRESS_MAX)
 

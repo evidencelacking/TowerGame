@@ -10,7 +10,7 @@ const WARMUP := 120
 const EVAL_AT := 2380  ## Clock ticks into the day: the daily evaluation runs at 2400 and the day starts at 2550.
 const TICKS := 190
 const EVERY := 10
-const INLINED := ["evaluate_tenants", "is_empty"]  ## Split into timed steps by the copy, or a chained call on a value.
+const INLINED := ["evaluate_tenants", "evaluate_step", "is_empty"]  ## Split into timed steps by the copy, or a chained call on a value.
 
 
 static func run(check: Callable) -> void:

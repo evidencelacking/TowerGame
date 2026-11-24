@@ -9,7 +9,7 @@ const HotelScript := preload("res://scripts/sim/hotel.gd")
 const WARMUP := 400
 const EVENING_AT := 1900  ## Clock ticks into the day: about 17:30, before the 18:00 check-in window opens.
 const TICKS := 1600  ## Through the evening check-in, the night and the check-out morning.
-const PINNED := 5340082615822323413  ## state_hash after the run below on bench_mixed seed 42, recorded on main at 7dcedc2.
+const PINNED := -6352951243612181679  ## state_hash after the run below on bench_mixed seed 42. Re-recorded for #452 (the evaluation runs one step a tick).
 
 
 static func run(check: Callable) -> void:

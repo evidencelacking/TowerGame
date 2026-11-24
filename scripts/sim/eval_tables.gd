@@ -30,16 +30,21 @@ var terms: Dictionary = {}
 var grades: Dictionary = {}
 ## Room id -> its grade without word of mouth (a word-of-mouth source's own grade), memoised for this batch (#452).
 var source_grades: Dictionary = {}
+## Room id -> its stress average plus every grade modifier but word of mouth (Grades.quality), memoised for this batch.
+var base_stress: Dictionary = {}
 ## Floor -> the rooms on it whose source grade is C, valid when source_c_ready (word of mouth, #452).
 var source_c: Dictionary = {}
 var source_c_ready: bool = false
 ## Ids of the people shocked by an event since the last evaluation (empty when there was none).
 var shocked: Dictionary = {}
+## The days in a row a mood must be low for notice (as given to build).
+var leave_days: int = 0
 
 
 ## grades must offer tripped(id: int) -> bool; leave_days is Mood.LEAVE_DAYS.
 static func build(rooms: RoomsScript, grid: GridScript, people: PeopleScript, grades_of: RefCounted, leave_days: int) -> RefCounted:
 	var t := new()
+	t.leave_days = leave_days
 	t.others = SynergyScript.others_of(grid, rooms)
 	var rows := people.eval_rows()
 	var stride := PeopleScript.EVAL_ROW
@@ -144,7 +149,72 @@ func forget_leaver(people: PeopleScript, grades_of: RefCounted, i: int) -> void:
 		home_stress[home] = int(home_stress.get(home, 0)) - stress
 		home_n[home] = int(home_n.get(home, 0)) - 1
 	source_grades.clear()
+	base_stress.clear()
 	source_c_ready = false
+
+
+## Takes everyone whose home or work is room out of the tables, to be called just before People.remove_room(room): the
+## tables then answer what a fresh build would, without the pass over every room and person that building costs (#452).
+## Reads the people before they go. The room's own entries vanish; a person who works in one room and lives in another
+## also leaves the other's sums, and that room's notice flag is read again from the people who stay.
+func forget_room(people: PeopleScript, grades_of: RefCounted, room: int) -> void:
+	var rows := people.eval_rows()
+	var stride := PeopleScript.EVAL_ROW
+	var n := rows.size()
+	var other_rooms: Dictionary = {}
+	var b := 0
+	while b < n:
+		var home := int(rows[b + 1])
+		var work := int(rows[b + 2])
+		if home == room or work == room:
+			var mood := int(rows[b + 4])
+			var tripped: bool = grades_of.tripped(int(rows[b]))
+			var stress := int(rows[b + 3])
+			if work != PeopleScript.NONE and work != room:
+				other_rooms[work] = true
+				_take(workers, null, work, 1, 0)
+				_take(mood_n, mood_total, work, 1, mood)
+				if tripped:
+					_take(work_n, work_stress, work, 1, stress)
+			if home != PeopleScript.NONE and home != room:
+				other_rooms[home] = true
+				if home != work:
+					_take(mood_n, mood_total, home, 1, mood)
+				if tripped:
+					_take(home_n, home_stress, home, 1, stress)
+		b += stride
+	for table: Dictionary in [workers, mood_total, mood_n, notice, work_stress, work_n, home_stress, home_n]:
+		table.erase(room)
+	if not other_rooms.is_empty():
+		for other: int in other_rooms:
+			notice.erase(other)
+		b = 0
+		while b < n:
+			var home := int(rows[b + 1])
+			var work := int(rows[b + 2])
+			if home != room and work != room and int(rows[b + 5]) >= leave_days:
+				if other_rooms.has(work):
+					notice[work] = true
+				if other_rooms.has(home):
+					notice[home] = true
+			b += stride
+	source_grades.clear()
+	base_stress.clear()
+	source_c_ready = false
+
+
+## Takes count people (and their total) off a room's entry; the entry goes when its count reaches zero, as a build leaves
+## out a room nobody counts for. total_table may be null for a table with no total.
+static func _take(count_table: Dictionary, total_table: Variant, key: int, count: int, total: int) -> void:
+	var left := int(count_table.get(key, 0)) - count
+	if left <= 0:
+		count_table.erase(key)
+		if total_table != null:
+			(total_table as Dictionary).erase(key)
+		return
+	count_table[key] = left
+	if total_table != null:
+		(total_table as Dictionary)[key] = int((total_table as Dictionary)[key]) - total
 
 
 ## Grades.average_stress for a room of a graded kind: -1 when no occupant has travelled.

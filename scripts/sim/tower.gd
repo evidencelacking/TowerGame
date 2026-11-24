@@ -564,8 +564,9 @@ func _run_systems() -> void:
 		char_room(id)
 	for id in threat.take_destroyed():
 		destroy_room(id)
-	if EvaluationScript.is_due(clock):
-		evaluate_tenants()
+	var eval_step := EvaluationScript.step_due(clock)
+	if eval_step >= 0:
+		evaluate_step(eval_step)
 	if StarRulesScript.is_check_tick(tick):
 		promote_stars()
 
@@ -639,12 +640,24 @@ func promote_stars() -> void:
 ## Grades every tenanted office and condo: A brings a friend, C leaves (see Evaluation). Runs once
 ## a day (Evaluation.EVALUATE_MINUTE); public so tests can call it.
 func evaluate_tenants() -> void:
-	mood.update(rooms, grid, floors, grades, people)
-	evaluation.evaluate(rooms, people, grades, grid, floors, tenancy, ledger, messages, rng, tick)
-	evaluation.evaluate_moods(rooms, people, grades, grid, ledger, messages, tick)
-	life.daily(self)
-	apartments.daily(self)
-	commerce.evaluate(floors, rooms, grid, tenancy, rent, messages, tick)
+	for k in EvaluationScript.STEPS:
+		evaluate_step(k)
+
+
+## One step of the daily evaluation. _run_systems runs step k on the k-th tick of the evening period (#452), so a
+## big tower does not spend one tick on all of them; evaluate_tenants runs them back to back.
+func evaluate_step(k: int) -> void:
+	match k:
+		0:  # fills caches only: the layout-keyed ones the steps after it read
+			complaints.warm()
+			word_of_mouth.warm()
+		1: mood.update(rooms, grid, floors, grades, people)
+		2: evaluation.evaluate(rooms, people, grades, grid, floors, tenancy, ledger, messages, rng, tick)
+		3: evaluation.evaluate_moods(rooms, people, grades, grid, ledger, messages, tick)
+		4: life.daily(self)
+		5:
+			apartments.daily(self)
+			commerce.evaluate(floors, rooms, grid, tenancy, rent, messages, tick)
 
 
 ## A person's mood factors as [reason, change] pairs, worst first, for the view. Read-only.

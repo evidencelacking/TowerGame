@@ -91,12 +91,16 @@ const RULES: Array = [
 ]
 
 
+## The kinds some rule names as its source, built on first use from RULES (which never changes at run time).
+static var _source_kinds: Dictionary = {}
+
+
 ## True for a kind that is the source of some rule.
 static func is_source(kind: String) -> bool:
-	for rule: Array in RULES:
-		if rule[0] == kind:
-			return true
-	return false
+	if _source_kinds.is_empty():
+		for rule: Array in RULES:
+			_source_kinds[rule[0]] = true
+	return _source_kinds.has(kind)
 
 
 ## Floors between two runs [floor, column, length]; floors above and below ground are one apart across it.
@@ -169,13 +173,15 @@ static func others_of(grid: GridScript, rooms: RoomsScript, linked: bool = true)
 	var list := []
 	for id in rooms.room_ids():
 		var kind := rooms.kind_of(id)
+		if not (is_source(kind) or CARE_KINDS.has(kind)):
+			continue  # the common case first: most rooms are no source, and the checks below cost more
 		if kind == LINKED_KIND and not linked:
 			continue  # a station nobody can reach from the lobby gives nothing
 		if rooms.is_cut_off(id):
 			continue  # a room no route reaches gives nothing (#368)
 		if rooms.is_closed_up(grid, id):
 			continue  # a deck the tower has grown past is closed (#318)
-		if (is_source(kind) or CARE_KINDS.has(kind)) and grid.has_occupant(id):
+		if grid.has_occupant(id):
 			list.append([kind, grid.run_of(id)])
 	return list
 

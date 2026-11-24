@@ -99,19 +99,28 @@ static func step(t: Tower, mark: Callable) -> void:
 	for id in t.threat.take_destroyed():
 		t.destroy_room(id)
 	mark.call("fire aftermath")
-	if EvaluationScript.is_due(t.clock):  # Tower.evaluate_tenants, split to time each step
+	var eval_step := EvaluationScript.step_due(t.clock)  # Tower.evaluate_step, split to time each step
+	if eval_step == 0:
+		t.complaints.warm()
+		t.word_of_mouth.warm()
+		mark.call("eval 0: warm caches")
+	elif eval_step == 1:
 		t.mood.update(t.rooms, t.grid, t.floors, t.grades, t.people)
-		mark.call("eval: mood.update")
+		mark.call("eval 1: mood.update")
+	elif eval_step == 2:
 		t.evaluation.evaluate(t.rooms, t.people, t.grades, t.grid, t.floors, t.tenancy, t.ledger, t.messages, t.rng, t.tick)
-		mark.call("eval: evaluate")
+		mark.call("eval 2: evaluate")
+	elif eval_step == 3:
 		t.evaluation.evaluate_moods(t.rooms, t.people, t.grades, t.grid, t.ledger, t.messages, t.tick)
-		mark.call("eval: evaluate_moods")
+		mark.call("eval 3: evaluate_moods")
+	elif eval_step == 4:
 		t.life.daily(t)
-		mark.call("eval: life.daily")
+		mark.call("eval 4: life.daily")
+	elif eval_step == 5:
 		t.apartments.daily(t)
-		mark.call("eval: apartments.daily")
+		mark.call("eval 5: apartments.daily")
 		t.commerce.evaluate(t.floors, t.rooms, t.grid, t.tenancy, t.rent, t.messages, t.tick)
-		mark.call("eval: commerce.evaluate")
+		mark.call("eval 5: commerce.evaluate")
 	if StarRulesScript.is_check_tick(t.tick):
 		t.promote_stars()
 		mark.call("promote_stars")

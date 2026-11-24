@@ -96,6 +96,13 @@ func food_stress(room: int) -> int:
 	return 0
 
 
+## Fills the layout caches a daily evaluation reads (the noise levels, the lunch coverage) ahead of it, so the first
+## evaluation after the layout changes does not pay for them on top of its own work (#452). Changes no result.
+func warm() -> void:
+	NoiseScript.levels(_grid, _rooms)
+	_food_applies()
+
+
 ## True on a weekday in a tower with enough offices (refreshes the cached coverage when the layout changed).
 func _food_applies() -> bool:
 	if clock != null and clock.day_of_week() == ClockScript.WE:

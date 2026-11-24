@@ -40,7 +40,7 @@ func attach(grades: GradesScript, rooms: RoomsScript, grid: GridScript, people: 
 	_rooms = rooms
 	_grid = grid
 	_people = people
-	grades.add_modifier(stress_for)
+	grades.add_modifier(stress_for, true)
 
 
 ## Extra stress for a room from C-grade neighbours.
@@ -115,6 +115,11 @@ func _neighbours(room: int, here: Array[int]) -> Array[int]:
 	found.sort()  # room id order, as the whole-list scan gave
 	_near_cache[room] = found
 	return found
+
+
+## Builds the floor index ahead of an evaluation (see Complaints.warm). Changes no result.
+func warm() -> void:
+	_ensure_index()
 
 
 ## Rebuilds the floor index and drops the neighbour lists when the layout has changed.
