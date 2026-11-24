@@ -10,6 +10,7 @@ const HudScript := preload("res://scripts/view/hud.gd")
 const Clock := preload("res://scripts/sim/clock.gd")
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Msg := preload("res://scripts/sim/messages.gd")
+const VipScript := preload("res://scripts/sim/vip.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 
 const ROWS: int = 12  ## Entries shown at once when the log is open.
@@ -138,6 +139,20 @@ static func _kind_name(kind_index: int) -> String:
 	return CatalogueScript.IDS[kind_index]
 
 
+## The verdict's reasons in plain words, from a Vip.WHY_* mask.
+static func vip_reasons(mask: int) -> String:
+	var parts: Array[String] = []
+	if mask & VipScript.WHY_SUITE_TRAVEL:
+		parts.append("the suite's guest was stressed by slow elevators and long waits")
+	if mask & VipScript.WHY_SUITE_OTHER:
+		parts.append("the suite rated poorly for its rent, noise or complaints")
+	if mask & VipScript.WHY_TOWER_TRAVEL:
+		parts.append("tower quality was low from slow elevators and long waits")
+	if mask & VipScript.WHY_TOWER_OTHER:
+		parts.append("tower quality was low from rents, noise or complaints")
+	return "; ".join(parts) if not parts.is_empty() else "no reason recorded"
+
+
 static func _floor_name(floor_number: int) -> String:
 	return "B%d" % -floor_number if floor_number < 0 else str(floor_number)
 
@@ -166,9 +181,10 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.TRIP_UNREACHABLE: return "%d people cannot reach their goal: a trip may change elevators only once, at a lobby" % a
 		Msg.CASINO_INCIDENT: return "Trouble at the casino, and no security office to stop it"
 		Msg.GUEST_UNREACHED: return "Hotel guests could not reach their room and left"
-		Msg.VIP_ARRIVED: return "A VIP checked into a suite"
+		Msg.VIP_ARRIVED: return "A VIP has arrived: choose the rate on the notice"
+		Msg.VIP_DECLINED: return "The VIP was turned away: another visit in a few days"
 		Msg.VIP_GOOD: return "The VIP left delighted"
-		Msg.VIP_BAD: return "The VIP left disappointed: another will visit in a few days"
+		Msg.VIP_BAD: return "The VIP left disappointed (%s): another will visit in a few days" % vip_reasons(b)
 		Msg.FIRE_STARTED: return "Fire in a %s on floor %s" % [_kind_name(a), _floor_name(b)]
 		Msg.FIRE_OUT: return "Guards put out the fire in a %s on floor %s" % [_kind_name(a), _floor_name(b)]
 		Msg.ROOM_BURNED: return "A %s on floor %s burned out and stands charred until repaired" % [_kind_name(a), _floor_name(b)]

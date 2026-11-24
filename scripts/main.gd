@@ -74,6 +74,10 @@ func _ready() -> void:
 	fire_dialog.name = "FireDialog"
 	add_child(fire_dialog)
 	fire_dialog.bind(_tower)
+	var alert_markers := AlertMarkers.new()  # edge markers for off-screen alerts; a click jumps the camera (#223)
+	alert_markers.name = "AlertMarkers"
+	add_child(alert_markers)
+	alert_markers.bind(_tower, $TowerCamera as TowerCamera)
 	var finance_window := FinanceWindow.new()
 	finance_window.name = "FinanceWindow"
 	add_child(finance_window)

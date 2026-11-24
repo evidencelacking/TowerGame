@@ -17,7 +17,7 @@ static func _current() -> Dictionary:
 		t.step()
 	# The v46 VIP stream is seeded per tower, which an upgrade cannot know: pin it to what the step appends.
 	var vip_ints := t.vip.state_ints().slice(0, 6)
-	vip_ints.append_array([0, -1, 0])
+	vip_ints.append_array([0, -1, 0, 0, 0, 0])
 	t.vip.load_ints(vip_ints)
 	t.weather.load_ints([0, 0, 0, 0])  # likewise the v47 rain stream (Weather.DEFAULT_STREAM): seeded per tower, so pinned to what the step appends
 	return t.save()
@@ -55,6 +55,9 @@ static func _reverse(data: Dictionary, v: int) -> Dictionary:
 			vip.resize(vip.size() - 3)
 		47:
 			out.erase("weather")
+		48:
+			var vip48: Array = out["vip"]
+			vip48.resize(vip48.size() - 3)
 	out["version"] = v - 1
 	return out
 

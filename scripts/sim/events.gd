@@ -33,6 +33,16 @@ extends RefCounted
 ## each choice charges (0 for decline), which the CHOOSE_EVENT command takes. A draw is always made.
 ## The view texts are also optional kind keys: "title", "text", "labels" and "ignored" (what happens
 ## if the player does nothing, shown on the event card and the goals panel). Config, never saved.
+##
+## Kinds a system opens itself (#219): a kind with "manual": true is never rolled. It makes no draw, so
+## registering one shifts no other kind's outcome (fire and threat stay exactly as they were). The owning
+## system decides when it happens and calls open(kind, floor, tick); the card then has the same choice,
+## deadline, CHOOSE_EVENT command and resolved log as a rolled one. A manual kind needs only "id", "choices"
+## and "timeout" (or "deadline_minute"); "chance" and "min_stars" are not read, and the MAX_OPEN cap is the
+## one rule open() keeps (it returns 0 and opens nothing when full, so the caller may ask again). The kind
+## may name "default", the choice taken when the deadline arrives with no answer (default 0, decline), so a
+## kind whose safe default is not "decline" can say so. withdraw(id) drops a card without logging it, for a
+## system whose reason for asking has gone (the suite was bulldozed).
 
 const SEED_SALT := 0x45564E54  ## "EVNT".
 const MAX_OPEN := 3
@@ -127,6 +137,29 @@ func choose(id: int, choice: int, at_tick: int) -> bool:
 	return false
 
 
+## Opens a card of a manual kind now (see the header). Returns the new event's id, or 0 when nothing opened:
+## the kind is unknown, or MAX_OPEN cards are already open. Draws nothing from the Events stream. A kind with a
+## "deadline_minute" needs the clock to find it; otherwise the clock may be left out.
+func open(kind_id: int, floor_number: int, at_tick: int, clock: Object = null) -> int:
+	var def := kind_def(kind_id)
+	if def.is_empty() or _events.size() >= MAX_OPEN:
+		return 0
+	var timeout: int = clock.ticks_until_minute(int(def["deadline_minute"])) if def.has("deadline_minute") and clock != null else int(def["timeout"])
+	var id := _next_id
+	_events.append([id, kind_id, floor_number, OPEN, at_tick, at_tick + timeout, def["choices"]])
+	_next_id += 1
+	return id
+
+
+## Drops an open card without answering it or logging it. False if it is not open.
+func withdraw(id: int) -> bool:
+	for n in _events.size():
+		if _events[n][0] == id:
+			_events.remove_at(n)
+			return true
+	return false
+
+
 ## Called once a tick after the clock has advanced: times out due events, then rolls if a period
 ## just began.
 func tick(clock: Object, stars: int, at_tick: int) -> void:
@@ -135,7 +168,7 @@ func tick(clock: Object, stars: int, at_tick: int) -> void:
 		var event: Array = _events[n]
 		if at_tick >= event[5]:
 			_events.remove_at(n)
-			_log(event, DECLINE, at_tick)
+			_log(event, int(kind_def(event[1]).get("default", DECLINE)), at_tick)
 		else:
 			n += 1
 	if clock.ticks_in_period() == 0:
@@ -144,6 +177,8 @@ func tick(clock: Object, stars: int, at_tick: int) -> void:
 
 func _roll(clock: Object, stars: int, at_tick: int) -> void:
 	for def in kinds:
+		if def.get("manual", false):  # opened by its own system: no roll, no draw
+			continue
 		rolls += 1
 		var draw := _rng.next_below(int(def.get("chance_den", 1000)))
 		var chance: int = def["chance_of"].call() if def.has("chance_of") else int(def["chance"])

@@ -78,6 +78,8 @@ static func upgrade_step(version: int, data: Dictionary) -> Dictionary:
 			_append(out, "vip", [0, -1, 0])  # Vip.DEFAULT_STREAM, no draw made, not by air
 		46:
 			out["weather"] = [0, 0, 0, 0]  # Weather.DEFAULT_STREAM, no rain, treasure not found: its spot comes from the seed
+		47:
+			_append(out, "vip", [0, 0, 0])  # no open notice, no rate chosen, no reasons
 		_:
 			return {}
 	out["version"] = version + 1
