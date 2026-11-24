@@ -9,7 +9,7 @@ const Mixed := preload("res://tools/bench_mixed.gd")
 const WARMUP := 120
 const EVAL_AT := 2380  ## Clock ticks into the day: the evaluation runs at 2400 and the day starts at 2550.
 const TICKS := 190
-const PINNED := 3621096546039847840  ## state_hash after the run below on bench_mixed seed 42, recorded on main at a5584f5.
+const PINNED := 7621206387940885348  ## state_hash after the run below on bench_mixed seed 42. Re-recorded for #452: the evaluation now runs one step a tick, which moves the hash and nothing else (the old value comes back when the steps run together).
 
 
 static func run(check: Callable) -> void:

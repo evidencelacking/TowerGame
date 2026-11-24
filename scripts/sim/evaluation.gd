@@ -38,13 +38,30 @@ const CONDO_LEAVE_PERCENT := 100
 const FRIEND_PERCENT := 100
 ## Widest gap in cells between an A unit and the vacant unit its friend takes. Tunable.
 const FRIEND_REACH := 12
+## Steps of the daily evaluation, one per tick from the period start (see Tower.evaluate_step): 0 warm the layout
+## caches, 1 mood update, 2 grade and friends, 3 mood notices, 4 life, 5 apartments and commerce.
+const STEPS := 6
 
 var _red_days: Dictionary = {}  ## Office room id -> consecutive C evaluations (only when above 0).
 
 
 ## True on the single tick of each day that begins the period starting at EVALUATE_MINUTE.
 static func is_due(clock: Clock) -> bool:
-	return clock.ticks_in_period() == 0 and Clock.period_start(clock.period() - 1) == EVALUATE_MINUTE
+	return is_due_step(clock, 0)
+
+
+## True when the clock is STEP k of the evening evaluation: k ticks into the period that is_due names. The evaluation's
+## steps run on consecutive ticks so no one tick pays for all of them (#452). Derived from the clock alone, so it is
+## never saved.
+static func is_due_step(clock: Clock, k: int) -> bool:
+	return clock.ticks_in_period() == k and Clock.period_start(clock.period() - 1) == EVALUATE_MINUTE
+
+
+## The step (0 to STEPS - 1) that runs on this tick, or -1.
+static func step_due(clock: Clock) -> int:
+	if Clock.period_start(clock.period() - 1) != EVALUATE_MINUTE or clock.ticks_in_period() >= STEPS:
+		return -1
+	return clock.ticks_in_period()
 
 
 ## Consecutive C evaluations an office has had.
@@ -150,6 +167,7 @@ func evaluate_moods(rooms: RoomsScript, people: PeopleScript, grades: GradesScri
 		var kind := rooms.kind_of(id)
 		if not _occupied(rooms, tables, id) or not MoodScript.gave_notice(people, id, tables) or grades.grade(rooms, people, id) != GradesScript.GRADE_C:
 			continue
+		tables.forget_room(people, grades, id)  # leave the tables reading as a fresh build would, without building again (#452)
 		if CatalogueScript.is_condo(kind):
 			var price := CatalogueScript.cost(kind)
 			rooms.set_sold(id, false)
@@ -161,9 +179,6 @@ func evaluate_moods(rooms: RoomsScript, people: PeopleScript, grades: GradesScri
 			_red_days.erase(id)
 			people.remove_room(id)
 			_left(rooms, grid, messages, at_tick, id)
-		# People went, so what the tables hold is stale: read the tower afresh for the rest.
-		tables = EvalTablesScript.build(rooms, grid, people, grades, MoodScript.LEAVE_DAYS)
-		grades.batch = tables
 	grades.batch = null
 
 

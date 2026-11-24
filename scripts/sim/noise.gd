@@ -65,16 +65,26 @@ static func level_among(kind: String, run: Array, others: Array) -> int:
 		return 0
 	var loud := 0
 	var muting := 0
+	var floor_here: int = run[0]
+	var left: int = run[1]
+	var right: int = run[1] + run[2]
 	for other: Array in others:
 		var other_kind: String = other[0]
-		var d := -1
+		var there: Array = other[1]
+		var reach := RANGE_FLOORS
+		var floor_there: int = there[0]
 		if REACH_BELOW.has(other_kind):  # a roof source: only rooms below it, within its own reach
-			if int(run[0]) < int(other[1][0]):
-				d = distance(run, other[1], int(REACH_BELOW[other_kind]))
-		else:
-			d = distance(run, other[1])
-		if d < 0:
+			if floor_here >= floor_there:
+				continue
+			reach = REACH_BELOW[other_kind]
+		# distance(), inline: this loop is the cost of a cold noise cache.
+		var apart := absi(floor_here - floor_there)
+		if (floor_here > 0) != (floor_there > 0):
+			apart -= 1  # no floor 0: across the ground the floors are one apart
+		var gap := maxi(maxi(left - (int(there[1]) + int(there[2])), int(there[1]) - right), 0)
+		if apart > reach or gap > RANGE_UNITS:
 			continue
+		var d := apart + gap
 		if SOURCES.has(other_kind):
 			loud += maxi(int(SOURCES[other_kind]) - FALLOFF_PER_STEP * d, 0)
 		elif BUFFERS.has(other_kind):
@@ -103,7 +113,7 @@ static func noise_at(grid: GridScript, rooms: RoomsScript, room_id: int) -> int:
 	var by_floor: Dictionary = index["floors"]
 	for f in range(int(run[0]) - RANGE_FLOORS - 1, int(run[0]) + RANGE_FLOORS + 2):
 		near.append_array(by_floor.get(f, []))
-	var level := level_among(kind, run, near)
+	var level := level_among(kind, run, near) if not near.is_empty() else 0  # nothing within earshot: a quiet room
 	cache[room_id] = level
 	return level
 
@@ -161,6 +171,9 @@ static func _index(others: Array) -> Dictionary:
 static func _others(grid: GridScript, rooms: RoomsScript, except_id: int) -> Array:
 	var list := []
 	for id in rooms.room_ids():
+		var kind := rooms.kind_of(id)
+		if not (SOURCES.has(kind) or BUFFERS.has(kind)):
+			continue  # _index would drop it, and most rooms are neither: skip the run copy (#452)
 		if id != except_id and grid.has_occupant(id):
-			list.append([rooms.kind_of(id), grid.run_of(id)])
+			list.append([kind, grid.run_of(id)])
 	return list

@@ -9,6 +9,7 @@ const EvalTablesScript := preload("res://scripts/sim/eval_tables.gd")
 
 
 static func run(check: Callable) -> void:
+	_forget_room(check)
 	var t := TowerSim.new(7, 1000000000)
 	t.floors.build_lobby(t.ledger, 0, 1, 100, 131, 2)
 	for f in range(2, 6):
@@ -85,3 +86,48 @@ static func run(check: Callable) -> void:
 	for i in copy.people.count():
 		ok = ok and copy.people.index_of(copy.people.id_at(i)) == i
 	check.call(ok, "people index: stays right after remove_room and a load")
+
+
+static func _forget_room(check: Callable) -> void:
+	# Taking a room's people out of the tables leaves what a fresh build gives (#452), including a person whose
+	# home and work are different rooms.
+	var t := TowerSim.new(7, 1000000000)
+	t.floors.build_lobby(t.ledger, 0, 1, 100, 131, 2)
+	for f in range(2, 6):
+		t.floors.fill_span(f, 100, 170)
+	for spec: Array in [["condo", 3, 100], ["office", 4, 100], ["condo", 3, 120], ["office", 3, 140]]:
+		t.rooms.place_room(t.grid, t.floors, t.ledger, 0, CatalogueScript.IDS.find(spec[0]), spec[1], spec[2])
+	var ids := t.rooms.room_ids()
+	for id in ids:
+		for n in t.rooms.people_in(id):
+			if t.rooms.kind_of(id) == "office":
+				t.people.add_person(-1, id, t.rng)
+			else:
+				t.people.add_person(id, -1, t.rng)
+	for i in t.people.count():
+		t.people.set_stress(i, 20 * i)
+		t.people.set_mood(i, 30 + 3 * i)
+		t.people.set_low_days(i, i % 7)
+		t.grades._tripped[t.people.id_at(i)] = i % 3 != 0
+	var cross := t.people.add_person(ids[0], ids[1], t.rng)
+	var cross_at := t.people.index_of(cross)
+	t.people.set_mood(cross_at, 0)
+	t.people.set_low_days(cross_at, MoodScript.LEAVE_DAYS)
+	t.grades._tripped[cross] = true
+	for gone_room: int in [ids[0], ids[3], ids[1]]:
+		var live := EvalTablesScript.build(t.rooms, t.grid, t.people, t.grades, MoodScript.LEAVE_DAYS)
+		live.forget_room(t.people, t.grades, gone_room)
+		t.people.remove_room(gone_room)
+		var fresh := EvalTablesScript.build(t.rooms, t.grid, t.people, t.grades, MoodScript.LEAVE_DAYS)
+		var tables_match := true
+		for field: String in ["workers", "mood_total", "mood_n", "notice", "work_stress", "work_n", "home_stress", "home_n"]:
+			var a: Dictionary = live.get(field)
+			var b: Dictionary = fresh.get(field)
+			var keys_a := a.keys()
+			var keys_b := b.keys()
+			keys_a.sort()
+			keys_b.sort()
+			tables_match = tables_match and keys_a == keys_b
+			for key: int in keys_b:
+				tables_match = tables_match and a.get(key) == b[key]
+		check.call(tables_match, "eval cache: forgetting room %d leaves the tables a fresh build gives" % gone_room)

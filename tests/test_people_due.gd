@@ -10,7 +10,7 @@ const Clock := preload("res://scripts/sim/clock.gd")
 const WARMUP := 400
 const NIGHT_AT := 2200  ## Clock ticks into the day: about 19:40, so the run crosses the 21:00 night, the night and the 9:00 arrivals.
 const TICKS := 1700
-const PINNED := -5151409893212016316  ## state_hash after the run below on bench_mixed seed 42, recorded on main at 04686be.
+const PINNED := 7867584463281122288  ## state_hash after the run below on bench_mixed seed 42. Re-recorded for #452 (the evaluation runs one step a tick).
 
 
 static func run(check: Callable) -> void:
