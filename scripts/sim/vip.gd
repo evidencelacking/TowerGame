@@ -21,7 +21,7 @@ extends RefCounted
 ## the suite is reserved at once. The player chooses: the standard rate (the stay pays the suite's nightly price at
 ## the verdict, like any guest), a discount (the stay pays nothing), or to turn the VIP away, which puts the visit off
 ## RETRY_DAYS days with no verdict. Left unanswered, the notice times out after NOTICE_TICKS to the standard rate (the
-## kind's "default"): declining is a choice the player makes, never the timeout. A discount buys goodwill (#220
+## kind's "default"): declining is a choice the player makes, never the timeout. A discount buys goodwill (#219
 ## ruling): the VIP overlooks one travel complaint, so a verdict whose only failing reason is the suite's travel or the
 ## tower's travel (exactly one of WHY_SUITE_TRAVEL, WHY_TOWER_TRAVEL) passes. Any other reason, or both travel
 ## reasons, still fails, and the standard rate forgives nothing.
