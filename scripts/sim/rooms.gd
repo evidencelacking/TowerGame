@@ -57,6 +57,8 @@ const NO_FLOOR_FOR_ESCALATOR := 55  ## Escalator: one of the two floors is not b
 const ONE_STATION := 74  ## Metro: the tower already has its one station.
 const TOO_LOW := 80  ## Penthouse: only above floor 20 (#369).
 const NOT_TOP := 75  ## Observation deck: only on the tower's top floor, with no room above it (#318).
+const NOT_FLOOR_100 := 81  ## Cathedral: floor 100 only (#324, plan 11.4).
+const ONE_CATHEDRAL := 82  ## Cathedral: the tower already has its one cathedral (#324).
 const ONE_DECK := 76  ## Observation deck: the tower already has its one deck.
 const ONE_HELIPAD := 79  ## Helicopter pad: the tower already has its one pad (#409).
 const NOT_CHARRED := 78  ## Repair: the cell holds no burned-out room (#373).
@@ -96,7 +98,7 @@ const EXPRESS_CAR_CAPACITY := 36  ## People an express car holds (owner ruling 2
 const CARS_BY_STAR: Array[int] = [2, 4, 8, 8, 8]
 const SHAFT_FLOOR_LIMIT := 30  ## Local and service shafts span at most this many floors (I, K).
 
-const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool", "helipad", "school", "ballroom", "conference_center", "apartment", "studio", "penthouse", "assisted", "emergency_room", "operating_room", "imaging", "patient_ward"]
+const PLACEABLE: Array[String] = ["office", "condo", "fast_food", "restaurant", "retail", "housekeeping", "security", "medical", "recycling", "parking_ramp", "parking_space", "hotel_single", "hotel_twin", "hotel_suite", "gym", "daycare", "clinic", "nightclub", "coworking", "metro", "cathedral", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool", "helipad", "school", "ballroom", "conference_center", "apartment", "studio", "penthouse", "assisted", "emergency_room", "operating_room", "imaging", "patient_ward"]
 ## Rooms two floors tall, underground (recycling) or above ground (a kind whose placement is not underground,
 ## #328; see _check_place_tall). Their grid run is on the lower (deeper) floor under the room's id, and the
 ## upper floor is a second grid occupant under id + 1 that is not a room of its own (see room_of).
@@ -197,6 +199,13 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 	elif floor_number < 0 and not parking and CatalogueScript.field(kind, "placement") != CatalogueScript.PLACE_ANYWHERE:
 		result["reason"] = BELOW_GROUND
 		return result
+	if kind == "cathedral":  # floor 100 only, one per tower (#324)
+		if floor_number != 100:
+			result["reason"] = NOT_FLOOR_100
+			return result
+		if _has_kind(kind):
+			result["reason"] = ONE_CATHEDRAL
+			return result
 	if kind == "casino" and _has_kind(kind):  # one casino (#319)
 		result["reason"] = ONE_CASINO
 		return result
