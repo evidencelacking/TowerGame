@@ -15,6 +15,8 @@ const MessagesScript := preload("res://scripts/sim/messages.gd")
 const TripsScript := preload("res://scripts/sim/trips.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const ClockScript := preload("res://scripts/sim/clock.gd")
+const WeatherScript := preload("res://scripts/sim/weather.gd")
+const HospitalScript := preload("res://scripts/sim/hospital.gd")
 
 
 static func step(t: Tower, mark: Callable) -> void:
@@ -24,6 +26,13 @@ static func step(t: Tower, mark: Callable) -> void:
 	mark.call("commands")
 	t.clock.advance()
 	mark.call("clock")
+	t.weather.tick(t.clock)
+	if WeatherScript.flypast_opens(t.clock):
+		t.messages.add(t.tick, MessagesScript.FLYPAST)
+	t.pipe.tick(t.clock, t.stars, t.grid, t.events, t.messages, t.tick)
+	t.stall.tick(t.clock, t.stars, t.people, t.events, t.messages, t.tick)
+	t.festival.tick(t.clock, t.stars, t.people, t.events, t.messages, t.tick, t._slow_due(Tower.EVENTS_AT))
+	mark.call("weather/pipe/stall/festival")
 	t.refresh_reach()
 	mark.call("refresh_reach")
 	if t._slow_due(Tower.TENANCY_AT):
@@ -50,6 +59,7 @@ static func step(t: Tower, mark: Callable) -> void:
 		t.rent.collect(t.rooms, t.people, t.ledger, t.tick, t.clock.quarter_started, t.rent_bonus_percent())
 		t.commerce.collect_rent(t.rooms, t.rent, t.ledger, t.tick, t.clock.quarter_started)
 		HelipadScript.collect(t.rooms, t.ledger, t.tick)
+		HospitalScript.collect(t.rooms, t.grid, t.people, t.ledger, t.tick)
 		mark.call("daily rent")
 	if t.clock.quarter_started:
 		var rent_income := t._quarter_rent()
