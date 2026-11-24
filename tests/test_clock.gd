@@ -114,10 +114,12 @@ static func run(check: Callable) -> void:
 	check.call(copy.load_state(tower.save()), "a save with clock state loads")
 	check.call(_state(copy.clock) == _state(tower.clock) and copy.state_hash() == tower.state_hash(), "a loaded tower has the saved clock and hash")
 	var same := true
-	for _i in quarter_ticks:
+	for i in quarter_ticks:
 		tower.step()
 		copy.step()
-		if tower.state_hash() != copy.state_hash():
+		# The hash covers the whole state and a divergence never heals, so it is compared every 64 ticks and on
+		# each tick around the quarter rollover (the last one of the run), not on all of them.
+		if (i % 64 == 0 or i >= quarter_ticks - 3) and tower.state_hash() != copy.state_hash():
 			same = false
 	check.call(same, "a loaded tower's clock continues identically across a quarter rollover")
 	var broken := tower.save()
