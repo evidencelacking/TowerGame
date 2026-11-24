@@ -226,7 +226,7 @@ something, the view shows it. Animation reads sim state only and adds no saved s
 | 10.6 | Activities in rooms: occupants on recipe spots chosen by id (desks, tables, beds, sofas), shown doing what the sim says (working, at lunch, eating, sleeping with lights off, cleaning, queueing, shopping); small idle motion from id and period | Tests: spots stay inside the room; same moment draws the same | #244 |
 | 10.7 | Event and service visuals: fire and smoke, guards moving, rescue craft, threat search, VIP, treasure, rain, fly-past, elevator doors | Each M9 event has a visual | #245 |
 | 10.8 | Sky and light: day/night by period, lit windows, rain | Smooth over a day | #246 |
-| 10.9 | Overview map with Eval, Rent, Hotel and Problems filters; click jumps the camera; the Eval filter is #142 | Works | #142 |
+| 10.9 | Overview map with Eval, Rent, Hotel and Problems filters; click jumps the camera. Moved to 17.3 | Works | #489 |
 | 10.10 | Bulk rent: set rent for a selection, a floor or a room type | One action changes many | #28 |
 | 10.11 | Sound: ambience, UI, elevator, crowd, events (original or licensed) | Licence per file | #247 |
 | 10.12 | Settings: resolution, full screen, UI scale, volume, keys, starting funds | Persist | #248 |
@@ -300,6 +300,16 @@ Bonus kinds like the cathedral, everyday shops, bigger homes and a real transit 
 | 16.7 | Entertainment: movie theatre end to end, bowling, arcade | Tests | #324 |
 | 16.8 | Transit: station at star 3 and a city-connection bonus | Tests | #325 |
 | 16.9 | Swimming pool: indoor, two floors, slide, diving board, animated water | Tests; owner approves by eye | #328 |
+
+### M17 Information overlays (owner, 2026-11-24)
+
+See what is good and bad in the tower at a glance. View only: every overlay reads the sim and adds no rule.
+
+| ID | Task | Done when | Issue |
+|---|---|---|---|
+| 17.1 | Disruptions view: a toggle beside Synergies that tints rooms by how much they suffer and links each to its causes (noise, synergy harms, complaint reasons) | Tests; owner approves by eye | #487 |
+| 17.2 | Heat map overlays: Traffic, Rent, Grade and Hotel, with a legend (Grade takes over #142) | Tests; view cost holds; owner approves by eye | #488 |
+| 17.3 | Overview map: the whole tower small, with the 17.1 and 17.2 filters and alert markers; click jumps the camera (was 10.9) | Tests; owner approves by eye | #489 |
 
 ## M11 Full game
 
