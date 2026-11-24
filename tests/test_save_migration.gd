@@ -19,6 +19,7 @@ static func _current() -> Dictionary:
 	var vip_ints := t.vip.state_ints().slice(0, 6)
 	vip_ints.append_array([0, -1, 0])
 	t.vip.load_ints(vip_ints)
+	t.weather.load_ints([0, 0, 0, 0])  # likewise the v47 rain stream (Weather.DEFAULT_STREAM): seeded per tower, so pinned to what the step appends
 	return t.save()
 
 
@@ -52,6 +53,8 @@ static func _reverse(data: Dictionary, v: int) -> Dictionary:
 		46:
 			var vip: Array = out["vip"]
 			vip.resize(vip.size() - 3)
+		47:
+			out.erase("weather")
 	out["version"] = v - 1
 	return out
 

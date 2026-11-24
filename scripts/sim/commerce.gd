@@ -33,6 +33,7 @@ const GradesScript := preload("res://scripts/sim/grades.gd")
 const SynergyScript := preload("res://scripts/sim/synergy.gd")
 const PoolLifeScript := preload("res://scripts/sim/pool_life.gd")
 const BookingsScript := preload("res://scripts/sim/bookings.gd")
+const WeatherScript := preload("res://scripts/sim/weather.gd")
 
 ## Meal times (minute of day), windows (minutes a meal lasts) and the percent of people inside
 ## the tower who buy. All tunable.
@@ -425,6 +426,8 @@ const PROFILES: Dictionary = {
 	},
 }
 
+## The rain (#221), set by Tower: while it rains, outside visitor arrivals fall (food most). Null means always dry.
+var weather: WeatherScript = null
 var _last_minute: int = -1
 var _visitors_in: int = 0  ## Outside visitors inside the tower now (they count toward population, 3.8).
 var _visitors_until: int = 0  ## Minute of day when the latest batch of them leaves.
@@ -698,6 +701,8 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 	if METRO_VISITORS.has(kind) and tenancy.transit_linked(floors, rooms, grid):
 		arriving += metro_visitors_for(kind, period_of_minute(at_minute), day)
 	arriving += city_visitors_for(kind, period_of_minute(at_minute), day)
+	if weather != null:
+		arriving = WeatherScript.cut(arriving, weather.cut_percent(kind, period_of_minute(at_minute)))
 	var came := 0
 	for v in arriving:
 		var shop: int = shops[rng.next_below(shops.size())]

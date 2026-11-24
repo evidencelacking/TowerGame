@@ -178,6 +178,8 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.THREAT_PAID: return "The payment was made and the threat ended"
 		Msg.THREAT_FOUND: return "Guards found the device on floor %s in time" % _floor_name(a)
 		Msg.THREAT_EXPLODED: return "The device went off: floors %s to %s are destroyed" % [_floor_name(a), _floor_name(b)]
+		Msg.TREASURE_FOUND: return "Diggers on floor %s struck buried treasure: $%d paid to the tower" % [_floor_name(a), b]
+		Msg.FLYPAST: return "A lantern craft drifts across the night sky"
 		Msg.ROOM_DIRTY: return "A hotel room needs cleaning"
 		Msg.PESTS_WARNING: return "A dirty hotel room will get pests soon"
 		Msg.PESTS_FOUND: return "Pests in a hotel room: demolish it to clear them"
