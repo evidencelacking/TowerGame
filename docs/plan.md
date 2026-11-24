@@ -186,7 +186,7 @@ Performance and the optional waiting stress moved to Later (owner, 2026-11-19).
 
 ## M9 Events
 
-Rows 9.4 to 9.8 (#219 to #223) are held until after M10 (owner, 2026-11-19): more events once the graphics are better.
+Rows 9.4 to 9.8 were held until after M10 (owner, 2026-11-19); on 2026-11-23 the owner moved M9 up to start once the big-tower perf work is done, and added 9.10 to 9.12, our own events with no original equivalent.
 
 Values in brackets on each issue are the gameplay expert's recommendations, chosen by the coordinator.
 
@@ -202,6 +202,9 @@ Values in brackets on each issue are the gameplay expert's recommendations, chos
 | 9.6 | Rain: fewer visitors, food hit hardest | Test | #221 |
 | 9.7 | Seasonal fly-past on a Q4 weekend night (our own character) | Visible | #222 |
 | 9.8 | Alert markers at the screen edge; the overview map reuses them | Visible | #223 |
+| 9.10 | Burst pipe: water spreads down a floor a period; plumber, own maintenance or ignore | Seeded tests | #472 |
+| 9.11 | Stuck elevator: a passenger car stalls in the rush; rescue crew or wait out the day | Seeded tests | #473 |
+| 9.12 | Street festival: a weekend crowd, sponsor or ignore; about once a year | Seeded tests | #474 |
 | 9.9 | M9 owner playtest | Owner reports results | #224 |
 
 ## M10 Look, sound and UI
