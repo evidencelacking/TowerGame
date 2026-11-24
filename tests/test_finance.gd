@@ -34,9 +34,9 @@ static func run(check: Callable) -> void:
 	for kind in Finance.KINDS:
 		kinds[kind] = true
 	var all_labelled := true
-	for kind in [Ledger.OPENING, Ledger.CHARGE, Ledger.REFUND, Ledger.PAYOUT, Ledger.INCOME, Ledger.COST, Ledger.SALE, Ledger.HOTEL, Ledger.SHOP]:
+	for kind in [Ledger.OPENING, Ledger.CHARGE, Ledger.REFUND, Ledger.PAYOUT, Ledger.INCOME, Ledger.COST, Ledger.SALE, Ledger.HOTEL, Ledger.SHOP, Ledger.WINDFALL]:
 		all_labelled = all_labelled and kinds.has(kind) and Finance.LABELS.has(kind)
-	check.call(all_labelled and Finance.KINDS.size() == 9, "every ledger kind is listed once and labelled")
+	check.call(all_labelled and Finance.KINDS.size() == 10, "every ledger kind is listed once and labelled")
 
 	# A scripted quarter: build in quarter 0, then the quarter start credits rent and charges costs.
 	var t := TestRunningCosts._tower()

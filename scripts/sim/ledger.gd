@@ -16,6 +16,7 @@ const SALE := 7  ## A condo sold to its buyer; amount is positive. Kept apart fr
 const HOTEL := 8  ## A hotel room's nightly price, paid once at check-out; amount is positive; ref is the room id.
 
 const SHOP := 9  ## A shop's daily takings (fast food, #150); negative when the day loses money. Own kind for the finance window.
+const WINDFALL := 10  ## Found money that is never refused (the buried treasure, #220); amount is positive; ref is the floor.
 
 ## Results returned by charge().
 const OK := 0
@@ -69,6 +70,11 @@ func shop_sales(at_tick: int, amount: int, ref: int) -> void:
 ## Earns a hotel room's nightly price (zero or more) at check-out; ref is the room id.
 func hotel(at_tick: int, amount: int, ref: int) -> void:
 	_add(at_tick, amount, HOTEL, ref)
+
+
+## Books found money (the buried treasure): positive, never refused; ref is the floor it was found on.
+func windfall(at_tick: int, amount: int, ref: int) -> void:
+	_add(at_tick, amount, WINDFALL, ref)
 
 
 ## Pays a running cost of amount dollars (zero or more). Never refused: the balance may go negative.

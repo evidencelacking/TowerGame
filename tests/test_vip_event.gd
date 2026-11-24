@@ -161,6 +161,26 @@ static func _reasons(check: Callable) -> void:
 	check.call(MessageLog.vip_reasons(travel).contains("slow elevators") and MessageLog.vip_reasons(0) == "no reason recorded", "the log words that too")
 	slow.people.set_stress(0, 0)
 	check.call(VipScript.verdict_reasons(slow.rooms, slow.people, slow.grades, suite) == 0, "and no stress names nothing")
+	_forgiveness(check)
+
+
+## The discount forgives exactly one travel reason (#219 ruling).
+static func _forgiveness(check: Callable) -> void:
+	check.call(VipScript.forgiven_by_discount(VipScript.WHY_SUITE_TRAVEL), "a discount forgives the suite's travel alone")
+	check.call(VipScript.forgiven_by_discount(VipScript.WHY_TOWER_TRAVEL), "a discount forgives the tower's travel alone")
+	check.call(not VipScript.forgiven_by_discount(VipScript.WHY_SUITE_TRAVEL | VipScript.WHY_TOWER_TRAVEL), "but not both travel reasons")
+	check.call(not VipScript.forgiven_by_discount(VipScript.WHY_SUITE_OTHER) and not VipScript.forgiven_by_discount(VipScript.WHY_TOWER_OTHER), "nor a reason that is not travel")
+	check.call(not VipScript.forgiven_by_discount(VipScript.WHY_SUITE_TRAVEL | VipScript.WHY_TOWER_OTHER) and not VipScript.forgiven_by_discount(VipScript.WHY_TOWER_TRAVEL | VipScript.WHY_SUITE_OTHER), "nor one travel reason with another reason")
+	check.call(not VipScript.forgiven_by_discount(0), "a good verdict needs no forgiving")
+	var text := MessageLog.describe(Messages.VIP_GOOD, 1, VipScript.WHY_SUITE_TRAVEL)
+	check.call(text.contains("overlooking") and MessageLog.describe(Messages.VIP_GOOD, 1, 0) == "The VIP left delighted", "the log says the VIP overlooked the travel")
+	# End to end: both travel reasons fail with either rate; a standard rate forgives nothing.
+	for choice: int in [VipScript.CHOICE_DISCOUNT, VipScript.CHOICE_STANDARD]:
+		var t := _noticed({"stress": 0})
+		t.people.set_stress(0, 200)
+		_answer(t, choice)
+		_verdict(t)
+		check.call(not t.vip.is_good(), "a verdict with both travel reasons fails at rate %d" % choice)
 
 
 static func _saving(check: Callable) -> void:

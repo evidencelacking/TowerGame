@@ -21,8 +21,10 @@ extends RefCounted
 ## the suite is reserved at once. The player chooses: the standard rate (the stay pays the suite's nightly price at
 ## the verdict, like any guest), a discount (the stay pays nothing), or to turn the VIP away, which puts the visit off
 ## RETRY_DAYS days with no verdict. Left unanswered, the notice times out after NOTICE_TICKS to the standard rate (the
-## kind's "default"): declining is a choice the player makes, never the timeout. The discount changes no verdict
-## number: the star 4 gate is the same either way (UNVERIFIED design question: it buys no goodwill).
+## kind's "default"): declining is a choice the player makes, never the timeout. A discount buys goodwill (#219
+## ruling): the VIP overlooks one travel complaint, so a verdict whose only failing reason is the suite's travel or the
+## tower's travel (exactly one of WHY_SUITE_TRAVEL, WHY_TOWER_TRAVEL) passes. Any other reason, or both travel
+## reasons, still fails, and the standard rate forgives nothing.
 ##
 ## The verdict says why (#219): the message carries a mask of the factors the verdict actually used, so the log can
 ## say "the suite was poor: slow elevators" or "tower quality was low". See WHY_*.
@@ -148,7 +150,7 @@ func kind() -> Dictionary:
 func _live_texts() -> Dictionary:
 	var price := _hotel.price(_suite) if _suite >= 1 and _rooms.has_room(_suite) else 0
 	return {
-		"text": "A VIP wants to stay one night in your suite and will give a verdict at 10:00 tomorrow. At the standard rate the stay pays $%d. A discount means it pays nothing. Turn the VIP away and the visit is put off %d days." % [price, RETRY_DAYS],
+		"text": "A VIP wants to stay one night in your suite and will give a verdict at 10:00 tomorrow. At the standard rate the stay pays $%d. A discount means it pays nothing, but the VIP will overlook one travel complaint. Turn the VIP away and the visit is put off %d days." % [price, RETRY_DAYS],
 		"labels": ["Turn the VIP away", "Standard rate ($%d)" % price, "Offer a discount (free)"]}
 
 
@@ -261,9 +263,10 @@ func _visiting(day: int, minute: int, people: PeopleScript, grades: GradesScript
 	if day <= _visit_day or minute < VERDICT_MINUTE:
 		return
 	var reasons := verdict_reasons(_rooms, people, grades, _suite)
-	var good := reasons == 0
+	var forgiven := _rate == CHOICE_DISCOUNT and forgiven_by_discount(reasons)
+	var good := reasons == 0 or forgiven
 	_verdict = GOOD if good else BAD
-	_why = reasons
+	_why = 0 if good else reasons
 	_visits += 1
 	_next_day = day + RETRY_DAYS
 	if _rate == CHOICE_STANDARD:  # the stay pays its nightly price at departure, like any guest
@@ -272,6 +275,11 @@ func _visiting(day: int, minute: int, people: PeopleScript, grades: GradesScript
 	_phase = WAITING
 	_suite = -1
 	_rate = 0
+
+
+## True when a discount forgives these WHY_* reasons: exactly one travel bit and nothing else.
+static func forgiven_by_discount(reasons: int) -> bool:
+	return reasons == WHY_SUITE_TRAVEL or reasons == WHY_TOWER_TRAVEL
 
 
 ## The WHY_* factors that made the verdict bad, 0 when it is good: the suite graded C and the tower's quality under

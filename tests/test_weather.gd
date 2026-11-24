@@ -71,6 +71,15 @@ static func _treasure(check: Callable) -> void:
 	_build(t, spot.y, spot.x - 3, spot.x + 3)  # seven units, one of them the spot
 	var cost := 7 * Catalogue.FLOOR_COST_PER_UNIT
 	check.call(t.weather.treasure_found and t.ledger.balance == before - cost + Weather.TREASURE_PAYS, "treasure: building over the spot pays $500,000 once (net %d)" % (t.ledger.balance - before))
+	var windfalls := 0
+	var refunds := 0
+	for line: Array in t.ledger.lines:
+		if line[2] == Ledger.WINDFALL and line[1] == Weather.TREASURE_PAYS:
+			windfalls += 1
+		elif line[2] == Ledger.REFUND:
+			refunds += 1
+	check.call(windfalls == 1 and refunds == 0, "treasure: booked as one Windfall line, not a refund")
+	check.call(Finance.totals(t.ledger, 0).get(Ledger.WINDFALL, 0) == Weather.TREASURE_PAYS and Finance.LABELS[Ledger.WINDFALL] == "Windfall" and Finance.KINDS.has(Ledger.WINDFALL), "treasure: the finance window totals it under Windfall")
 	var notice := _last(t, Messages.TREASURE_FOUND)
 	check.call(_count(t, Messages.TREASURE_FOUND) == 1 and notice[2] == spot.y and notice[3] == Weather.TREASURE_PAYS, "treasure: one notice names the floor and the sum")
 
@@ -82,6 +91,7 @@ static func _treasure(check: Callable) -> void:
 	# Save and load in between keeps it: found stays found, an unfound spot is still unfound and pays once.
 	var after := TowerSim.new(0, 100000000)
 	check.call(after.load_state(t.save()) and after.weather.treasure_found and after.treasure_spot() == spot, "treasure: a save after the find keeps it found, with the same spot")
+	check.call(Finance.totals(after.ledger, 0).get(Ledger.WINDFALL, 0) == Weather.TREASURE_PAYS and after.state_hash() == t.state_hash(), "treasure: the Windfall line survives save and load")
 	before = after.ledger.balance
 	_build(after, spot.y - 2, spot.x - 3, spot.x + 3)
 	check.call(after.ledger.balance == before - cost, "treasure: nothing more is paid after loading")
