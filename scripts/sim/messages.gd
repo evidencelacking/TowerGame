@@ -60,7 +60,7 @@ const FESTIVAL_BEGAN := 62  ## a: 1 when the owner sponsored it, 0 when not. The
 const WEDDING_SET := 63  ## a: quarter, b: year. The cathedral wedding is set for that weekend at midday (#33).
 const WEDDING_CALLED_OFF := 64  ## a: Wedding.CALLED_OFF_*. It is retried next weekend.
 const WEDDING_FAILED := 65  ## a: guests who arrived, b: guests needed. Retried next weekend.
-const WEDDING_DONE := 66  ## a: guests who came. The top rank is reached.
+const WEDDING_DONE := 66  ## a: guests who came, b: 1 if cheats were used (#39). The top rank is reached.
 const ROOM_DIRTY := 34  ## a: room id. Hotel guests checked out; the room needs cleaning (#147).
 
 const CAP := 500  ## Entries kept; the oldest drop first.

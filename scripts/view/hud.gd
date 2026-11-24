@@ -95,7 +95,7 @@ func _refresh() -> void:
 		clock.year(), clock.quarter(), DAY_NAMES[clock.day_of_week()], clock.hour(), clock.minute()]
 	_period.text = "Period %d" % clock.period()
 	_money.text = format_money(_driver.tower.ledger.balance)
-	_stars.text = "Stars %d" % _driver.tower.stars + ("  \u2605 Top rank" if _driver.tower.wedding.top_rank() else "") + ("   DEMO" if DemoMode.active() else "")
+	_stars.text = "Stars %d" % _driver.tower.stars + ("  \u2605 Top rank" if _driver.tower.wedding.top_rank() else "") + ("   DEMO" if DemoMode.active() else "") + ("   Cheats used" if _driver.tower.cheated else "")
 	var count: int = _driver.tower.people.count()
 	if _driver.tower != _pop_tower or count != _pop_count:
 		_pop_tower = _driver.tower
