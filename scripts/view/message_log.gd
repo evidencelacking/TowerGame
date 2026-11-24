@@ -183,7 +183,7 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.GUEST_UNREACHED: return "Hotel guests could not reach their room and left"
 		Msg.VIP_ARRIVED: return "A VIP has arrived: choose the rate on the notice"
 		Msg.VIP_DECLINED: return "The VIP was turned away: another visit in a few days"
-		Msg.VIP_GOOD: return "The VIP left delighted"
+		Msg.VIP_GOOD: return "The VIP left delighted" if b == 0 else "The VIP left satisfied, overlooking the travel (%s)" % vip_reasons(b)
 		Msg.VIP_BAD: return "The VIP left disappointed (%s): another will visit in a few days" % vip_reasons(b)
 		Msg.FIRE_STARTED: return "Fire in a %s on floor %s" % [_kind_name(a), _floor_name(b)]
 		Msg.FIRE_OUT: return "Guards put out the fire in a %s on floor %s" % [_kind_name(a), _floor_name(b)]
