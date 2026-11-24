@@ -69,6 +69,7 @@ var _rooms: RoomsScript
 var _rent: RentScript  ## The room's nightly price is its rent level.
 var _records: Dictionary = {}  ## Room id -> Array[int] of RECORD ints.
 var _arrived: Variant = null  ## _count_guests for the run in progress (derived, not saved).
+var _leaving: Dictionary = {}  ## Rooms whose guests go this run, removed from People in one pass at its end (derived, not saved, #467).
 
 
 func _init(rooms: RoomsScript = null, rent: RentScript = null) -> void:
@@ -189,6 +190,7 @@ func tick(clock: ClockScript, floors: FloorsScript, people: PeopleScript, rng: O
 	var minute := clock.minute_of_day()
 	var night := night_of(clock)
 	_arrived = null
+	_leaving = {}
 	var lobby := floors.has_lobby()  # a column scan: once a run, not once a room
 	for id in _rooms.room_ids():
 		if not is_hotel(id) or _rooms.is_charred(id):
@@ -204,6 +206,9 @@ func tick(clock: ClockScript, floors: FloorsScript, people: PeopleScript, rng: O
 				_arriving(id, r, minute, people, messages, at_tick)
 			STAYING:
 				_staying(id, r, minute, night, people, ledger, messages, at_tick)
+	if not _leaving.is_empty():
+		people.remove_rooms(_leaving)
+		_leaving = {}
 
 
 func _vacant(id: int, r: Array[int], minute: int, night: int, lobby: bool, people: PeopleScript, rng: Object) -> void:
@@ -248,7 +253,7 @@ func _arriving(id: int, r: Array[int], minute: int, people: PeopleScript, messag
 		return
 	var waited := (minute - r[_CHECKIN_MINUTE] + ClockScript.MINUTES_PER_DAY) % ClockScript.MINUTES_PER_DAY
 	if waited >= GIVE_UP_MINUTES or (waited >= PATIENCE_MINUTES and not moving):
-		people.remove_room(id)  # the guests leave, with whatever stress they took
+		_leaving[id] = true  # the guests leave, with whatever stress they took
 		r[_STATE] = VACANT
 		r[_UNREACHED] = 1
 		messages.add(at_tick, MessagesScript.GUEST_UNREACHED, id)
@@ -257,23 +262,13 @@ func _arriving(id: int, r: Array[int], minute: int, people: PeopleScript, messag
 ## One pass over everyone: [home room -> guests inside it, home room -> true while one is on a trip]. Built at most
 ## once per run, the first time a room is ARRIVING, so a night with nobody arriving costs no scan (#453).
 func _count_guests(people: PeopleScript) -> Array[Dictionary]:
-	var inside := {}
-	var moving := {}
-	for i in people.count():
-		var home := people.home_of(i)
-		if home == PeopleScript.NONE:
-			continue
-		if people.location_of(i) == home:
-			inside[home] = int(inside.get(home, 0)) + 1
-		elif people.trip_state(i) == PeopleScript.TRIP_MOVING or people.trip_state(i) == PeopleScript.TRIP_RIDING:
-			moving[home] = true
-	return [inside, moving]
+	return people.home_presence()
 
 
 func _staying(id: int, r: Array[int], minute: int, night: int, people: PeopleScript, ledger: LedgerScript, messages: MessagesScript, at_tick: int) -> void:
 	if night <= r[_CHECKIN_NIGHT] or minute < r[_LEAVE]:
 		return
-	people.remove_room(id)
+	_leaving[id] = true
 	ledger.hotel(at_tick, price(id), id)
 	r[_STATE] = VACANT
 	r[_DIRTY_SINCE] = at_tick
