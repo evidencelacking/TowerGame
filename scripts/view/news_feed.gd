@@ -15,6 +15,7 @@ const TOWER_STORIES := {
 	Msg.VIP_ARRIVED: "room", Msg.VIP_GOOD: "room", Msg.VIP_BAD: "room", Msg.VIP_DECLINED: "room",
 	Msg.STAR_PROMOTED: "none", Msg.THREAT_NOTICE: "none", Msg.THREAT_FOUND: "floor_a", Msg.THREAT_EXPLODED: "floor_a", Msg.TREASURE_FOUND: "floor_a", Msg.FLYPAST: "none",
 	Msg.PIPE_BURST: "floor", Msg.CAR_STALLED: "floor", Msg.FESTIVAL_NOTICE: "none", Msg.FESTIVAL_BEGAN: "none",
+	Msg.WEDDING_SET: "none", Msg.WEDDING_CALLED_OFF: "none", Msg.WEDDING_FAILED: "none", Msg.WEDDING_DONE: "none",
 }
 
 

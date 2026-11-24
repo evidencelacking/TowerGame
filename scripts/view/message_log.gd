@@ -202,6 +202,10 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.CAR_RESUMED: return "A stalled elevator car is back in service"
 		Msg.FESTIVAL_NOTICE: return "A street festival is announced for the weekend"
 		Msg.FESTIVAL_BEGAN: return "The street festival has begun%s" % (" (you sponsored it)" if a == 1 else "")
+		Msg.WEDDING_SET: return "The cathedral is ready: a wedding is set for quarter %d of year %d, at midday on the weekend" % [a, b]
+		Msg.WEDDING_CALLED_OFF: return "The wedding was called off (%s). It will be tried again next weekend" % ("a fire in the tower" if a == 0 else "the cathedral is cut off or burned")
+		Msg.WEDDING_FAILED: return "Only %d of the %d guests needed made it to the wedding. Clear the lobby and the lifts to the top; it will be tried again next weekend" % [a, b]
+		Msg.WEDDING_DONE: return "The cathedral bells ring: %d guests saw the wedding. Your tower has reached the top rank" % a
 		Msg.ROOM_DIRTY: return "A hotel room needs cleaning"
 		Msg.PESTS_WARNING: return "A dirty hotel room will get pests soon"
 		Msg.PESTS_FOUND: return "Pests in a hotel room: demolish it to clear them"
