@@ -28,6 +28,7 @@ extends RefCounted
 const PipeScript := preload("res://scripts/sim/pipe.gd")
 const StallScript := preload("res://scripts/sim/stall.gd")
 const FestivalScript := preload("res://scripts/sim/festival.gd")
+const WeddingScript := preload("res://scripts/sim/wedding.gd")
 const MIN_VERSION := 40
 const PEOPLE_HEADER := 3  ## Ints before the person records in "people".
 const PEOPLE_OLD_FIELDS := 12  ## Per person before mood (v41).
@@ -88,6 +89,8 @@ static func upgrade_step(version: int, data: Dictionary) -> Dictionary:
 			out["pipe"] = PipeScript.rest_ints()  # no burst, the stream at its default (#472)
 			out["stall"] = StallScript.rest_ints()  # no stall, nothing armed (#473)
 			out["festival"] = FestivalScript.rest_ints()  # no festival armed, announced or held (#474)
+		49:
+			out["wedding"] = WeddingScript.rest_ints()  # no wedding set, no top rank (#33)
 		_:
 			return {}
 	out["version"] = version + 1

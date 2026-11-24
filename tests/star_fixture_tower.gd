@@ -5,6 +5,17 @@ extends "res://scripts/sim/tower.gd"
 var star_fixture: Dictionary = {}
 
 
+var fire_fixture: bool = false  ## True: the tower reports a fire (the wedding tests).
+
+
+func fire_burning() -> bool:
+	return fire_fixture or super.fire_burning()
+
+
+func cathedral_ready() -> bool:
+	return bool(star_fixture["cathedral"]) if star_fixture.has("cathedral") else super.cathedral_ready()
+
+
 func star_facts() -> Dictionary:
 	var facts := super.star_facts()
 	facts.merge(star_fixture, true)
