@@ -58,6 +58,10 @@ func _ready() -> void:
 	room_window.name = "RoomWindow"
 	add_child(room_window)
 	room_window.bind(_tower, $PlacementGhost as PlacementGhost)
+	var bulk_rent := BulkRent.new()  # after the room window: its drag is seen first (#28)
+	bulk_rent.name = "BulkRent"
+	add_child(bulk_rent)
+	bulk_rent.bind(_tower, $PlacementGhost as PlacementGhost)
 	var news := NewsTicker.new()
 	news.name = "NewsTicker"
 	add_child(news)
