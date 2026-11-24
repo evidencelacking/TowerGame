@@ -35,6 +35,9 @@ const MODE_RESTING := 3  ## resting in a room: on that room's list.
 ## floors or rooms change (see tower_renderer.gd).
 var route_cache: Dictionary = {}
 var _seen: Dictionary = {}  ## Person id -> Seen: what was worked out for them, kept while nothing it hangs on changed (#434).
+var _day_key: int = -1
+var _room_snap: Dictionary = {}  ## Room -> [run, kind, hotel] as a Seen read it, to find the rooms a layout change touched.
+var _work_snap: Dictionary = {}  ## Work room -> its kind as a Seen's look read it.
 var _seen_key: int = -1  ## What _seen was made for: the tower, its layout and the day.
 var _seen_tick: int = 0
 var _tenanted: Dictionary = {}
@@ -527,17 +530,20 @@ func _keep_visible(area: Rect2) -> void:
 		return
 	_vis_known = _room_runs.size()
 	_vis_area = area
-	_vis_epoch += 1
-	_vis_rooms.clear()
-	_vis_set.clear()
+	var rooms: Array[int] = []
+	var set: Dictionary = {}
 	var cull := area.size != Vector2.ZERO
 	for room: int in _room_runs:
 		var run: Array[int] = _room_runs[room]
 		var x0 := run[1] * VC.CELL_W
 		var y0 := VC.floor_to_row(run[0]) * VC.CELL_H
 		if not cull or (x0 < area.end.x and x0 + run[2] * VC.CELL_W > area.position.x and y0 < area.end.y and y0 + VC.CELL_H > area.position.y):
-			_vis_rooms.append(room)
-			_vis_set[room] = true
+			rooms.append(room)
+			set[room] = true
+	if set != _vis_set:  # the same rooms again leave the figures placed for them good
+		_vis_epoch += 1
+	_vis_rooms = rooms
+	_vis_set = set
 
 
 ## Places the resting figures of the rooms on the area: each takes the next spot of its room, or of its
@@ -608,9 +614,9 @@ func _place(figs: Array[Dictionary], order: PackedInt64Array, i: int, turn: int,
 ## The tenanted rooms (Suites.tenanted_rooms), kept for TENANT_TICKS: they change when staff are hired or a
 ## shop is let, and the renderer reads them no more often (IN_USE_CHECK_TICKS).
 func _tenanted_rooms(tower: Object) -> Dictionary:
-	if _tenanted_key != _seen_key or tower.tick - _tenanted_tick >= TENANT_TICKS or tower.tick < _tenanted_tick:
+	if _tenanted_key != _day_key or tower.tick - _tenanted_tick >= TENANT_TICKS or tower.tick < _tenanted_tick:
 		_tenanted = Suites.tenanted_rooms(tower)
-		_tenanted_key = _seen_key
+		_tenanted_key = _day_key
 		_tenanted_tick = tower.tick
 		_tenanted_made += 1
 	return _tenanted
@@ -629,13 +635,54 @@ func _seen_of(id: int) -> Seen:
 ## and age band can then differ), or when time ran backwards (a load).
 func _forget_if_stale(tower: Object) -> void:
 	var clock: Object = tower.clock
-	var key := [tower.get_instance_id(), tower.floors.revision, tower.grid.occupant_count(), tower.rooms.links.occupant_count(),
-		tower.rooms.links_over.occupant_count(), clock.year(), clock.quarter(), clock.day_of_week()].hash()
-	if key != _seen_key or tower.tick < _seen_tick or _seen.size() > 2 * tower.people.count() + 64:
+	var day_key := [tower.get_instance_id(), clock.year(), clock.quarter(), clock.day_of_week()].hash()
+	var key := [day_key, tower.floors.revision, tower.grid.occupant_count(), tower.rooms.links.occupant_count(),
+		tower.rooms.links_over.occupant_count()].hash()
+	if day_key != _day_key or tower.tick < _seen_tick or _seen.size() > 2 * tower.people.count() + 64:
 		_seen.clear()
+		_room_snap.clear()
+		_work_snap.clear()
 		_seen_key = key
+		_day_key = day_key
 		_synced = false
+	elif key != _seen_key:  # the layout changed: only people whose rooms changed are worked out again
+		_seen_key = key
+		_revalidate_layout(tower)
 	_seen_tick = tower.tick
+
+
+## After a layout change keeps what was worked out for everyone whose room and work room are as they were
+## (same run, kind and hotel flag), and marks the rest to be read again. Rooms are never renumbered, so a
+## room that is unchanged looks the same to everyone in it.
+func _revalidate_layout(tower: Object) -> void:
+	var gone: Dictionary = {}  # rooms whose run, kind or hotel flag differ from when a Seen read them
+	for room: int in _room_snap:
+		var snap: Array = _room_snap[room]
+		var run: Array[int] = tower.grid.run_of(room)
+		if run != snap[0] or (not run.is_empty() and (tower.rooms.kind_of(room) != snap[1] or tower.hotel.is_hotel(room) != snap[2])):
+			gone[room] = true
+	for room: int in _work_snap:
+		if not gone.has(room) and tower.rooms.kind_of(room) != _work_snap[room]:
+			gone[room] = true
+	if gone.is_empty():
+		return
+	var stale: Dictionary = {}  # person id -> true, for those to read again
+	for id: int in _seen:
+		var seen: Seen = _seen[id]
+		if gone.has(seen.room) or gone.has(seen.work):
+			seen.room = -2
+			seen.work = -2
+			stale[id] = true
+	for room: int in gone:
+		_room_snap.erase(room)
+		_work_snap.erase(room)
+		_room_runs.erase(room)
+	_vis_known = -1
+	for i: int in _p_id.size():
+		if stale.has(_p_id[i]):
+			_p_room[i] = -2
+			_p_work[i] = -2
+			_p_sig[i] = -1
 
 
 ## Reads what a person's room and work fix: the run, kind, column and look.
@@ -646,9 +693,11 @@ func _read_room(tower: Object, people: PeopleScript, i: int, seen: Seen) -> void
 	seen.place_key = -1
 	seen.run = tower.grid.run_of(room)
 	if seen.run.is_empty():
+		_room_snap[room] = [seen.run, "", false]
 		return
 	seen.kind = tower.rooms.kind_of(room)
 	seen.hotel = tower.hotel.is_hotel(room)
+	_room_snap[room] = [seen.run, seen.kind, seen.hotel]
 	seen.column = seen.run[1] + people.id_at(i) % maxi(seen.run[2], 1)
 	seen.work = -2
 	_read_look(tower, people, i, seen)
@@ -660,6 +709,7 @@ func _read_look(tower: Object, people: PeopleScript, i: int, seen: Seen) -> void
 	if seen.work != work:
 		seen.work = work
 		seen.look = _look_of(tower, people, i)
+		_work_snap[work] = seen.look["job"]
 		seen.place_key = -1
 
 
