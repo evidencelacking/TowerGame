@@ -39,6 +39,7 @@ const ACTIONS: Array = [
 	["finance", "Finance window", KEY_T],
 	["stars", "Star window", KEY_G],
 	["mute", "Sound on / off", KEY_N],
+	["cheats", "Cheats panel (needs the Cheats setting)", KEY_F9],
 ]
 
 ## action id -> keycode, every action always present.
