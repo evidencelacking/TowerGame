@@ -18,6 +18,7 @@ const ViewSettings := preload("res://scripts/view/view_settings.gd")
 const PixelLayer := preload("res://scripts/view/pixel_layer.gd")
 const ExteriorLayer := preload("res://scripts/view/exterior_layer.gd")
 const FlypastLayer := preload("res://scripts/view/flypast_layer.gd")
+const CelebrationLayer := preload("res://scripts/view/celebration_layer.gd")
 ## Draws the tower on a low-resolution canvas (10.2). World space is native pixels (8 px per column,
 ## 24 px per floor, see view_consts.gd). The rooms, links, floors and shafts go into one SubViewport
 ## that is redrawn only when the floors or rooms change or every STATIC_REFRESH_TICKS ticks (the in-use
@@ -145,6 +146,8 @@ var _figures_for: Rect2 = Rect2()  ## World rect the figures were built for; emp
 var _people_painted_for: Rect2 = Rect2()  ## World rect the people were last drawn for (culled to it); empty when not culled.
 var _dynamic_layer: Node2D = null
 var _outdoors: Array[Node2D] = []  ## The far and near skylines and the street (#306), behind everything else.
+var _celebration: Node2D = null  ## The top-rank fireworks (#33), over the sky; hidden until the wedding succeeds.
+var _top_rank_seen: bool = false  ## The flag as the view last saw it, so only a flip while playing starts the fireworks.
 var _flypast: Node2D = null  ## The seasonal lantern craft (#222), behind the rooms; hidden outside its window.
 var _outdoors_todo: Array[Node2D] = []  ## Outdoor layers waiting for their redraw.
 var _outdoors_key: Array = []  ## What the outdoors were last drawn for: stars, daylight, rain, density, layout.
@@ -211,6 +214,9 @@ func _make_outdoors() -> void:
 	_flypast = FlypastLayer.new()
 	_flypast.visible = false
 	add_child(_flypast)  # after the skylines, before the rooms: the tower hides it where they overlap
+	_celebration = CelebrationLayer.new()
+	_celebration.visible = false
+	add_child(_celebration)
 
 
 ## Keeps the outdoors in step: skylines trail the camera, and everything redraws when the star rating, the
@@ -742,6 +748,7 @@ func _process(delta: float) -> void:
 	_follow_zoom()
 	_follow_outdoors()
 	_follow_flypast()
+	_follow_celebration()
 	var new_tick := tower.tick != _seen_tick
 	if _elevators.observe(tower):
 		_tick_len = maxf(_since_tick, 0.001)
@@ -856,6 +863,17 @@ func _motion_in_view() -> bool:
 		if figure["moving"] and view.intersects(Rect2(float(figure["fx"]) * VC.CELL_W, float(figure["frow"]) * VC.CELL_H, float(VC.CELL_W), float(VC.CELL_H))):
 			return true
 	return false
+
+
+## The wedding fireworks (#33): started when the top-rank flag turns on while the tower runs (a loaded save that has it does not replay them).
+func _follow_celebration() -> void:
+	var camera := get_viewport().get_camera_2d()
+	if camera != null:
+		_celebration.call("follow", camera.get_screen_center_position(), get_viewport_rect().size / camera.zoom)
+	var now: bool = tower.wedding.top_rank()
+	if now and not _top_rank_seen and tower.tick > 1:
+		_celebration.call("start")
+	_top_rank_seen = now
 
 
 ## The lantern craft of a Q4 weekend night (#222): placed from the sim's clock and the camera, drawn only while the window is open.

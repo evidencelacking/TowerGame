@@ -48,6 +48,7 @@ const WeatherScript := preload("res://scripts/sim/weather.gd")
 const PipeScript := preload("res://scripts/sim/pipe.gd")
 const StallScript := preload("res://scripts/sim/stall.gd")
 const FestivalScript := preload("res://scripts/sim/festival.gd")
+const WeddingScript := preload("res://scripts/sim/wedding.gd")
 const SaveMigrationScript := preload("res://scripts/sim/save_migration.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
@@ -95,7 +96,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 49  ## Every bump needs a step in save_migration.gd (a test enforces it).
+const SAVE_VERSION := 50  ## Every bump needs a step in save_migration.gd (a test enforces it).
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -162,6 +163,8 @@ var weather := WeatherScript.new()
 var pipe := PipeScript.new(rooms)
 var stall := StallScript.new(rooms)
 var festival := FestivalScript.new(rooms)
+## The top-rank wedding (M11 11.5, #33): gate checked with the stars, then it sets itself for a weekend. Saved.
+var wedding := WeddingScript.new()
 var threat := ThreatScript.new(rooms)  ## Threats (#218): the notice, the search, the blast. Saved.
 var fire := FireScript.new(rooms)  ## Fires (#217): burning rooms, the rescue craft. Saved.
 ## Why a tenant room is unhappy: noise, distance or rent (see Complaints). Derived, so not saved.
@@ -542,6 +545,7 @@ func _run_systems() -> void:
 	pipe.tick(clock, stars, grid, events, messages, tick)
 	stall.tick(clock, stars, people, events, messages, tick)
 	festival.tick(clock, stars, people, events, messages, tick, _slow_due(EVENTS_AT))
+	run_wedding()
 	refresh_reach()
 	if _slow_due(TENANCY_AT):
 		tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
@@ -629,6 +633,25 @@ func unlocked_stars() -> int:
 ## Demands and the VIP verdict are real systems now (Demands, Vip).
 
 
+## The wedding's per-tick step (#33). cathedral_ready scans the rooms, so it is read only on a day boundary and on the wedding day.
+func run_wedding() -> void:
+	if wedding.is_scheduled() or wedding.is_day():
+		wedding.tick(clock, fire_burning(), (wedding.is_day() or clock.day_started) and cathedral_ready(), rooms.queued_on_floor(WeddingScript.LOBBY_FLOOR).size(), messages, tick)
+
+
+## True while any room burns (a wedding day is called off by it, #33).
+func fire_burning() -> bool:
+	return not fire.burning_rooms().is_empty()
+
+
+## True while the cathedral stands reached by a route and not burned out (the top-rank gate, #33).
+func cathedral_ready() -> bool:
+	for id in rooms.room_ids():
+		if rooms.kind_of(id) == "cathedral":
+			return not rooms.is_charred(id) and not rooms.is_cut_off(id)
+	return false
+
+
 func star_facts() -> Dictionary:
 	var security := 0
 	var metro := 0
@@ -645,6 +668,7 @@ func star_facts() -> Dictionary:
 		"population": permanent_population(), "security": security, "suites": suites, "metro": metro,
 		"demands_met": demands.all_met(),  # no open demand (transport demands will join them)
 		"vip_good": vip.is_good(),
+		"stars": stars, "cathedral": cathedral_ready(),
 	}
 	return facts
 
@@ -661,6 +685,8 @@ func promote_stars() -> void:
 		stars += 1
 		messages.add(tick, MessagesScript.STAR_PROMOTED, stars)
 		demands.update(rooms, stars, messages, tick, Rooms.PLACEABLE, {"parking_working": Parking.working_spaces(rooms, grid), "recycling_short": 1 if recycling.short() else 0, "lunch_coverage": CommerceScript.lunch_coverage(rooms)})
+	if stars == 5 and not wedding.top_rank():
+		wedding.check(StarRulesScript.meets_top_rank(star_facts()), clock, messages, tick)
 
 
 ## Grades every tenanted office and condo: A brings a friend, C leaves (see Evaluation). Runs once
@@ -759,6 +785,7 @@ func _state_ints() -> Array[int]:
 	ints.append_array(pipe.hash_ints())  # the three own events add nothing while they have never run, so a quiet tower hashes as before
 	ints.append_array(stall.hash_ints())
 	ints.append_array(festival.hash_ints())
+	ints.append_array(wedding.hash_ints())
 	ints.append(last_refusal)
 	if unlock_all:
 		ints.append(1)  # Only while on, so a normal game hashes exactly as before.
@@ -782,7 +809,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "recycling": recycling.state_ints(), "vip": vip.state_ints(), "demands": demands.state_ints(), "events": events.state_ints(), "fire": fire.state_ints(), "threat": threat.state_ints(), "mood": mood.state_ints(), "life": life.state_ints(), "weather": weather.state_ints(), "pipe": pipe.state_ints(), "stall": stall.state_ints(), "festival": festival.state_ints(), "evaluation": evaluation.state_ints(), "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "recycling": recycling.state_ints(), "vip": vip.state_ints(), "demands": demands.state_ints(), "events": events.state_ints(), "fire": fire.state_ints(), "threat": threat.state_ints(), "mood": mood.state_ints(), "life": life.state_ints(), "weather": weather.state_ints(), "pipe": pipe.state_ints(), "stall": stall.state_ints(), "festival": festival.state_ints(), "wedding": wedding.state_ints(), "evaluation": evaluation.state_ints(), "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -827,8 +854,9 @@ func load_state(data: Dictionary) -> bool:
 	var pipe_ints: Variant = data.get("pipe")
 	var stall_ints: Variant = data.get("stall")
 	var festival_ints: Variant = data.get("festival")
+	var wedding_ints: Variant = data.get("wedding")
 	var queue_data: Variant = data.get("queue")
-	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and rent_ints is Array and hotel_ints is Array and commerce_ints is Array and housekeeping_ints is Array and recycling_ints is Array and vip_ints is Array and pests_ints is Array and evaluation_ints is Array and demands_ints is Array and events_ints is Array and fire_ints is Array and threat_ints is Array and mood_ints is Array and life_ints is Array and weather_ints is Array and pipe_ints is Array and stall_ints is Array and festival_ints is Array and queue_data is Array):
+	if not (clock_ints is Array and grid_ints is Array and ledger_ints is Array and floors_ints is Array and rooms_ints is Array and messages_ints is Array and people_ints is Array and grades_ints is Array and names_ints is Array and rent_ints is Array and hotel_ints is Array and commerce_ints is Array and housekeeping_ints is Array and recycling_ints is Array and vip_ints is Array and pests_ints is Array and evaluation_ints is Array and demands_ints is Array and events_ints is Array and fire_ints is Array and threat_ints is Array and mood_ints is Array and life_ints is Array and weather_ints is Array and pipe_ints is Array and stall_ints is Array and festival_ints is Array and wedding_ints is Array and queue_data is Array):
 		return false
 	var loaded_grid := Grid.new()
 	if not Clock.valid_ints(clock_ints) or not loaded_grid.load_ints(grid_ints) or not LedgerScript.valid_ints(ledger_ints) or not FloorsScript.valid_ints(floors_ints):
@@ -843,7 +871,7 @@ func load_state(data: Dictionary) -> bool:
 		return false
 	if not RentScript.valid_ints(rent_ints) or not HotelScript.valid_ints(hotel_ints) or not CommerceScript.valid_ints(commerce_ints) or not HousekeepingScript.valid_ints(housekeeping_ints) or not RecyclingScript.valid_ints(recycling_ints) or not VipScript.valid_ints(vip_ints) or not PestsScript.valid_ints(pests_ints) or not DemandsScript.valid_ints(demands_ints) or not EventsScript.valid_ints(events_ints) or not FireScript.valid_ints(fire_ints) or not ThreatScript.valid_ints(threat_ints) or not MoodScript.valid_ints(mood_ints) or not LifeScript.valid_ints(life_ints) or not WeatherScript.valid_ints(weather_ints):
 		return false
-	if not PipeScript.valid_ints(pipe_ints) or not StallScript.valid_ints(stall_ints) or not FestivalScript.valid_ints(festival_ints):
+	if not PipeScript.valid_ints(pipe_ints) or not StallScript.valid_ints(stall_ints) or not FestivalScript.valid_ints(festival_ints) or not WeddingScript.valid_ints(wedding_ints):
 		return false
 	var loaded_queue: Array[Command] = []
 	for entry in queue_data:
@@ -887,6 +915,7 @@ func load_state(data: Dictionary) -> bool:
 	pipe.load_ints(pipe_ints)
 	stall.load_ints(stall_ints)
 	festival.load_ints(festival_ints)
+	wedding.load_ints(wedding_ints)
 	last_refusal = data["last_refusal"]
 	tick = data["tick"]
 	rng.state = data["rng_state"]
