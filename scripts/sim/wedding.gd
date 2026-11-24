@@ -92,7 +92,7 @@ func check(gate_holds: bool, clock: ClockScript, messages: MessagesScript, at_ti
 
 ## Called once a tick after the clock. `fire` is true while any room burns; `cathedral_ok` is whether the cathedral is
 ## reached and not charred (only read on the wedding day); `lobby_crowd` is how many wait in the lobby hall queue.
-func tick(clock: ClockScript, fire: bool, cathedral_ok: bool, lobby_crowd: int, messages: MessagesScript, at_tick: int) -> void:
+func tick(clock: ClockScript, fire: bool, cathedral_ok: bool, lobby_crowd: int, messages: MessagesScript, at_tick: int, cheated: bool = false) -> void:
 	if clock.day_started:
 		if _phase == DAY:
 			_phase = IDLE  # the day ended without a result: it is tried again at the next check
@@ -114,13 +114,13 @@ func tick(clock: ClockScript, fire: bool, cathedral_ok: bool, lobby_crowd: int, 
 		if due > 0 and lobby_crowd < CROWD_LIMIT:
 			_arrived += due
 	elif minute >= CEREMONY_START + CEREMONY_MINUTES and minute < CEREMONY_START + CEREMONY_MINUTES + RESOLVE_WINDOW:
-		_finish(messages, at_tick)
+		_finish(messages, at_tick, cheated)
 
 
-func _finish(messages: MessagesScript, at_tick: int) -> void:
+func _finish(messages: MessagesScript, at_tick: int, cheated: bool = false) -> void:
 	if _arrived >= MIN_GUESTS:
 		_top_rank = true
-		messages.add(at_tick, MessagesScript.WEDDING_DONE, _arrived)
+		messages.add(at_tick, MessagesScript.WEDDING_DONE, _arrived, 1 if cheated else 0)
 	else:
 		_failed += 1
 		messages.add(at_tick, MessagesScript.WEDDING_FAILED, _arrived, MIN_GUESTS)

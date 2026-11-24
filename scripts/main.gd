@@ -115,6 +115,9 @@ func _ready() -> void:
 	star_window.name = "StarWindow"
 	add_child(star_window)
 	star_window.bind(_tower)
+	var cheats_panel := CheatsPanel.new()  # F9, only while the Cheats setting is on (#39)
+	add_child(cheats_panel)
+	cheats_panel.bind(_tower)
 	var hover_tip := HoverTip.new()
 	hover_tip.name = "HoverTip"
 	add_child(hover_tip)

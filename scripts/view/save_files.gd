@@ -42,7 +42,7 @@ static func write(tower: TowerSim, path: String, slot_name: String = "", is_demo
 		return false
 	file.store_pascal_string(MAGIC)
 	file.store_var(tower.save())
-	file.store_var({"name": slot_name, "demo": is_demo, "stars": tower.stars, "population": tower.permanent_population(), "day": day_number(tower)})
+	file.store_var({"name": slot_name, "demo": is_demo, "stars": tower.stars, "population": tower.permanent_population(), "day": day_number(tower), "cheated": tower.cheated})
 	file.close()
 	return file.get_error() == OK
 
@@ -93,7 +93,7 @@ static func entries(is_demo: bool) -> Array[Dictionary]:
 
 
 static func entry_for(path: String, label: String, is_demo: bool) -> Dictionary:
-	var entry := {"path": path, "label": label, "exists": FileAccess.file_exists(path), "demo": is_demo, "name": "", "date": "", "stars": 0, "population": 0, "day": 0, "problem": "", "modified": 0}
+	var entry := {"path": path, "label": label, "exists": FileAccess.file_exists(path), "demo": is_demo, "name": "", "date": "", "stars": 0, "population": 0, "day": 0, "problem": "", "modified": 0, "cheated": false}
 	if not entry["exists"]:
 		return entry
 	var meta := read_meta(path)
@@ -103,6 +103,7 @@ static func entry_for(path: String, label: String, is_demo: bool) -> Dictionary:
 	entry["stars"] = int(meta.get("stars", 0))
 	entry["population"] = int(meta.get("population", 0))
 	entry["day"] = int(meta.get("day", 0))
+	entry["cheated"] = meta.get("cheated", false) == true
 	entry["problem"] = problem(path)
 	return entry
 
@@ -129,6 +130,8 @@ static func describe(entry: Dictionary) -> String:
 	var text := "%s, %s" % [title, entry["date"]]
 	if entry["day"] > 0:
 		text += ", %d stars, pop %d, day %d" % [entry["stars"], entry["population"], entry["day"]]
+	if entry["cheated"]:
+		text += " [CHEATS]"
 	return text
 
 

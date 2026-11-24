@@ -91,6 +91,8 @@ static func upgrade_step(version: int, data: Dictionary) -> Dictionary:
 			out["festival"] = FestivalScript.rest_ints()  # no festival armed, announced or held (#474)
 		49:
 			out["wedding"] = WeddingScript.rest_ints()  # no wedding set, no top rank (#33)
+		50:
+			out["cheated"] = 0  # no cheats used (#39)
 		_:
 			return {}
 	out["version"] = version + 1
