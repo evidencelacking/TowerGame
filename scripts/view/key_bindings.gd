@@ -34,6 +34,7 @@ const ACTIONS: Array = [
 	["synergies", "Synergy overlay", KEY_Y],
 	["disruptions", "Disruptions view", KEY_I],
 	["heat", "Heat map overlay", KEY_H],
+	["bulk_rent", "Bulk rent", KEY_K],
 	["messages", "Message log", KEY_M],
 	["finance", "Finance window", KEY_T],
 	["stars", "Star window", KEY_G],
