@@ -141,6 +141,8 @@ var alighted: Array = []  # [person id, floor] of recent alighters until #95 tak
 ## Set by Tower so an express shaft can tell which floors are lobbies (its only stops above ground).
 var floors: FloorsScript = null
 var _schedules: Dictionary = {}  # shaft id -> SCHEDULE_INTS ints (slot * SCHEDULE_FIELDS + MODE, RESPONSE, WAIT); absent = all defaults
+var wet: Dictionary = {}  ## Room id to true while a burst pipe holds the room closed to takings (#472). Set by Pipe each tick; derived, not saved.
+var stalled: Dictionary = {}  ## Car index to true while the car is stalled (#473): it does not move, take calls or count as waiting. Set by Stall; derived, not saved.
 var schedule_slot: int = 0  ## The slot now in force, set by the tower each tick from the clock (derived, not saved).
 var _calls: Array = []  # hall calls [shaft id, floor, dir, car index or -1] in arrival order (see cars.gd)
 
@@ -1241,6 +1243,30 @@ func queue_at(shaft_id: int, floor_number: int) -> Array[int]:
 	return ids
 
 
+## Lets everyone out of car n at once (a stall, #473): its riders, stops and calls clear and the car idles where it is.
+## Returns the riders' ids. They stay in People; Trips gives their ride up next tick, so each goes back to where they came
+## from and tries again later (the same path as a bulldozed shaft). Nobody is lost or duplicated.
+func eject_riders(car_index: int) -> Array[int]:
+	var ids := riders_of(car_index)
+	_riders[car_index] = []
+	_stops[car_index] = []
+	_cars[car_index][CarsScript.LOAD] = 0
+	for call: Array in _calls:
+		if call[CarsScript.CALL_CAR] == car_index:
+			call[CarsScript.CALL_CAR] = -1
+	CarsScript.idle(_cars[car_index])
+	return ids
+
+
+## People waiting in a hall queue on a floor, any shaft, in arrival order.
+func queued_on_floor(floor_number: int) -> Array[int]:
+	var ids: Array[int] = []
+	for entry: Array in _queue:
+		if entry[2] == floor_number:
+			ids.append(entry[0])
+	return ids
+
+
 ## Person ids riding car n, in boarding order.
 func riders_of(car_index: int) -> Array[int]:
 	var ids: Array[int] = []
@@ -1294,7 +1320,7 @@ func shaft_x(id: int) -> int:
 func car_waiting_at(shaft_id: int, floor_number: int) -> bool:
 	for n in _cars.size():
 		var car: Array = _cars[n]
-		if car[CarsScript.SHAFT] != shaft_id:
+		if car[CarsScript.SHAFT] != shaft_id or stalled.has(n):
 			continue
 		if car[CarsScript.STATE] == CarsScript.IDLE:
 			if car[CarsScript.FLOOR] == floor_number:
@@ -1311,6 +1337,8 @@ func waiting_keys() -> Array[int]:
 	for n in _cars.size():
 		var car: Array = _cars[n]
 		var floor_number := -1000
+		if stalled.has(n):
+			continue
 		if car[CarsScript.STATE] == CarsScript.IDLE:
 			floor_number = car[CarsScript.FLOOR]
 		elif car[CarsScript.LOAD] < car_capacity(car[CarsScript.SHAFT]) and not CarsScript.going_home(self, n):

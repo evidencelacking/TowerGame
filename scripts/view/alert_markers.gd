@@ -9,7 +9,7 @@ const AlertsScript := preload("res://scripts/sim/alerts.gd")
 const ViewConsts := preload("res://scripts/view/view_consts.gd")
 const EDGE_GAP := 76.0  ## Screen pixels between a marker and the screen edge (clear of the toolbar and news ticker).
 const SPACING := 8.0  ## Screen pixels between markers on the same edge.
-const KIND_COLORS := {1: Color(1.0, 0.45, 0.35), 2: Color(1.0, 0.8, 0.3), 3: Color(0.6, 0.85, 1.0)}  ## Fire, threat, event.
+const KIND_COLORS := {1: Color(1.0, 0.45, 0.35), 2: Color(1.0, 0.8, 0.3), 3: Color(0.6, 0.85, 1.0), 4: Color(0.35, 0.65, 1.0), 5: Color(0.9, 0.9, 0.5)}  ## Fire, threat, event, wet floor, stalled car.
 
 var tower: Object = null
 var camera: Camera2D = null

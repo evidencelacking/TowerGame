@@ -10,7 +10,9 @@ extends RefCounted
 ##   state OPEN (a card awaits the player's choice) or ACTIVE (a fire burns, a search runs);
 ##   ref   the room id for a fire, the event kind id for a card, 0 for a running threat.
 ## Order: open cards oldest first (a fire's own card carries no floor, so the burning rooms speak for it), then
-## burning rooms, then a running threat whose card is already answered. Problems that are not yet sim state
+## burning rooms, then a running threat whose card is already answered, then one alert per floor that holds a wet room (a
+## burst pipe, #472: floor, ACTIVE, 0) and the stalled car (#473: its floor, ACTIVE, its shaft id). The festival (#474) is the
+## open card on the lobby floor. Problems that are not yet sim state
 ## (an unreached guest, pests) are left out.
 
 const EventsScript := preload("res://scripts/sim/events.gd")
@@ -20,6 +22,8 @@ const ThreatScript := preload("res://scripts/sim/threat.gd")
 const FIRE := 1
 const THREAT := 2
 const EVENT := 3
+const PIPE := 4  ## A floor with a wet room.
+const STALL := 5  ## A stalled elevator car.
 
 const OPEN := 0
 const ACTIVE := 1
@@ -40,6 +44,11 @@ static func list(t: Object) -> Array[Array]:
 		out.append([FIRE, floors[0] if not floors.is_empty() else 0, ACTIVE, room])
 	if t.threat.is_active() and not threat_card:
 		out.append([THREAT, 0, ACTIVE, 0])
+	for floor_number: int in t.pipe.wet_floors(t.grid):
+		out.append([PIPE, floor_number, ACTIVE, 0])
+	var stalled: Array[int] = t.stall.stalled_car()
+	if not stalled.is_empty():
+		out.append([STALL, stalled[1], ACTIVE, stalled[0]])
 	return out
 
 
@@ -50,5 +59,9 @@ static func label_of(alert: Array, t: Object) -> String:
 			return "Fire"
 		THREAT:
 			return "Threat"
+		PIPE:
+			return "Water damage"
+		STALL:
+			return "Stalled elevator"
 	var def: Dictionary = t.events.kind_def(alert[3])
 	return str(def.get("title", "Event"))

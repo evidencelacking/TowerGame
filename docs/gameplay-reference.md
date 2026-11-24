@@ -183,6 +183,15 @@ sources agree on. Anything else is *unverified*: we pick a value, label it, and 
 
 Fires and threats only happen once the tower has security (M p58).
 
+Our own events (no original equivalent; clean-room designs, every value a tunable, owner request 2026-11-23). Each decides when it
+happens from its own seeded stream and opens a manual card (#472 to #474):
+
+| Event | What happens | Our values |
+|---|---|---|
+| Burst pipe | A pipe bursts in a room on floor 3 or higher; water drops one floor a period; wet rooms lose that day's hotel, shop and food takings only (no refund, eviction or stress) | 2 stars; 1 day in 20, a quarter apart; plumber $25,000 (stops at once), own maintenance (free, 2 periods, housekeeping within 5 floors), ignore (default) |
+| Stuck elevator | A local car with riders stalls in a rush; its riders' stress climbs; the shaft's other cars run on; passenger locals only for now | 2 stars and 2+ passenger shafts; one stall per shaft per day; rescue crew $10,000 (back in a period), routine repair (free, out for the day, default) |
+| Street festival | Announced on the weekday before a weekend; outside visitors rise that day, never counted as population or stars (#456) | 3 stars, 4+ food or shop rooms, not Q4; 1 in 4 a weekend, one a year; sponsor $50,000 (+60%), ignore (+20%, default) |
+
 ## Known quirks, cheats and exploits
 
 | Quirk | Ruling for our game |

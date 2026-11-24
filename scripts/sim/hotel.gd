@@ -212,7 +212,7 @@ func tick(clock: ClockScript, floors: FloorsScript, people: PeopleScript, rng: O
 
 
 func _vacant(id: int, r: Array[int], minute: int, night: int, lobby: bool, people: PeopleScript, rng: Object) -> void:
-	if r[_DIRTY_SINCE] >= 0 or is_infested(id) or not lobby or _rooms.is_cut_off(id):  # no booking while no route reaches it (#368)
+	if r[_DIRTY_SINCE] >= 0 or is_infested(id) or not lobby or _rooms.is_cut_off(id) or _rooms.wet.has(id):  # a wet room takes no booking (#472)  # no booking while no route reaches it (#368)
 		return
 	if reserved_room.is_valid() and int(reserved_room.call()) == id:
 		return
@@ -269,7 +269,8 @@ func _staying(id: int, r: Array[int], minute: int, night: int, people: PeopleScr
 	if night <= r[_CHECKIN_NIGHT] or minute < r[_LEAVE]:
 		return
 	_leaving[id] = true
-	ledger.hotel(at_tick, price(id), id)
+	if not _rooms.wet.has(id):  # a closed (wet) room loses that night's takings (#472)
+		ledger.hotel(at_tick, price(id), id)
 	r[_STATE] = VACANT
 	r[_DIRTY_SINCE] = at_tick
 	messages.add(at_tick, MessagesScript.ROOM_DIRTY, id)

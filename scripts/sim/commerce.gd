@@ -428,6 +428,12 @@ const PROFILES: Dictionary = {
 
 ## The rain (#221), set by Tower: while it rains, outside visitor arrivals fall (food most). Null means always dry.
 var weather: WeatherScript = null
+## The street festival (#474), set by Tower: on its day outside visitor arrivals rise. Null means no festival ever.
+var festival: Object = null
+## Festival visitors served today beyond the ordinary outside crowd (#474). They fill seats and pay like any customer but are not
+## counted as outside visitors (visitors_inside, visitors_today), so they never reach population or the stars (owner ruling, #456).
+## Derived and not saved: it is only for the view and tests, and resets at each settle.
+var festival_today: int = 0
 var _last_minute: int = -1
 var _visitors_in: int = 0  ## Outside visitors inside the tower now (they count toward population, 3.8).
 var _visitors_until: int = 0  ## Minute of day when the latest batch of them leaves.
@@ -647,7 +653,7 @@ func _open_shops(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, ten
 	var shops: Array[int] = []
 	var entry_x := floors.lobby_span()[0]
 	for id in rooms.room_ids():
-		if is_shop(rooms.kind_of(id)) and not is_vacant(id) and not rooms.is_closed_up(grid, id) and tenancy.routed(floors, rooms, grid, id, entry_x):
+		if is_shop(rooms.kind_of(id)) and not is_vacant(id) and not rooms.is_closed_up(grid, id) and not rooms.wet.has(id) and tenancy.routed(floors, rooms, grid, id, entry_x):  # a wet room is closed for the day (#472)
 			shops.append(id)
 	return shops
 
@@ -701,15 +707,25 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 	if METRO_VISITORS.has(kind) and tenancy.transit_linked(floors, rooms, grid):
 		arriving += metro_visitors_for(kind, period_of_minute(at_minute), day)
 	arriving += city_visitors_for(kind, period_of_minute(at_minute), day)
-	if weather != null:
-		arriving = WeatherScript.cut(arriving, weather.cut_percent(kind, period_of_minute(at_minute)))
+	var cut_percent: int = weather.cut_percent(kind, period_of_minute(at_minute)) if weather != null else 0
+	var raw := arriving
+	var ordinary := WeatherScript.cut(raw, cut_percent)  # the ordinary crowd, after the rain's cut
+	var boost_percent: int = festival.boost_percent(kind) if festival != null else 0
+	arriving = ordinary
+	if boost_percent > 0:  # the festival's crowd and the rain's cut multiply: boost first, then cut (#474)
+		arriving = WeatherScript.cut(festival.boost(raw, boost_percent), cut_percent)
 	var came := 0
-	for v in arriving:
+	var v := 0
+	while v < arriving:  # arriving is a count, so the loop ends
 		var shop: int = shops[rng.next_below(shops.size())]
 		if int(served.get(shop, 0)) < seats_per_meal(rooms.kind_of(shop), window):
 			served[shop] = int(served.get(shop, 0)) + 1
 			_today[shop] = customers_today(shop) + 1
-			came += 1
+			if v < ordinary:
+				came += 1
+			else:
+				festival_today += 1  # the festival's extra: seated and paying, but not counted as a visitor
+		v += 1
 	_visitors_today += came
 	if came > 0:
 		if at_minute >= _visitors_until:
@@ -769,9 +785,10 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 	var counts: Dictionary = {}
 	for id in rooms.room_ids():
 		if is_shop(rooms.kind_of(id)) and not is_vacant(id):
-			counts[id] = customers_today(id)
+			counts[id] = int(_last_day[id]) if rooms.wet.has(id) and _last_day.has(id) else customers_today(id)  # a closed (wet) room keeps its last grade (#472)
 	_last_day = counts
 	_today.clear()
+	festival_today = 0
 	if sellers > 0:
 		messages.add(at_tick, MessagesScript.DAILY_SALES, net, sellers)
 

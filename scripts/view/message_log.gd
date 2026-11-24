@@ -196,6 +196,12 @@ static func describe(code: int, a: int, b: int) -> String:
 		Msg.THREAT_EXPLODED: return "The device went off: floors %s to %s are destroyed" % [_floor_name(a), _floor_name(b)]
 		Msg.TREASURE_FOUND: return "Diggers on floor %s struck buried treasure: $%d paid to the tower" % [_floor_name(a), b]
 		Msg.FLYPAST: return "A lantern craft drifts across the night sky"
+		Msg.PIPE_BURST: return "A pipe burst in a %s on floor %s: the water will spread down" % [_kind_name(a), _floor_name(b)]
+		Msg.PIPE_STOPPED: return "The water stopped, down to floor %s (%s)" % [_floor_name(a), "plumber or maintenance" if b == 0 else ("no rooms below" if b == 1 else "it reached the lobby")]
+		Msg.CAR_STALLED: return "An elevator car stalled on floor %s with riders aboard" % _floor_name(b)
+		Msg.CAR_RESUMED: return "A stalled elevator car is back in service"
+		Msg.FESTIVAL_NOTICE: return "A street festival is announced for the weekend"
+		Msg.FESTIVAL_BEGAN: return "The street festival has begun%s" % (" (you sponsored it)" if a == 1 else "")
 		Msg.ROOM_DIRTY: return "A hotel room needs cleaning"
 		Msg.PESTS_WARNING: return "A dirty hotel room will get pests soon"
 		Msg.PESTS_FOUND: return "Pests in a hotel room: demolish it to clear them"
