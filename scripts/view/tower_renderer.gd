@@ -109,6 +109,7 @@ class Piece extends RefCounted:
 	var suite_kind: String = ""
 	var painted_frame: int = 0  ## The repair frame of its last repaint, for tests: a tile must render after it.
 	var urgent: bool = false  ## Built or changed by the player's action: repainted before background work, its tiles rendered first (#372).
+	var stale_since: int = 0  ## The repair frame _repair first saw it stale (0 = not waiting): the longest-waiting room repaints first (#483).
 
 
 ## One window onto the static world: a SubViewport sharing the world the pieces live in, looking at its rect.
@@ -544,8 +545,21 @@ func _mark_changed_rooms() -> void:
 		var piece: Piece = _room_pieces[key]
 		var now := _signature(piece)
 		if now != piece.sig:
+			if _state_changed(piece.sig, now):
+				piece.urgent = true  # burned out, repaired, let, vacated: the player is watching for it (#483)
 			piece.sig = now
 			piece.stale = true
+
+
+## True when a room's named state (the strings in a signature: charred, open, vacant...) differs between two
+## signatures, as opposed to counts such as fill or workers that change all day.
+func _state_changed(before: Array, now: Array) -> bool:
+	if before.size() != now.size():
+		return true
+	for index: int in now.size():
+		if now[index] is String and now[index] != before[index]:
+			return true
+	return false
 
 
 ## Finds what the last layout change touched: the floors, links and shafts that are new, gone or different.
@@ -642,8 +656,22 @@ func _repair() -> void:
 		renders += 1
 
 
+## The pieces ordered by how long they have waited, so a steady stream of fresh changes cannot starve one (#483).
+## Only worth sorting when they will not all fit in the frame's budget.
+func _oldest_first(pieces: Array[Piece]) -> Array[Piece]:
+	var cost := 0
+	for piece: Piece in pieces:
+		if piece.stale_since == 0:
+			piece.stale_since = _repair_frame
+		cost += piece.cost_us if piece.cost_us > 0 else UNKNOWN_PIECE_COST_US
+	if cost > REPAIR_BUDGET_US:
+		pieces.sort_custom(func(a: Piece, b: Piece) -> bool: return a.stale_since < b.stale_since if a.stale_since != b.stale_since else a.uid < b.uid)
+	return pieces
+
+
 func _repaint(piece: Piece) -> void:
 	piece.stale = false
+	piece.stale_since = 0
 	piece.painted_frame = _repair_frame
 	piece.node.queue_redraw()
 	_mark_tiles(piece.rect)
