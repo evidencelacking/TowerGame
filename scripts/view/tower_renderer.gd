@@ -65,6 +65,13 @@ var _room_runs: Array[Array] = []  ## [id, owning room id, rect] per placed room
 var _sky_key: Array = []  ## The sky lobby floors' flags when _sky_wanted was scanned.
 var _sky_wanted: Dictionary = {}  ## Piece key -> spec for the sky lobby slices, as _sync_pieces wants them.
 var _row_cache: Array = []  ## Per floor index: [what the floor looked like, its scanned runs], so a layout change rescans only the floors it touched (#349).
+var _floor_lists: Array = []  ## Per floor index: that floor's room runs, as _rebuild_runs found them.
+var _floor_wanted: Array = []  ## Per floor index: [the room runs, the tenant version] its pieces were made for, or null.
+var _part_pieces: Dictionary = {}  ## Floor index (-1: lobbies) -> the pieces wanted there: key -> [rect, runs, suite kind].
+var _tenants: Dictionary = {}  ## Rooms with a tenant, as _refresh_tenants keeps them.
+var _tenant_seen: Dictionary = {}  ## Room ids whose tenancy _tenants already reflects.
+var _tenants_known: bool = false
+var _tenant_version: int = 0
 var _link_runs: Array[Array] = []  ## [kind, two-floor rect] per stairs or escalator.
 const CANVAS_GRAIN: Vector2i = Vector2i(128, 128)  ## Canvas edges snap to this many native pixels, so growing the tower reallocates rarely.
 const CANVAS_PAD: Vector2i = Vector2i(64, 64)  ## Room around the built tower for shaft caps, cars and figures at the edge.
@@ -351,7 +358,7 @@ func _view_rect() -> Rect2i:
 
 ## Makes the pieces the layout calls for: the frame pieces once, and a piece per room or joined suite,
 ## reusing the ones whose room, position and suite membership are unchanged (they keep what they drew).
-func _sync_pieces() -> void:
+func _sync_pieces(layout: bool = false) -> void:
 	if _frame_pieces.is_empty():
 		for layer_name: String in FRAME_LAYERS:
 			var piece := _new_piece()
@@ -360,27 +367,16 @@ func _sync_pieces() -> void:
 			piece.node.z_index = FRAME_Z[layer_name]
 			_frame_pieces.append(piece)
 	_plan_broken = Parking.broken_ids(tower.rooms, tower.grid)  # cut-off parking is crossed out
-	var entries := Suites.entries_for(tower, _room_runs, Suites.tenanted_rooms(tower))  # neighbours of one kind, both in use, draw as one suite (#276)
-	var joined: Dictionary = {}  # run index -> true for rooms drawn inside a suite
-	var wanted: Dictionary = {}
-	for group: Array[int] in Suites.groups(entries):
-		var first: Array = _room_runs[group[0]]
-		var bounds := Suites.span(entries, group)
-		var floor_rect: Rect2i = first[2]
-		var union := Rect2i(bounds[0], floor_rect.position.y, bounds[1], floor_rect.size.y)
-		var runs: Array = []
-		var key := "s%d_%d_%d_%d" % [first[0], union.position.x, union.position.y, union.size.x]
-		for index: int in group:
-			joined[index] = true
-			runs.append(_room_runs[index])
-			key += "_%d" % (_room_runs[index][0] as int)
-		wanted[key] = [union, runs, entries[group[0]]["kind"]]
-	for index: int in _room_runs.size():
-		if joined.has(index):
-			continue
-		var run: Array = _room_runs[index]
-		var rect: Rect2i = run[2]
-		wanted["r%d_%d_%d_%d_%d" % [run[0], rect.position.x, rect.position.y, rect.size.x, rect.size.y]] = [rect, [run], ""]
+	var changed := _changed_floors()
+	_refresh_tenants(layout, changed)
+	var tenants_now := _tenant_version
+	for index: int in _floor_lists.size():
+		var list: Array = _floor_lists[index]
+		var held: Variant = _floor_wanted[index]
+		if held != null and (held as Array)[0] == list and (held as Array)[1] == tenants_now:
+			continue  # this floor's rooms and their tenancy are as they were: its pieces stand
+		_apply_wanted(index, _floor_specs(list), list, tenants_now)
+	var extra: Dictionary = {}
 	var span := tower.floors.lobby_span()
 	if not span.is_empty():  # the lobby: one piece, or in Detailed slices side by side (#346)
 		var lobby := Rect2i(span[0] * VC.CELL_W, VC.floor_to_row(span[2]) * VC.CELL_H, (span[1] - span[0] + 1) * VC.CELL_W, span[2] * VC.CELL_H)
@@ -388,13 +384,96 @@ func _sync_pieces() -> void:
 		var from := lobby.position.x
 		while from < lobby.end.x:
 			var to := mini(from + slice, lobby.end.x)
-			wanted["lobby_%d_%d_%d_%d" % [from, to, lobby.position.y, lobby.size.y]] = [Rect2i(from, lobby.position.y, to - from, lobby.size.y), [], "lobby"]
+			extra["lobby_%d_%d_%d_%d" % [from, to, lobby.position.y, lobby.size.y]] = [Rect2i(from, lobby.position.y, to - from, lobby.size.y), [], "lobby"]
 			from = to
 	if GraphicsStyle.current().density() > 1:  # sky lobbies (#357): Detailed only, each run of lobby cells in slices
-		_want_sky_lobbies(wanted)
+		_want_sky_lobbies(extra)
+	_apply_wanted(-1, extra, [], 0)
+	for piece: Piece in _frame_pieces:
+		piece.rect = _canvas  # the canvas may have grown since the piece was made: its tiles are all of them (#365)
+		piece.stale = true  # floors, shafts and the rest are cheap: repainted whenever the layout changes
+		piece.urgent = not _urgent_rects.is_empty()
+	_synced_once = true
+	_frame_due = tower.tick + STATIC_REFRESH_TICKS
+
+
+## The floors whose room runs differ from the ones their pieces were made for.
+func _changed_floors() -> Array[int]:
+	var out: Array[int] = []
+	if _floor_wanted.size() != _floor_lists.size():
+		_floor_wanted.clear()
+		_floor_wanted.resize(_floor_lists.size())
+		_part_pieces.clear()
+	for index: int in _floor_lists.size():
+		var held: Variant = _floor_wanted[index]
+		if held == null or (held as Array)[0] != _floor_lists[index]:
+			out.append(index)
+	return out
+
+
+## Which rooms have a tenant (Suites.tenanted_rooms): worked out for the whole tower on a periodic check, and
+## after a layout change only for the new rooms on the floors it touched (nobody works in a room the moment
+## it is built, so only a let shop can be tenanted); the whole set is checked again within IN_USE_CHECK_TICKS
+## anyway. _tenant_version counts the changes, so a floor knows its flags are old.
+func _refresh_tenants(layout: bool, changed: Array[int]) -> void:
+	if layout and _tenants_known:
+		for index: int in changed:
+			for run: Array in _floor_lists[index]:
+				var id: int = run[1]
+				if _tenant_seen.has(id):
+					continue
+				_tenant_seen[id] = true
+				if Suites.is_tenanted(tower, id, 0) and not _tenants.has(id):
+					_tenants[id] = true
+					_tenant_version += 1
+		return
+	var fresh := Suites.tenanted_rooms(tower)
+	_tenant_seen.clear()
+	for id: int in tower.rooms.room_ids():
+		_tenant_seen[id] = true
+	_tenants_known = true
+	if fresh != _tenants:
+		_tenants = fresh
+		_tenant_version += 1
+
+
+## The pieces one floor's room runs call for: a suite for neighbours of one kind that are tenanted, a piece
+## for each other room. Key -> [rect, runs, suite kind].
+func _floor_specs(list: Array) -> Dictionary:
+	var wanted: Dictionary = {}
+	var runs_here: Array[Array] = []
+	runs_here.assign(list)
+	var entries := Suites.entries_for(tower, runs_here, _tenants)  # neighbours of one kind, both in use, draw as one suite (#276)
+	var joined: Dictionary = {}  # run index -> true for rooms drawn inside a suite
+	for group: Array[int] in Suites.groups(entries):
+		var first: Array = list[group[0]]
+		var bounds := Suites.span(entries, group)
+		var floor_rect: Rect2i = first[2]
+		var union := Rect2i(bounds[0], floor_rect.position.y, bounds[1], floor_rect.size.y)
+		var runs: Array = []
+		var key := "s%d_%d_%d_%d" % [first[0], union.position.x, union.position.y, union.size.x]
+		for index: int in group:
+			joined[index] = true
+			runs.append(list[index])
+			key += "_%d" % (list[index][0] as int)
+		wanted[key] = [union, runs, entries[group[0]]["kind"]]
+	for index: int in list.size():
+		if joined.has(index):
+			continue
+		var run: Array = list[index]
+		var rect: Rect2i = run[2]
+		wanted["r%d_%d_%d_%d_%d" % [run[0], rect.position.x, rect.position.y, rect.size.x, rect.size.y]] = [rect, [run], ""]
+	return wanted
+
+
+## Makes the room pieces of one part of the layout (a floor, or -1 for the lobbies) match wanted: frees the
+## ones no longer called for, and reuses the ones whose room, position and suite membership are unchanged
+## (they keep what they drew).
+func _apply_wanted(index: int, wanted: Dictionary, list: Array, tenants_now: int) -> void:
 	var player_made := _synced_once
-	for key: Variant in _room_pieces.keys():
-		if not wanted.has(key):
+	var before: Dictionary = _part_pieces.get(index, {})
+	for key: Variant in before:
+		if not wanted.has(key) and _room_pieces.has(key):
 			_free_piece(_room_pieces[key] as Piece, player_made)
 			_room_pieces.erase(key)
 	for key: Variant in wanted:
@@ -407,6 +486,8 @@ func _sync_pieces() -> void:
 			_room_pieces[key] = piece
 			piece.urgent = player_made  # a new or moved piece is the player's work: it draws first (#372)
 			fresh = true
+		elif before.has(key) and before[key] == spec:
+			continue  # the same piece as last time
 		piece.rect = spec[0]
 		piece.runs = spec[1]
 		piece.suite_kind = spec[2]
@@ -414,12 +495,9 @@ func _sync_pieces() -> void:
 			piece.sig = _signature(piece)
 			piece.stale = true
 		piece.node.set("painter", _paint_room_piece.bind(piece))
-	for piece: Piece in _frame_pieces:
-		piece.rect = _canvas  # the canvas may have grown since the piece was made: its tiles are all of them (#365)
-		piece.stale = true  # floors, shafts and the rest are cheap: repainted whenever the layout changes
-		piece.urgent = not _urgent_rects.is_empty()
-	_synced_once = true
-	_frame_due = tower.tick + STATIC_REFRESH_TICKS
+	_part_pieces[index] = wanted
+	if index >= 0:
+		_floor_wanted[index] = [list, tenants_now]
 
 
 func _new_piece() -> Piece:
@@ -646,7 +724,7 @@ func _process(delta: float) -> void:
 			_apply_density(false)
 		_in_use = _rooms_in_use()
 		_note_layout_changes()
-		_sync_pieces()
+		_sync_pieces(true)
 	var area := _people_area()
 	if new_tick or layout_changed or _view_left_figures(area):  # also when the camera moved past the people built for (#451)
 		if new_tick or layout_changed:
@@ -763,6 +841,9 @@ func set_tower(value: Tower) -> void:
 	tower = value
 	_synced_once = false
 	_row_cache.clear()
+	_floor_wanted.clear()
+	_part_pieces.clear()
+	_tenants_known = false
 	_sky_key = []
 	_shafts_key = []
 	_urgent_rects.clear()
@@ -795,6 +876,7 @@ func _rebuild_runs() -> void:
 	_floor_rects.clear()
 	_room_runs.clear()
 	_link_runs.clear()
+	_floor_lists.clear()
 	for index: int in Tower.Grid.FLOOR_COUNT:
 		var floor_number := Tower.Grid.index_to_floor(index)
 		var key: Array = [tower.floors.row_flags(floor_number), tower.grid.row_cells(floor_number), tower.rooms.links.row_cells(floor_number), tower.rooms.links_over.row_cells(floor_number)]
@@ -805,6 +887,7 @@ func _rebuild_runs() -> void:
 		var found: Array = cached[1]
 		_floor_rects.append_array(found[0] as Array[Rect2i])
 		_room_runs.append_array(found[1] as Array[Array])
+		_floor_lists.append(found[1])
 		_link_runs.append_array(found[2] as Array[Array])
 
 
