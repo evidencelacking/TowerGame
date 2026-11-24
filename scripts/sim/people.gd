@@ -75,6 +75,13 @@ var _last_minute: int = -1  ## The last minute of day the plan was checked at.
 var trip_requests: Array[int] = []
 var _data: Array[int] = []  ## Flat: FIELDS ints per person, in id order.
 var _index: Dictionary = {}  ## Person id -> index into _data / FIELDS. Derived (rebuilt on load and removal), not saved.
+## Derived, never saved or hashed (#454). Both are conservative: a stale 1 or 0 only costs a visit, never a result.
+var _wake: PackedInt32Array = PackedInt32Array()  ## Per person: tick() may skip them while the minute of day is below this (0: look now). Only ever set for a person tick() has found settled.
+var _wake_day: int = -1  ## The day of the week the _wake minutes were worked out for.
+## Per person, 1 unless they are idle with no stress and no retry cooldown, when Trips has nothing to do for them (#454).
+var _active: PackedByteArray = PackedByteArray()
+var _riding: int = 0  ## How many people are TRIP_RIDING, so Trips can skip its scans on a quiet tick.
+const _NO_MORE_TODAY := Clock.MINUTES_PER_DAY  ## A wake minute no minute of the day reaches.
 
 
 func count() -> int:
@@ -91,6 +98,8 @@ func add_person(home: int, work: int, rng: Object) -> int:
 	var offset: int = rng.next_below(ARRIVAL_SPREAD + 1)
 	_index[id] = count()
 	_data.append_array([id, home, work, offset, goal, TRIP_IDLE, start, 0, 0, 0, NONE, 0, MOOD_START, 0] as Array[int])
+	_wake.append(0)
+	_active.append(0)
 	return id
 
 
@@ -116,6 +125,8 @@ func add_guest(room: int, rng: Object) -> int:
 	var offset: int = rng.next_below(ARRIVAL_SPREAD + 1)
 	_index[id] = count()
 	_data.append_array([id, room, NONE, offset, DEST_HOME, TRIP_REQUESTED, NONE, 0, 0, 0, NONE, 0, MOOD_START, 0] as Array[int])
+	_wake.append(0)
+	_active.append(1)
 	trip_requests.append(id)
 	return id
 
@@ -150,6 +161,7 @@ func remove_person(i: int) -> void:
 ## Moves a person's home to another room (a couple moving in together).
 func set_home(i: int, room: int) -> void:
 	_data[i * FIELDS + _HOME] = room
+	_wake[i] = 0
 
 
 ## How many people work in this room.
@@ -225,10 +237,22 @@ func index_of(id: int) -> int:
 
 func _rebuild_index() -> void:
 	_index = {}
-	for i in count():
-		var id := _data[i * FIELDS + _ID]
+	var n := count()
+	_wake = PackedInt32Array()
+	_wake.resize(n)
+	_wake_day = -1
+	_active = PackedByteArray()
+	_active.resize(n)
+	_riding = 0
+	for i in n:
+		var b := i * FIELDS
+		var id := _data[b + _ID]
 		if not _index.has(id):  # a repeated id keeps its first person, as the scan did
 			_index[id] = i
+		var trip := _data[b + _TRIP]
+		if trip == TRIP_RIDING:
+			_riding += 1
+		_active[i] = 0 if trip == TRIP_IDLE and _data[b + _STRESS] == 0 and _data[b + _TRIP_LEFT] == 0 else 1
 
 
 func id_at(i: int) -> int:
@@ -305,7 +329,10 @@ func stress_of(i: int) -> int:
 
 ## Sets stress, clamped to 0 to STRESS_MAX.
 func set_stress(i: int, value: int) -> void:
-	_data[i * FIELDS + _STRESS] = clampi(value, 0, STRESS_MAX)
+	var stress := clampi(value, 0, STRESS_MAX)
+	_data[i * FIELDS + _STRESS] = stress
+	if stress > 0:
+		_active[i] = 1
 
 
 ## The stress band for a stress value: BAND_CALM, BAND_UNEASY or BAND_ANGRY.
@@ -395,11 +422,15 @@ func day_plan(i: int, day: int) -> Array[Array]:
 ## office workers. Break and lunch are the single seam for food rooms (#74): today both resolve to
 ## the work room in goal_room, so people stay at their desks.
 func scheduled_goal(i: int, day: int, minute: int) -> int:
-	# The same answer as the last entry of day_plan(i, day) at or before the minute, entry by entry in list order, without
-	# building the plan: this runs for every person every minute (#427).
+	return _goal_at(_data[i * FIELDS + _WORK], _data[i * FIELDS + _HOME], _data[i * FIELDS + _OFFSET], day, minute)
+
+
+## scheduled_goal for a person's fields, without building a plan: this runs for every person who is due a look each minute (#427).
+func _goal_at(work: int, home: int, offset: int, day: int, minute: int) -> int:
+	# The same answer as the last entry of day_plan(i, day) at or before the minute, entry by entry in list order.
 	var goal := DEST_HOME
-	if work_of(i) == NONE:
-		if home_of(i) != NONE and not (guest_home.is_valid() and guest_home.call(home_of(i))):  # a resident
+	if work == NONE:
+		if home != NONE and not (guest_home.is_valid() and guest_home.call(home)):  # a resident
 			if day == Clock.WE:
 				if WEEKEND_OUT <= minute:
 					goal = DEST_AWAY
@@ -413,7 +444,7 @@ func scheduled_goal(i: int, day: int, minute: int) -> int:
 		return goal
 	if day == Clock.WE:
 		return goal
-	if ARRIVE + _data[i * FIELDS + _OFFSET] <= minute:
+	if ARRIVE + offset <= minute:
 		goal = DEST_WORK
 	if BREAK <= minute:
 		goal = DEST_BREAK
@@ -428,6 +459,29 @@ func scheduled_goal(i: int, day: int, minute: int) -> int:
 	return goal
 
 
+## The first minute after this one at which _goal_at can give a different answer, or _NO_MORE_TODAY: the times of the
+## day plan's entries (the same ones _goal_at compares against). tests/test_people.gd checks the two agree.
+func _next_change(work: int, home: int, offset: int, day: int, minute: int) -> int:
+	var next := _NO_MORE_TODAY
+	if work == NONE:
+		if home != NONE and not (guest_home.is_valid() and guest_home.call(home)):
+			next = _first_after(minute, next, WEEKEND_OUT if day == Clock.WE else RESIDENT_OUT)
+			next = _first_after(minute, next, WEEKEND_BACK if day == Clock.WE else RESIDENT_BACK)
+	elif day != Clock.WE:
+		next = _first_after(minute, next, ARRIVE + offset)
+		next = _first_after(minute, next, BREAK)
+		next = _first_after(minute, next, BREAK + BREAK_LENGTH)
+		next = _first_after(minute, next, LUNCH)
+		next = _first_after(minute, next, LUNCH + LUNCH_LENGTH)
+		next = _first_after(minute, next, LEAVE)
+	return next
+
+
+## best, or t when t is after minute and earlier than best.
+static func _first_after(minute: int, best: int, t: int) -> int:
+	return t if t > minute and t < best else best
+
+
 ## Called once per tick after the clock. When the minute of day changes, every worker's goal is
 ## set from the schedule (so a worker who moves in mid-day, or on a weekend, is placed correctly),
 ## and if the goal room differs from where they are a trip is requested. People without a work
@@ -436,22 +490,59 @@ func tick(clock: Clock) -> void:
 	var minute := clock.minute_of_day()
 	if minute == _last_minute:
 		return
+	var day := clock.day_of_week()
+	if minute < _last_minute or day != _wake_day:  # a new day, or the clock was set elsewhere: nobody's wake minute holds
+		_wake.fill(0)
+		_wake_day = day
 	_last_minute = minute
-	for i in count():
-		if work_of(i) == NONE and home_of(i) == NONE:
+	# Only people due a look are visited (#454), in index order as the full scan was. Someone settled (at the room their goal
+	# means, or on a trip) is skipped until their plan next changes; anything that could unsettle them resets _wake to 0.
+	var d := _data
+	var wake := _wake
+	var n := wake.size()
+	for i in n:
+		if wake[i] > minute:
 			continue
-		var goal := scheduled_goal(i, clock.day_of_week(), minute)
-		if goal != goal_of(i):
-			_data[i * FIELDS + _GOAL] = goal
-		if goal_room(i) != location_of(i) and trip_state(i) == TRIP_IDLE and trip_left(i) == 0:
-			_data[i * FIELDS + _TRIP] = TRIP_REQUESTED
-			trip_requests.append(id_at(i))
+		var b := i * FIELDS
+		var work := d[b + _WORK]
+		var home := d[b + _HOME]
+		if work == NONE and home == NONE:
+			wake[i] = _NO_MORE_TODAY
+			continue
+		var offset := d[b + _OFFSET]
+		var goal := _goal_at(work, home, offset, day, minute)
+		if goal != d[b + _GOAL]:
+			d[b + _GOAL] = goal
+		var room := home if goal == DEST_HOME else (NONE if goal == DEST_AWAY else work)
+		var settled := room == d[b + _LOCATION]
+		if not settled:
+			if d[b + _TRIP] != TRIP_IDLE:
+				settled = true
+			elif d[b + _TRIP_LEFT] == 0:
+				d[b + _TRIP] = TRIP_REQUESTED
+				_active[i] = 1
+				trip_requests.append(d[b + _ID])
+				settled = true
+		wake[i] = _next_change(work, home, offset, day, minute) if settled else 0
+
+
+## Sets a person's trip state, keeping the riding count and the derived skip marks current (#454). Anything that changes
+## where a person is or whether they are travelling goes through here, so tick() looks at them again.
+func _set_trip(i: int, state: int) -> void:
+	var at := i * FIELDS + _TRIP
+	if _data[at] == TRIP_RIDING:
+		_riding -= 1
+	if state == TRIP_RIDING:
+		_riding += 1
+	_data[at] = state
+	_wake[i] = 0
+	_active[i] = 1
 
 
 ## Routing seam: marks a requested trip as under way (the person is between rooms).
 func start_trip(i: int, minutes: int = 1) -> void:
 	_data[i * FIELDS + _TRIP_FROM] = location_of(i)
-	_data[i * FIELDS + _TRIP] = TRIP_MOVING
+	_set_trip(i, TRIP_MOVING)
 	_data[i * FIELDS + _TRIP_LEFT] = minutes
 	_data[i * FIELDS + _TRIP_TOTAL] = minutes
 	_data[i * FIELDS + _TRIP_LEG] = 0
@@ -464,7 +555,7 @@ func trip_leg(i: int) -> int:
 
 ## Trips seam: the person walks the stretch of the route starting at leg for minutes.
 func set_segment(i: int, leg: int, minutes: int) -> void:
-	_data[i * FIELDS + _TRIP] = TRIP_MOVING
+	_set_trip(i, TRIP_MOVING)
 	_data[i * FIELDS + _TRIP_LEG] = leg
 	_data[i * FIELDS + _TRIP_LEFT] = minutes
 	_data[i * FIELDS + _TRIP_TOTAL] = minutes
@@ -472,14 +563,14 @@ func set_segment(i: int, leg: int, minutes: int) -> void:
 
 ## Trips seam: the person waits for or rides the elevator leg.
 func set_riding(i: int, leg: int) -> void:
-	_data[i * FIELDS + _TRIP] = TRIP_RIDING
+	_set_trip(i, TRIP_RIDING)
 	_data[i * FIELDS + _TRIP_LEG] = leg
 	_data[i * FIELDS + _TRIP_LEFT] = 0
 
 
 ## Routing seam: the person arrives at their goal room.
 func finish_trip(i: int) -> void:
-	_data[i * FIELDS + _TRIP] = TRIP_IDLE
+	_set_trip(i, TRIP_IDLE)
 	_data[i * FIELDS + _TRIP_LEFT] = 0
 	_data[i * FIELDS + _TRIP_TOTAL] = 0
 	_data[i * FIELDS + _TRIP_LEG] = 0
@@ -497,10 +588,54 @@ func spend_trip_minute(i: int) -> int:
 func give_up_trip(i: int, cooldown: int) -> void:
 	if trip_state(i) != TRIP_REQUESTED:  # mid-trip (elevator lost): back to the room they left
 		_data[i * FIELDS + _LOCATION] = trip_from(i)
-	_data[i * FIELDS + _TRIP] = TRIP_IDLE
+	_set_trip(i, TRIP_IDLE)
+	_active[i] = 1
 	_data[i * FIELDS + _TRIP_LEFT] = cooldown
 	_data[i * FIELDS + _TRIP_TOTAL] = 0
 	_data[i * FIELDS + _TRIP_LEG] = 0
+
+
+## How many people are waiting for or riding an elevator.
+func riding_count() -> int:
+	return _riding
+
+
+## Indices of the people waiting for or riding an elevator, ascending.
+func rider_indices() -> PackedInt32Array:
+	var out := PackedInt32Array()
+	if _riding == 0:
+		return out
+	var d := _data
+	var b := _TRIP
+	var n := d.size()
+	while b < n:
+		if d[b] == TRIP_RIDING:
+			out.append((b - _TRIP) / FIELDS)
+		b += FIELDS
+	return out
+
+
+## Indices, ascending, of everyone Trips has something to do for this minute: anyone on a trip, anyone with stress to shed
+## or a retry cooldown to count down. The rest are idle at no stress, for whom a minute changes nothing (#454).
+func active_indices() -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var flags := _active
+	for i in flags.size():
+		if flags[i] != 0:
+			out.append(i)
+	return out
+
+
+## Trips seam: an idle person's minute: the retry cooldown counts down and stress eases by recovery. The same as cool_down and
+## add_stress(-recovery), and it drops the person from active_indices once there is nothing left to ease.
+func recover_idle(i: int, recovery: int) -> void:
+	var b := i * FIELDS
+	var left := maxi(0, _data[b + _TRIP_LEFT] - 1)
+	var stress := clampi(_data[b + _STRESS] - recovery, 0, STRESS_MAX)
+	_data[b + _TRIP_LEFT] = left
+	_data[b + _STRESS] = stress
+	if left == 0 and stress == 0:
+		_active[i] = 0
 
 
 ## Trips seam: counts an idle retry cooldown down.
