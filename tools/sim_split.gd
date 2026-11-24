@@ -32,6 +32,7 @@ static func step(t: Tower, mark: Callable) -> void:
 	t.pipe.tick(t.clock, t.stars, t.grid, t.events, t.messages, t.tick)
 	t.stall.tick(t.clock, t.stars, t.people, t.events, t.messages, t.tick)
 	t.festival.tick(t.clock, t.stars, t.people, t.events, t.messages, t.tick, t._slow_due(Tower.EVENTS_AT))
+	t.run_wedding()
 	mark.call("weather/pipe/stall/festival")
 	t.refresh_reach()
 	mark.call("refresh_reach")

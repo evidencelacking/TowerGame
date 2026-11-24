@@ -15,13 +15,17 @@ extends RefCounted
 ##   vip_good      true: the last VIP visit ended well. Until the VIP exists the fact is false.
 ##   metro         at least this many metro stations.
 ## The facts a tower reports are a Dictionary with the same keys (see Tower.star_facts); a key that
-## is missing counts as 0 or false. The top rank (15,000, cathedral, wedding) will be another row.
+## is missing counts as 0 or false. The top rank is TOP_RANK below.
 const REQUIREMENTS: Dictionary = {
 	2: {"population": 300},
 	3: {"population": 1000, "security": 1},
 	4: {"population": 5000, "suites": 2, "demands_met": true, "vip_good": true},
 	5: {"population": 10000, "metro": 1},
 }
+
+## The top rank (#33): a gate, not a star. Keys as in REQUIREMENTS plus "stars" (the rating) and "cathedral" (true: a cathedral is
+## reached and not charred). When it holds the wedding sets itself (Wedding); the rank itself comes when the wedding succeeds.
+const TOP_RANK: Dictionary = {"stars": 5, "population": 15000, "cathedral": true}
 
 ## Ticks between checks. Population is read at the tick of the check, so it swings with the time
 ## of day, and a star once earned is kept (owner ruling on #166), so any tick can promote. Checking
@@ -41,6 +45,18 @@ static func meets(star: int, facts: Dictionary) -> bool:
 	var row: Dictionary = REQUIREMENTS[star]
 	for field: String in row:
 		var need: Variant = row[field]
+		if typeof(need) == TYPE_BOOL:
+			if bool(facts.get(field, false)) != need:
+				return false
+		elif int(facts.get(field, 0)) < int(need):
+			return false
+	return true
+
+
+## True if the tower's facts open the way to the top-rank wedding: every field of TOP_RANK holds.
+static func meets_top_rank(facts: Dictionary) -> bool:
+	for field: String in TOP_RANK:
+		var need: Variant = TOP_RANK[field]
 		if typeof(need) == TYPE_BOOL:
 			if bool(facts.get(field, false)) != need:
 				return false

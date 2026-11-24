@@ -56,6 +56,8 @@ const MESSAGE_SOUNDS: Dictionary = {
 	MessagesScript.ESCALATOR_BUILT: [&"UI", BUILD_CLIPS],
 	MessagesScript.ROOM_REMOVED: [&"UI", ["Demolish"]],
 	MessagesScript.STAR_PROMOTED: [&"UI", ["StarGet"]],
+	MessagesScript.WEDDING_SET: [&"Events", ["Belltoll"]],
+	MessagesScript.WEDDING_DONE: [&"Events", ["Wedding"]],
 	MessagesScript.RESCUE_ARRIVED: [&"Events", RESCUE_CLIPS],
 	MessagesScript.THREAT_NOTICE: [&"Events", ["TerroristHello"]],
 	MessagesScript.THREAT_PAID: [&"Events", ["TerroristTY"]],
@@ -73,8 +75,8 @@ const MESSAGE_SOUNDS: Dictionary = {
 const CONDO_KIND := "condo"
 const BUY_CLIP := "Buy"
 
-## Sounds nothing in the sim can trigger yet (no weather, wedding, cathedral or Santa hook).
-const UNMAPPED: Array[String] = ["Rain", "Thunder", "Wedding", "Belltoll", "Santa!", "ClockTick"]
+## Sounds nothing in the sim can trigger yet (no weather or Santa hook).
+const UNMAPPED: Array[String] = ["Rain", "Thunder", "Santa!", "ClockTick"]
 
 ## Room kind -> the ambience loop it adds to, weighted by that kind's floor area in view. A kind not
 ## listed is silent. Crowd, birds, crickets, fire and the elevator hum are driven by the system itself.
