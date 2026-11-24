@@ -11,13 +11,14 @@ const ComplaintsScript := preload("res://scripts/sim/complaints.gd")
 const PersonInfo := preload("res://scripts/view/person_info.gd")
 const RunningCosts := preload("res://scripts/sim/running_costs.gd")
 const BookingsScript := preload("res://scripts/sim/bookings.gd")
+const TheatreScript := preload("res://scripts/sim/theatre.gd")
 
 const LEVEL_NAMES: Array[String] = ["Lowest", "Low", "Average", "Highest"]
 const QUALITY_MAX := 300  ## The grade bar's full scale (Grades quality runs 0 to 300).
 ## Bar colours by grade: A blue, B yellow, C red (the three colours of the reference).
 const GRADE_COLORS: Array[Color] = [Color(0.25, 0.65, 0.95), Color(0.95, 0.80, 0.20), Color(0.85, 0.15, 0.15)]
 ## Kinds graded by customers (food and shops) rather than stress.
-const CUSTOMER_KINDS: Array[String] = ["restaurant", "fast_food", "retail", "gym", "daycare", "school", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool", "ballroom", "conference_center"]
+const CUSTOMER_KINDS: Array[String] = ["restaurant", "fast_food", "retail", "gym", "daycare", "school", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "pool", "ballroom", "conference_center", "party_hall"]
 
 
 ## The floor number of a world-space y, or 0 if outside the tower.
@@ -72,6 +73,8 @@ static func describe(tower: Object, room: int) -> Dictionary:
 		"upkeep": RunningCosts.upkeep_of(kind),
 		"reasons": tower.complaint_reasons(room),
 		"dirty": tower.hotel.is_dirty(room),
+		"film": tower.theatre.film_of(room) if kind == TheatreScript.KIND else -1,
+		"film_age": tower.theatre.age_of(room),
 		"needs_unmet": BookingsScript.need_text(kind) if BookingsScript.is_bookable(kind) and not BookingsScript.needs_met(kind, tower.rooms) else "",
 		"degraded_by": ", ".join(PackedStringArray(Array(tower.rooms.unmet_needs(tower.grid, room)).map(func(k: String) -> String: return CatalogueScript.display_name(k)))),
 	}
@@ -92,6 +95,12 @@ static func lines_for(info: Dictionary) -> Array[String]:
 		lines.append("Service degraded: needs a %s nearby" % info["degraded_by"])
 	if info.get("needs_unmet", "") != "":
 		lines.append("No bookings: needs %s in the tower" % info["needs_unmet"])
+	if info.get("film", -1) == TheatreScript.NO_FILM:
+		lines.append("No film chosen: no shows until you pick one")
+	elif info.get("film", -1) > 0:
+		var row := TheatreScript.film(info["film"])
+		lines.append("Showing: %s (%s), day %d of its %d day run" % [row["name"], row["genre"], info["film_age"], row["run"]])
+		lines.append("Crowd: %d%% of seats on a weekday, %d%% at the weekend" % [TheatreScript.fill_percent(info["film"], info["film_age"], 0), TheatreScript.fill_percent(info["film"], info["film_age"], 2)])
 	if info.get("dirty", false):
 		lines.append("Dirty: needs cleaning before it can be rented")
 	if info["customers_grade"] and info["grade"] != GradesScript.GRADE_NONE:

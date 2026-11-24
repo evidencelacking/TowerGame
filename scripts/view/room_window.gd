@@ -15,6 +15,7 @@ const VC := preload("res://scripts/view/view_consts.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const RentScript := preload("res://scripts/sim/rent.gd")
 const FireScript := preload("res://scripts/sim/fire.gd")
+const TheatreScript := preload("res://scripts/sim/theatre.gd")
 
 var tower: TowerSim = null
 var ghost: Ghost = null  ## Read for the active build tool.
@@ -23,6 +24,7 @@ var pinned: bool = false  ## True after a click: hover no longer changes the roo
 var panel: InfoPanel
 var bar: ProgressBar
 var rent_row: HBoxContainer
+var film_row: VBoxContainer  ## Movie theatres only (#500): one button per film, each with its licence.
 var repair_button: Button  ## Burned-out rooms only (#373): pays Fire.repair_cost.
 var _view := PeopleView.new()
 var _shown_tick: int = -1
@@ -61,6 +63,18 @@ func _init() -> void:
 	bulk.focus_mode = Control.FOCUS_NONE
 	bulk.pressed.connect(open_bulk)
 	rent_row.add_child(bulk)
+	film_row = VBoxContainer.new()
+	film_row.name = "FilmRow"
+	film_row.visible = false
+	panel.add_control(film_row)
+	for row in TheatreScript.FILMS:
+		var film_button := Button.new()
+		film_button.name = "Film%d" % row["id"]
+		film_button.text = "%s: $%d" % [row["name"], row["licence"]]
+		film_button.tooltip_text = "%s. Draws %d%% of the seats and runs %d days before it fades; the licence is paid once." % [row["genre"], row["draw"], row["run"]]
+		film_button.focus_mode = Control.FOCUS_NONE
+		film_button.pressed.connect(choose_film.bind(row["id"]))
+		film_row.add_child(film_button)
 	repair_button = Button.new()
 	repair_button.name = "RepairButton"
 	repair_button.focus_mode = Control.FOCUS_NONE
@@ -139,6 +153,15 @@ func set_rent(level: int) -> bool:
 	return tower.enqueue(TowerSim.Command.make(tower.tick + 1, TowerSim.Command.SET_RENT, args))
 
 
+## Asks the sim to show a film in the shown theatre (applies on the next tick; the licence is charged once).
+## Returns true if queued.
+func choose_film(film_id: int) -> bool:
+	if tower == null or not is_open() or tower.rooms.kind_of(room_id) != TheatreScript.KIND:
+		return false
+	var args: Array[int] = [room_id, film_id]
+	return tower.enqueue(TowerSim.Command.make(tower.tick + 1, TowerSim.Command.CHOOSE_FILM, args))
+
+
 ## Opens the bulk rent panel (#28) on the shown room.
 func open_bulk() -> void:
 	if is_open():
@@ -184,6 +207,12 @@ func _refresh() -> void:
 		var fill := StyleBoxFlat.new()
 		fill.bg_color = RoomInfo.bar_color(info)
 		bar.add_theme_stylebox_override("fill", fill)
+	var is_theatre: bool = tower.rooms.kind_of(room_id) == TheatreScript.KIND and not charred
+	film_row.visible = is_theatre
+	if is_theatre:
+		for row in TheatreScript.FILMS:
+			var film_button := film_row.get_node("Film%d" % row["id"]) as Button
+			film_button.disabled = not pinned or tower.theatre.film_of(room_id) == row["id"] or tower.ledger.balance < row["licence"]
 	# Condos cannot change rent (the reference); only rentable kinds get the buttons.
 	rent_row.visible = info["rentable"] and not charred
 	for level in RentScript.LEVELS:

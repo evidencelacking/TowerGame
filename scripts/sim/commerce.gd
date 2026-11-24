@@ -34,6 +34,7 @@ const SynergyScript := preload("res://scripts/sim/synergy.gd")
 const PoolLifeScript := preload("res://scripts/sim/pool_life.gd")
 const BookingsScript := preload("res://scripts/sim/bookings.gd")
 const WeatherScript := preload("res://scripts/sim/weather.gd")
+const TheatreScript := preload("res://scripts/sim/theatre.gd")
 
 ## Meal times (minute of day), windows (minutes a meal lasts) and the percent of people inside
 ## the tower who buy. All tunable.
@@ -101,6 +102,7 @@ const MEALS: Array = [
 	[BAR_LATE, BAR_WINDOW, BAR_LATE_PERCENT, "bar"],
 	[BALLROOM_EVENING, BALLROOM_WINDOW, 100, "ballroom"],
 	[CONFERENCE_MORNING, CONFERENCE_WINDOW, 100, "conference_center"],
+	[PARTY_AFTERNOON, PARTY_WINDOW, 100, "party_hall"],
 ]
 
 ## Our own kinds (M13, #291), all unverified tunables. A gym is busy before work, at the break and
@@ -253,6 +255,11 @@ const BALLROOM_WINDOW := 300  ## to 23:00.
 const CONFERENCE_MORNING := 540  ## 09:00.
 const CONFERENCE_WINDOW := 480  ## to 17:00.
 const BOOKING_GUEST_PERCENT := 60
+## The party hall (#500, own design, unverified): one party every day (weekends too) from 14:00 to 18:00, booked automatically
+## while a reachable hotel room stands. Up to 20 hotel guests come (each with BOOKING_GUEST_PERCENT) plus 10 from outside, 30 seats;
+## the fee is the tier for the guest count. Outside guests are visitors (not population), as for the ballroom.
+const PARTY_AFTERNOON := 840  ## 14:00.
+const PARTY_WINDOW := 240  ## to 18:00.
 
 ## Retail (#153): shoppers come at lunch and after work (percent of people inside who shop).
 const SHOP_LUNCH := 750  ## 12:30.
@@ -418,6 +425,13 @@ const PROFILES: Dictionary = {
 		"tiers": [[0, 0], [20, 5000], [30, 8000], [40, 12000]],
 		"food": ["Sales summit", "Trade fair", "Training day", "Board retreat", "Convention"],
 	},
+	# Party hall (#500): one afternoon party a day, every day: up to 20 hotel guests of the tower and 10 outside guests; paid per party.
+	"party_hall": {
+		"seats": 30, "linger_minutes": 240, "grade_cap": 30, "grade_a": 22, "grade_b": 12,
+		"booking": true, "tower_guests": 20, "outside": 10,
+		"tiers": [[0, 0], [10, 2500], [20, 4500], [30, 6500]],
+		"food": ["Birthday", "Retirement do", "Graduation", "Engagement", "Reunion"],
+	},
 	# Clinic (#291): 6 consulting seats, 20 minute visits; only the unwell (low mood) come.
 	"clinic": {
 		"seats": 6, "linger_minutes": 20, "grade_cap": 20, "grade_a": 16, "grade_b": 8, "who": WHO_LOW_MOOD,
@@ -430,6 +444,8 @@ const PROFILES: Dictionary = {
 var weather: WeatherScript = null
 ## The street festival (#474), set by Tower: on its day outside visitor arrivals rise. Null means no festival ever.
 var festival: Object = null
+## The movie theatre (#500), set by Tower: the hour after a show, shops within 5 floors get more customers. Null means none.
+var theatre: Object = null
 ## Festival visitors served today beyond the ordinary outside crowd (#474). They fill seats and pay like any customer but are not
 ## counted as outside visitors (visitors_inside, visitors_today), so they never reach population or the stars (owner ruling, #456).
 ## Derived and not saved: it is only for the view and tests, and resets at each settle.
@@ -732,6 +748,26 @@ func _serve(kind: String, window: int, percent: int, floors: FloorsScript, rooms
 			_visitors_in = 0
 		_visitors_in += came
 		_visitors_until = maxi(_visitors_until, at_minute + window)
+	_theatre_boost(kind, window, served, floors, rooms, grid, tenancy, day, at_minute)
+
+
+## The theatre's boost (#500): in the hour after a show, each shop within TheatreScript.BOOST_FLOORS of the theatre takes
+## Theatre.BOOST_PERCENT more customers than this wave served (rounded up, seats permitting). No draw is made. The extras are
+## not outside visitors, so like the festival's they never reach the population or the stars.
+func _theatre_boost(kind: String, window: int, served: Dictionary, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy: TenancyScript, day: int, at_minute: int) -> void:
+	if theatre == null or served.is_empty():
+		return
+	var near: Array[int] = theatre.boost_floors(at_minute, floors, rooms, grid, tenancy, day)
+	if near.is_empty():
+		return
+	for shop: int in served.keys():
+		if not TheatreScript.near(grid.run_of(shop)[0], near):
+			continue
+		var now: int = served[shop]
+		var extra := mini((now * TheatreScript.BOOST_PERCENT + 99) / 100, seats_per_meal(rooms.kind_of(shop), window) - now)
+		if extra > 0:
+			served[shop] = now + extra
+			_today[shop] = customers_today(shop) + extra
 
 
 ## An automatic booking (#359): each open room of the kind, while its needs are met, takes its guests for the window.

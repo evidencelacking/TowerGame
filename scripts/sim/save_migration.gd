@@ -22,6 +22,8 @@ extends RefCounted
 ##   43 -> 44  commerce: appends visitors_today 0                                 (#383)
 ##   44 -> 45  fire: appends the charred-room list, empty                         (#373)
 ##   48 -> 49  adds "pipe", "stall" and "festival" at rest: no burst, stall or festival, each stream at 0  (#472 to #474)
+##   49 -> 50  adds "wedding" at rest: none set, no top rank                      (#33)
+##   50 -> 51  adds "theatre" at rest: no theatre has a film                      (#500)
 ##   45 -> 46  vip: appends the air-arrival stream (state 0), no draw yet (day -1), not by air  (#409)
 ## Versions below MIN_VERSION are refused: the layout before #259 is not recorded here.
 
@@ -29,6 +31,7 @@ const PipeScript := preload("res://scripts/sim/pipe.gd")
 const StallScript := preload("res://scripts/sim/stall.gd")
 const FestivalScript := preload("res://scripts/sim/festival.gd")
 const WeddingScript := preload("res://scripts/sim/wedding.gd")
+const TheatreScript := preload("res://scripts/sim/theatre.gd")
 const MIN_VERSION := 40
 const PEOPLE_HEADER := 3  ## Ints before the person records in "people".
 const PEOPLE_OLD_FIELDS := 12  ## Per person before mood (v41).
@@ -91,6 +94,8 @@ static func upgrade_step(version: int, data: Dictionary) -> Dictionary:
 			out["festival"] = FestivalScript.rest_ints()  # no festival armed, announced or held (#474)
 		49:
 			out["wedding"] = WeddingScript.rest_ints()  # no wedding set, no top rank (#33)
+		50:
+			out["theatre"] = TheatreScript.rest_ints()  # no theatre has a film (#500)
 		_:
 			return {}
 	out["version"] = version + 1

@@ -45,6 +45,8 @@ const TOOL_TIPS: Dictionary = {
 	"local_car": CAR_TIP + " Hotkey A.",
 	"medical": "Medical Center: a required service. The tower needs one per 20 offices, and it is needed for 4 stars. Cannot be removed.",
 	"ballroom": "Ballroom: booked automatically on weekend evenings for 60 guests, half from your hotels and half from outside. Needs a restaurant or fine dining room. Outside guests do not add to the population.",
+	"movie_theatre": "Movie Theatre: two floors, permanent. Pick a film on its window (each has a one-time licence): three shows a day, 128 seats, more at the weekend, and films fade after their run. About 60% of the audience comes from outside (not population). Shops within 5 floors get +20% customers in the hour after a show.",
+	"party_hall": "Party Hall: one afternoon party every day, 14:00 to 18:00, with up to 20 hotel guests and 10 from outside. Needs a hotel room. Outside guests do not add to the population.",
 	"conference_center": "Conference Center: booked automatically on weekdays 09:00 to 17:00 for 40 delegates from outside. Needs a hotel room. Lifts office rents tower-wide.",
 	"assisted": "Assisted Living: a rented home for four seniors, steady low rent. Needs a clinic or medical center within 5 floors, or residents lose 15 mood. Noise bothers them twice as much.",
 	"emergency_room": "Emergency Room: the start of the hospital, an optional chain that earns from patients (tower people who are very unhappy, and outsiders through the lobby and helipad). Counts as a medical center and as care for assisted living. Never needed for a star.",
