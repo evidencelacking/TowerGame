@@ -61,6 +61,8 @@ const ROOM_TEXT: Dictionary = {
 	RoomsScript.ONE_HELIPAD: "The tower already has its helicopter pad",
 	RoomsScript.ONE_CASINO: "The tower already has its casino",
 	RoomsScript.ONE_DECK: "The tower already has its observation deck",
+	RoomsScript.NOT_FLOOR_100: "The cathedral goes on floor 100",
+	RoomsScript.ONE_CATHEDRAL: "The tower already has its cathedral",
 	RoomsScript.NOT_CHAINED: "Must touch the ramp or a working space",
 	RoomsScript.RAMP_COLUMN: "Ramps share one column",
 	RoomsScript.RAMP_NOT_UNDER_LOBBY: "The first ramp goes on B1 under the lobby",
