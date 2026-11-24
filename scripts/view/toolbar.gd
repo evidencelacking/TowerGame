@@ -158,6 +158,13 @@ func _ready() -> void:
 	_heat_legend = HeatLook.make_legend()
 	row.add_child(_heat_legend)
 	_sync_heat()
+	var bulk := Button.new()
+	bulk.name = "BulkRent"
+	bulk.text = "Bulk rent (%s)" % KeyBindings.key_name("bulk_rent")
+	bulk.tooltip_text = "Set the rent of many rooms at once: drag over rooms, or pick a floor, a room type or the whole tower."
+	bulk.focus_mode = Control.FOCUS_NONE
+	bulk.pressed.connect(func() -> void: get_tree().call_group("bulk_rent", "toggle"))
+	row.add_child(bulk)
 	_graphics = OptionButton.new()
 	_graphics.name = "Graphics"
 	_graphics.tooltip_text = "Graphics style: Classic or Detailed. View only."

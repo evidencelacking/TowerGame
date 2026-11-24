@@ -54,6 +54,13 @@ func _init() -> void:
 		button.focus_mode = Control.FOCUS_NONE
 		button.pressed.connect(set_rent.bind(level))
 		rent_row.add_child(button)
+	var bulk := Button.new()  # after the four levels: the code below indexes those by level
+	bulk.name = "BulkRentButton"
+	bulk.text = "Bulk..."
+	bulk.tooltip_text = "Set the rent of many rooms at once: a dragged selection, this floor, this room type or the whole tower."
+	bulk.focus_mode = Control.FOCUS_NONE
+	bulk.pressed.connect(open_bulk)
+	rent_row.add_child(bulk)
 	repair_button = Button.new()
 	repair_button.name = "RepairButton"
 	repair_button.focus_mode = Control.FOCUS_NONE
@@ -132,6 +139,12 @@ func set_rent(level: int) -> bool:
 	return tower.enqueue(TowerSim.Command.make(tower.tick + 1, TowerSim.Command.SET_RENT, args))
 
 
+## Opens the bulk rent panel (#28) on the shown room.
+func open_bulk() -> void:
+	if is_open():
+		get_tree().call_group("bulk_rent", "open", room_id)
+
+
 ## Asks the sim to repair the shown burned-out room (applies on the next tick). Returns true if queued.
 func repair() -> bool:
 	if tower == null or not is_open() or not tower.rooms.is_charred(room_id):
@@ -176,6 +189,7 @@ func _refresh() -> void:
 	for level in RentScript.LEVELS:
 		var button := rent_row.get_child(level) as Button
 		button.disabled = not pinned or level == info["rent_level"]
+	(rent_row.get_node("BulkRentButton") as Button).disabled = not pinned
 
 
 func _input(event: InputEvent) -> void:
