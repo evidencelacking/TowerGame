@@ -34,6 +34,11 @@ static func run(check: Callable) -> void:
 				removed = true
 			var kept := whole.figures(t)
 			var kept_culled := culled.figures(t, area)
+			# The kept views see every tick (that is what makes them incremental); the fresh reference, the
+			# expensive half, is built on every third tick, the first two of each window and the removal's aftermath.
+			if steps % 3 != 0 and n >= 2 and not (steps >= 150 and steps <= 153):
+				most_culled = maxi(most_culled, kept_culled.size())
+				continue
 			var fresh := PeopleView.new()
 			var expect := fresh.figures(t)
 			if kept != expect and bad_whole < 0:

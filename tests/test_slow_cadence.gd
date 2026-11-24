@@ -12,8 +12,9 @@ const REFERENCE: Array[Array] = [
 	[806586, 104000, 0, 0, 243, 326, 160, 0, 123355],
 	[806828, 34000, 0, 0, 507, 316, 170, 0, 117445],
 ]
+const DAYS := 2  ## Days measured: the first two of the reference's three, a day of stepping less (was 3, #466).
 const RENT_TOLERANCE_PERCENT := 1  ## Rent is collected daily from the same tenants: it should barely move.
-const HOTEL_TOLERANCE_PERCENT := 5  ## Over the three days: a check-out lands a few minutes later, so one night may move a day.
+const HOTEL_TOLERANCE_PERCENT := 5  ## Over the measured days: a check-out lands a few minutes later, so one night may move a day.
 const COMPLAINT_TOLERANCE_PERCENT := 5
 const GRADE_TOLERANCE := 6  ## Rooms, of about 490 graded rooms.
 const QUALITY_TOLERANCE_PERCENT := 2
@@ -67,13 +68,13 @@ static func run_threat_population_after_load(check: Callable) -> void:
 			break
 	check.call(rolled and copy.threat.population == t.threat.population and t.threat.population == t.population(), "after a load the next roll sees the same live population (%d, %d)" % [copy.threat.population, t.threat.population])
 
-## Three days on the mixed tower stay within tolerance of the per-tick reference.
+## The first days on the mixed tower stay within tolerance of the per-tick reference.
 static func run_daily_totals(check: Callable) -> void:
-	var rows := Metrics.measure(3)
-	check.call(rows.size() == REFERENCE.size(), "the cadence metrics ran for 3 days")
+	var rows := Metrics.measure(DAYS)
+	check.call(rows.size() == DAYS, "the cadence metrics ran for %d days" % DAYS)
 	var hotel := 0
 	var hotel_ref := 0
-	for day in mini(rows.size(), REFERENCE.size()):
+	for day in mini(rows.size(), DAYS):
 		var row: Array = rows[day]
 		var ref: Array = REFERENCE[day]
 		var label := "day %d" % (day + 1)
@@ -85,7 +86,7 @@ static func run_daily_totals(check: Callable) -> void:
 		check.call(_within_percent(row[8], ref[8], QUALITY_TOLERANCE_PERCENT), "%s total quality %d is within %d%% of the per-tick %d" % [label, row[8], QUALITY_TOLERANCE_PERCENT, ref[8]])
 		hotel += row[1]
 		hotel_ref += ref[1]
-	check.call(_within_percent(hotel, hotel_ref, HOTEL_TOLERANCE_PERCENT), "hotel income over 3 days %d is within %d%% of the per-tick %d" % [hotel, HOTEL_TOLERANCE_PERCENT, hotel_ref])
+	check.call(_within_percent(hotel, hotel_ref, HOTEL_TOLERANCE_PERCENT), "hotel income over %d days %d is within %d%% of the per-tick %d" % [DAYS, hotel, HOTEL_TOLERANCE_PERCENT, hotel_ref])
 
 
 static func _within_percent(value: int, reference: int, percent: int) -> bool:

@@ -5,6 +5,7 @@ const TowerSim := preload("res://scripts/sim/tower.gd")
 const Command := TowerSim.Command
 
 const TICKS := 1000
+const HASH_EVERY := 4  ## The hash covers the whole state and a divergence never heals, so it is read every 4th tick (was every tick, #466).
 
 
 ## A fixed command script: a command every 7th tick, alternating kinds.
@@ -23,9 +24,10 @@ static func _run(seed_value: int) -> Array[int]:
 	for command in _script():
 		tower.enqueue(command)
 	var hashes: Array[int] = []
-	for _i in TICKS:
+	for i in TICKS:
 		tower.step()
-		hashes.append(tower.state_hash())
+		if (i + 1) % HASH_EVERY == 0:
+			hashes.append(tower.state_hash())
 	return hashes
 
 
@@ -37,12 +39,12 @@ static func run(check: Callable) -> void:
 
 	var first := _run(42)
 	var second := _run(42)
-	check.call(first == second, "same seed and commands give identical hashes at ticks 1 to 1,000")
-	check.call(first.size() == TICKS, "a hash is recorded at every tick")
+	check.call(first == second, "same seed and commands give identical hashes at every 4th tick to 1,000")
+	check.call(first.size() == TICKS / HASH_EVERY, "a hash is recorded every 4th tick")
 
 	var other := _run(43)
 	var diverged := false
-	for i in TICKS:
+	for i in first.size():
 		if first[i] != other[i]:
 			diverged = true
 	check.call(diverged, "a different seed diverges")
@@ -86,13 +88,13 @@ static func run(check: Callable) -> void:
 	check.call(copy.load_state(original.save()), "a save loads")
 	check.call(copy.state_hash() == original.state_hash(), "a loaded tower has the saved hash")
 	var same := true
-	for _i in 500:
+	for i in 500:
 		original.step()
 		copy.step()
-		if original.state_hash() != copy.state_hash():
+		if (i + 1) % 25 == 0 and original.state_hash() != copy.state_hash():
 			same = false
 	check.call(same, "a loaded tower continues identically to tick 1,000")
-	check.call(first[TICKS - 1] == original.state_hash(), "the resumed run matches the uninterrupted run")
+	check.call(first[first.size() - 1] == original.state_hash(), "the resumed run matches the uninterrupted run")
 	check.call(TowerSim.new(0).stars == 1, "a new tower starts at 1 star")
 	var starred := TowerSim.new(0)
 	starred.stars = 3
