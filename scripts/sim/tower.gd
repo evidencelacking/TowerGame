@@ -91,7 +91,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 47  ## Every bump needs a step in save_migration.gd (a test enforces it).
+const SAVE_VERSION := 48  ## Every bump needs a step in save_migration.gd (a test enforces it).
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -185,7 +185,7 @@ func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_START
 	threat.reseed(seed_value)
 	weather.reseed(seed_value)
 	commerce.weather = weather
-	events.kinds = [fire.kind(), threat.kind()] as Array[Dictionary]
+	events.kinds = [fire.kind(), threat.kind(), vip.kind()] as Array[Dictionary]  # the VIP notice is manual: never rolled, so it shifts no draw
 	ledger = LedgerScript.new(starting_funds)
 	rooms.floors = floors
 	word_of_mouth.attach(grades, rooms, grid, people)
@@ -505,7 +505,7 @@ func _run_systems() -> void:
 		tenancy.tick(clock, floors, rooms, grid, people, rng, ledger, tick)
 	commerce.tick(clock, floors, rooms, grid, people, tenancy, rng, ledger, messages, tick, life)
 	if _slow_due(VIP_AT):
-		vip.tick(clock, stars, people, grades, messages, tick)
+		vip.tick(clock, stars, people, grades, messages, events, ledger, grid, tick)
 	if _slow_due(HOTEL_AT):
 		hotel.tick(clock, floors, people, rng, ledger, messages, tick)
 	if _slow_due(PESTS_AT):
@@ -693,7 +693,7 @@ func _state_ints() -> Array[int]:
 	ints.append_array(pests.state_ints())
 	ints.append_array(housekeeping.state_ints())
 	ints.append_array(recycling.state_ints())
-	ints.append_array(vip.state_ints())
+	ints.append_array(vip.hash_ints())  # the #219 fields only once a notice has been opened
 	ints.append_array(demands.state_ints())
 	ints.append_array(events.state_ints())
 	ints.append_array(fire.state_ints())

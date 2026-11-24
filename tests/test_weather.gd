@@ -204,6 +204,7 @@ static func _streams(check: Callable) -> void:
 	var old := hot.save()
 	old.erase("weather")
 	old["version"] = 46
+	old["vip"] = (old["vip"] as Array).slice(0, 9)  # the VIP block as v46 wrote it, before the notice fields (#219)
 	var loaded := TowerSim.new(0, 100000000)
 	check.call(loaded.load_state(old) and not loaded.weather.treasure_found and loaded.weather.rain_periods() == ([0, 0] as Array[int]), "rain: a v46 save without weather loads dry with the treasure unfound")
 
