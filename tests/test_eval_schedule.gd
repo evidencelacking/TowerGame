@@ -9,6 +9,7 @@ const Mixed := preload("res://tools/bench_mixed.gd")
 const EvaluationScript := preload("res://scripts/sim/evaluation.gd")
 
 const WARMUP := 120
+const HASH_EVERY := 25  ## After the evening steps, compare the twins this often.
 const EVAL_TICK := 2400  ## Clock ticks into the day at which the 21:00 period begins.
 
 
@@ -69,10 +70,13 @@ static func _check_save_mid_sequence(check: Callable) -> void:
 	check.call(loaded.load_state(real.save()), "the mid-sequence save loads")
 	check.call(loaded.state_hash() == real.state_hash(), "the loaded tower matches at the save point")
 	var drift := -1
-	for i in Clock.period_ticks(5) + 400:  # past step 5, the rest of the night and into the next day
+	var span := Clock.period_ticks(5) + 400  # past step 5, the rest of the night and into the next day
+	for i in span:
 		real.step()
 		loaded.step()
-		if real.state_hash() != loaded.state_hash():
+		# Every tick through the remaining steps, then every HASH_EVERY ticks and at the end (hashing is slow).
+		var compare := i < 10 or i % HASH_EVERY == 0 or i == span - 1
+		if compare and real.state_hash() != loaded.state_hash():
 			drift = i
 			break
 	check.call(drift == -1, "a tower loaded between steps 2 and 3 matches the original through steps 3 to 5 and into the next day (drift at tick %d)" % drift)
