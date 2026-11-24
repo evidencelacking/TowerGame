@@ -269,7 +269,7 @@ func reset_keys() -> void:
 # --- New game ---
 
 func _build_game() -> void:
-	var box := _tab("New game")
+	var box := _tab("Game")
 	var info := Label.new()
 	info.text = "Starting funds apply when you start a new game; they never change a tower already running."
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -288,6 +288,12 @@ func _build_game() -> void:
 		_funds_note.text = _funds_text())
 	_row(box, "Starting funds").add_child(funds)
 	box.add_child(_funds_note)
+	var cheats := CheckBox.new()
+	cheats.name = "Cheats"
+	cheats.text = "Cheats (our own; marks the tower and its saves)"
+	cheats.button_pressed = CheatSettings.is_enabled()
+	cheats.toggled.connect(CheatSettings.set_enabled)
+	box.add_child(cheats)
 
 
 func _funds_text() -> String:

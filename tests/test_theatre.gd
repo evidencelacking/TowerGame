@@ -271,7 +271,7 @@ static func run(check: Callable) -> void:
 	_choose(s, sid, 3)
 	_steps(s, 2 * DAY_TICKS)
 	var saved := s.save()
-	check.call(saved["version"] == 51 and saved.has("theatre"), "save: version 51 holds the theatre")
+	check.call(saved["version"] >= 52 and saved.has("theatre"), "save: version 52 or later holds the theatre")
 	var copy := TowerSim.new(1, 1)
 	check.call(copy.load_state(saved) and copy.theatre.film_of(sid) == 3 and copy.theatre.age_of(sid) == 2 and copy.state_hash() == s.state_hash(), "save: the film and its age survive save and load")
 	_steps(s, DAY_TICKS)

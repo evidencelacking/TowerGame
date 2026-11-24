@@ -84,6 +84,9 @@ class Command:
 	const CHOOSE_EVENT := 50  ## Answers an open event: args are event id, choice (0 declines). See Events.choose.
 	const REPAIR_ROOM := 51  ## Repairs the burned-out room covering a cell: args are floor, x. Costs Fire.repair_cost. See Tower.repair_room.
 	const CHOOSE_FILM := 52  ## Chooses a movie theatre's film: args are room id, film id (1 to 6). Charges the licence once. See Theatre.choose.
+	const CHEAT_MONEY := 100  ## Cheat (#39): args[0] dollars (1 to CHEAT_MONEY_MAX) are added to the balance. Sets cheated.
+	const CHEAT_UNLOCK_ALL := 101  ## Cheat (#39): args[0] 1 unlocks every room kind, 0 restores star gating. Sets cheated.
+	const CHEAT_SET_STARS := 102  ## Cheat (#39): args[0] sets the star rating to 1..5 exactly (up or down). Sets cheated.
 	const SET_SHAFT_STOP := 15  ## Turns a shaft's stop on a floor on or off: args are shaft id, floor, on (1 or 0). See Rooms.set_shaft_stop.
 
 	var tick: int = 0  ## The tick this command applies at.
@@ -98,7 +101,8 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 51  ## Every bump needs a step in save_migration.gd (a test enforces it).
+const SAVE_VERSION := 52  ## Every bump needs a step in save_migration.gd (a test enforces it).
+const CHEAT_MONEY_MAX := 1_000_000_000  ## The most one CHEAT_MONEY adds, so a bad command cannot overflow the balance.
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
 const HASH_PRIME := 1099511628211
@@ -185,6 +189,9 @@ var stars: int = START_STARS
 ## Debug switch (#156): treat every star-gated kind as unlocked. Off in a normal game, set only by
 ## the DEBUG_UNLOCK_ALL command, hashed while on, and never saved (a loaded tower starts it off).
 var unlock_all: bool = false
+## Cheats (#39): set by any CHEAT_* command and never cleared. Saved and hashed (while on). The save menu and HUD mark it,
+## and the top-rank celebration says so.
+var cheated: bool = false
 
 ## Shop customers and daily sales (see Commerce). Saved: today's and yesterday's counts.
 var commerce := CommerceScript.new()
@@ -467,6 +474,18 @@ func _apply_command(command: Command) -> void:
 		Command.DEBUG_SET_STARS:
 			if command.args.size() == 1:
 				stars = maxi(stars, clampi(command.args[0], 1, 5))
+		Command.CHEAT_MONEY:
+			if command.args.size() == 1 and command.args[0] > 0:
+				cheated = true
+				ledger.income(tick, mini(command.args[0], CHEAT_MONEY_MAX), 0)
+		Command.CHEAT_UNLOCK_ALL:
+			if command.args.size() == 1:
+				cheated = true
+				unlock_all = command.args[0] != 0
+		Command.CHEAT_SET_STARS:
+			if command.args.size() == 1:
+				cheated = true
+				stars = clampi(command.args[0], 1, 5)
 		Command.ADD_CAR:
 			if command.args.size() == 2:
 				last_refusal = rooms.add_car(ledger, tick, unlocked_stars(), command.args[0], command.args[1])
@@ -647,7 +666,7 @@ func unlocked_stars() -> int:
 ## The wedding's per-tick step (#33). cathedral_ready scans the rooms, so it is read only on a day boundary and on the wedding day.
 func run_wedding() -> void:
 	if wedding.is_scheduled() or wedding.is_day():
-		wedding.tick(clock, fire_burning(), (wedding.is_day() or clock.day_started) and cathedral_ready(), rooms.queued_on_floor(WeddingScript.LOBBY_FLOOR).size(), messages, tick)
+		wedding.tick(clock, fire_burning(), (wedding.is_day() or clock.day_started) and cathedral_ready(), rooms.queued_on_floor(WeddingScript.LOBBY_FLOOR).size(), messages, tick, cheated)
 
 
 ## True while any room burns (a wedding day is called off by it, #33).
@@ -801,6 +820,8 @@ func _state_ints() -> Array[int]:
 	ints.append(last_refusal)
 	if unlock_all:
 		ints.append(1)  # Only while on, so a normal game hashes exactly as before.
+	if cheated:
+		ints.append(2)  # likewise (#39)
 	ints.append(_queue.size())
 	for command in _queue:
 		ints.append(command.tick)
@@ -821,7 +842,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "recycling": recycling.state_ints(), "vip": vip.state_ints(), "demands": demands.state_ints(), "events": events.state_ints(), "fire": fire.state_ints(), "threat": threat.state_ints(), "mood": mood.state_ints(), "life": life.state_ints(), "weather": weather.state_ints(), "pipe": pipe.state_ints(), "stall": stall.state_ints(), "festival": festival.state_ints(), "wedding": wedding.state_ints(), "theatre": theatre.state_ints(), "evaluation": evaluation.state_ints(), "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "recycling": recycling.state_ints(), "vip": vip.state_ints(), "demands": demands.state_ints(), "events": events.state_ints(), "fire": fire.state_ints(), "threat": threat.state_ints(), "mood": mood.state_ints(), "life": life.state_ints(), "weather": weather.state_ints(), "pipe": pipe.state_ints(), "stall": stall.state_ints(), "festival": festival.state_ints(), "wedding": wedding.state_ints(), "theatre": theatre.state_ints(), "evaluation": evaluation.state_ints(), "cheated": 1 if cheated else 0, "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -838,6 +859,9 @@ func load_state(data: Dictionary) -> bool:
 	# "stars" is absent in saves from before the sim held it: those load at the start rating.
 	var loaded_stars: Variant = data.get("stars", START_STARS)
 	if typeof(loaded_stars) != TYPE_INT or loaded_stars < 1 or loaded_stars > 5:
+		return false
+	var loaded_cheated: Variant = data.get("cheated", 0)
+	if typeof(loaded_cheated) != TYPE_INT or (loaded_cheated != 0 and loaded_cheated != 1):
 		return false
 	var clock_ints: Variant = data.get("clock")
 	var grid_ints: Variant = data.get("grid")
@@ -935,6 +959,7 @@ func load_state(data: Dictionary) -> bool:
 	rng.state = data["rng_state"]
 	notes = data["notes"]
 	stars = loaded_stars
+	cheated = loaded_cheated == 1
 	_queue = loaded_queue
 	trips.resume(clock)
 	refresh_reach()  # derived, so it is found again for the loaded rooms (#368)

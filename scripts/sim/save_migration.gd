@@ -23,7 +23,8 @@ extends RefCounted
 ##   44 -> 45  fire: appends the charred-room list, empty                         (#373)
 ##   48 -> 49  adds "pipe", "stall" and "festival" at rest: no burst, stall or festival, each stream at 0  (#472 to #474)
 ##   49 -> 50  adds "wedding" at rest: none set, no top rank                      (#33)
-##   50 -> 51  adds "theatre" at rest: no theatre has a film                      (#500)
+##   50 -> 51  adds "cheated" 0: no cheats used                                  (#39)
+##   51 -> 52  adds "theatre" at rest: no theatre has a film                      (#500)
 ##   45 -> 46  vip: appends the air-arrival stream (state 0), no draw yet (day -1), not by air  (#409)
 ## Versions below MIN_VERSION are refused: the layout before #259 is not recorded here.
 
@@ -95,6 +96,8 @@ static func upgrade_step(version: int, data: Dictionary) -> Dictionary:
 		49:
 			out["wedding"] = WeddingScript.rest_ints()  # no wedding set, no top rank (#33)
 		50:
+			out["cheated"] = 0  # no cheats used (#39)
+		51:
 			out["theatre"] = TheatreScript.rest_ints()  # no theatre has a film (#500)
 		_:
 			return {}
