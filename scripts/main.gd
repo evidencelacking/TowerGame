@@ -90,6 +90,9 @@ func _ready() -> void:
 	save_menu.name = "SaveMenu"
 	add_child(save_menu)
 	save_menu.bind($Hud/SimDriver)
+	var quit_confirm := QuitConfirm.new()  # after the settings window, so its Esc is seen first
+	add_child(quit_confirm)
+	quit_confirm.save_callable = save_menu.quick_save
 	if SaveFiles.pending_load != "":  # Switching mode to load a save from the other mode.
 		var path := SaveFiles.pending_load
 		SaveFiles.pending_load = ""

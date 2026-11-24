@@ -30,7 +30,7 @@ func _init() -> void:
 	status = Label.new()
 	status.name = "Status"
 	box.add_child(status)
-	for entry in [["Save", open_save], ["Load", open_load], ["Load autosave", load_autosave]]:
+	for entry in [["Save", open_save], ["Load", open_load], ["Load autosave", load_autosave], ["Quit", request_quit]]:
 		var button := Button.new()
 		button.name = entry[0].replace(" ", "")
 		button.text = entry[0]
@@ -65,6 +65,10 @@ func _build_panel() -> void:
 	close.text = "Close"
 	close.pressed.connect(close_panel)
 	column.add_child(close)
+
+
+func request_quit() -> void:
+	get_tree().call_group("quit_confirm", "open")
 
 
 func bind(driver_value: Driver) -> void:
