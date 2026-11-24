@@ -198,6 +198,8 @@ func _view_costs(t: Tower) -> void:
 	print("renderer first _process (full layout build): %.1f ms" % [(Time.get_ticks_usec() - a) / 1000.0])
 	var fig := 0
 	var pick := 0
+	var pick_memo := 0
+	var memo: Dictionary = {}
 	var proc := 0
 	var runs := 0
 	var part_runs := 0
@@ -213,6 +215,9 @@ func _view_costs(t: Tower) -> void:
 		a = Time.get_ticks_usec()
 		IconsScript.pick(t, figures, true)
 		pick += Time.get_ticks_usec() - a
+		a = Time.get_ticks_usec()
+		IconsScript.pick(t, figures, true, memo, LayerScript.MEMO_TICKS)  # as the thought layer calls it
+		pick_memo += Time.get_ticks_usec() - a
 		a = Time.get_ticks_usec()
 		t.population_breakdown()
 		hud += Time.get_ticks_usec() - a
@@ -234,7 +239,7 @@ func _view_costs(t: Tower) -> void:
 	_real_layout_changes(t, r)
 	print("view per tick (%d ticks):" % VIEW_STEPS)
 	print("  figures(): %d figures, %.2f ms" % [figures.size(), fig / 1000.0 / VIEW_STEPS])
-	print("  ThoughtIcons.pick: %.2f ms" % [pick / 1000.0 / VIEW_STEPS])
+	print("  ThoughtIcons.pick: %.2f ms (every person looked up), %.2f ms as the thought layer calls it (memo)" % [pick / 1000.0 / VIEW_STEPS, pick_memo / 1000.0 / VIEW_STEPS])
 	print("  renderer._process on a new tick (includes its own figures()): %.2f ms" % [proc / 1000.0 / VIEW_STEPS])
 	print("  layout change (_rebuild_runs + _rooms_in_use + _sync_pieces): %.2f ms" % [runs / 1000.0 / LAYOUT_SAMPLES])
 	print("    of which _rebuild_runs %.2f, _rooms_in_use %.2f, _sync_pieces %.2f ms" % [part_runs / 1000.0 / LAYOUT_SAMPLES, part_use / 1000.0 / LAYOUT_SAMPLES, part_sync / 1000.0 / LAYOUT_SAMPLES])
