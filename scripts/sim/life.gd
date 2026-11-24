@@ -169,7 +169,7 @@ func _residents(people: PeopleScript, room: int) -> int:
 
 
 func _has_place(t: Object, room: int) -> bool:
-	return CatalogueScript.is_condo(t.rooms.kind_of(room)) and t.rooms.is_sold(room) and _residents(t.people, room) < t.rooms.people_in(room)
+	return CatalogueScript.is_condo(t.rooms.kind_of(room)) and not t.rooms.is_charred(room) and t.rooms.is_sold(room) and _residents(t.people, room) < t.rooms.people_in(room)
 
 
 ## Makes two people a couple (lower id first). Public so tests can set one up.

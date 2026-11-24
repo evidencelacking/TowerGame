@@ -879,6 +879,7 @@ func load_state(data: Dictionary) -> bool:
 	demands.load_ints(demands_ints)
 	events.load_ints(events_ints)
 	fire.load_ints(fire_ints)
+	people.remove_rooms(rooms.charred)  # a charred room is empty (#486): saves from before the retiree fix may hold a resident in one
 	threat.load_ints(threat_ints)
 	mood.load_ints(mood_ints)
 	life.load_ints(life_ints)
