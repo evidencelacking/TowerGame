@@ -20,6 +20,7 @@ const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const RoomsScript := preload("res://scripts/sim/rooms.gd")
 const ToolbarScript := preload("res://scripts/view/toolbar.gd")
 const SynergyLookScript := preload("res://scripts/view/synergy_look.gd")
+const DisruptionLookScript := preload("res://scripts/view/disruption_look.gd")
 const GhostScript := preload("res://scripts/view/placement_ghost.gd")
 const ElevatorView := preload("res://scripts/view/elevator_view.gd")
 const PeopleViewScript := preload("res://scripts/view/people_view.gd")
@@ -91,6 +92,7 @@ func _run_all() -> void:
 	await _graphics_cases()
 	await _settings_cases()
 	await _synergy_cases()
+	await _disruption_cases()
 
 
 func _toolbar_cases() -> void:
@@ -408,6 +410,33 @@ func _synergy_cases() -> void:
 			results.append(shown and not SynergyLookScript.on and not overlay._shown_on)
 	ViewSettingsScript.set_detailed_graphics(was)
 	_record("synergy.toggle", "synergy", "Synergies from the toolbar shows and hides the overlay in Classic and Detailed", "-", found and results.size() == 2 and not results.has(false),
+		"switch and overlay found %s, results %s" % [str(found), str(results)])
+
+
+## Disruptions view (#487): the toolbar's Disruptions switch turns the view on and off live, in Classic and in Detailed.
+func _disruption_cases() -> void:
+	var button := _toolbar.find_child("Disruptions", true, false) as CheckButton
+	var renderer := _main.find_child("TowerRenderer", true, false)
+	var overlay: Node = null
+	if renderer != null:
+		for child: Node in renderer.get_children():
+			if child is DisruptionOverlay:
+				overlay = child
+	var was := ViewSettingsScript.detailed_graphics
+	var found := button != null and overlay != null
+	var results: Array[bool] = []
+	if found:
+		for detailed: bool in [false, true]:
+			ViewSettingsScript.set_detailed_graphics(detailed)
+			await _frames(2)
+			button.button_pressed = true
+			await _frames(2)
+			var shown: bool = DisruptionLookScript.on and overlay._shown_on
+			button.button_pressed = false
+			await _frames(2)
+			results.append(shown and not DisruptionLookScript.on and not overlay._shown_on)
+	ViewSettingsScript.set_detailed_graphics(was)
+	_record("disruption.toggle", "disruption", "Disruptions from the toolbar shows and hides the view in Classic and Detailed", "-", found and results.size() == 2 and not results.has(false),
 		"switch and overlay found %s, results %s" % [str(found), str(results)])
 
 

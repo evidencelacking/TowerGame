@@ -10,6 +10,7 @@ const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const Ghost := preload("res://scripts/view/placement_ghost.gd")
 const SynergyLook := preload("res://scripts/view/synergy_look.gd")
 const HeatLook := preload("res://scripts/view/heat_look.gd")
+const DisruptionLook := preload("res://scripts/view/disruption_look.gd")
 const HudScript := preload("res://scripts/view/hud.gd")
 const TransportLook := preload("res://scripts/view/transport_look.gd")
 const ViewSettings := preload("res://scripts/view/view_settings.gd")
@@ -70,6 +71,7 @@ var _open_category: int = -1
 var _auto_fill: CheckButton  ## "Auto-fill floor" (#273): a view option, not saved in the tower.
 var _graphics: OptionButton  ## "Graphics: Classic / Detailed" (#301): a view option, not saved in the tower.
 var _synergies: CheckButton  ## "Synergies (Y)" (#294): the overlay filter, a view option never saved.
+var _disruptions: CheckButton  ## "Disruptions (I)" (#487): who suffers and why, a view option never saved.
 var _heat: Button  ## "Overlay: Off (H)" (#376): cycles the income and mood heat maps, a view option never saved.
 var _heat_legend: Control  ## The legend of the heat map, shown while one is on.
 var _see_through: CheckButton  ## "Elevators see-through" (#272): a view option, not saved in the tower.
@@ -82,6 +84,7 @@ var _new_items: Array[String] = []  ## Items a promotion just opened; marked unt
 func refresh_key_labels() -> void:
 	_see_through.text = "Elevators see-through (%s)" % KeyBindings.key_name("see_through")
 	_synergies.text = "Synergies (%s)" % KeyBindings.key_name("synergies")
+	_disruptions.text = "Disruptions (%s)" % KeyBindings.key_name("disruptions")
 	_sync_heat()
 	_shown_tool = "?"  # forces _refresh() on the next frame, which rewrites the item labels
 
@@ -149,9 +152,17 @@ func _ready() -> void:
 	_synergies.button_pressed = SynergyLook.on
 	_synergies.toggled.connect(func(value: bool) -> void: SynergyLook.on = value)
 	row.add_child(_synergies)
+	_disruptions = CheckButton.new()
+	_disruptions.name = "Disruptions"
+	_disruptions.text = "Disruptions (%s)" % KeyBindings.key_name("disruptions")
+	_disruptions.tooltip_text = "Tint each room red by how much it suffers from noise, harmful neighbours, distance and rent; rooms causing harm are outlined, hover a room to see why. View only."
+	_disruptions.focus_mode = Control.FOCUS_NONE
+	_disruptions.button_pressed = DisruptionLook.on
+	_disruptions.toggled.connect(func(value: bool) -> void: DisruptionLook.on = value)
+	row.add_child(_disruptions)
 	_heat = Button.new()
 	_heat.name = "HeatOverlay"
-	_heat.tooltip_text = "Cycle the heat maps: daily income per room (loss red to profit green), then mood. View only."
+	_heat.tooltip_text = "Cycle the heat maps: daily income, mood, lift traffic, rent level, grade, then hotel rooms. A legend shows the colours. View only."
 	_heat.focus_mode = Control.FOCUS_NONE
 	_heat.pressed.connect(cycle_heat)
 	row.add_child(_heat)
@@ -185,7 +196,7 @@ func _ready() -> void:
 	_refresh()
 
 
-## Steps the heat map Off, Income, Mood, Off (button and H key).
+## Steps the heat map Off, Income, Mood, Traffic, Rent, Grade, Hotel, Off (button and H key).
 func cycle_heat() -> void:
 	HeatLook.cycle()
 	_sync_heat()
@@ -211,6 +222,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif key != null and key.pressed and not key.echo and KeyBindings.is_key(key, "synergies") and not key.ctrl_pressed and not key.alt_pressed:
 		_synergies.button_pressed = not _synergies.button_pressed
+		get_viewport().set_input_as_handled()
+	elif key != null and key.pressed and not key.echo and KeyBindings.is_key(key, "disruptions") and not key.ctrl_pressed and not key.alt_pressed:
+		_disruptions.button_pressed = not _disruptions.button_pressed
 		get_viewport().set_input_as_handled()
 	elif key != null and key.pressed and not key.echo and KeyBindings.is_key(key, "heat") and not key.ctrl_pressed and not key.alt_pressed:
 		cycle_heat()
