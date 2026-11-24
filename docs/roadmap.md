@@ -55,7 +55,7 @@ systems, and then becomes our own.
 | M6 | Hotel and commerce | Hotels, food, shops, cleaning, pests, daily income | Yes |
 | M7 | Stars and services | Star rules; security, medical, recycling, parking | Yes: **2 to 3 stars** |
 | M8 | Big-tower transport | Sky lobbies, express, service, escalators, elevator panel | Yes: **3 to 4 stars** |
-| M9 | Events | Fire, threat, VIP, treasure, rain, seasonal fly-past | Yes |
+| M9 | Events | Fire, threat, VIP, treasure, rain, seasonal fly-past, burst pipe, stuck elevator, street festival | Yes |
 | M10 | Look, sound and UI | Original art, name, sound, overview map, quality-of-life tools | Yes |
 | M11 | Full game | Theatre, party hall, metro, cathedral, wedding, tutorial, release build | **Full run to the top rank** |
 | M12+ | Make it our own | Owner-picked changes from the ideas list | Per change |
