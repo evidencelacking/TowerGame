@@ -84,7 +84,7 @@ static func add_senior(t: Object, room: int) -> int:
 
 ## True if an assisted-living room has space for another resident.
 static func has_place(t: Object, room: int) -> bool:
-	return t.rooms.kind_of(room) == ASSISTED and t.people.homes_in(room) < t.rooms.people_in(room)
+	return t.rooms.kind_of(room) == ASSISTED and not t.rooms.is_charred(room) and t.people.homes_in(room) < t.rooms.people_in(room)
 
 
 ## One apartment's departures on its own: finds the residents and the stress tables itself. For tests; daily shares them.
