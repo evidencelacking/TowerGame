@@ -26,12 +26,10 @@ const POSE_STAIRS := 1
 const POSE_ESCALATOR := 2
 
 const TENANT_TICKS := 6
-const FLAG_KNOWN := 1  ## Per room while figures() runs: someone resting there was met,
-const FLAG_VISIBLE := 2  ## the room touches the area figures are built for,
-const FLAG_USED := 4  ## someone there is awake,
-const FLAG_ASLEEP := 8  ## someone there is asleep,
-const FLAG_TENANT := 16  ## the room has a tenant, so it may join a suite,
-const FLAG_LIVE := 32  ## someone in its suite (or it alone) is drawn: turns there are counted.
+const MODE_NONE := 0  ## Per person: not drawn,
+const MODE_OTHER := 1  ## drawn by someone else (in an elevator) or in no room that exists,
+const MODE_MOVING := 2  ## moving: a figure every call,
+const MODE_RESTING := 3  ## resting in a room: on that room's list.
 
 ## Routes already found, keyed by trip ends; the caller keeps it and it is cleared when the
 ## floors or rooms change (see tower_renderer.gd).
@@ -51,6 +49,49 @@ var _p_work := PackedInt32Array()
 var _p_key := PackedInt32Array()
 var _p_act := PackedInt32Array()
 var _p_valid := PackedInt32Array()
+## Kept per person so that a call works out only who changed (#451): what the row looked like (rooms, goal,
+## state, mood band), the pass that last saw them, how they are kept (MODE_*), the room list they are on (-1
+## for none), their mood band, the activity key without its staying and night bits, and their Seen.
+var _p_sig := PackedInt64Array()
+var _p_stamp := PackedInt32Array()
+var _p_mode := PackedInt32Array()
+var _p_in := PackedInt32Array()
+var _p_band := PackedInt32Array()
+var _p_base := PackedInt32Array()
+var _p_seen: Array[Seen] = []
+var _synced: bool = false  ## The per-person arrays match the sim's people list as of _count and _next_id.
+var _count: int = 0
+var _next_id: int = 0
+var _night: bool = false
+var _pass: int = 0
+var _tracked: int = 0  ## People with a mode other than MODE_NONE.
+var _moving: Dictionary = {}  ## Person index -> true, for those moving.
+var _hotel: Dictionary = {}  ## Person index -> true, for those resting in a hotel room.
+var _rp: Dictionary = {}  ## Room id -> Array[int] of the resting people's indexes there, in the sim's order.
+var _r_n := PackedInt32Array()  ## Per room id: how many rest there, how many of them are awake, how many asleep.
+var _r_ver := PackedInt32Array()  ## Per room id: counts the times someone there came, went or changed activity.
+var _seat_figs: Dictionary = {}  ## Room (or first room of a suite) -> [its versions and shape, the area it was placed for, its figures in turn order, and whose they are].
+var _vis_epoch: int = 0  ## Counts the times the rooms on the area were chosen again.
+var _r_used := PackedInt32Array()
+var _r_sleep := PackedInt32Array()
+var _used_set: Dictionary = {}  ## Rooms with someone awake resting in them, and rooms with someone asleep.
+var _asleep_set: Dictionary = {}
+var _room_runs: Dictionary = {}  ## Room id -> run, for each room someone has rested in since the last reset.
+var _met_version: int = 0  ## Counts the times a room gained its first or lost its last resting person.
+var _vis_area := Rect2()
+var _vis_known: int = -1
+var _vis_rooms: Array[int] = []  ## Rooms in _room_runs touching _vis_area, and the same as a set.
+var _vis_set: Dictionary = {}
+var _suite_met: int = -1  ## What the suites below were joined for: _met_version and the tenants.
+var _suite_tenants: int = -1
+var _suite_of: Dictionary = {}  ## Room id -> [left px, width px, first room of the suite], for joined rooms.
+var _suite_rooms: Dictionary = {}  ## First room of a suite -> its rooms in order.
+var _t_room := PackedInt32Array()  ## The tenanted rooms in floor-then-left order, with their floor row, left and width px.
+var _t_floor := PackedInt32Array()
+var _t_left := PackedInt32Array()
+var _t_width := PackedInt32Array()
+var _t_kind: Array[String] = []
+var _tenanted_made: int = 0  ## Counts the times _tenanted was made.
 
 ## Rooms with someone resting in them, and rooms where someone resting is asleep, from the last figures()
 ## call: they cover everyone, culled or not (the renderer lights rooms by them).
@@ -145,131 +186,423 @@ static func _leg_weight(leg: Dictionary) -> int:
 ## area (world pixels; empty for everyone) limits the resting figures to rooms touching it (#451): the
 ## rest are skipped, but still take their turn at a spot so the ones kept sit where they always did.
 ## Moving figures are all kept, so they glide in from where they were. in_use and asleep are filled for
-## everyone, culled or not.
+## everyone, culled or not. Figures come out in the sim's person order, then the housekeepers.
+## Nothing here works everyone out each call: one light pass over the sim's rows compares each person with
+## the last call, and only those who changed are worked out again (#451). The room lists, light counts and
+## spot turns are kept from that, so a call costs what moved plus what is on the area.
 func figures(tower: Object, area: Rect2 = Rect2()) -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
 	var people: PeopleScript = tower.people
 	_forget_if_stale(tower)
-	if _p_id.size() < people.count():  # grow the per-person arrays to the head count; a new slot knows no one
-		var old := _p_id.size()
-		_p_id.resize(people.count())
-		_p_room.resize(people.count())
-		_p_work.resize(people.count())
-		_p_key.resize(people.count())
-		_p_act.resize(people.count())
-		_p_valid.resize(people.count())
-		for k in range(old, _p_id.size()):
-			_p_id[k] = -1
-	var cull := area.size != Vector2.ZERO
-	var left := area.position.x
-	var right := area.end.x
-	var top := area.position.y
-	var bottom := area.end.y
-	var flags := PackedByteArray()  # per room id: FLAG_* bits, grown as rooms are met
-	flags.resize(_room_cap)
-	var entries: Array = []  # one per room with someone resting, for Suites.groups
-	var seq_room := PackedInt32Array()  # every resting person in order: their room
-	var seq_slot := PackedInt32Array()  # ... and their place in the s_* arrays, or -1 when culled
-	var s_seen: Array[Seen] = []
-	var s_id := PackedInt32Array()
-	var s_act := PackedInt32Array()
-	var s_band := PackedInt32Array()
-	var s_out := PackedInt32Array()
+	_sync_people(people)
 	var minute: int = tower.clock.minute_of_day()
 	var night := ActivityLook.is_night(minute)
-	var tenanted := _tenanted_rooms(tower)
-	var met := PackedInt32Array()  # every room with someone resting
+	if night != _night:  # every activity key holds the night bit: work everyone out again
+		_night = night
+		_p_sig.fill(-1)
+	_pass += 1
 	var rows := people.drawn_rows()
+	var row_count := rows.size() / PeopleScript.DRAWN_ROW
 	for at: int in range(0, rows.size(), PeopleScript.DRAWN_ROW):
-		var state := rows[at + 2]
-		if state == PeopleScript.TRIP_RIDING:
-			continue  # queued at a shaft or riding: elevator_view draws the queue and the car's load
 		var i := rows[at]
-		var id := rows[at + 1]
-		if _p_id[i] != id:  # a new person at this index: nothing is known of them
-			_p_id[i] = id
-			_p_room[i] = -2
-			_p_work[i] = -2
-			_p_key[i] = -1
-		if state == PeopleScript.TRIP_MOVING:
-			var spot := _moving_spot(tower, i)
-			if not spot.is_empty():
-				var mover := _seen_of(id)
-				_read_look(tower, people, i, mover)
-				var figure := {"id": id, "floor": spot["floor"], "x": roundi(spot["fx"]), "fx": spot["fx"], "frow": spot["frow"],
-					"pose": spot["pose"], "band": PeopleScript.band_of(rows[at + 6]), "moving": true}
-				figure.merge(mover.look, true)
-				out.append(figure)
+		var stress := rows[at + 6]
+		var band := 2 if stress > PeopleScript.ANGRY_OVER else (1 if stress >= PeopleScript.UNEASY_FROM else 0)
+		var sig := ((((((rows[at + 3] + 1) << 24 | (rows[at + 4] + 1)) << 4 | (rows[at + 5] + 1)) << 2) | rows[at + 2]) << 2) | band
+		_p_stamp[i] = _pass
+		if _p_sig[i] == sig:
 			continue
-		var room := rows[at + 3]
-		var work := rows[at + 4]
-		if _p_room[i] != room or _p_work[i] != work:
-			var changed := _seen_of(id)
-			if changed.room != room or changed.work != work:
-				_read_room(tower, people, i, changed)
-			_p_room[i] = room
-			_p_work[i] = work
-			_p_key[i] = -1
-			_p_valid[i] = 0 if changed.run.is_empty() else (2 if changed.hotel else 1)
-		var valid := _p_valid[i]
-		if valid == 0:
+		_p_sig[i] = sig
+		_apply(tower, people, rows, at, band, minute, night)
+	if _tracked != row_count:  # someone drawn last time is not any more
+		for i: int in _p_mode.size():
+			if _p_mode[i] != MODE_NONE and _p_stamp[i] != _pass:
+				_drop(i)
+	_recheck_hotel(tower, minute)
+	_keep_suites(tower)
+	_keep_visible(area)
+	var figs: Array[Dictionary] = []
+	var order := PackedInt64Array()  # person index << 24 | place in figs, sorted to give the sim's order
+	_place_rooms(figs, order)
+	for i: int in _moving:
+		var id := _p_id[i]
+		var spot := _moving_spot(tower, i)
+		if spot.is_empty():
 			continue
-		var staying: bool = valid == 2 and tower.hotel.state_of(room) == HotelScript.STAYING
-		var works_here := work == room
-		var goal := rows[at + 5]
-		var waiting := state == PeopleScript.TRIP_REQUESTED
-		var act_key := ((((goal + 1) * 2 + int(works_here)) * 2 + int(waiting)) * 2 + int(staying)) * 2 + int(night)
-		if act_key != _p_key[i]:
-			_p_key[i] = act_key
-			_p_act[i] = ActivityLook.classify(_seen_of(id).kind, works_here, goal, staying, minute, waiting)
-		var act := _p_act[i]
-		if room >= flags.size():
-			flags.resize(room + 64)
-		var flag := flags[room]
-		if flag == 0:  # the first resting person met in this room
-			var first := _seen_of(id)
-			var run := first.run
-			var x0 := run[1] * VC.CELL_W
-			var y0 := VC.floor_to_row(run[0]) * VC.CELL_H
-			met.append(room)
-			flag = FLAG_KNOWN
-			if tenanted.has(room):  # only tenanted rooms can join into suites
-				flag |= FLAG_TENANT
-				entries.append({"key": VC.floor_to_row(run[0]), "x": x0, "w": run[2] * VC.CELL_W, "kind": first.kind, "in_use": true, "room": room})
-			if not cull or (x0 < right and x0 + run[2] * VC.CELL_W > left and y0 < bottom and y0 + VC.CELL_H > top):
-				flag |= FLAG_VISIBLE
-		flags[room] = flag | (FLAG_ASLEEP if act == ActivityLook.SLEEPING else FLAG_USED)
-		if not flag & (FLAG_VISIBLE | FLAG_TENANT):
-			continue  # off the area and in no suite: nobody's turn depends on this person
-		seq_room.append(room)
-		if flag & FLAG_VISIBLE:
-			seq_slot.append(s_id.size())
-			s_seen.append(_seen_of(id))
-			s_id.append(id)
-			s_act.append(act)
-			s_band.append(PeopleScript.band_of(rows[at + 6]))
-			s_out.append(out.size())
-			out.append({})  # filled in below, once the suites are known
-		else:
-			seq_slot.append(-1)
-	_room_cap = maxi(_room_cap, flags.size())
-	var used: Dictionary = {}
-	var sleeping: Dictionary = {}
-	for room_id: int in met:
-		var bits := flags[room_id]
-		if bits & FLAG_USED:
-			used[room_id] = true
-		if bits & FLAG_ASLEEP:
-			sleeping[room_id] = true
-	if not seq_room.is_empty():
-		_place_resting(out, seq_room, seq_slot, s_seen, s_id, s_act, s_band, s_out, entries, met, flags)
+		var mover := _seen_of(id)
+		_read_look(tower, people, i, mover)
+		var figure := {"id": id, "floor": spot["floor"], "x": roundi(spot["fx"]), "fx": spot["fx"], "frow": spot["frow"],
+			"pose": spot["pose"], "band": _p_band[i], "moving": true}
+		figure.merge(mover.look, true)
+		order.append(i << 24 | figs.size())
+		figs.append(figure)
+	order.sort()
+	var out: Array[Dictionary] = []
+	out.resize(order.size())
+	for n: int in order.size():
+		out[n] = figs[order[n] & 0xFFFFFF]
+	var used := _used_set.duplicate()  # copies: the renderer reads them at its own pace
 	var staff := _cleaners(tower)
 	for cleaner: Dictionary in staff:
 		used[cleaner["id"]] = true
 	out.append_array(staff)
 	in_use = used
-	asleep = sleeping
+	asleep = _asleep_set.duplicate()
 	return out
+
+
+## Sizes the per-person arrays to the head count. People added at the end (the ids and the count grew
+## together) keep what is known of everyone else; any other change (a removal shifts the indexes) starts over.
+func _sync_people(people: PeopleScript) -> void:
+	var n := people.count()
+	var next := people.next_id()
+	if _synced and n >= _count and n - _count == next - _next_id:
+		if n > _count:
+			_resize_people(n)
+	else:
+		_reset_people()
+		_resize_people(n)
+		_synced = true
+	_count = n
+	_next_id = next
+
+
+func _resize_people(n: int) -> void:
+	var old := _p_id.size()
+	_p_id.resize(n)
+	_p_room.resize(n)
+	_p_work.resize(n)
+	_p_key.resize(n)
+	_p_act.resize(n)
+	_p_valid.resize(n)
+	_p_sig.resize(n)
+	_p_stamp.resize(n)
+	_p_mode.resize(n)
+	_p_in.resize(n)
+	_p_band.resize(n)
+	_p_base.resize(n)
+	_p_seen.resize(n)
+	for k in range(old, n):
+		_p_id[k] = -1
+		_p_sig[k] = -1
+		_p_in[k] = -1
+		_p_mode[k] = MODE_NONE
+		_p_stamp[k] = 0
+
+
+## Forgets everything kept per person and per room.
+func _reset_people() -> void:
+	_p_id.clear()
+	_p_room.clear()
+	_p_work.clear()
+	_p_key.clear()
+	_p_act.clear()
+	_p_valid.clear()
+	_p_sig.clear()
+	_p_stamp.clear()
+	_p_mode.clear()
+	_p_in.clear()
+	_p_band.clear()
+	_p_base.clear()
+	_p_seen.clear()
+	_tracked = 0
+	_moving.clear()
+	_hotel.clear()
+	_rp.clear()
+	_r_n.clear()
+	_r_ver.clear()
+	_seat_figs.clear()
+	_r_used.clear()
+	_r_sleep.clear()
+	_used_set.clear()
+	_asleep_set.clear()
+	_room_runs.clear()
+	_met_version += 1
+	_vis_known = -1
+	_suite_met = -1
+	_suite_tenants = -1
+
+
+## Works out the person at rows[at], whose state, rooms, goal or mood band differ from the last call: where
+## they are kept now (moving, resting on a room's list, or nowhere).
+func _apply(tower: Object, people: PeopleScript, rows: PackedInt32Array, at: int, band: int, minute: int, night: bool) -> void:
+	var i := rows[at]
+	var id := rows[at + 1]
+	var state := rows[at + 2]
+	match _p_mode[i]:
+		MODE_NONE:
+			_tracked += 1
+		MODE_MOVING:
+			_moving.erase(i)
+		MODE_RESTING:
+			_unlist(i)
+	if _p_id[i] != id:  # a new person at this index: nothing is known of them
+		_p_id[i] = id
+		_p_room[i] = -2
+		_p_work[i] = -2
+		_p_key[i] = -1
+	_p_band[i] = band
+	if state == PeopleScript.TRIP_RIDING:
+		_p_mode[i] = MODE_OTHER  # queued at a shaft or riding: elevator_view draws the queue and the car's load
+		return
+	if state == PeopleScript.TRIP_MOVING:
+		_p_mode[i] = MODE_MOVING
+		_moving[i] = true
+		return
+	var room := rows[at + 3]
+	var work := rows[at + 4]
+	if _p_room[i] != room or _p_work[i] != work:
+		var changed := _seen_of(id)
+		if changed.room != room or changed.work != work:
+			_read_room(tower, people, i, changed)
+		_p_room[i] = room
+		_p_work[i] = work
+		_p_key[i] = -1
+		_p_valid[i] = 0 if changed.run.is_empty() else (2 if changed.hotel else 1)
+	var valid := _p_valid[i]
+	if valid == 0:
+		_p_mode[i] = MODE_OTHER
+		return
+	var seen := _seen_of(id)
+	var staying: bool = valid == 2 and tower.hotel.state_of(room) == HotelScript.STAYING
+	var goal := rows[at + 5]
+	var works_here := work == room
+	var waiting := state == PeopleScript.TRIP_REQUESTED
+	_p_base[i] = ((goal + 1) * 2 + int(works_here)) * 2 + int(waiting)
+	var act_key := (_p_base[i] * 2 + int(staying)) * 2 + int(night)
+	if act_key != _p_key[i]:
+		_p_key[i] = act_key
+		_p_act[i] = ActivityLook.classify(seen.kind, works_here, goal, staying, minute, waiting)
+	_p_seen[i] = seen
+	_p_mode[i] = MODE_RESTING
+	_list(i, room, seen)
+	if valid == 2:
+		_hotel[i] = true
+
+
+## A person no longer drawn: forget where they were kept.
+func _drop(i: int) -> void:
+	match _p_mode[i]:
+		MODE_MOVING:
+			_moving.erase(i)
+		MODE_RESTING:
+			_unlist(i)
+	_p_mode[i] = MODE_NONE
+	_p_sig[i] = -1
+	_tracked -= 1
+
+
+## Adds resting person i to their room's list (by index, so the list is in the sim's order) and counts them
+## towards the room's lights by their activity.
+func _list(i: int, room: int, seen: Seen) -> void:
+	if room >= _r_n.size():
+		var grown := room + 64
+		_r_ver.resize(grown)
+		_r_n.resize(grown)
+		_r_used.resize(grown)
+		_r_sleep.resize(grown)
+	var list: Array[int] = _rp.get(room, [] as Array[int])
+	if list.is_empty():
+		_rp[room] = list
+	list.insert(list.bsearch(i), i)
+	_p_in[i] = room
+	if not _room_runs.has(room):
+		_room_runs[room] = seen.run
+	_r_n[room] += 1
+	if _r_n[room] == 1:
+		_met_version += 1
+	_count_act(room, _p_act[i], 1)
+
+
+func _unlist(i: int) -> void:
+	var room := _p_in[i]
+	var list: Array[int] = _rp[room]
+	list.remove_at(list.bsearch(i))
+	_p_in[i] = -1
+	_hotel.erase(i)
+	_r_n[room] -= 1
+	if _r_n[room] == 0:
+		_met_version += 1
+	_count_act(room, _p_act[i], -1)
+
+
+## Adds delta resting people doing act to the room's lights: awake ones light it, sleeping ones darken it.
+func _count_act(room: int, act: int, delta: int) -> void:
+	_r_ver[room] += 1
+	if act == ActivityLook.SLEEPING:
+		_r_sleep[room] += delta
+		if _r_sleep[room] > 0:
+			_asleep_set[room] = true
+		else:
+			_asleep_set.erase(room)
+	else:
+		_r_used[room] += delta
+		if _r_used[room] > 0:
+			_used_set[room] = true
+		else:
+			_used_set.erase(room)
+
+
+## Guests come and go without their row changing, so each resting guest's activity is looked at every call.
+func _recheck_hotel(tower: Object, minute: int) -> void:
+	for i: int in _hotel:
+		var room := _p_in[i]
+		var staying: bool = tower.hotel.state_of(room) == HotelScript.STAYING
+		var act_key := (_p_base[i] * 2 + int(staying)) * 2 + int(_night)
+		if act_key == _p_key[i]:
+			continue
+		_p_key[i] = act_key
+		var seen := _p_seen[i]
+		var goal := _p_base[i] / 4 - 1
+		var works_here := (_p_base[i] / 2) % 2 == 1
+		var act := ActivityLook.classify(seen.kind, works_here, goal, staying, minute, _p_base[i] % 2 == 1)
+		if act != _p_act[i]:
+			_count_act(room, _p_act[i], -1)
+			_p_act[i] = act
+			_count_act(room, act, 1)
+
+
+## Joins the tenanted rooms with someone resting into suites (Suites.groups, #276), again only when the
+## tenants or the rooms with someone resting changed.
+func _keep_suites(tower: Object) -> void:
+	var tenanted := _tenanted_rooms(tower)
+	if _suite_tenants != _tenanted_made:
+		_suite_tenants = _tenanted_made
+		var packed := PackedInt64Array()
+		for room: int in tenanted:
+			var run: Array[int] = tower.grid.run_of(room)
+			if not run.is_empty():  # floor row, left px, room: sorted as the entries are, floor then left
+				packed.append(((VC.floor_to_row(run[0]) + (1 << 20)) << 42) | ((run[1] * VC.CELL_W) << 21) | room)
+		packed.sort()
+		_t_room.resize(packed.size())
+		_t_floor.resize(packed.size())
+		_t_left.resize(packed.size())
+		_t_width.resize(packed.size())
+		_t_kind.clear()
+		for n: int in packed.size():
+			var room := (packed[n] & 0x1FFFFF) as int
+			var run: Array[int] = tower.grid.run_of(room)
+			_t_room[n] = room
+			_t_floor[n] = VC.floor_to_row(run[0])
+			_t_left[n] = run[1] * VC.CELL_W
+			_t_width[n] = run[2] * VC.CELL_W
+			_t_kind.append(tower.rooms.kind_of(room))
+		_suite_met = -1
+	if _suite_met == _met_version:
+		return
+	_suite_met = _met_version
+	_suite_of.clear()
+	_suite_rooms.clear()
+	var group: Array[int] = []
+	for n: int in _t_room.size():
+		var room := _t_room[n]
+		if room >= _r_n.size() or _r_n[room] <= 0:
+			continue
+		if not group.is_empty():
+			var before: int = group[group.size() - 1]
+			if _t_floor[before] == _t_floor[n] and _t_left[before] + _t_width[before] == _t_left[n] \
+					and _t_kind[before] == _t_kind[n] and Suites.joins(_t_kind[n]):
+				group.append(n)
+				continue
+			_close_suite(group)
+		group = [n]
+	_close_suite(group)
+
+
+func _close_suite(group: Array[int]) -> void:
+	if group.size() < 2:
+		return
+	var last: int = group[group.size() - 1]
+	var left: int = _t_left[group[0]]
+	var seat: int = _t_room[group[0]]
+	var rooms: Array[int] = []
+	for n: int in group:
+		_suite_of[_t_room[n]] = [left, _t_left[last] + _t_width[last] - left, seat]
+		rooms.append(_t_room[n])
+	_suite_rooms[seat] = rooms
+
+
+## The rooms known so far that touch the area (all of them when it is empty), again only when the area or
+## the rooms known changed.
+func _keep_visible(area: Rect2) -> void:
+	if _vis_known == _room_runs.size() and _vis_area == area:
+		return
+	_vis_known = _room_runs.size()
+	_vis_area = area
+	_vis_epoch += 1
+	_vis_rooms.clear()
+	_vis_set.clear()
+	var cull := area.size != Vector2.ZERO
+	for room: int in _room_runs:
+		var run: Array[int] = _room_runs[room]
+		var x0 := run[1] * VC.CELL_W
+		var y0 := VC.floor_to_row(run[0]) * VC.CELL_H
+		if not cull or (x0 < area.end.x and x0 + run[2] * VC.CELL_W > area.position.x and y0 < area.end.y and y0 + VC.CELL_H > area.position.y):
+			_vis_rooms.append(room)
+			_vis_set[room] = true
+
+
+## Places the resting figures of the rooms on the area: each takes the next spot of its room, or of its
+## suite when neighbouring rooms of one kind are all in use and draw as one (#276). A suite counts its
+## turns across all its rooms in the sim's order, those off the area included, so the ones drawn sit where
+## they would with everyone drawn.
+func _place_rooms(figs: Array[Dictionary], order: PackedInt64Array) -> void:
+	var done: Dictionary = {}
+	for room: int in _vis_rooms:
+		if room >= _r_n.size() or _r_n[room] <= 0:
+			continue
+		var joined: Variant = _suite_of.get(room)
+		var suite: Array = [] if joined == null else joined
+		var seat: int = room if joined == null else suite[2]
+		if done.has(seat):
+			continue
+		done[seat] = true
+		var members: Array[int] = [room]
+		if joined != null:
+			members = _suite_rooms[seat]
+		var stamp := _r_ver[room] if joined == null else 0
+		if joined != null:  # moves when anyone in any room of the suite changes
+			for member: int in members:
+				if member < _r_ver.size():
+					stamp += _r_ver[member]
+		var shape := 0 if joined == null else (suite[0] as int) * 65536 + (suite[1] as int) + 1
+		var kept: Array = _seat_figs.get(seat, [])
+		if kept.is_empty() or kept[0] != stamp or kept[1] != shape or kept[2] != _vis_epoch:
+			var everyone: Array[int] = []
+			for member: int in members:
+				if member < _r_n.size() and _r_n[member] > 0:
+					everyone.append_array(_rp[member] as Array[int])
+			if joined != null:
+				everyone.sort()
+			var placed: Array[Dictionary] = []
+			var scratch := PackedInt64Array()
+			var who := PackedInt32Array()
+			for turn: int in everyone.size():
+				var at_room := _p_in[everyone[turn]]
+				if _vis_set.has(at_room):
+					_place(placed, scratch, everyone[turn], turn, at_room, suite)
+					who.append(everyone[turn])
+			kept = [stamp, shape, _vis_epoch, placed, who]
+			_seat_figs[seat] = kept
+		var here: Array[Dictionary] = kept[3]
+		var who_here: PackedInt32Array = kept[4]
+		for n: int in here.size():
+			order.append(who_here[n] << 24 | figs.size())
+			figs.append(here[n])
+
+
+func _place(figs: Array[Dictionary], order: PackedInt64Array, i: int, turn: int, room: int, suite: Array) -> void:
+	var seen := _p_seen[i]
+	var band := _p_band[i]
+	var act := _p_act[i]
+	var suite_key := 0
+	if not suite.is_empty():
+		suite_key = (suite[0] as int) * 65536 + (suite[1] as int) + 1
+	var key := ((turn * 16 + act) * 4 + band) * 4294967296 + suite_key
+	if seen.place_key != key:  # a person whose turn, activity, mood and suite are as before keeps the figure
+		seen.place_key = key
+		seen.figure = _resting(seen.run, _p_id[i], seen.kind, act, turn, band, seen.column, room, suite)
+		seen.figure.merge(seen.look, true)
+	order.append(i << 24 | figs.size())
+	figs.append(seen.figure)
 
 
 ## The tenanted rooms (Suites.tenanted_rooms), kept for TENANT_TICKS: they change when staff are hired or a
@@ -279,6 +612,7 @@ func _tenanted_rooms(tower: Object) -> Dictionary:
 		_tenanted = Suites.tenanted_rooms(tower)
 		_tenanted_key = _seen_key
 		_tenanted_tick = tower.tick
+		_tenanted_made += 1
 	return _tenanted
 
 
@@ -300,12 +634,7 @@ func _forget_if_stale(tower: Object) -> void:
 	if key != _seen_key or tower.tick < _seen_tick or _seen.size() > 2 * tower.people.count() + 64:
 		_seen.clear()
 		_seen_key = key
-		_p_id.clear()
-		_p_room.clear()
-		_p_work.clear()
-		_p_key.clear()
-		_p_act.clear()
-		_p_valid.clear()
+		_synced = false
 	_seen_tick = tower.tick
 
 
@@ -338,54 +667,6 @@ func _read_look(tower: Object, people: PeopleScript, i: int, seen: Seen) -> void
 static func _look_of(tower: Object, people: PeopleScript, i: int) -> Dictionary:
 	var id: int = people.id_at(i)
 	return {"age": tower.life.age_band_of(tower, id), "child": tower.life.is_child(id), "job": tower.rooms.kind_of(people.work_of(i))}
-
-
-## Places the resting figures: each takes the next spot of its room, or of its suite when neighbouring
-## rooms of one kind are all in use and draw as one (#276). seq_room and seq_slot list every resting person
-## in order (their room, and their place in the p_* arrays or -1 when culled); each person takes a turn
-## even when culled, so the others sit where they would with everyone drawn. entries is one per room for
-## Suites.groups.
-static func _place_resting(out: Array[Dictionary], seq_room: PackedInt32Array, seq_slot: PackedInt32Array, p_seen: Array[Seen], p_id: PackedInt32Array, p_act: PackedInt32Array, p_band: PackedInt32Array, p_out: PackedInt32Array, entries: Array, met: PackedInt32Array, flags: PackedByteArray) -> void:
-	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["key"] < b["key"] or (a["key"] == b["key"] and a["x"] < b["x"]))
-	var suite_of: Dictionary = {}  # room id -> [left px, width px, first room of the suite]
-	for group: Array[int] in Suites.groups(entries):
-		var bounds := Suites.span(entries, group)
-		for index: int in group:
-			suite_of[(entries[index] as Dictionary)["room"]] = [bounds[0], bounds[1], (entries[group[0]] as Dictionary)["room"]]
-	var live: Dictionary = {}  # seat -> true when someone there is drawn: only these seats need turns counted
-	for room_id: int in met:
-		if flags[room_id] & FLAG_VISIBLE:
-			var shared: Array = suite_of.get(room_id, [])
-			live[room_id if shared.is_empty() else shared[2]] = true
-	for room_id: int in met:
-		var shared: Array = suite_of.get(room_id, [])
-		if live.has(room_id if shared.is_empty() else shared[2]):
-			flags[room_id] |= FLAG_LIVE
-	var turns: Dictionary = {}  # room (or a suite's first room) -> people placed there so far
-	for n: int in seq_room.size():
-		var room := seq_room[n]
-		if not flags[room] & FLAG_LIVE:
-			continue
-		var joined: Variant = suite_of.get(room)
-		var suite: Array = [] if joined == null else joined
-		var seat: int = room if joined == null else suite[2]
-		var turn: int = turns.get(seat, 0)
-		turns[seat] = turn + 1
-		var slot := seq_slot[n]
-		if slot < 0:
-			continue
-		var seen := p_seen[slot]
-		var band := p_band[slot]
-		var act := p_act[slot]
-		var suite_key := 0
-		if not suite.is_empty():
-			suite_key = (suite[0] as int) * 65536 + (suite[1] as int) + 1
-		var key := ((turn * 16 + act) * 4 + band) * 4294967296 + suite_key
-		if seen.place_key != key:  # a person whose turn, activity, mood and suite are as before keeps the figure
-			seen.place_key = key
-			seen.figure = _resting(seen.run, p_id[slot], seen.kind, act, turn, band, seen.column, room, suite)
-			seen.figure.merge(seen.look, true)
-		out[p_out[slot]] = seen.figure
 
 
 ## A resting figure of a run [floor, column, width, ...] doing `act`, placed on a spot of its room.
