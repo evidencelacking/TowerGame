@@ -136,6 +136,7 @@ var _riders: Array = []  # per car: its riders, each [person id, destination flo
 var _stops: Array = []  # per car: floors it still has to stop at for its riders
 var _heading: Array[int] = []  # per car: the direction it is serving (UP, DOWN or 0)
 var _queue: Array = []  # people waiting for a car: [person id, shaft id, floor, destination], arrival order
+var _queue_ids: Dictionary = {}  # person id -> true for everyone in _queue (a person is queued once), so join_queue does not scan it
 var alighted: Array = []  # [person id, floor] of recent alighters until #95 takes them with take_alighted()
 ## Set by Tower so an express shaft can tell which floors are lobbies (its only stops above ground).
 var floors: FloorsScript = null
@@ -972,6 +973,7 @@ func resize_shaft(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, 
 			CarsScript.idle(car)
 	for n in range(_queue.size() - 1, -1, -1):
 		if _queue[n][1] == id and not is_stop(id, _queue[n][2]):
+			_queue_ids.erase(_queue[n][0])
 			_queue.remove_at(n)
 	for n in range(_calls.size() - 1, -1, -1):
 		if _calls[n][CarsScript.CALL_SHAFT] == id:
@@ -1134,6 +1136,7 @@ func set_shaft_stop(id: int, floor_number: int, on: bool) -> int:
 				_calls.remove_at(n)
 		for n in range(_queue.size() - 1, -1, -1):
 			if _queue[n][1] == id and _queue[n][2] == floor_number:
+				_queue_ids.erase(_queue[n][0])
 				_queue.remove_at(n)
 	return OK
 
@@ -1187,12 +1190,12 @@ func join_queue(person_id: int, shaft_id: int, floor_number: int, dest_floor: in
 		return NOT_A_STOP
 	if floor_number == dest_floor:
 		return BAD_CALL
-	for entry: Array in _queue:
-		if entry[0] == person_id:
-			return BAD_CALL
+	if _queue_ids.has(person_id):
+		return BAD_CALL
 	var result := place_call(shaft_id, floor_number, CarsScript.dir_to(floor_number, dest_floor))
 	if result == OK:
 		_queue.append([person_id, shaft_id, floor_number, dest_floor])
+		_queue_ids[person_id] = true
 	return result
 
 
@@ -1370,6 +1373,7 @@ func _remove_occupants(grid: GridScript, floors: FloorsScript, id: int) -> void:
 				_calls.remove_at(n)
 		for n in range(_queue.size() - 1, -1, -1):
 			if _queue[n][1] == id:
+				_queue_ids.erase(_queue[n][0])
 				_queue.remove_at(n)
 		for i in int(info[0]):
 			for column in range(info[2], info[2] + width):
@@ -1650,8 +1654,10 @@ func load_ints(ints: Array) -> bool:
 		_calls.append(ints.slice(at + 1 + 4 * i, at + 5 + 4 * i))
 	at += 1 + 4 * _calls.size()
 	_queue = []
+	_queue_ids = {}
 	for i in range(ints[at]):
 		_queue.append(ints.slice(at + 1 + 4 * i, at + 5 + 4 * i))
+		_queue_ids[_queue[-1][0]] = true
 	at += 1 + 4 * _queue.size()
 	_riders = []
 	_stops = []

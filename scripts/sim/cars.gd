@@ -309,6 +309,7 @@ static func _exchange(rooms: RefCounted, n: int) -> void:
 		if entry[1] == car[SHAFT] and entry[2] == floor_number and dir_to(floor_number, entry[3]) == dir:
 			riders.append([entry[0], entry[3]])
 			rooms.add_car_stop(n, entry[3])
+			rooms._queue_ids.erase(entry[0])
 			rooms._queue.remove_at(q)
 		else:
 			q += 1
