@@ -495,7 +495,7 @@ func _dig_treasure() -> void:
 	var spot := treasure_spot()
 	if weather.treasure_due(spot, floors):
 		weather.treasure_found = true
-		ledger.refund(tick, WeatherScript.TREASURE_PAYS, spot.y)
+		ledger.windfall(tick, WeatherScript.TREASURE_PAYS, spot.y)
 		messages.add(tick, MessagesScript.TREASURE_FOUND, spot.y, WeatherScript.TREASURE_PAYS)
 
 
