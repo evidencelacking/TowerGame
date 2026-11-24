@@ -69,7 +69,6 @@ var _level: int = LEVEL_NONE
 var _armed: bool = false
 var _year: int = 0
 var _count: int = 0
-var _last_minute: int = -1  ## Derived: the minute queue stress was last added.
 
 
 func _init(rooms: RoomsScript) -> void:
@@ -185,10 +184,8 @@ func _begin(events: EventsScript, messages: MessagesScript, clock: ClockScript, 
 
 ## Each minute of the festival day the crowd stresses those waiting for a car at the lobby.
 func _crowd_stress(clock: ClockScript, people: PeopleScript) -> void:
-	var minute := clock.minute_of_day()
-	if minute == _last_minute:
-		return
-	_last_minute = minute
+	if clock.minutes_over_last(1) == 0:
+		return  # no new sim minute this tick (read from the clock, so a load cannot repeat one)
 	var amount := SPONSOR_QUEUE_STRESS if _level == LEVEL_SPONSOR else QUEUE_STRESS
 	for id in _rooms.queued_on_floor(LOBBY_FLOOR):  # a finite list
 		var i := people.index_of(id)
@@ -224,4 +221,3 @@ func load_ints(ints: Array) -> void:
 	_armed = ints[4] == 1
 	_year = ints[5]
 	_count = ints[6]
-	_last_minute = -1

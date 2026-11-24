@@ -64,7 +64,6 @@ var _event: int = 0
 var _resume: int = 0  ## Tick the car is back, 0 while the card is still open.
 var _armed_until: int = 0
 var _today: Array[int] = []  ## Shaft ids that stalled since the day began.
-var _last_minute: int = -1  ## Derived: the minute stress was last added.
 
 
 func _init(rooms: RoomsScript) -> void:
@@ -182,9 +181,7 @@ func _wait_for_answer(index: int, clock: ClockScript, people: PeopleScript, even
 				people.add_stress(i, jump)
 		_resume = at_tick + (ClockScript.period_ticks(clock.period() - 1) if choice == CHOICE_RESCUE else clock.ticks_until_minute(ClockScript.PERIOD_1_START))
 		return
-	var minute := clock.minute_of_day()
-	if minute != _last_minute:
-		_last_minute = minute
+	if clock.minutes_over_last(1) > 0:  # a new sim minute began this tick (read from the clock, so a load cannot repeat it)
 		for id in _rooms.riders_of(index):  # a finite list
 			var i := people.index_of(id)
 			if i != -1:
@@ -245,5 +242,4 @@ func load_ints(ints: Array) -> void:
 	_today = []
 	for n in int(ints[7]):
 		_today.append(ints[8 + n])
-	_last_minute = -1
 	_rooms.stalled = {}
