@@ -54,6 +54,11 @@ func _ready() -> void:
 	close.text = "Close (Esc)"
 	close.pressed.connect(close_window)
 	column.add_child(close)
+	var quit := Button.new()
+	quit.name = "Quit"
+	quit.text = "Quit game"
+	quit.pressed.connect(func() -> void: get_tree().call_group("quit_confirm", "open"))
+	column.add_child(quit)
 
 
 func is_open() -> bool:
