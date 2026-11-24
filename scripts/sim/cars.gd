@@ -105,6 +105,8 @@ static func start(car: Array, target: int, units_per_floor_now: int = LOCAL_UNIT
 static func tick(rooms: RefCounted) -> void:
 	_dispatch(rooms)
 	for n in rooms._cars.size():
+		if rooms.stalled.has(n):
+			continue  # a stalled car (#473) holds still: no motion, no doors, no dwell
 		var car: Array = rooms._cars[n]
 		if car[STATE] == IDLE:
 			_count_idle(rooms, n)
@@ -165,7 +167,7 @@ static func _dispatch(rooms: RefCounted) -> void:
 		var best_distance := 0
 		for n in rooms._cars.size():
 			var car: Array = rooms._cars[n]
-			if car[SHAFT] != call[CALL_SHAFT] or car[LOAD] >= rooms.car_capacity(car[SHAFT]):
+			if car[SHAFT] != call[CALL_SHAFT] or car[LOAD] >= rooms.car_capacity(car[SHAFT]) or rooms.stalled.has(n):
 				continue
 			var homing := going_home(rooms, n)
 			var ahead: int = (at - _level(car[FLOOR])) * call[CALL_DIR]

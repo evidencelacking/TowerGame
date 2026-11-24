@@ -14,6 +14,7 @@ const TOWER_STORIES := {
 	Msg.FRIEND_ARRIVED: "floor", Msg.FIRE_STARTED: "floor", Msg.FIRE_OUT: "floor", Msg.ROOM_BURNED: "floor",
 	Msg.VIP_ARRIVED: "room", Msg.VIP_GOOD: "room", Msg.VIP_BAD: "room", Msg.VIP_DECLINED: "room",
 	Msg.STAR_PROMOTED: "none", Msg.THREAT_NOTICE: "none", Msg.THREAT_FOUND: "floor_a", Msg.THREAT_EXPLODED: "floor_a", Msg.TREASURE_FOUND: "floor_a", Msg.FLYPAST: "none",
+	Msg.PIPE_BURST: "floor", Msg.CAR_STALLED: "floor", Msg.FESTIVAL_NOTICE: "none", Msg.FESTIVAL_BEGAN: "none",
 }
 
 

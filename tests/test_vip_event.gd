@@ -80,7 +80,7 @@ static func _scheduler(check: Callable) -> void:
 	check.call(plain.events.rolls > 10 and plain.events.rolls == with_manual.events.rolls, "a manual kind adds no roll")
 	check.call(not plain.events.resolved().is_empty() and plain.events.state_ints() == with_manual.events.state_ints() and plain.events.resolved() == with_manual.events.resolved(), "a manual kind leaves the other kinds' draws and events exactly unchanged")
 	var real := TowerSim.new(7)
-	check.call(real.events.kind_def(VipScript.KIND).get("manual", false) and real.events.kinds.size() == 3, "the tower registers the VIP notice as a manual kind")
+	check.call(real.events.kind_def(VipScript.KIND).get("manual", false) and real.events.kinds.size() == 6, "the tower registers the VIP notice (and the pipe, stall and festival cards) as manual kinds")
 
 
 static func _choices(check: Callable) -> void:

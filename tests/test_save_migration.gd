@@ -5,6 +5,9 @@ extends RefCounted
 const TowerSim := preload("res://scripts/sim/tower.gd")
 const Migration := preload("res://scripts/sim/save_migration.gd")
 const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
+const Pipe := preload("res://scripts/sim/pipe.gd")
+const Stall := preload("res://scripts/sim/stall.gd")
+const Festival := preload("res://scripts/sim/festival.gd")
 const Bench := preload("res://tools/bench_tower.gd")
 
 
@@ -20,6 +23,9 @@ static func _current() -> Dictionary:
 	vip_ints.append_array([0, -1, 0, 0, 0, 0])
 	t.vip.load_ints(vip_ints)
 	t.weather.load_ints([0, 0, 0, 0])  # likewise the v47 rain stream (Weather.DEFAULT_STREAM): seeded per tower, so pinned to what the step appends
+	t.pipe.load_ints(Pipe.rest_ints())  # the v49 streams (DEFAULT_STREAM): seeded per tower, so pinned to what the step appends
+	t.stall.load_ints(Stall.rest_ints())
+	t.festival.load_ints(Festival.rest_ints())
 	return t.save()
 
 
@@ -58,6 +64,10 @@ static func _reverse(data: Dictionary, v: int) -> Dictionary:
 		48:
 			var vip48: Array = out["vip"]
 			vip48.resize(vip48.size() - 3)
+		49:
+			out.erase("pipe")
+			out.erase("stall")
+			out.erase("festival")
 	out["version"] = v - 1
 	return out
 

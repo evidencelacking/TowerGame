@@ -7,6 +7,7 @@ extends RefCounted
 
 const SecurityScript := preload("res://scripts/sim/security.gd")
 const GridScript := preload("res://scripts/sim/grid.gd")
+const CatalogueScript := preload("res://scripts/sim/room_catalogue.gd")
 const Palette := preload("res://scripts/view/palette.gd")
 const VC := preload("res://scripts/view/view_consts.gd")
 
@@ -184,3 +185,71 @@ static func _gap_of(rank: int) -> int:
 	if rank == 0:
 		return 0
 	return (rank + 1) / 2 if rank % 2 == 1 else -(rank / 2)
+
+
+## Water damage (#472): a blue wash with falling drips over every wet room, and a pulsing blue outline on the floor the
+## water will reach at the next period start (the sim's Pipe.next_floor), so the owner sees where it goes next.
+static func draw_water(canvas: Object, tower: Object, tick: int) -> void:
+	var wet: Array[int] = tower.pipe.wet_rooms()
+	if wet.is_empty():
+		return
+	for room: int in wet:
+		for r: Rect2i in room_rects(tower, room):
+			canvas.draw_rect(Rect2i(r.position.x, r.position.y, r.size.x, r.size.y - VC.SLAB_H), Color(0.2, 0.45, 0.9, 0.32))
+			var x := r.position.x + 3
+			var n := 0
+			while x < r.end.x - 2:  # x grows by 6 each pass, so this ends
+				var y := r.position.y + ((tick / 2 + n * 5 + room) % maxi(r.size.y - VC.SLAB_H - 3, 1))
+				canvas.draw_rect(Rect2i(x, y, 1, 3), Color(0.6, 0.85, 1.0, 0.9))
+				x += 6
+				n += 1
+	var next: int = tower.pipe.next_floor(tower.grid)
+	var cols: Array[int] = tower.pipe.columns()
+	if next != 0 and not cols.is_empty():
+		var pulse := 0.35 + 0.25 * float((tick / 6) % 2)
+		var row := VC.floor_to_row(next) * VC.CELL_H
+		var rect := Rect2i(cols[0] * VC.CELL_W, row, (cols[1] - cols[0] + 1) * VC.CELL_W, VC.CELL_H - VC.SLAB_H)
+		canvas.draw_rect(rect, Color(0.35, 0.65, 1.0, pulse * 0.4))
+		canvas.draw_rect(Rect2i(rect.position.x, rect.position.y, rect.size.x, 1), Color(0.6, 0.85, 1.0, pulse + 0.3))
+		canvas.draw_rect(Rect2i(rect.position.x, rect.end.y - 1, rect.size.x, 1), Color(0.6, 0.85, 1.0, pulse + 0.3))
+
+
+## A stalled elevator car (#473): an amber blinking frame round the car, with a bar across it, at the floor it stopped on.
+static func draw_stall(canvas: Object, tower: Object, tick: int) -> void:
+	var stalled: Array[int] = tower.stall.stalled_car()
+	if stalled.is_empty():
+		return
+	var kind: String = tower.rooms.kind_of(stalled[0])
+	var width: int = CatalogueScript.field(kind, "width")
+	var rect := Rect2i(tower.rooms.shaft_x(stalled[0]) * VC.CELL_W, VC.floor_to_row(stalled[1]) * VC.CELL_H, width * VC.CELL_W, VC.CELL_H - VC.SLAB_H)
+	var lit: bool = (tick / 4) % 2 == 0
+	var colour := Color(1.0, 0.75, 0.1, 0.95) if lit else Color(0.8, 0.2, 0.1, 0.95)
+	canvas.draw_rect(Rect2i(rect.position.x, rect.position.y, rect.size.x, 1), colour)
+	canvas.draw_rect(Rect2i(rect.position.x, rect.end.y - 1, rect.size.x, 1), colour)
+	canvas.draw_rect(Rect2i(rect.position.x, rect.position.y, 1, rect.size.y), colour)
+	canvas.draw_rect(Rect2i(rect.end.x - 1, rect.position.y, 1, rect.size.y), colour)
+	canvas.draw_rect(Rect2i(rect.position.x + 1, rect.position.y + rect.size.y / 2, maxi(rect.size.x - 2, 1), 2), colour)
+
+
+## The street festival (#474): bunting along the roof line of the ground lobby from the announcement to the end of the
+## festival day, with a second row of flags once the owner sponsors it.
+static func draw_festival(canvas: Object, tower: Object, tick: int) -> void:
+	if not tower.festival.is_announced() and not tower.festival.is_active():
+		return
+	var span: Array[int] = tower.floors.lobby_span()
+	if span.is_empty():
+		return
+	var p := Palette.get_palette()
+	var colours: Array[Color] = [p["red"], p["gold"], p["green"], p["white"]]
+	var top := VC.floor_to_row(1) * VC.CELL_H
+	var rows := 2 if tower.festival.level() == 2 else 1
+	for row in rows:
+		var y := top + 1 + row * 4
+		canvas.draw_rect(Rect2i(span[0] * VC.CELL_W, y, (span[1] - span[0] + 1) * VC.CELL_W, 1), p["ink"])
+		var x := span[0] * VC.CELL_W + 2 + row * 3
+		var n := 0
+		while x < (span[1] + 1) * VC.CELL_W - 2:  # x grows by 6 each pass, so this ends
+			var sway := 1 if (tick / 8 + n) % 2 == 0 else 0
+			canvas.draw_rect(Rect2i(x, y + 1, 3, 2 + sway), colours[(n + row) % colours.size()])
+			x += 6
+			n += 1

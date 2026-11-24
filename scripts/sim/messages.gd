@@ -51,6 +51,12 @@ const ROOM_REPAIRED := 53  ## a: catalogue index, b: floor number. A burned-out 
 const TREASURE_FOUND := 54  ## a: floor number, b: dollars. Digging uncovered the tower's buried treasure (#220).
 const FLYPAST := 55  ## A lantern craft drifts across the night sky on a Q4 weekend (#222).
 const VIP_DECLINED := 56  ## a: suite room id. The owner turned the VIP away; the visit is put off (#219).
+const PIPE_BURST := 57  ## a: catalogue index, b: floor number. A pipe burst in a room and water starts to spread down (#472).
+const PIPE_STOPPED := 58  ## a: lowest wet floor, b: how it ended (Pipe.END_*). The water stopped spreading.
+const CAR_STALLED := 59  ## a: shaft id, b: floor. An elevator car stalled with riders aboard (#473).
+const CAR_RESUMED := 60  ## a: shaft id. A stalled car is back in service.
+const FESTIVAL_NOTICE := 61  ## A street festival is announced for the weekend (#474).
+const FESTIVAL_BEGAN := 62  ## a: 1 when the owner sponsored it, 0 when not. The festival crowd arrives.
 const ROOM_DIRTY := 34  ## a: room id. Hotel guests checked out; the room needs cleaning (#147).
 
 const CAP := 500  ## Entries kept; the oldest drop first.

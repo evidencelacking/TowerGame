@@ -1199,6 +1199,9 @@ func _draw_events(canvas: CanvasItem) -> void:
 	EventLook.draw_search(canvas, tower, tower.tick)
 	EventLook.draw_guards(canvas, tower, tower.tick)
 	EventLook.draw_rescue(canvas, tower, tower.tick)
+	EventLook.draw_water(canvas, tower, tower.tick)
+	EventLook.draw_stall(canvas, tower, tower.tick)
+	EventLook.draw_festival(canvas, tower, tower.tick)
 
 
 ## The figures drawn at the last tick, for layers that sit on top of the tower (thought icons).
