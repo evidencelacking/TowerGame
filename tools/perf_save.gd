@@ -13,7 +13,7 @@ extends SceneTree
 ## Wall-clock timing lives in tools/ only, never in scripts/sim/. Not part of the test suite.
 ## Startup order: _initialize loads the tower (and the twin); the view and the timed runs start in _process
 ## from frame 2, once the tree is live. Every loop is over a fixed count, so the run ends.
-## Args: save=<path> | mixed, [ticks=2550] [noview] [loop speed=1|2|3 frames=120 warmup=500]
+## Args: save=<path> | mixed, [ticks=2550] [noview] [loop speed=1|2|3 frames=120 warmup=500 overlay=disruptions|synergies|income|mood|traffic|rent|grade|hotel]
 
 const BenchMixed := preload("res://tools/bench_mixed.gd")
 const BenchBig := preload("res://tools/bench_big.gd")
@@ -21,6 +21,9 @@ const SimSplit := preload("res://tools/sim_split.gd")
 const RendererScript := preload("res://scripts/view/tower_renderer.gd")
 const LayerScript := preload("res://scripts/view/thought_layer.gd")
 const IconsScript := preload("res://scripts/view/thought_icons.gd")
+const HeatLook := preload("res://scripts/view/heat_look.gd")
+const DisruptionLook := preload("res://scripts/view/disruption_look.gd")
+const SynergyLook := preload("res://scripts/view/synergy_look.gd")
 
 const RUSH_MS := 10  ## Ticks costing more than this many ms make up the rush-hour view.
 const MIXED_SEED := 42
@@ -43,6 +46,10 @@ var _loop: bool = false
 var _view: bool = true
 var _ticks: int = 2550
 var _speed: int = 1
+var _overlay: String = ""  ## overlay=<name> (loop mode): a view overlay held on, to time its cost against the same run with it off.
+var _overlay_tick: int = -1000000  ## Tick the overlay was last painted at (it repaints every 30 ticks, 10 for traffic, 120 for the slow ones).
+var _canvas := NullCanvas.new()
+var _disruption_cache: Dictionary = {}
 var _frames: int = 120
 var _warmup: int = 500
 var _tower: Tower = null  ## Stays null when loading failed or the fixture came up short: _process then quits.
@@ -80,6 +87,8 @@ func _initialize() -> void:
 			_view = false
 		elif arg.begins_with("ticks="):
 			_ticks = int(arg.get_slice("=", 1))
+		elif arg.begins_with("overlay="):
+			_overlay = arg.get_slice("=", 1)
 		elif arg.begins_with("speed="):
 			_speed = clampi(int(arg.get_slice("=", 1)), 1, SimDriver.SPEEDS.size())
 		elif arg.begins_with("frames="):
@@ -392,6 +401,59 @@ func _start_loop() -> void:
 	root.add_child(_layer)
 	_layer.bind(_tower, _renderer)
 	_layer.set_process(false)
+	_set_overlay()
+
+
+## A canvas that takes the overlays' draw calls and drops them: the headless run has no draw phase, so this times the
+## overlay's own work (reading the sim, building the colours and calling draw) without the engine's rasterising.
+class NullCanvas:
+	extends RefCounted
+
+	func draw_rect(_r: Variant, _c: Color, _filled: bool = true, _w: float = -1.0) -> void:
+		pass
+
+	func draw_line(_a: Vector2, _b: Vector2, _c: Color, _w: float = -1.0) -> void:
+		pass
+
+	func draw_string(_f: Font, _p: Vector2, _t: String, _a: int = 0, _w: float = -1.0, _s: int = 16, _c: Color = Color.WHITE) -> void:
+		pass
+
+	func draw_string_outline(_f: Font, _p: Vector2, _t: String, _a: int = 0, _w: float = -1.0, _s: int = 16, _o: int = 1, _c: Color = Color.WHITE) -> void:
+		pass
+
+
+## Switches the named overlay on (the options are statics, so this is the whole of "toggling" it).
+func _set_overlay() -> void:
+	SynergyLook.on = _overlay == "synergies"
+	DisruptionLook.on = _overlay == "disruptions"
+	var names: Array[String] = []
+	for n: String in HeatLook.NAMES:
+		names.append(n.to_lower())
+	HeatLook.mode = maxi(names.find(_overlay), HeatLook.OFF)
+	if _overlay != "" and not SynergyLook.on and not DisruptionLook.on and HeatLook.mode == HeatLook.OFF:
+		print("FAIL: unknown overlay %s" % _overlay)
+		_exit_code = 2
+
+
+## The overlay's share of a frame: a repaint when its refresh interval has passed, as the overlay nodes do.
+func _overlay_frame() -> void:
+	if _overlay == "":
+		return
+	var every := 30  # the overlay nodes' own intervals: see their REFRESH_TICKS
+	if HeatLook.mode == HeatLook.TRAFFIC:
+		every = 10
+	elif DisruptionLook.on or HeatLook.mode in [HeatLook.RENT, HeatLook.GRADE, HeatLook.HOTEL]:
+		every = 120
+	if _tower.tick - _overlay_tick < every:
+		return
+	_overlay_tick = _tower.tick
+	if SynergyLook.on:
+		SynergyLook.draw(_canvas, _tower, -1)
+	elif DisruptionLook.on:
+		_disruption_cache.clear()
+		DisruptionLook.draw(_canvas, _tower, -1, _disruption_cache)
+	else:
+		HeatLook.draw(_canvas, _tower, HeatLook.mode)
 
 
 ## One frame of the real loop; true when the run is over. The measured frame time is the next delta.
@@ -404,6 +466,7 @@ func _loop_frame() -> bool:
 	var b := Time.get_ticks_usec()
 	_renderer._process(_delta)
 	_layer._process(_delta)
+	_overlay_frame()
 	var end := Time.get_ticks_usec()
 	var us := end - a
 	_view_us += end - b
