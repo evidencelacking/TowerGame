@@ -41,6 +41,8 @@ static func step(t: Tower, mark: Callable) -> void:
 	mark.call("tenancy")
 	t.commerce.tick(t.clock, t.floors, t.rooms, t.grid, t.people, t.tenancy, t.rng, t.ledger, t.messages, t.tick, t.life)
 	mark.call("commerce")
+	t.theatre.tick(t.clock, t.floors, t.rooms, t.grid, t.people, t.tenancy, t.ledger, t.tick)
+	mark.call("theatre")
 	if t._slow_due(Tower.VIP_AT):
 		t.vip.tick(t.clock, t.stars, t.people, t.grades, t.messages, t.events, t.ledger, t.grid, t.tick)
 	mark.call("vip")

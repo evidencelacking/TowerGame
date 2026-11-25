@@ -11,7 +11,8 @@ const HotelScript := preload("res://scripts/sim/hotel.gd")
 
 const BALLROOM := "ballroom"
 const CONFERENCE := "conference_center"
-const KINDS: Array[String] = [BALLROOM, CONFERENCE]
+const PARTY_HALL := "party_hall"
+const KINDS: Array[String] = [BALLROOM, CONFERENCE, PARTY_HALL]
 const KITCHEN_KINDS: Array[String] = ["restaurant", "fine_dining"]
 
 
@@ -23,7 +24,7 @@ static func is_bookable(kind: String) -> bool:
 static func needed_kinds(kind: String) -> Array[String]:
 	if kind == BALLROOM:
 		return KITCHEN_KINDS
-	if kind == CONFERENCE:
+	if kind == CONFERENCE or kind == PARTY_HALL:
 		return HotelScript.KINDS
 	return []
 
@@ -32,7 +33,7 @@ static func needed_kinds(kind: String) -> Array[String]:
 static func need_text(kind: String) -> String:
 	if kind == BALLROOM:
 		return "a kitchen (a restaurant or fine dining room)"
-	if kind == CONFERENCE:
+	if kind == CONFERENCE or kind == PARTY_HALL:
 		return "a hotel room"
 	return ""
 
