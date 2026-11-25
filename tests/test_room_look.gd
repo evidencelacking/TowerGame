@@ -23,7 +23,7 @@ static func run(check: Callable) -> void:
 			continue
 		t.floors.fill_span(floor_number, 100, 139)
 		ids[kind] = TestPests._room(t, kind, floor_number, 100)
-		if kind == "pool":  # two floors tall: the next kind goes above it
+		if kind == "pool" or kind == "movie_theatre":  # two floors tall: the next kind goes above it
 			floor_number += 1
 		floor_number += 1
 	t.floors.fill_span(-1, 90, 131)  # B1 under the lobby; the underground kinds sit here and below
