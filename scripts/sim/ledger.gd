@@ -26,6 +26,8 @@ const BAD_AMOUNT := 2  ## A charge must be zero or more.
 var balance: int = 0
 ## One entry per line: [tick, amount, kind, ref]. ref is a room id or other int reference.
 var lines: Array = []
+## Percent of rent and hotel takings that reach the balance (difficulty, #380). Not saved: Tower sets it.
+var income_pct: int = 100
 
 
 func _init(starting_funds: int = DEFAULT_STARTING_FUNDS) -> void:
@@ -56,7 +58,7 @@ func payout(at_tick: int, amount: int, ref: int) -> void:
 
 ## Earns amount dollars (zero or more), such as a condo sale.
 func income(at_tick: int, amount: int, ref: int) -> void:
-	_add(at_tick, amount, INCOME, ref)
+	_add(at_tick, amount * income_pct / 100, INCOME, ref)
 
 
 ## Earns amount dollars (zero or more) from a condo sale; ref is the room id.
@@ -69,7 +71,7 @@ func shop_sales(at_tick: int, amount: int, ref: int) -> void:
 	_add(at_tick, amount, SHOP, ref)
 ## Earns a hotel room's nightly price (zero or more) at check-out; ref is the room id.
 func hotel(at_tick: int, amount: int, ref: int) -> void:
-	_add(at_tick, amount, HOTEL, ref)
+	_add(at_tick, amount * income_pct / 100, HOTEL, ref)
 
 
 ## Books found money (the buried treasure): positive, never refused; ref is the floor it was found on.

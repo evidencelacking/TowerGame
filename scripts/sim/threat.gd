@@ -43,6 +43,8 @@ const BLAST_FLOORS := 2  ## Floors destroyed above and below the device's floor.
 
 var population: int = 0  ## People in the tower, set by Tower on each Events roll tick (derived, not saved).
 var started: bool = false  ## True for the tick a threat notice came (derived, not saved): Tower notes the mood shock then.
+var chance_pct: int = 100  ## Difficulty (#380): percent of the threat chance. Set by Tower, not saved.
+var cost_pct: int = 100  ## Difficulty (#380): percent of the ransom. Set by Tower, not saved.
 var _rooms: Rooms
 var _rng := Rng.new()
 var _seen: int = 0
@@ -62,19 +64,24 @@ func reseed(tower_seed: int) -> void:
 	_rng.reseed(tower_seed ^ SEED_SALT)
 
 
+## What the ransom costs now (difficulty, #380).
+func pay_cost() -> int:
+	return PAY_COST * cost_pct / 100
+
+
 ## The event kind to register in Events.kinds.
 func kind() -> Dictionary:
 	return {"id": KIND, "class": EventsScript.THREAT, "chance": CHANCE, "chance_den": CHANCE_DEN, "chance_of": _gate,
-		"min_stars": MIN_STARS, "choices": 2, "timeout": TIMEOUT, "floor": 0, "costs": [0, PAY_COST],
+		"min_stars": MIN_STARS, "choices": 2, "timeout": TIMEOUT, "floor": 0, "costs": [0, pay_cost()],
 		"periods": MORNING_PERIODS, "deadline_minute": DEADLINE_MINUTE,
 		"title": "Anonymous notice",
 		"ignored": "Security searches; if the floor is not found by 1:00 pm, about five floors are destroyed.",
-		"text": "An unsigned note says a device is hidden somewhere in the tower and will go off at 1:00 pm today. Pay $200,000 and it ends. Refuse, and security will search floor by floor from their offices; if they have not found the right floor by 1:00 pm, about five floors are destroyed. More security offices search more floors.",
-		"labels": ["Refuse and search", "Pay $200,000"]}
+		"text": "An unsigned note says a device is hidden somewhere in the tower and will go off at 1:00 pm today. Pay %s and it ends. Refuse, and security will search floor by floor from their offices; if they have not found the right floor by 1:00 pm, about five floors are destroyed. More security offices search more floors." % Difficulty.money(pay_cost()),
+		"labels": ["Refuse and search", "Pay %s" % Difficulty.money(pay_cost())]}
 
 
 func _gate() -> int:
-	return chance(_rooms, population, _active != 0)
+	return chance(_rooms, population, _active != 0) * chance_pct / 100
 
 
 ## The chance per morning roll: none under 3,000 people, without an office or while a threat runs;

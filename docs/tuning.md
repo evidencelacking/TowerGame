@@ -72,3 +72,21 @@ of these together. "Ref" means the value comes from the reference; anything else
 | Car capacity | `cars.gd` / catalogue | local 17, express 36 | Up | Ref (owner ruling) |
 | Idle car returns home after | `cars.gd` IDLE_DWELL | 2 sim minutes | Down | Ours |
 | Arrival spread | `people.gd` ARRIVAL_SPREAD | 0 to 15 minutes late | Up (flatter rush) | Ours |
+
+## Presets
+
+Difficulty (#380) is Easy, Normal or Hard, picked in Settings, New game and fixed when a tower is built (the Settings
+panel shows the running tower's preset read-only). It is saved with the tower; saves from before it load as Normal. The
+table is `scripts/sim/difficulty.gd`: integer percent multipliers applied where the knob is read, as `value * pct / 100`.
+Normal is all 100, so it is exactly the game above.
+
+| Knob group | Easy | Normal | Hard | Applied to |
+|---|---|---|---|---|
+| Starting funds | 150% | 100% | 75% | the new-game funds setting |
+| Rent and hotel income | 120% | 100% | 90% | `Ledger.income`, `Ledger.hotel` |
+| Event chances | 50% | 100% | 150% | fire, threat, stuck elevator (the elevator's odds are `ARM_ONE_IN * 100 / pct`) |
+| Event costs | 50% | 100% | 125% | fire rescue, ransom, repair, plumber, elevator crew |
+| Mood change per day | 125% | 100% | 75% | `Mood.STEP` (the low-mood line is not scaled) |
+
+Never scaled, under any preset: star population thresholds, the top rank, unlock order, structural rules, the clock. A
+test asserts the star thresholds are identical under every preset. All the percentages are our own guesses.
