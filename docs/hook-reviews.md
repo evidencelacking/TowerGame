@@ -3,6 +3,23 @@
 Newest first. The latest date here sets when the next review is due. Firings logged on that
 date count as reviewed.
 
+## 2026-11-25
+
+Firings since 2026-11-22: script-logic 31, recursive-delete 6, unbounded-script 3,
+manual-full-check 1. The log still records rule and tool only.
+
+- **Working as designed:** script-logic (deny-once nudges, from the many builder runs on
+  2026-11-23 and 24); unbounded-script and manual-full-check (each caught a real slip).
+- **Watch:** recursive-delete asked 6 times in one evening, most likely builders clearing
+  build or export folders for the release zip (#496). Each ask interrupts autonomous runs. If it
+  keeps up, allow recursive deletes inside the scratchpad, `build/` and `.godot/` only. Needs the
+  command text to confirm, so it waits on the logging change below.
+- **Add (still waiting, third review):** log the first 120 characters of each denied command.
+  guard.py is protected, so this needs the owner.
+- **Fix (still waiting):** anchor owner-move to a command position. It has not fired since
+  2026-11-22, so it is less urgent.
+- **Retire:** none. **Trim:** CLAUDE.md is 50 lines.
+
 ## 2026-11-22
 
 Firings since 2026-11-19: script-logic 9, owner-move 4, protected-file 3, manual-full-check 1.
