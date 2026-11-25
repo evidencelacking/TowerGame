@@ -23,8 +23,9 @@ func _ready() -> void:
 		# The starting-funds setting (#248) reaches the sim as the Tower's constructor argument, never by the sim
 		# reading settings. The default keeps the driver's own tower.
 		NewGameSettings.applied = NewGameSettings.funds()
-		if NewGameSettings.applied != NewGameSettings.DEFAULT_FUNDS:
-			$Hud/SimDriver.tower = Tower.new(0, NewGameSettings.applied)
+		NewGameSettings.applied_difficulty = NewGameSettings.difficulty()
+		if NewGameSettings.applied != NewGameSettings.DEFAULT_FUNDS or NewGameSettings.applied_difficulty != Difficulty.DEFAULT:
+			$Hud/SimDriver.tower = Tower.new(0, NewGameSettings.applied, NewGameSettings.applied_difficulty)
 			_tower = $Hud/SimDriver.tower
 		# Demo content until building commands exist (refs #6).
 		for i in 20:
@@ -34,6 +35,7 @@ func _ready() -> void:
 	if "--unlock-all" in OS.get_cmdline_user_args():
 		_tower.enqueue(Tower.Command.make(_tower.tick + 1, Tower.Command.DEBUG_UNLOCK_ALL, [1] as Array[int]))
 	var settings_window := SettingsWindow.new()
+	settings_window.tower = _tower  # read-only: shows the running tower's difficulty (#380)
 	add_child(settings_window)
 	var renderer: TowerRenderer = $TowerRenderer
 	renderer.set_tower(_tower)

@@ -16,6 +16,8 @@ var _key_buttons: Dictionary = {}  ## action id -> Button
 var _key_status: Label
 var _capturing: String = ""  ## Action waiting for a key press; empty when not rebinding.
 var _funds_note: Label
+var _running_note: Label
+var tower: Tower = null  ## The running tower, set by main; only read, to show its difficulty (#380).
 var _display: Node = null
 
 
@@ -74,6 +76,7 @@ func toggle() -> void:
 
 func open() -> void:
 	panel.visible = true
+	_running_note.text = _running_text()
 
 
 func close_window() -> void:
@@ -288,12 +291,30 @@ func _build_game() -> void:
 		_funds_note.text = _funds_text())
 	_row(box, "Starting funds").add_child(funds)
 	box.add_child(_funds_note)
+	var difficulty := OptionButton.new()
+	difficulty.name = "Difficulty"
+	for i in Difficulty.NAMES.size():
+		difficulty.add_item(Difficulty.NAMES[i], i)
+	difficulty.selected = NewGameSettings.difficulty()
+	difficulty.item_selected.connect(func(index: int) -> void: NewGameSettings.set_difficulty(index))
+	_row(box, "Difficulty (new game)").add_child(difficulty)
+	_running_note = Label.new()
+	_running_note.name = "RunningDifficulty"
+	_running_note.text = _running_text()
+	_running_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_running_note)
 	var cheats := CheckBox.new()
 	cheats.name = "Cheats"
 	cheats.text = "Cheats (our own; marks the tower and its saves)"
 	cheats.button_pressed = CheatSettings.is_enabled()
 	cheats.toggled.connect(CheatSettings.set_enabled)
 	box.add_child(cheats)
+
+
+## Read-only: the difficulty of the tower now running. It is fixed when a tower is built and cannot change mid-game.
+func _running_text() -> String:
+	var preset: int = tower.difficulty if tower != null else NewGameSettings.applied_difficulty
+	return "This tower: %s difficulty (fixed for the life of the tower). Your pick above applies to the next new game." % Difficulty.label(preset)
 
 
 func _funds_text() -> String:
