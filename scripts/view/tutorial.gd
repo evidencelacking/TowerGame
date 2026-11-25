@@ -67,7 +67,7 @@ static func done(index: int, tower: TowerSim) -> bool:
 		1:
 			return _count(tower, "office", false) >= 2
 		2:
-			return not tower.rooms.shaft_ids().is_empty() and _count(tower, "office", true) >= 1
+			return not tower.rooms.shaft_ids().is_empty() and _office_above_ground_floor_reached(tower)
 		3:
 			return _count(tower, "fast_food", false) >= 1
 		4:
@@ -76,6 +76,14 @@ static func done(index: int, tower: TowerSim) -> bool:
 			return tower.permanent_population() >= int(StarRulesScript.REQUIREMENTS[GOAL_STARS]["population"])
 		6:
 			return tower.stars >= GOAL_STARS
+	return false
+
+
+## True when an office above floor 1 stands where the sim's reach search finds a route to it from the lobby.
+static func _office_above_ground_floor_reached(tower: TowerSim) -> bool:
+	for id in tower.rooms.room_ids():
+		if tower.rooms.kind_of(id) == "office" and not tower.rooms.is_cut_off(id) and tower.grid.run_of(id)[0] > 1:
+			return true
 	return false
 
 

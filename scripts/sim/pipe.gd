@@ -59,6 +59,7 @@ const CHOICE_MAINTENANCE := 2
 
 var one_in: int = ONE_DAY_IN  ## A day's odds of a burst (a test sets 1 to force one).
 var min_origin: int = MIN_ORIGIN_FLOOR  ## The lowest floor a burst may start on (a test raises it to choose the room).
+var cost_pct: int = 100  ## Difficulty (#380): percent of the plumber price. Set by Tower, not saved.
 var _rooms: RoomsScript
 var _rng := Rng.new()
 var _flowing: bool = false
@@ -128,13 +129,18 @@ func columns() -> Array[int]:
 ## The card's kind. Manual: Events never rolls it. Labels follow whether a housekeeping room is in reach.
 func kind() -> Dictionary:
 	return {"id": KIND, "class": EventsScript.ORDINARY, "manual": true, "choices": 3, "timeout": NOTICE_TICKS, "floor": 0,
-		"default": CHOICE_IGNORE, "costs": [0, PLUMBER_COST, 0], "title": "Burst pipe", "dynamic": _live_texts,
-		"text": "A pipe burst in a room and the water is spreading down one floor each period. Wet rooms are closed to hotel, shop and food takings for a day. An emergency plumber ($25,000) stops it at once; your own maintenance (free) stops it in two periods but needs a housekeeping room within 5 floors; ignore it and it spreads until a floor with no rooms below, or the lobby.",
+		"default": CHOICE_IGNORE, "costs": [0, plumber_cost(), 0], "title": "Burst pipe", "dynamic": _live_texts,
+		"text": "A pipe burst in a room and the water is spreading down one floor each period. Wet rooms are closed to hotel, shop and food takings for a day. An emergency plumber (%s) stops it at once; your own maintenance (free) stops it in two periods but needs a housekeeping room within 5 floors; ignore it and it spreads until a floor with no rooms below, or the lobby." % Difficulty.money(plumber_cost()),
 		"ignored": "The water keeps spreading down until a floor with no rooms, or the lobby."}
 
 
+## What the emergency plumber costs now (difficulty, #380).
+func plumber_cost() -> int:
+	return PLUMBER_COST * cost_pct / 100
+
+
 func _live_texts() -> Dictionary:
-	return {"labels": ["Ignore it", "Emergency plumber ($25,000)", "Own maintenance (free)" if _reach else "Own maintenance (no housekeeping within 5 floors)"]}
+	return {"labels": ["Ignore it", "Emergency plumber (%s)" % Difficulty.money(plumber_cost()), "Own maintenance (free)" if _reach else "Own maintenance (no housekeeping within 5 floors)"]}
 
 
 ## Called once a tick after the clock. Acts at day and period starts, when the card is answered, and as rooms dry.

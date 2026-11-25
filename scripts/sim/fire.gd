@@ -45,6 +45,8 @@ const FIELDS := 3  ## Ints per burning room.
 const HEADER := 5  ## Ints before the burning rooms.
 const REPAIR_PERCENT := 50  ## Repairing a charred room costs this percent of its build cost (owner ruling, #373).
 
+var chance_pct: int = 100  ## Difficulty (#380): percent of the fire chance. Set by Tower, not saved.
+var cost_pct: int = 100  ## Difficulty (#380): percent of the rescue cost. Set by Tower, not saved.
 var _rooms: Rooms
 var _rng := Rng.new()
 var _seen: int = 0  ## Id of the last fire event started.
@@ -65,6 +67,10 @@ func reseed(tower_seed: int) -> void:
 
 ## What the paid rescue costs now: cheaper while a reachable helicopter pad stands (#409).
 func rescue_cost() -> int:
+	return _base_rescue_cost() * cost_pct / 100
+
+
+func _base_rescue_cost() -> int:
 	return RESCUE_COST_WITH_PAD if _rooms != null and _rooms.helipad_reachable() else RESCUE_COST
 
 
@@ -83,7 +89,7 @@ func kind() -> Dictionary:
 func _live() -> Dictionary:
 	var cost := rescue_cost()
 	var money := "$%s" % _grouped(cost)
-	var pad := cost != RESCUE_COST
+	var pad := _base_rescue_cost() != RESCUE_COST
 	var arrives := "in about half a period (your helicopter pad lets it land on the roof)" if pad else "in about one period"
 	return {"costs": [0, cost],
 		"text": "A fire has broken out in the tower. Guards from a security office within reach will put it out, but a floor no office covers has no guards. A burning room is burned out after three periods and stands charred, empty and earning nothing until you pay to repair it. The fire spreads to rooms beside and above.\nAn outside fire company costs %s: it arrives %s and puts out every fire, but the first two rooms that burned are lost." % [money, arrives],
@@ -101,7 +107,7 @@ static func _grouped(amount: int) -> String:
 
 
 func _gate() -> int:
-	return chance(_rooms)
+	return chance(_rooms) * chance_pct / 100
 
 
 ## The chance now: the fire's odds with a security office, none without.
@@ -145,8 +151,8 @@ func charred_rooms() -> Array[int]:
 
 
 ## What repairing a charred room of this kind costs, in whole dollars.
-static func repair_cost(kind: String) -> int:
-	return CatalogueScript.cost(kind) * REPAIR_PERCENT / 100
+static func repair_cost(kind: String, percent: int = 100) -> int:
+	return CatalogueScript.cost(kind) * REPAIR_PERCENT / 100 * percent / 100
 
 
 ## True when any burning room has no guards on the way: nobody will put it out but the owner's rescue.

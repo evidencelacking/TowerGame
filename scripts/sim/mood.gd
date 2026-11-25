@@ -57,6 +57,7 @@ const FRIEND_REACH_BONUS := 6  ## Extra cells a happy room's friend may come fro
 
 ## The worst event shock since the last evaluation. Saved.
 var shock: int = 0
+var step_pct: int = 100  ## Difficulty (#380): percent of STEP. Set by Tower, not saved.
 ## Ids of the people who were inside the tower while an event was on since the last evaluation. Saved.
 var _shocked: Array[int] = []
 ## The same ids as keys, so membership is one lookup (#448). Derived: rebuilt on load, cleared with the array.
@@ -178,6 +179,7 @@ func update(rooms: RoomsScript, grid: GridScript, floors: FloorsScript, grades: 
 	var stride := PeopleScript.EVAL_ROW
 	var room_sums: Dictionary = {}
 	var event := shock > 0
+	var step := STEP * step_pct / 100
 	var b := 0
 	var i := 0
 	var n := rows.size()
@@ -193,7 +195,7 @@ func update(rooms: RoomsScript, grid: GridScript, floors: FloorsScript, grades: 
 		if event and tables.shocked.has(rows[b]):
 			total -= shock
 		var mood := int(rows[b + 4])
-		mood += clampi(clampi(total, 0, PeopleScript.MOOD_MAX) - mood, -STEP, STEP + recovery)
+		mood += clampi(clampi(total, 0, PeopleScript.MOOD_MAX) - mood, -step, step + recovery)
 		people.set_mood(i, mood)
 		people.set_low_days(i, int(rows[b + 5]) + 1 if clampi(mood, 0, PeopleScript.MOOD_MAX) < LOW_BELOW else 0)
 		b += stride

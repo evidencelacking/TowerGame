@@ -101,6 +101,18 @@ static func run(check: Callable) -> void:
 	_send(t, Command.PLACE_SHAFT, [_kind("local_shaft"), 1, 2, LOBBY_X + 60] as Array[int])
 	_run(t, 2)
 	check.call(Tutorial.done(2, t), "tutorial: an elevator reaching the offices finishes step 3")
+
+	# An office on floor 1 alone does not pass step 3: floor 1 takes no rooms, and a shaft with nothing above it
+	# (or an office above the shaft's top) is not an elevator reaching an office.
+	var low := TowerSim.new(Tutorial.SEED)
+	_lobby(low)
+	_floor(low, 2)
+	_floor(low, 3)
+	_send(low, Command.PLACE_ROOM, [_kind("office"), 1, LOBBY_X + 4] as Array[int])
+	_send(low, Command.PLACE_SHAFT, [_kind("local_shaft"), 1, 2, LOBBY_X + 60] as Array[int])
+	_send(low, Command.PLACE_ROOM, [_kind("office"), 3, LOBBY_X + 4] as Array[int])
+	_run(low, 2)
+	check.call(low.rooms.shaft_ids().size() == 1 and not Tutorial.done(2, low), "tutorial: an office on floor 1 and one the shaft does not reach do not finish step 3")
 	check.call(not Tutorial.done(3, t), "tutorial: no fast food yet")
 	_send(t, Command.PLACE_ROOM, [_kind("fast_food"), 2, LOBBY_X + 24] as Array[int])
 	_run(t, 1)

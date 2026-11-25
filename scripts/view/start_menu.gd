@@ -74,7 +74,7 @@ func new_demo() -> void:
 func _start(want_demo: bool) -> void:
 	# A new game takes the starting funds chosen in Settings (#248); the tower is built with them at scene
 	# start, so a changed setting rebuilds the scene (the mode stays).
-	var funds_moved: bool = not want_demo and NewGameSettings.funds() != NewGameSettings.applied
+	var funds_moved: bool = not want_demo and (NewGameSettings.funds() != NewGameSettings.applied or NewGameSettings.difficulty() != NewGameSettings.applied_difficulty)
 	if want_demo != DemoMode.active() or funds_moved:
 		DemoMode.forced = want_demo
 		get_tree().reload_current_scene()

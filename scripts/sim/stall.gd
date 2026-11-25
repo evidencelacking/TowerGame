@@ -54,6 +54,8 @@ const STALLED := 1  ## A car is stalled (its card may still be open).
 const CHOICE_REPAIR := 0
 const CHOICE_RESCUE := 1
 
+var chance_pct: int = 100  ## Difficulty (#380): percent of the arming chance. Set by Tower, not saved.
+var cost_pct: int = 100  ## Difficulty (#380): percent of the rescue crew price. Set by Tower, not saved.
 var arm_one_in: int = ARM_ONE_IN  ## A test sets 1 to arm every rush period.
 var _rooms: RoomsScript
 var _rng := Rng.new()
@@ -99,11 +101,16 @@ func stalled_today() -> Array[int]:
 	return _today.duplicate()
 
 
+## What the rescue crew costs now (difficulty, #380).
+func rescue_cost() -> int:
+	return RESCUE_COST * cost_pct / 100
+
+
 func kind() -> Dictionary:
 	return {"id": KIND, "class": EventsScript.ORDINARY, "manual": true, "choices": 2, "timeout": NOTICE_TICKS, "floor": 0,
-		"default": CHOICE_REPAIR, "costs": [0, RESCUE_COST], "title": "Stuck elevator",
-		"text": "An elevator car has stalled with riders aboard and their stress is climbing. A rescue crew ($10,000) frees them and the car is back after one period. Routine repair (free) frees them too, but the car is out for the rest of the day and the riders are far more upset.",
-		"labels": ["Routine repair (free)", "Rescue crew ($10,000)"],
+		"default": CHOICE_REPAIR, "costs": [0, rescue_cost()], "title": "Stuck elevator",
+		"text": "An elevator car has stalled with riders aboard and their stress is climbing. A rescue crew (%s) frees them and the car is back after one period. Routine repair (free) frees them too, but the car is out for the rest of the day and the riders are far more upset." % Difficulty.money(rescue_cost()),
+		"labels": ["Routine repair (free)", "Rescue crew (%s)" % Difficulty.money(rescue_cost())],
 		"ignored": "Routine repair: the car is out for the rest of the day."}
 
 
@@ -112,7 +119,7 @@ func tick(clock: ClockScript, stars: int, people: PeopleScript, events: EventsSc
 	if clock.day_started:
 		_today = []
 	if clock.ticks_in_period() == 0:
-		var draw := _rng.next_below(maxi(1, arm_one_in))  # every period start, always
+		var draw := _rng.next_below(maxi(1, arm_one_in * 100 / maxi(1, chance_pct)))  # every period start, always
 		if draw == 0 and RUSH_PERIODS.has(clock.period()):
 			_armed_until = at_tick + ClockScript.period_ticks(clock.period() - 1)
 	if _armed_until != 0 and at_tick >= _armed_until:

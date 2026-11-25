@@ -25,6 +25,7 @@ extends RefCounted
 ##   49 -> 50  adds "wedding" at rest: none set, no top rank                      (#33)
 ##   50 -> 51  adds "cheated" 0: no cheats used                                  (#39)
 ##   51 -> 52  adds "theatre" at rest: no theatre has a film                      (#500)
+##   52 -> 53  adds "difficulty" 1: Normal, which changes nothing                (#380)
 ##   45 -> 46  vip: appends the air-arrival stream (state 0), no draw yet (day -1), not by air  (#409)
 ## Versions below MIN_VERSION are refused: the layout before #259 is not recorded here.
 
@@ -99,6 +100,8 @@ static func upgrade_step(version: int, data: Dictionary) -> Dictionary:
 			out["cheated"] = 0  # no cheats used (#39)
 		51:
 			out["theatre"] = TheatreScript.rest_ints()  # no theatre has a film (#500)
+		52:
+			out["difficulty"] = 1  # Normal (Difficulty.NORMAL): changes nothing (#380)
 		_:
 			return {}
 	out["version"] = version + 1

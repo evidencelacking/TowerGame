@@ -50,6 +50,7 @@ const StallScript := preload("res://scripts/sim/stall.gd")
 const FestivalScript := preload("res://scripts/sim/festival.gd")
 const WeddingScript := preload("res://scripts/sim/wedding.gd")
 const TheatreScript := preload("res://scripts/sim/theatre.gd")
+const DifficultyScript := preload("res://scripts/sim/difficulty.gd")
 const SaveMigrationScript := preload("res://scripts/sim/save_migration.gd")
 
 ## The only way input changes the simulation. Queued for a tick and applied at one fixed
@@ -101,7 +102,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 52  ## Every bump needs a step in save_migration.gd (a test enforces it).
+const SAVE_VERSION := 53  ## Every bump needs a step in save_migration.gd (a test enforces it).
 const CHEAT_MONEY_MAX := 1_000_000_000  ## The most one CHEAT_MONEY adds, so a bad command cannot overflow the balance.
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
@@ -192,6 +193,8 @@ var unlock_all: bool = false
 ## Cheats (#39): set by any CHEAT_* command and never cleared. Saved and hashed (while on). The save menu and HUD mark it,
 ## and the top-rank celebration says so.
 var cheated: bool = false
+## The difficulty preset (#380, Difficulty): fixed when the tower is built, saved with it. Normal changes nothing.
+var difficulty: int = DifficultyScript.DEFAULT
 
 ## Shop customers and daily sales (see Commerce). Saved: today's and yesterday's counts.
 var commerce := CommerceScript.new()
@@ -202,7 +205,7 @@ var _reach_sig: int = -1  ## What refresh_reach last saw (derived, not saved).
 var _parking_at: int = -1  ## The tick _parking_working was found at.
 
 
-func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_STARTING_FUNDS) -> void:
+func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_STARTING_FUNDS, preset: int = DifficultyScript.DEFAULT) -> void:
 	rng.reseed(seed_value)
 	names.name_seed = seed_value
 	events.reseed(seed_value)
@@ -217,7 +220,8 @@ func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_START
 	commerce.festival = festival
 	commerce.theatre = theatre
 	events.kinds = [fire.kind(), threat.kind(), vip.kind(), pipe.kind(), stall.kind(), festival.kind()] as Array[Dictionary]  # the VIP, pipe, stall and festival cards are manual: never rolled, so they shift no draw
-	ledger = LedgerScript.new(starting_funds)
+	ledger = LedgerScript.new(DifficultyScript.scale(starting_funds, preset, DifficultyScript.FUNDS))
+	set_difficulty(preset)
 	rooms.floors = floors
 	word_of_mouth.attach(grades, rooms, grid, people)
 	grades.add_modifier(rent.grade_modifier)
@@ -228,6 +232,27 @@ func _init(seed_value: int = 0, starting_funds: int = LedgerScript.DEFAULT_START
 	hotel.reserved_room = vip.reserved_suite
 	hotel.working_spaces = _parking_spaces
 	people.guest_home = hotel.is_hotel
+
+
+## Applies a difficulty preset (#380): hands each scaled knob its percent and refreshes the event cards, whose prices and
+## odds read them. An unknown preset is Normal. Never scales stars, ranks, unlock order, structure or the clock.
+func set_difficulty(preset: int) -> void:
+	difficulty = preset if DifficultyScript.is_valid(preset) else DifficultyScript.DEFAULT
+	ledger.income_pct = DifficultyScript.percent(difficulty, DifficultyScript.INCOME)
+	var chance := DifficultyScript.percent(difficulty, DifficultyScript.CHANCE)
+	var cost := DifficultyScript.percent(difficulty, DifficultyScript.COST)
+	fire.chance_pct = chance
+	fire.cost_pct = cost
+	threat.chance_pct = chance
+	threat.cost_pct = cost
+	stall.chance_pct = chance
+	stall.cost_pct = cost
+	pipe.cost_pct = cost
+	mood.step_pct = DifficultyScript.percent(difficulty, DifficultyScript.MOOD)
+	for def: Dictionary in [fire.kind(), threat.kind(), pipe.kind(), stall.kind()]:
+		for i in events.kinds.size():
+			if events.kinds[i]["id"] == def["id"]:
+				events.kinds[i] = def  # only the cards whose prices or odds moved: a test may register its own kinds
 
 
 ## Queues a command for a future tick. Returns false (and queues nothing) if that tick has
@@ -314,7 +339,7 @@ func repair_room(floor_number: int, x: int) -> int:
 	if not rooms.is_charred(id):
 		return RoomsScript.NOT_CHARRED
 	var kind := rooms.kind_of(id)
-	var paid := ledger.charge(tick, FireScript.repair_cost(kind), CatalogueScript.IDS.find(kind))
+	var paid := ledger.charge(tick, FireScript.repair_cost(kind, fire.cost_pct), CatalogueScript.IDS.find(kind))
 	if paid != LedgerScript.OK:
 		return paid
 	rooms.charred.erase(id)
@@ -822,6 +847,8 @@ func _state_ints() -> Array[int]:
 		ints.append(1)  # Only while on, so a normal game hashes exactly as before.
 	if cheated:
 		ints.append(2)  # likewise (#39)
+	if difficulty != DifficultyScript.NORMAL:
+		ints.append(3 + difficulty)  # likewise (#380)
 	ints.append(_queue.size())
 	for command in _queue:
 		ints.append(command.tick)
@@ -842,7 +869,7 @@ func save() -> Dictionary:
 	var queued: Array = []
 	for command in _queue:
 		queued.append([command.tick, command.kind, command.args.duplicate()])
-	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "recycling": recycling.state_ints(), "vip": vip.state_ints(), "demands": demands.state_ints(), "events": events.state_ints(), "fire": fire.state_ints(), "threat": threat.state_ints(), "mood": mood.state_ints(), "life": life.state_ints(), "weather": weather.state_ints(), "pipe": pipe.state_ints(), "stall": stall.state_ints(), "festival": festival.state_ints(), "wedding": wedding.state_ints(), "theatre": theatre.state_ints(), "evaluation": evaluation.state_ints(), "cheated": 1 if cheated else 0, "last_refusal": last_refusal, "queue": queued}
+	return {"version": SAVE_VERSION, "tick": tick, "rng_state": rng.state, "notes": notes, "stars": stars, "clock": clock.state_ints(), "grid": grid.state_ints(), "ledger": ledger.state_ints(), "floors": floors.state_ints(), "rooms": rooms.state_ints(), "messages": messages.state_ints(), "people": people.state_ints(), "grades": grades.state_ints(), "names": names.state_ints(), "rent": rent.state_ints(), "hotel": hotel.state_ints(), "pests": pests.state_ints(), "commerce": commerce.state_ints(), "housekeeping": housekeeping.state_ints(), "recycling": recycling.state_ints(), "vip": vip.state_ints(), "demands": demands.state_ints(), "events": events.state_ints(), "fire": fire.state_ints(), "threat": threat.state_ints(), "mood": mood.state_ints(), "life": life.state_ints(), "weather": weather.state_ints(), "pipe": pipe.state_ints(), "stall": stall.state_ints(), "festival": festival.state_ints(), "wedding": wedding.state_ints(), "theatre": theatre.state_ints(), "evaluation": evaluation.state_ints(), "cheated": 1 if cheated else 0, "difficulty": difficulty, "last_refusal": last_refusal, "queue": queued}
 
 
 ## Replaces this tower's state with a save() result. Returns false, changing nothing, if
@@ -862,6 +889,9 @@ func load_state(data: Dictionary) -> bool:
 		return false
 	var loaded_cheated: Variant = data.get("cheated", 0)
 	if typeof(loaded_cheated) != TYPE_INT or (loaded_cheated != 0 and loaded_cheated != 1):
+		return false
+	var loaded_difficulty: Variant = data.get("difficulty", DifficultyScript.DEFAULT)
+	if not DifficultyScript.is_valid(loaded_difficulty):
 		return false
 	var clock_ints: Variant = data.get("clock")
 	var grid_ints: Variant = data.get("grid")
@@ -960,6 +990,7 @@ func load_state(data: Dictionary) -> bool:
 	notes = data["notes"]
 	stars = loaded_stars
 	cheated = loaded_cheated == 1
+	set_difficulty(loaded_difficulty as int)
 	_queue = loaded_queue
 	trips.resume(clock)
 	refresh_reach()  # derived, so it is found again for the loaded rooms (#368)
