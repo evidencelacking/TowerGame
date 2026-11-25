@@ -30,7 +30,7 @@ func _process(_delta: float) -> void:
 	if which == HeatLook.OFF and _shown_mode == HeatLook.OFF:
 		return
 	var tick: int = tower.tick if tower != null else 0
-	if which != _shown_mode or absi(tick - _shown_tick) >= _refresh_ticks(which):
+	if which != _shown_mode or absi(tick - _shown_tick) >= refresh_ticks(which):
 		_shown_mode = which
 		_shown_tick = tick
 		queue_redraw()
@@ -42,7 +42,7 @@ func _draw() -> void:
 		HeatLook.draw(self, tower, HeatLook.mode)
 
 
-func _refresh_ticks(which: int) -> int:
+static func refresh_ticks(which: int) -> int:
 	if which == HeatLook.TRAFFIC:
 		return TRAFFIC_REFRESH_TICKS
 	if which == HeatLook.RENT or which == HeatLook.GRADE or which == HeatLook.HOTEL:
