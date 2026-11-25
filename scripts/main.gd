@@ -82,6 +82,10 @@ func _ready() -> void:
 	alert_markers.name = "AlertMarkers"
 	add_child(alert_markers)
 	alert_markers.bind(_tower, $TowerCamera as TowerCamera)
+	var overview_map := OverviewMap.new()  # the whole tower small in a corner, toggled by its key or the toolbar (#489)
+	overview_map.name = "OverviewMap"
+	add_child(overview_map)
+	overview_map.bind(_tower, $TowerCamera as TowerCamera)
 	var finance_window := FinanceWindow.new()
 	finance_window.name = "FinanceWindow"
 	add_child(finance_window)

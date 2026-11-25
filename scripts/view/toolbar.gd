@@ -73,6 +73,7 @@ var _graphics: OptionButton  ## "Graphics: Classic / Detailed" (#301): a view op
 var _synergies: CheckButton  ## "Synergies (Y)" (#294): the overlay filter, a view option never saved.
 var _disruptions: CheckButton  ## "Disruptions (I)" (#487): who suffers and why, a view option never saved.
 var _heat: Button  ## "Overlay: Off (H)" (#376): cycles the income and mood heat maps, a view option never saved.
+var _map: CheckButton  ## "Map (P)" (#489): the overview map, a view option never saved.
 var _heat_legend: Control  ## The legend of the heat map, shown while one is on.
 var _see_through: CheckButton  ## "Elevators see-through" (#272): a view option, not saved in the tower.
 var _shown_stars: int = -1
@@ -86,6 +87,7 @@ func refresh_key_labels() -> void:
 	_synergies.text = "Synergies (%s)" % KeyBindings.key_name("synergies")
 	_disruptions.text = "Disruptions (%s)" % KeyBindings.key_name("disruptions")
 	_sync_heat()
+	_map.text = "Map (%s)" % KeyBindings.key_name("overview_map")
 	_shown_tool = "?"  # forces _refresh() on the next frame, which rewrites the item labels
 
 
@@ -168,6 +170,14 @@ func _ready() -> void:
 	row.add_child(_heat)
 	_heat_legend = HeatLook.make_legend()
 	row.add_child(_heat_legend)
+	_map = CheckButton.new()
+	_map.name = "OverviewMap"
+	_map.text = "Map (%s)" % KeyBindings.key_name("overview_map")
+	_map.tooltip_text = "The whole tower small in the corner: filters, alert pins and the camera view. Click or drag on it to move the camera. View only."
+	_map.focus_mode = Control.FOCUS_NONE
+	_map.button_pressed = OverviewMap.open
+	_map.toggled.connect(func(value: bool) -> void: OverviewMap.open = value)
+	row.add_child(_map)
 	_sync_heat()
 	var bulk := Button.new()
 	bulk.name = "BulkRent"
@@ -225,6 +235,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif key != null and key.pressed and not key.echo and KeyBindings.is_key(key, "disruptions") and not key.ctrl_pressed and not key.alt_pressed:
 		_disruptions.button_pressed = not _disruptions.button_pressed
+		get_viewport().set_input_as_handled()
+	elif key != null and key.pressed and not key.echo and KeyBindings.is_key(key, "overview_map") and not key.ctrl_pressed and not key.alt_pressed:
+		_map.button_pressed = not _map.button_pressed
 		get_viewport().set_input_as_handled()
 	elif key != null and key.pressed and not key.echo and KeyBindings.is_key(key, "heat") and not key.ctrl_pressed and not key.alt_pressed:
 		cycle_heat()
