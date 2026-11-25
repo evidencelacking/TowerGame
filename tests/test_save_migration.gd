@@ -74,6 +74,10 @@ static func _reverse(data: Dictionary, v: int) -> Dictionary:
 			out.erase("cheated")
 		52:
 			out.erase("theatre")
+		53:
+			out.erase("difficulty")
+		53:
+			out.erase("difficulty")
 	out["version"] = v - 1
 	return out
 
