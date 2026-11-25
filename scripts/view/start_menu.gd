@@ -38,6 +38,7 @@ func bind(driver_value: Driver, save_menu_value: SaveMenu) -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(title)
 	_add(column, "NewGame", "New game", new_game)
+	_add(column, "Tutorial", "Tutorial", start_tutorial)
 	_add(column, "NewDemo", "New demo", new_demo)
 	continue_button = _add(column, "Continue", "Continue", continue_latest)
 	continue_button.disabled = SaveFiles.latest().is_empty()
@@ -56,6 +57,13 @@ func _add(column: VBoxContainer, node_name: String, text: String, action: Callab
 
 func new_game() -> void:
 	_start(false)
+
+
+## The guided first tower (#503): a fresh normal-mode tower with the fixed seed, built when the scene reloads.
+func start_tutorial() -> void:
+	Tutorial.pending = true
+	DemoMode.forced = false
+	get_tree().reload_current_scene()
 
 
 func new_demo() -> void:
