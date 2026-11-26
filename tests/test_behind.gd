@@ -47,9 +47,11 @@ static func run(check: Callable) -> void:
 	check.call(_room(s, "office", 6, 100) == RoomsScript.OK, "a room goes behind stairs")
 	check.call(_bulldoze(s, 6, 100) == RoomsScript.OK and s.grid.cell_at(6, 100) != 0 and s.rooms.link_at(6, 100) == 0, "bulldoze takes the stairs before the room")
 	var e := TestShafts._tall()
+	e.stars = 3  ## A shop is a 3-star kind (#513).
 	check.call(_room(e, "retail", 6, 100) == RoomsScript.OK and TestLinks._escalator(e, 6, 100) == RoomsScript.OK, "an escalator goes in front of a shop")
 	check.call(_bulldoze(e, 6, 100) == RoomsScript.OK and e.grid.cell_at(6, 100) != 0, "bulldoze takes the escalator before the shop")
 	var f := TestShafts._tall()
+	f.stars = 3
 	check.call(TestLinks._escalator(f, 6, 100) == RoomsScript.OK and _room(f, "retail", 6, 100) == RoomsScript.OK, "a shop goes behind an escalator")
 
 	# A floor span over a shaft: the shaft built its own units, the rest of the span is new.

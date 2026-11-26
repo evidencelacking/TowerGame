@@ -7,6 +7,10 @@ const TowerSim := preload("res://scripts/sim/tower.gd")
 const FixtureTower := preload("res://tests/star_fixture_tower.gd")
 const Rules := preload("res://scripts/sim/star_rules.gd")
 const Catalogue := preload("res://scripts/sim/room_catalogue.gd")
+const Rooms := preload("res://scripts/sim/rooms.gd")
+const Command := TowerSim.Command
+const TestShafts := preload("res://tests/test_shafts.gd")
+const TestRooms := preload("res://tests/test_rooms.gd")
 
 ## Facts that satisfy a rank exactly (every requirement at its threshold).
 static func _facts(star: int) -> Dictionary:
@@ -32,6 +36,15 @@ static func _tower_with(kind: String, count: int, fixture: bool = false) -> Towe
 
 
 static func run(check: Callable) -> void:
+	# The sim gates placement by star rank (#513): refused below, placed at the rank.
+	var gate := TestShafts._tall()
+	var restaurant: int = Catalogue.IDS.find("restaurant")
+	check.call(Catalogue.star("restaurant") == 3 and gate.stars == 1, "a restaurant is a 3-star kind and the tower starts at 1 star")
+	check.call(TestRooms._room(gate, restaurant, 3, 100) == Rooms.NEEDS_STARS and gate.rooms.room_count() == 0, "PLACE_ROOM for a 3-star kind at 1 star is refused")
+	check.call(gate.rooms.check_place(gate.grid, gate.floors, "restaurant", 3, 100, 1)["reason"] == Rooms.NEEDS_STARS, "check_place gives the refusal reason the ghost shows")
+	gate.stars = 3
+	check.call(TestRooms._room(gate, restaurant, 3, 100) == Rooms.OK and gate.rooms.room_count() == 1, "PLACE_ROOM for a 3-star kind at 3 stars places it")
+
 	# The table itself.
 	check.call(Rules.REQUIREMENTS[3]["population"] == 1000 and Rules.REQUIREMENTS[3]["security"] == 1, "star 3 needs population 1,000 and a security office")
 	check.call(Rules.REQUIREMENTS[4]["population"] == 5000 and Rules.REQUIREMENTS[4]["suites"] == 2, "star 4 needs population 5,000 and 2 suites")

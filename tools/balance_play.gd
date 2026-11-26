@@ -262,7 +262,7 @@ func _place(kind: String) -> int:
 		for x in range(0, limit - width + 1):
 			if f > 0 and (not _touches(f, x, width) or _in_bay(x, width)):
 				continue
-			var check := _t.rooms.check_place(_t.grid, _t.floors, kind, f, x)
+			var check := _t.rooms.check_place(_t.grid, _t.floors, kind, f, x, _t.unlocked_stars())
 			if check["reason"] == Rooms.OK:
 				var cost := int(check["cost"])
 				var need := cost
@@ -270,7 +270,7 @@ func _place(kind: String) -> int:
 					need = cost * SERVICE_COVER
 				if need > _spare():
 					return Rooms.SHORT_OF_FUNDS
-				return _t.rooms.place_room(_t.grid, _t.floors, _t.ledger, _t.tick, index, f, x)
+				return _t.rooms.place_room(_t.grid, _t.floors, _t.ledger, _t.tick, index, f, x, _t.unlocked_stars())
 			worst = check["reason"]
 	return worst
 
