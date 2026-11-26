@@ -21,6 +21,9 @@ func _init() -> void:
 		var result: Dictionary = Play.play(strategy, years)
 		for row: Array in result["rows"]:
 			print("ROW|%s|%d|%d|%d|%d|%s" % [strategy, row[0], row[1], row[2], row[3], row[4]])
+		if OS.get_cmdline_user_args().has("trace"):
+			for line: String in result["trace"]:
+				print("TRACE|%s|%s" % [strategy, line])
 		for note: String in result["notes"]:
 			print("NOTE|%s|%s" % [strategy, note])
 	print("DONE")

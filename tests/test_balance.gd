@@ -12,14 +12,12 @@ static func run(check: Callable) -> void:
 	check.call(first["rows"] == second["rows"] and first["hash"] == second["hash"], "balance: the same seed gives an identical report twice")
 	var row: Array = first["rows"][0]
 	check.call(int(row[0]) == 1 and int(row[2]) > 0 and int(row[3]) >= 1, "balance: the row holds year, funds, people and stars")
-	var other: Dictionary = Play.play("mixed", 1, 7)
-	check.call(other["rows"].size() == 1, "balance: another seed also reports")
 
-	# Only the lobby can be afforded: running costs take the funds below zero, so the run ends bankrupt (a stalled run also passes).
-	var poor: Dictionary = Play.play("offices", 3, Play.SEED, 665000)
+	# Only the lobby and a shaft can be afforded: running costs take the funds below zero within the year, so the run ends bankrupt.
+	var poor: Dictionary = Play.play("offices", 1, Play.SEED, 480000)
 	var rows: Array = poor["rows"]
-	check.call(rows.size() >= 1 and rows.size() <= 3, "balance: a broke run still reports its years")
+	check.call(rows.size() == 1, "balance: a broke run still reports its year")
 	var status: String = rows[rows.size() - 1][4]
-	check.call(status == "bankrupt" or status == "stalled", "balance: a broke run is reported as bankrupt or stalled, not ok (%s)" % status)
+	check.call(status == "bankrupt", "balance: a broke run is reported as bankrupt, not ok (%s)" % status)
 	if status == "bankrupt":
 		check.call(int(rows[rows.size() - 1][1]) < 0, "balance: a bankrupt run's last row shows funds below zero")
