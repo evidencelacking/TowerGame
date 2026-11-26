@@ -11,6 +11,9 @@ const PoolLife := preload("res://scripts/sim/pool_life.gd")
 const Demands := preload("res://scripts/sim/demands.gd")
 const Synergy := preload("res://scripts/sim/synergy.gd")
 const RoomLook := preload("res://scripts/view/room_look.gd")
+const Commerce := preload("res://scripts/sim/commerce.gd")
+const Clock := preload("res://scripts/sim/clock.gd")
+const TestTransit := preload("res://tests/test_transit.gd")
 const TestHotel := preload("res://tests/test_hotel.gd")
 const TestCharred := preload("res://tests/test_charred_look.gd")
 
@@ -110,3 +113,24 @@ static func run(check: Callable) -> void:
 	_link(rt)
 	rt.step()
 	check.call(rt.commerce.collect_rent(rt.rooms, rt.rent, rt.ledger, rt.tick, true) > 0, "once connected it pays")
+
+	# Metro (#325): a station no stairs reach is marked cut off and earns nothing (no rent bonus, no extra visitors)
+	# until a route connects it.
+	var period := Commerce.period_of_minute(720)
+	var counts: Array[int] = []
+	var bonuses: Array[int] = []
+	for linked: bool in [false, true]:
+		var mt := TestTransit._tower()
+		TestTransit._station(mt, -1, 100)
+		var station := _room(mt, "metro")
+		if linked:
+			TestTransit._link(mt, 100)
+		mt.step()
+		check.call(mt.rooms.is_cut_off(station) == not linked, "a metro station is cut off exactly while no route reaches it (linked %s)" % str(linked))
+		bonuses.append(mt.rent_bonus_percent())
+		var shop := _room(mt, "fast_food")
+		mt.commerce._serve("fast_food", 60, 0, mt.floors, mt.rooms, mt.grid, mt.people, mt.tenancy, mt.rng, Clock.WD1, 720, mt.life)
+		counts.append(mt.commerce.customers_today(shop))
+	var base := Commerce.visitors_for("fast_food", period, Clock.WD1)
+	check.call(bonuses == [0, 15], "a cut-off metro station gives no rent bonus until connected (%s)" % str(bonuses))
+	check.call(counts[0] == base and counts[1] > base, "a cut-off metro station sends no visitors until connected (%s, base %d)" % [str(counts), base])

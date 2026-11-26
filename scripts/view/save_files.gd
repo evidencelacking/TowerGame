@@ -21,6 +21,8 @@ const DEMO_AUTOSAVE_PATH := "user://demo_autosave_%d.sav"
 static var demo: bool = false
 ## A save to apply after the scene reloads (switching between demo and normal play), or "".
 static var pending_load: String = ""
+## Counts successful loads into a running tower, so the tutorial (#503) can tell a save was loaded over it.
+static var loads: int = 0
 static var autosave_template: String = AUTOSAVE_PATH  ## Tests point this at a file of their own, so parallel runs never share autosaves.
 
 
@@ -164,7 +166,10 @@ static func problem(path: String) -> String:
 ## Loads path into the tower. Returns false, leaving the tower unchanged, if it cannot.
 static func load_into(tower: TowerSim, path: String) -> bool:
 	var data := read(path)
-	return not data.is_empty() and tower.load_state(data)
+	var ok := not data.is_empty() and tower.load_state(data)
+	if ok:
+		loads += 1
+	return ok
 
 
 ## Writes the tower to its quarter's autosave slot.

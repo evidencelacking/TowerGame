@@ -10,6 +10,7 @@ const TestRooms := preload("res://tests/test_rooms.gd")
 const TestShafts := preload("res://tests/test_shafts.gd")
 const TestCars := preload("res://tests/test_cars.gd")
 const TestBoarding := preload("res://tests/test_boarding.gd")
+const RoutesScript := preload("res://scripts/sim/routes.gd")
 const TestDispatch := preload("res://tests/test_dispatch.gd")
 
 
@@ -36,6 +37,33 @@ static func run(check: Callable) -> void:
 	check.call(TestRooms._send(tight, Command.SET_SHAFT_STOP, [tid, 2, 0] as Array[int]) == RoomsScript.OK, "a floor goes off")
 	check.call(TestRooms._send(tight, Command.SET_SHAFT_STOP, [tid, 3, 0] as Array[int]) == RoomsScript.OK, "a second floor goes off")
 	check.call(TestRooms._send(tight, Command.SET_SHAFT_STOP, [tid, 1, 0] as Array[int]) == RoomsScript.TOO_FEW_STOPS and tight.rooms.is_stop(tid, 1), "the last two stops cannot be switched off")
+
+	# A floor switched off is never stopped at, and the people waiting there are dropped from its queue to re-route (#187).
+	var o := TestBoarding._setup([1] as Array[int], 4)
+	var oid := TestDispatch._id(o)
+	TestBoarding._queue(o, 0, 3, 5, 10)
+	TestBoarding._queue(o, 3, 4, 2, 10)
+	check.call(o.rooms.queue_at(oid, 5).size() == 3, "three people wait at floor 5")
+	check.call(TestRooms._send(o, Command.SET_SHAFT_STOP, [oid, 5, 0] as Array[int]) == RoomsScript.OK, "floor 5 is switched off by command")
+	var waiting_at_off := o.rooms.queue_at(oid, 5).size()
+	var calls_at_off := 0
+	for call: Array in o.rooms.calls():
+		calls_at_off += 1 if call[CarsScript.CALL_FLOOR] == 5 else 0
+	check.call(waiting_at_off == 0 and calls_at_off == 0, "its waiters leave the queue and its calls are dropped")
+	check.call(o.rooms.queue_at(oid, 2).size() + o.rooms.riders_of(0).size() == 1, "a waiter at another floor keeps waiting")
+	check.call(o.rooms.join_queue(0, oid, 5, 10) == RoomsScript.NOT_A_STOP, "nobody can queue at the switched-off floor")
+	var stopped_at_off := false
+	for _n in 300:
+		o.step()
+		var car: Array = o.rooms.cars_of(oid)[0]
+		if car[CarsScript.FLOOR] == 5 and car[CarsScript.STATE] in [CarsScript.DOORS_OPENING, CarsScript.DOORS_OPEN]:
+			stopped_at_off = true
+	check.call(not stopped_at_off, "the car never opens its doors at the switched-off floor")
+	var detour := RoutesScript.find(o.floors, o.rooms, o.grid, 2, 100, 10, 100)
+	var uses_off := false
+	for leg: Dictionary in detour["legs"]:
+		uses_off = uses_off or leg["floor"] == 5 or leg["to_floor"] == 5
+	check.call(detour["reason"] == RoutesScript.OK and not uses_off, "a route across the shaft re-plans without the switched-off floor")
 
 	# What the panel shows.
 	var info := ElevatorWindow.describe(t, id)
