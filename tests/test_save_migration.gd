@@ -76,8 +76,8 @@ static func _reverse(data: Dictionary, v: int) -> Dictionary:
 			out.erase("theatre")
 		53:
 			out.erase("difficulty")
-		53:
-			out.erase("difficulty")
+		54:
+			pass  # no layout change: the bowling alley and arcade append catalogue ids (#324)
 	out["version"] = v - 1
 	return out
 

@@ -103,6 +103,9 @@ const MEALS: Array = [
 	[BALLROOM_EVENING, BALLROOM_WINDOW, 100, "ballroom"],
 	[CONFERENCE_MORNING, CONFERENCE_WINDOW, 100, "conference_center"],
 	[PARTY_AFTERNOON, PARTY_WINDOW, 100, "party_hall"],
+	[ARCADE_AFTERNOON, ARCADE_AFTERNOON_WINDOW, ARCADE_AFTERNOON_PERCENT, "arcade"],
+	[ARCADE_EVENING, ARCADE_EVENING_WINDOW, ARCADE_EVENING_PERCENT, "arcade"],
+	[BOWLING_EVENING, BOWLING_WINDOW, BOWLING_PERCENT, "bowling"],
 ]
 
 ## Our own kinds (M13, #291), all unverified tunables. A gym is busy before work, at the break and
@@ -260,6 +263,21 @@ const BOOKING_GUEST_PERCENT := 60
 ## the fee is the tier for the guest count. Outside guests are visitors (not population), as for the ballroom.
 const PARTY_AFTERNOON := 840  ## 14:00.
 const PARTY_WINDOW := 240  ## to 18:00.
+## The bowling alley and the arcade (#324, our own design, every number an unverified tunable). Each visitor pays a fee at
+## the door (ENTRY_FEES: fee, then the day's wages the staff cost) and the day's takings are the fees less the wages, as for
+## the pool, so an empty day loses the wages. The alley opens after the offices close: one wave from 18:30 to 22:00, the
+## street adding few on a weekday and many at the weekend (VISITORS). The arcade is cheaper and smaller: an afternoon wave
+## (15:00 to 17:00, the after-school crowd) and an evening one (18:00 to 20:30), with the same weekend rise.
+const BOWLING_EVENING := 1110  ## 18:30.
+const BOWLING_WINDOW := 210  ## to 22:00.
+const BOWLING_PERCENT := 7
+const ARCADE_AFTERNOON := 900  ## 15:00.
+const ARCADE_AFTERNOON_WINDOW := 120
+const ARCADE_AFTERNOON_PERCENT := 5
+const ARCADE_EVENING := 1080  ## 18:00.
+const ARCADE_EVENING_WINDOW := 150
+const ARCADE_EVENING_PERCENT := 6
+const ENTRY_FEES: Dictionary = {"bowling": [180, 3000], "arcade": [60, 1000]}
 
 ## Retail (#153): shoppers come at lunch and after work (percent of people inside who shop).
 const SHOP_LUNCH := 750  ## 12:30.
@@ -277,6 +295,8 @@ const VISITORS: Dictionary = {
 	"fast_food": [[0, 4, 12, 4, 0, 0], [0, 6, 20, 10, 0, 0]],
 	"restaurant": [[0, 0, 0, 0, 6, 0], [0, 0, 0, 0, 14, 0]],
 	"pool": [[2, 0, 4, 0, 6, 0], [4, 0, 10, 0, 12, 0]],  # the neighbourhood swims at the waves (#328)
+	"bowling": [[0, 0, 0, 0, 6, 0], [0, 0, 0, 0, 18, 0]],  # evenings, three times as many at the weekend (#324)
+	"arcade": [[0, 0, 0, 4, 4, 0], [0, 0, 0, 10, 10, 0]],  # afternoons and evenings, more at the weekend (#324)
 	"retail": [[0, 0, 4, 0, 6, 0], [0, 0, 14, 0, 24, 0]],
 }
 ## The metro station (#325, our own design): while the tower is linked to a station, these visitors arrive in
@@ -424,6 +444,18 @@ const PROFILES: Dictionary = {
 		"booking": true, "tower_guests": 0, "outside": 40,
 		"tiers": [[0, 0], [20, 5000], [30, 8000], [40, 12000]],
 		"food": ["Sales summit", "Trade fair", "Training day", "Board retreat", "Convention"],
+	},
+	# Bowling alley (#324): 24 bowlers a hour-long game, 3 staff; takings are the entry fees less the wages (see ENTRY_FEES).
+	"bowling": {
+		"seats": 24, "linger_minutes": 60, "grade_cap": 40, "grade_a": 24, "grade_b": 12,
+		"tiers": [[0, -3000]],
+		"food": ["Family lanes", "League night", "Glow bowling", "Cosmic bowling", "Birthday lanes"],
+	},
+	# Arcade (#324): 16 players, half-hour sessions, 1 staff; takings are the entry fees less the wages (see ENTRY_FEES).
+	"arcade": {
+		"seats": 16, "linger_minutes": 30, "grade_cap": 40, "grade_a": 20, "grade_b": 10,
+		"tiers": [[0, -1000]],
+		"food": ["Racing games", "Pinball", "Retro cabinets", "Claw machines", "Shooters"],
 	},
 	# Party hall (#500): one afternoon party a day, every day: up to 20 hotel guests of the tower and 10 outside guests; paid per party.
 	"party_hall": {
@@ -812,6 +844,8 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 			_casino_incident(rooms, ledger, messages, at_tick, id, customers_today(id), rng)
 		if rooms.kind_of(id) == PoolLifeScript.KIND:
 			amount = pool_takings(customers_today(id))
+		if ENTRY_FEES.has(rooms.kind_of(id)):
+			amount = entry_takings(rooms.kind_of(id), customers_today(id))
 		if amount > 0:  # gardens feed restaurants (synergy.gd)
 			amount += amount * SynergyScript.sales_percent(rooms.kind_of(id), grid.run_of(id), sources) / 100
 		if amount > 0 and DINING_FAMILY.has(rooms.kind_of(id)):  # a varied dining scene draws more
@@ -832,6 +866,13 @@ func _settle(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, tenancy
 ## The pool's takings for a day with this many swimmers: the entry money less the staff's wages (negative when empty).
 static func pool_takings(swimmers: int) -> int:
 	return swimmers * POOL_ENTRY - POOL_WAGES
+
+
+## The takings of a kind that charges at the door (ENTRY_FEES, #324) for a day with this many visitors: the fees less the
+## wages (negative when empty).
+static func entry_takings(kind: String, visitors: int) -> int:
+	var row: Array = ENTRY_FEES[kind]
+	return visitors * int(row[0]) - int(row[1])
 
 
 ## The casino's takings for a day with this many gamblers: each stakes CASINO_STAKE and wins with probability

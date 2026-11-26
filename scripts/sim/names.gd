@@ -48,6 +48,8 @@ const TITLES: Dictionary = {
 	"school": [["Teaching Assistant", "Caretaker"], ["Teacher", "Form Tutor", "Games Teacher"], ["Head of Year", "Headteacher"]],
 	"ballroom": [["Coat Check", "Waiter"], ["Banquet Server", "Event Planner", "Florist"], ["Maitre d'", "Events Manager"]],
 	"conference_center": [["Porter", "Registration Desk"], ["AV Technician", "Event Coordinator", "Caterer"], ["Conference Manager", "Head of Events"]],
+	"bowling": [["Shoe Hirer", "Pinsetter"], ["Lane Attendant", "Snack Bar Cook", "Shoe Hirer"], ["League Organiser", "Alley Manager"]],
+	"arcade": [["Token Seller", "Floor Cleaner"], ["Arcade Attendant", "Prize Counter Clerk"], ["Floor Supervisor", "Arcade Manager"]],
 	"party_hall": [["Cloakroom Helper", "Balloon Runner"], ["Party Host", "Caterer", "DJ"], ["Events Host", "Hall Manager"]],
 	"movie_theatre": [["Usher", "Popcorn Seller"], ["Projectionist", "Box Office Clerk", "Usher"], ["Head Projectionist", "Theatre Manager"]],
 	"nightclub": [["Cloakroom Attendant", "Glass Collector"], ["Barman", "Bouncer", "DJ"], ["Head Barman", "Club Manager"]],

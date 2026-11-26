@@ -65,6 +65,23 @@ of these together. "Ref" means the value comes from the reference; anything else
 | Recycling capacity | `recycling.gd` CAPACITY | 18,000 | Up | Ours |
 | Guards per security office | `security.gd` GUARDS_PER_OFFICE | 4 | Up | Ours |
 
+## Entertainment: bowling alley and arcade (#324)
+
+Our own design, no reference numbers: every one is a tunable. Visitors pay at the door; the day's takings are the fees less the
+wages (an empty day loses the wages), as for the pool. The street's visitors are per clock period, on a weekday and at the weekend.
+
+| Knob | File | Bowling alley | Arcade | Notes |
+|---|---|---|---|---|
+| Cost, width, unlock | `room_catalogue.gd` | $160,000, 24 wide, 3 stars | $70,000, 12 wide, 2 stars | The alley is between a shop (16) and the theatre (32) |
+| Staff | `room_catalogue.gd` | 3 | 1 | Names in `names.gd` |
+| Seats, stay | `commerce.gd` PROFILES | 24, 60 min (72 a wave) | 16, 30 min (64 and 80 a wave) | |
+| Waves | `commerce.gd` MEALS | 18:30 to 22:00, after offices close | 15:00 to 17:00 and 18:00 to 20:30 | None at night or in the morning |
+| Tower people who come | `commerce.gd` | 7% of those inside | 5% afternoon, 6% evening | |
+| Street visitors, weekday / weekend | `commerce.gd` VISITORS | 6 / 18 in the evening | 4 / 10 afternoon, 4 / 10 evening | Weekend peak |
+| Entry fee, wages | `commerce.gd` ENTRY_FEES | $180, $3,000 a day | $60, $1,000 a day | Break-even 17 bowlers, 17 players a day |
+| Grade A / B (visitors a day) | `commerce.gd` PROFILES | 24 / 12 | 20 / 10 | Bar scale 40 |
+| Noise at the wall | `noise.gd` SOURCES | 6 | 4 | Like the theatre (6) and the pool (3) |
+
 ## Transport
 
 | Knob | File | Now | Easier | Notes |

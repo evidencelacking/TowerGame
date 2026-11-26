@@ -79,6 +79,7 @@ const IDS: Array[String] = [
 	"ballroom", "conference_center", "apartment",
 	"studio", "penthouse", "assisted",
 	"emergency_room", "operating_room", "imaging", "patient_ward",
+	"bowling", "arcade",
 ]
 
 ## The sold homes (#369): the standard condo and the two sizes added after it. Anything that treats a condo
@@ -284,6 +285,15 @@ const _ROWS: Dictionary = {
 	# The swimming pool (#328, our own design): two floors tall above ground (rooms.gd TALL_KINDS), a diving board below
 	# and a viewing gallery above. Between the daycare (80k) and the observation deck (800k): the height is the cost.
 	# Four staff, one of them the lifeguard (names.gd). Every number a tunable.
+	# Bowling alley and arcade (#324, our own design): the smaller entertainment kinds beside the theatre and party hall.
+	# The alley is 24 wide (between a shop's 16 and the theatre's 32), $160,000, star 3; the arcade is shop-sized, 12 wide,
+	# $70,000, star 2. Both above ground; every number a tunable (docs/tuning.md).
+	"bowling": {"staff": 3, "width": 24, "height": 1, "cost": 160000, "per_unit": false, "star": 3,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
+	"arcade": {"staff": 1, "width": 12, "height": 1, "cost": 70000, "per_unit": false, "star": 2,
+		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
+		"limit_group": "", "limit_scope": "tower"},
 	"pool": {"upkeep": 6000, "staff": 4, "width": 24, "height": 2, "cost": 700000, "per_unit": false, "star": 3,
 		"removable": true, "placement": PLACE_ABOVE_GROUND, "limit": 0,
 		"limit_group": "", "limit_scope": "tower"},
@@ -296,6 +306,7 @@ const DISPLAY_NAMES: Dictionary = {
 	"local_car": "Local car", "service_car": "Service car", "express_car": "Express car",
 	"medical": "Medical Center", "clinic": "Wellness Clinic",  # #384
 	"assisted": "Assisted Living",  # #378
+	"bowling": "Bowling Alley",  # #324
 	"emergency_room": "Emergency Room", "operating_room": "Operating Room", "imaging": "Imaging Suite", "patient_ward": "Patient Ward",  # #377
 }
 

@@ -102,7 +102,7 @@ class Command:
 		return command
 
 
-const SAVE_VERSION := 53  ## Every bump needs a step in save_migration.gd (a test enforces it).
+const SAVE_VERSION := 54  ## Every bump needs a step in save_migration.gd (a test enforces it).
 const CHEAT_MONEY_MAX := 1_000_000_000  ## The most one CHEAT_MONEY adds, so a bad command cannot overflow the balance.
 const START_STARS := 1  ## A new tower starts at 1 star (docs/gameplay-reference.md). The one source of truth; views read Tower.stars.
 const HASH_OFFSET := -3750763034362895579  # FNV-1a 64-bit offset basis, as signed
