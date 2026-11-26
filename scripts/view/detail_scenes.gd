@@ -32,6 +32,8 @@ const PALETTES: Dictionary = {
 	"parking_space": ["9a9aa6", "6a6a78", "5a5a64", "50505a", "c8c0a0"],
 	"movie_theatre": ["5a2a3c", "3a1a2a", "4a3040", "3c2634", "c9a85c"],
 	"party_hall": ["7a4a9a", "4c2a6a", "3a3050", "30283f", "f0c050"],
+	"bowling": ["c8d8ec", "2e4a78", "d8b078", "c8a068", "f0f4fa"],
+	"arcade": ["3a2a5a", "20163a", "2c2048", "261a3e", "e04aa8"],
 	"pool": ["bfe4e6", "4a9ab4", "c8d8da", "b4c8cc", "f0f6f6"],
 	"metro": ["d4dce0", "4a6a8a", "9a9ca4", "8a8c94", "e8c040"],
 	"casino": ["4a1a2c", "2c1020", "6a1a28", "5a1622", "e0b040"],

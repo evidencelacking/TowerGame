@@ -307,4 +307,29 @@ static func build() -> Dictionary:
 			"spots": [[4, 28]]}],
 		"spots": [[-14, 28, "r"]],
 	}
+	# Bowling alley (#324): a wooden lane running back to a pin deck, a ball return at the near end, a scoreboard on the wall.
+	out["bowling"] = {
+		"hue": "party", "look": "full",
+		"fixed": [
+			[-34, 4, 30, 10, "furn", "r"], [-32, 6, 26, 6, "lamp", "r"], [-34, 24, 30, 6, "furn", "r"],
+			[-30, 18, 2, 6, "white", "r"], [-24, 18, 2, 6, "white", "r"], [-18, 18, 2, 6, "white", "r"],
+		],
+		"repeats": [{"pad": 6, "every": 28, "lo": 0, "hi": 16, "reserve": 40, "shapes": [
+			[0, 24, 22, 6, "wood"], [0, 22, 22, 1, "white"], [16, 20, 6, 2, "furn"], [18, 17, 2, 3, "red"],
+			[0, 8, 2, 14, "furn"], [3, 10, 8, 4, "lamp"]],
+			"spots": [[6, 30]]}],
+		"spots": [[-40, 30, "r"]],
+	}
+	# Arcade (#324): rows of cabinets with glowing screens, a prize counter and a neon sign.
+	out["arcade"] = {
+		"hue": "party", "look": "full",
+		"fixed": [
+			[-26, 20, 22, 10, "furn", "r"], [-24, 12, 18, 8, "gold", "r"], [-24, 6, 18, 2, "red", "r"],
+			[4, 4, 14, 3, "lamp"], [4, 4, 14, 3, "accent"],
+		],
+		"repeats": [{"pad": 6, "every": 14, "lo": 0, "hi": 6, "reserve": 34, "shapes": [
+			[0, 12, 8, 18, "furn"], [1, 14, 6, 6, "lamp"], [1, 22, 6, 2, "red"], [1, 25, 2, 2, "gold"]],
+			"spots": [[4, 30]]}],
+		"spots": [[-30, 30, "r"]],
+	}
 	return out

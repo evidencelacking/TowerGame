@@ -72,8 +72,8 @@ static func run(check: Callable) -> void:
 	var ids := Catalogue.IDS
 	var tail_ok := true
 	for k in KINDS.size():
-		tail_ok = tail_ok and ids[ids.size() - KINDS.size() + k] == KINDS[k]
-	check.call(tail_ok and ids.find("assisted") == ids.size() - KINDS.size() - 1, "ids: the hospital kinds are appended last, after assisted living")
+		tail_ok = tail_ok and ids[ids.size() - KINDS.size() - 2 + k] == KINDS[k]  # the bowling alley and arcade (#324) come after
+	check.call(tail_ok and ids.find("assisted") == ids.size() - KINDS.size() - 3, "ids: the hospital kinds are appended last, after assisted living")
 	var placeable_tail := Rooms.PLACEABLE.slice(Rooms.PLACEABLE.size() - KINDS.size())
 	check.call(placeable_tail == KINDS, "placeable: the hospital kinds are appended last")
 	for kind: String in KINDS:

@@ -22,6 +22,9 @@ const STRESS_RECOVERY_PER_MINUTE := 1  ## Guess: stress lost each idle minute.
 const STRESS_NO_ROUTE := 30  ## Guess: stress when a trip has no route and is given up.
 const NO_ROUTE_RETRY_MINUTES := 30  ## Guess: minutes before a given-up trip is requested again.
 const GROUND_FLOOR := 1
+const WARM_PAIRS := 6  ## Routes warmed per person: between home, work and outside (the daily commute, both ways).
+const WARM_LOOKS_PER_MINUTE := 60  ## Pairs the warm-up looks at in a minute (a cached one costs a lookup).
+const WARM_SEARCHES_PER_MINUTE := 4  ## Route searches a minute may hold, trips included, before the warm-up stops (#455).
 const CACHE_LIMIT := 100000  ## Routes kept between steps before the cache starts over: a few megabytes at most.
 const CACHE_VARIANTS := 8  ## Routes kept per pair of ends, each for a different set of waiting cars.
 const WARN_EVERY_TICKS := 2550  ## One day of ticks (the clock's six periods): the unreachable-trip warning repeats no sooner.
@@ -34,6 +37,11 @@ var _layout_known: bool = false  ## _cache_key is current for this step.
 var _memo_waiting: Array[int] = []  ## rooms.waiting_keys() as last read.
 var _memo_waiting_set: Dictionary = {}  ## The same keys as {key: true}, for Routes.find.
 var _waiting_known: bool = false  ## _memo_waiting is current: no car can have moved or been called since it was read (#427).
+var _first_minutes: int = -1  ## Set by _find_between: minutes of the route's first walking stretch, or -1 when it starts with a ride or there is none. Not saved.
+var _warm_at: int = 0  ## Next (person, pair) the idle-minute route warm-up looks at (#455). Not saved.
+var _warm_fresh: bool = true  ## The cache has started over: the warm-up goes round again. Not saved.
+var _warm_to: int = 0  ## Where the warm-up stops: the pairs there were when the cache last started over; 0 until then. Not saved.
+var _searches: int = 0  ## Route searches made so far (cache misses), so the warm-up can keep to its budget per minute. Not saved.
 var blocked_transfers: int = 0  ## People this step whose trip needed a second transfer; Tower logs it and clears it. Not saved.
 var _routes: Dictionary = {}  ## person id -> legs of the trip under way; a cache, rebuilt from trip_from and the goal.
 
@@ -45,6 +53,7 @@ func resume(clock: Object) -> void:
 	_cache.clear()
 	_epoch.clear()
 	_cache_key = []
+	_warm_fresh = true
 
 
 ## Whole minutes a route takes: walked columns (rounded up) plus stairs segments, at least 1.
@@ -87,6 +96,7 @@ func tick(clock: Object, floors: FloorsScript, rooms: RoomsScript, grid: GridScr
 	if not floors.has_lobby():
 		return
 	var entry: Array[int] = [GROUND_FLOOR, floors.lobby_span()[0]]  # left-edge entry, outside the tower
+	var searches_before := _searches
 	for i in people.active_indices():  # everyone else is idle with nothing to ease, for whom this minute changes nothing (#454)
 		match people.trip_state(i):
 			PeopleScript.TRIP_REQUESTED:
@@ -100,6 +110,52 @@ func tick(clock: Object, floors: FloorsScript, rooms: RoomsScript, grid: GridScr
 				pass  # queued for a car (stress above, at STRESS_PER_QUEUE_MINUTE) or riding one
 			_:
 				people.recover_idle(i, STRESS_RECOVERY_PER_MINUTE)
+	_warm_routes(searches_before, floors, rooms, grid, people, entry)
+
+
+## Fills the route cache ahead of the rush (#455): the commute routes cost a search each the first time, and the whole
+## tower asking at 8:00 made one tick of dozens of them. Between minutes with little else to search, look at a few of the
+## people's home, work and outside pairs; the cache is a cache, so what a trip gets is the same either way.
+func _warm_routes(searches_before: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, entry: Array[int]) -> void:
+	var total := people.count() * WARM_PAIRS
+	if _warm_fresh:
+		_warm_fresh = false
+		_warm_at = 0
+		_warm_to = total
+	if _warm_at >= _warm_to:
+		return
+	var blocked := blocked_transfers  # warming is not a trip
+	for _look in WARM_LOOKS_PER_MINUTE:
+		if _searches - searches_before >= WARM_SEARCHES_PER_MINUTE:
+			break
+		if _warm_at >= mini(_warm_to, total):
+			break
+		var i := _warm_at / WARM_PAIRS
+		var pair := _warm_at % WARM_PAIRS
+		_warm_at += 1
+		var home := people.home_of(i)
+		var work := people.work_of(i)
+		var from := PeopleScript.NONE
+		var to := PeopleScript.NONE
+		match pair:
+			0:
+				from = home
+				to = work
+			1:
+				from = work
+				to = home
+			2:
+				to = home
+			3:
+				to = work
+			4:
+				from = home
+			_:
+				from = work
+		if from == to:
+			continue
+		_find_between(floors, rooms, grid, entry, from, to)
+	blocked_transfers = blocked
 
 
 func _spot(room: int, grid: GridScript, entry: Array[int]) -> Array[int]:
@@ -110,18 +166,25 @@ func _spot(room: int, grid: GridScript, entry: Array[int]) -> Array[int]:
 
 
 func _start(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, entry: Array[int]) -> void:
-	var legs: Variant = _find_legs(i, floors, rooms, grid, people, entry, people.location_of(i))
+	var legs: Variant = _find_between(floors, rooms, grid, entry, people.location_of(i), people.goal_room(i))
 	if legs == null:
 		_give_up(i, people)
 		return
 	people.start_trip(i, 1)  # sets the start room; the first stretch is set below
 	_routes[people.id_at(i)] = legs
-	_enter_leg(i, 0, legs, rooms, people)
+	if _first_minutes >= 0:  # a walking first stretch: its minutes were worked out with the route
+		people.set_segment(i, 0, _first_minutes)
+	else:
+		_enter_leg(i, 0, legs, rooms, people)
 
 
 ## The route for person i from the room `from_room` to their goal, or null when there is none.
 func _find_legs(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScript, people: PeopleScript, entry: Array[int], from_room: int) -> Variant:
-	var goal_room := people.goal_room(i)
+	return _find_between(floors, rooms, grid, entry, from_room, people.goal_room(i))
+
+
+## The route from `from_room` to `goal_room` (either may be NONE: outside), or null when there is none.
+func _find_between(floors: FloorsScript, rooms: RoomsScript, grid: GridScript, entry: Array[int], from_room: int, goal_room: int) -> Variant:
 	var from := _spot(from_room, grid, entry)
 	var to: Array[int] = entry
 	if goal_room != PeopleScript.NONE:
@@ -139,6 +202,7 @@ func _find_legs(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 			_cache.clear()
 			_epoch.clear()
 			_cache_key = layout
+			_warm_fresh = true
 		_layout_known = true
 	if not _waiting_known:  # reading it sorts every car's state: once per change, not once per route
 		var waiting := rooms.waiting_keys()
@@ -154,6 +218,7 @@ func _find_legs(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 		var again: Array = _epoch[key]
 		if again[2] == RoutesScript.TOO_MANY_TRANSFERS:
 			blocked_transfers += 1
+		_first_minutes = again[3]
 		return again[1]
 	var variants: Array = []
 	if _cache.has(key):
@@ -163,7 +228,9 @@ func _find_legs(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 				_epoch[key] = held
 				if held[2] == RoutesScript.TOO_MANY_TRANSFERS:
 					blocked_transfers += 1
+				_first_minutes = held[3]
 				return held[1]
+	_searches += 1
 	var reads := PackedInt32Array()
 	var route: Dictionary = RoutesScript.find(floors, rooms, grid, from[0], from[1], to[0], to[1], false, _memo_waiting_set, reads)
 	var found: Variant = null if route["reason"] != RoutesScript.OK else route["legs"]
@@ -172,6 +239,7 @@ func _find_legs(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 	if _cache.size() >= CACHE_LIMIT:
 		_cache.clear()
 		_epoch.clear()
+		_warm_fresh = true
 		variants = []
 	var seen: Dictionary = {}
 	var unique := PackedInt32Array()
@@ -181,10 +249,16 @@ func _find_legs(i: int, floors: FloorsScript, rooms: RoomsScript, grid: GridScri
 			unique.append(read)
 	if variants.size() >= CACHE_VARIANTS:
 		variants.pop_front()
-	var made: Array = [unique, found, route["reason"]]
+	var first := -1
+	if found != null:
+		var found_legs: Array = found
+		if found_legs.is_empty() or found_legs[0]["kind"] != RoutesScript.ELEVATOR:
+			first = route_minutes(segment(found_legs, 0))
+	var made: Array = [unique, found, route["reason"], first]
 	variants.append(made)
 	_epoch[key] = made
 	_cache[key] = variants
+	_first_minutes = first
 	return found
 
 

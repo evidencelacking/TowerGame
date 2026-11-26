@@ -10,7 +10,7 @@ extends RefCounted
 const Furnish := preload("res://scripts/view/detail_furnish.gd")
 const Scenes := preload("res://scripts/view/detail_scenes.gd")
 
-const KINDS: Array[String] = ["casino", "nightclub", "observation_deck", "helipad", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "gym", "daycare", "school", "ballroom", "conference_center", "clinic", "coworking"]
+const KINDS: Array[String] = ["casino", "nightclub", "observation_deck", "helipad", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "gym", "daycare", "school", "ballroom", "conference_center", "clinic", "coworking", "bowling", "arcade"]
 const BRASS := Color("c9a85c")
 const FELT := Color("2f7a4a")
 const REACH := 16.0
@@ -64,6 +64,10 @@ static func draw(p: Object, kind: String, w: int, y0: int, seats: Array, lit: bo
 			_clinic(p, wf, yt, fy, seats, lit, taken)
 		"coworking":
 			_cowork(p, wf, yt, fy, seats, lit, taken)
+		"bowling":
+			_bowling(p, wf, yt, fy, seats, lit, taken)
+		"arcade":
+			_arcade(p, wf, yt, fy, seats, lit, taken)
 	_cover(p, seats, taken, fy)
 
 
@@ -789,3 +793,67 @@ static func _cowork(p: Object, w: float, yt: float, fy: float, seats: Array, lit
 		p.item(c - 18, fy - 19, 10, 3, Color("8a94a4"), 1.0)  # a laptop
 		p.item(c - 22, fy - 28, 3, 28, Color("a8d8e8"), 0.0, false)  # a glass partition
 		_note(taken, c - 22.0, c + 22.0)
+
+
+# ---------------------------------------------------------------- bowling alley and arcade (#324)
+
+## The bowling alley: a polished wood lane running along the floor to a pin deck with a triangle of pins, a lit scoreboard
+## over it, and a ball return with a rack of balls and a bench at each seat.
+static func _bowling(p: Object, w: float, yt: float, fy: float, seats: Array, lit: bool, taken: Array) -> void:
+	p.R(0, fy + 1, w, 3, Color("a8794a"))
+	p.R(0, fy + 1, w, 1, Color("d8a870"))
+	p.R(0, fy + 3, w, 1, Color("6a4a2e"))  # the gutter
+	Furnish.tv_wall(p, 8.0, yt + 8.0, 44.0, 20.0, lit, 3)  # the scoreboard
+	var px := w - 40.0  # the pin deck: ten pins in a triangle
+	p.R(px - 4, fy - 4, 40, 4, Color("e8d0a8"))
+	for row: int in 4:
+		for k: int in 4 - row:
+			var cx := px + 4.0 + row * 4.0 + k * 8.0
+			p.item(cx, fy - 8.0 - row * 7.0, 4, 8, Color("f6f2ea"), 1.0, false)
+			p.R(cx, fy - 5.0 - row * 7.0, 4, 1, Color("c8453c"))
+	var bx := 62.0  # a ball return: a rack of coloured balls at the near end
+	var colours: Array[Color] = [Color("c8453c"), Color("3a6aa8"), Color("3f8a52"), Color("e0a83a")]
+	p.item(bx, fy - 12, 44, 12, Color("5a5a66"), 2.0)
+	for q: int in 4:
+		p.item(bx + 4 + q * 10, fy - 20, 8, 8, colours[q], 3.0)
+	if lit:
+		p.glow(w * 0.5, fy - 2, w * 0.4, 10.0, Color("ffe8b0"), 0.25)
+	_note(taken, 8.0, 52.0)
+	_note(taken, bx, bx + 44.0)
+	_note(taken, px - 4.0, px + 36.0)
+	for c: float in seats:
+		Furnish.stool(p, c, fy + 4.0, Color("3a6aa8"))
+		_note(taken, c - 8.0, c + 8.0)
+
+
+## The arcade: a dark carpet, a neon sign, a row of cabinets with glowing screens and a prize counter at the right.
+static func _arcade(p: Object, w: float, yt: float, fy: float, seats: Array, lit: bool, taken: Array) -> void:
+	p.R(0, fy + 1, w, 3, Color("2a2040"))
+	_neon(p, w * 0.5, yt + 8.0, 6, Color("e04aa8"), lit)
+	var cab: Array[Color] = [Color("c8453c"), Color("3a6aa8"), Color("3f8a52"), Color("e0a83a")]
+	var mx := 6.0
+	var k := 0
+	while mx + 20.0 < w - 36.0:
+		p.shadow(mx + 9, fy, 11, 0.5)
+		p.item(mx, fy - 38, 18, 38, cab[k % 4], 2.0)
+		p.item(mx + 2, fy - 34, 14, 12, Color("14121c"), 1.0)
+		if lit:
+			p.GR(mx + 4, fy - 31, 10, 6, Color("a8f0ff") if k % 2 == 0 else Color("ffd84a"))
+		else:
+			p.R(mx + 4, fy - 31, 10, 6, Color("5a6a7a"))
+		p.R(mx + 5, fy - 18, 8, 2, Color("2a2a36"))
+		p.R(mx + 6, fy - 12, 2, 2, Color("e04aa8"))
+		p.R(mx + 10, fy - 12, 2, 2, Color("ffd84a"))
+		_note(taken, mx, mx + 18.0)
+		mx += 24.0
+		k += 1
+	var cx := w - 32.0  # the prize counter with a shelf of toys
+	p.item(cx, fy - 22, 26, 22, Color("e4dccb"), 2.0)
+	p.R(cx, fy - 8, 26, 2, Color("e04aa8"))
+	p.item(cx + 1, fy - 40, 24, 10, Color("a8d8e8"), 1.0, false)
+	for q: int in 3:
+		p.R(cx + 3 + q * 7, fy - 38, 5, 6, cab[q])
+	_note(taken, cx, cx + 26.0)
+	for c: float in seats:
+		Furnish.stool(p, c, fy + 4.0, Color("e04aa8"))
+		_note(taken, c - 8.0, c + 8.0)
