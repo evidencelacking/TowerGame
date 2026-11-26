@@ -425,7 +425,7 @@ func _apply_command(command: Command) -> void:
 					messages.add(tick, MessagesScript.LOBBY_BUILT, command.args[3])
 		Command.PLACE_ROOM:
 			if command.args.size() == 3:
-				last_refusal = rooms.place_room(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2])
+				last_refusal = rooms.place_room(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2], unlocked_stars())
 				if not _note_refusal(MessagesScript.ROOM_REFUSED, command.args[0]):
 					messages.add(tick, MessagesScript.ROOM_BUILT, command.args[0], command.args[1])
 		Command.BULLDOZE:
@@ -447,7 +447,7 @@ func _apply_command(command: Command) -> void:
 		Command.REPLACE_ROOM:
 			if command.args.size() == 3:
 				var replaced := rooms.check_bulldoze(grid, floors, command.args[1], command.args[2])
-				last_refusal = rooms.replace_room(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2])
+				last_refusal = rooms.replace_room(grid, floors, ledger, tick, command.args[0], command.args[1], command.args[2], unlocked_stars())
 				if last_refusal == RoomsScript.OK:
 					people.remove_room(replaced["room_id"])
 					rent.remove_room(replaced["room_id"])

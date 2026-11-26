@@ -70,6 +70,7 @@ const NOT_CHAINED := 63  ## Parking space: it must touch the ramp or a working s
 const RAMP_COLUMN := 64  ## Parking ramp: later ramps share the column of the first.
 const RAMP_NOT_UNDER_LOBBY := 65  ## Parking ramp: the first goes on B1 under the ground lobby.
 const RAMP_NOT_BELOW_RAMP := 66  ## Parking ramp: a later ramp goes directly below a ramp.
+const NEEDS_STARS := 83  ## The kind needs a higher star rating than the tower has (#513); the ghost shows "Needs N stars".
 const NOT_BASEMENT := 67  ## Parking ramps and spaces go below ground.
 const EXPRESS_NO_STOP := 68  ## Express stop: only lobbies and basements can be stops.
 const TOO_FEW_STOPS := 72  ## Shaft stop: a shaft keeps at least MIN_STOPS stops (#187).
@@ -175,10 +176,13 @@ func kind_of(id: int) -> String:
 ## Checks a placement without changing anything. Returns {"reason", "cost", "floor_units"}:
 ## cost is the room price plus the missing floor units; floor_units is how many it would build.
 ## The placement ghost (#13) uses this. kind is a catalogue id such as "office".
-func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_number: int, x_left: int) -> Dictionary:
+func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_number: int, x_left: int, stars: int = 5) -> Dictionary:
 	var result := {"reason": OK, "cost": 0, "floor_units": 0}
 	if not PLACEABLE.has(kind):
 		result["reason"] = UNKNOWN_KIND
+		return result
+	if CatalogueScript.star(kind) > stars:
+		result["reason"] = NEEDS_STARS
 		return result
 	if not GridScript.is_valid_floor(floor_number):
 		result["reason"] = BAD_FLOOR
@@ -263,11 +267,11 @@ func check_place(grid: GridScript, floors: FloorsScript, kind: String, floor_num
 
 ## Places a room by catalogue index (the PLACE_ROOM command's first arg). Returns OK or a reason
 ## code, and changes nothing on a refusal. One ledger charge; its ref is the catalogue index.
-func place_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, kind_index: int, floor_number: int, x_left: int) -> int:
+func place_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, kind_index: int, floor_number: int, x_left: int, stars: int = 5) -> int:
 	if kind_index < 0 or kind_index >= CatalogueScript.IDS.size():
 		return UNKNOWN_KIND
 	var kind: String = CatalogueScript.IDS[kind_index]
-	var checked := check_place(grid, floors, kind, floor_number, x_left)
+	var checked := check_place(grid, floors, kind, floor_number, x_left, stars)
 	if checked["reason"] != OK:
 		return checked["reason"]
 	if ledger.charge(at_tick, checked["cost"], kind_index) != LedgerScript.OK:
@@ -1558,7 +1562,7 @@ func floors_of(grid: GridScript, id: int) -> Array[int]:
 ## {"reason", "cost", "refund", "net", "room_id", "floor_units"}: cost is the new room's price plus
 ## missing floor units, refund is a sold condo's payback, and net is cost + refund, the one amount
 ## the replace charges. The new placement is judged on a copy of the grid with the old room gone.
-func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: String, floor_number: int, x_left: int) -> Dictionary:
+func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: String, floor_number: int, x_left: int, stars: int = 5) -> Dictionary:
 	var result := {"reason": OK, "cost": 0, "refund": 0, "net": 0, "room_id": 0, "floor_units": 0}
 	if TALL_KINDS.has(kind):
 		result["reason"] = TALL_REPLACE
@@ -1576,7 +1580,7 @@ func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: S
 		after.remove(id)
 	if TALL_KINDS.has(kind_of(id)):
 		after.remove(id + 1)
-	var placed := check_place(after, floors, kind, floor_number, x_left)
+	var placed := check_place(after, floors, kind, floor_number, x_left, stars)
 	result["cost"] = placed["cost"]
 	result["floor_units"] = placed["floor_units"]
 	result["net"] = placed["cost"] + removal["refund"]
@@ -1590,11 +1594,11 @@ func check_replace(grid: GridScript, floors: FloorsScript, balance: int, kind: S
 ## Replaces a room in one step (the REPLACE_ROOM command): bulldoze the room covering
 ## (floor_number, x_left), then place kind_index there. All or nothing: on any refusal the old room
 ## stays and money is unchanged. The sold-condo payback and the new cost are one CHARGE line.
-func replace_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, kind_index: int, floor_number: int, x_left: int) -> int:
+func replace_room(grid: GridScript, floors: FloorsScript, ledger: LedgerScript, at_tick: int, kind_index: int, floor_number: int, x_left: int, stars: int = 5) -> int:
 	if kind_index < 0 or kind_index >= CatalogueScript.IDS.size():
 		return UNKNOWN_KIND
 	var kind: String = CatalogueScript.IDS[kind_index]
-	var checked := check_replace(grid, floors, ledger.balance, kind, floor_number, x_left)
+	var checked := check_replace(grid, floors, ledger.balance, kind, floor_number, x_left, stars)
 	if checked["reason"] != OK:
 		return checked["reason"]
 	var id: int = checked["room_id"]

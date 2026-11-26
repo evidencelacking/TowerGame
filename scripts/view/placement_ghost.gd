@@ -222,10 +222,10 @@ static func evaluate(t: TowerSim, tool_id: String, floor_number: int, x_left: in
 			out["cost"] = stairs["cost"]
 			out["height"] = 2
 		_:
-			var placed := t.rooms.check_place(t.grid, t.floors, tool_id, floor_number, x_left)
+			var placed := t.rooms.check_place(t.grid, t.floors, tool_id, floor_number, x_left, star_rating)
 			code = placed["reason"]
 			out["cost"] = placed["cost"]
-	if CatalogueScript.star(tool_id) > star_rating:
+	if code == RoomsScript.NEEDS_STARS or CatalogueScript.star(tool_id) > star_rating:  ## Rooms refuse in the sim; links and floors are still gated here.
 		out["text"] = "Needs %d stars" % CatalogueScript.star(tool_id)
 	elif code != 0:
 		out["text"] = reason_text(source, code)
@@ -308,9 +308,9 @@ static func _evaluate_replace(t: TowerSim, kind: String, floor_number: int, x: i
 		out["text"] = reason_text("replace", hit["reason"])
 		return out
 	out["x"] = t.rooms.run_of(t.grid, hit["room_id"])[1]
-	var checked := t.rooms.check_replace(t.grid, t.floors, t.ledger.balance, kind, floor_number, out["x"])
+	var checked := t.rooms.check_replace(t.grid, t.floors, t.ledger.balance, kind, floor_number, out["x"], star_rating)
 	out["cost"] = checked["net"]
-	if CatalogueScript.star(kind) > star_rating:
+	if checked["reason"] == RoomsScript.NEEDS_STARS:
 		out["text"] = "Needs %d stars" % CatalogueScript.star(kind)
 	elif checked["reason"] != 0:
 		out["text"] = reason_text("replace", checked["reason"])
