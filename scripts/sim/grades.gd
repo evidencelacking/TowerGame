@@ -36,6 +36,9 @@ const NEUTRAL_QUALITY := 175  ## Quality of a room with no trips yet: mid B.
 const WORK_KINDS: Array[String] = ["office"]
 const HOME_KINDS: Array[String] = ["condo", "studio", "penthouse", "apartment", "assisted", "hotel_single", "hotel_twin", "hotel_suite"]
 
+## The graded kinds as keys, so is_graded is one lookup instead of a scan of both lists (the mood update and the evaluation ask per room).
+const _GRADED: Dictionary = {"office": true, "condo": true, "studio": true, "penthouse": true, "apartment": true, "assisted": true, "hotel_single": true, "hotel_twin": true, "hotel_suite": true}
+
 var _tripped: Dictionary = {}  ## Person id -> true once they have made a trip.
 var _order: Array[int] = []  ## The same ids in the order first seen, for saving.
 var _modifiers: Array[Callable] = []
@@ -73,7 +76,7 @@ func add_modifier(modifier: Callable, late: bool = false) -> void:
 
 ## True for room kinds that are graded by stress.
 static func is_graded(kind: String) -> bool:
-	return WORK_KINDS.has(kind) or HOME_KINDS.has(kind)
+	return _GRADED.has(kind)
 
 
 ## The grade for a quality score: GRADE_A over 200, GRADE_C under 150, else GRADE_B.
@@ -117,9 +120,14 @@ func average_stress(rooms: RoomsScript, people: PeopleScript, room: int) -> int:
 ## Quality of the room 0 to STRESS_MAX, or -1 if the room is not graded. Neutral until an
 ## occupant has made a trip.
 func quality(rooms: RoomsScript, people: PeopleScript, room: int) -> int:
-	if not is_graded(rooms.kind_of(room)):
+	var kind := rooms.kind_of(room)
+	if not _GRADED.has(kind):
 		return -1
-	var average := average_stress(rooms, people, room)
+	var average := -1
+	if batch != null:  # average_stress's batch answer, without its second kind lookup and graded check
+		average = batch.average_stress(room, kind == "office")
+	else:
+		average = average_stress(rooms, people, room)
 	if average < 0:
 		return NEUTRAL_QUALITY
 	if batch != null and batch.base_stress.has(room):

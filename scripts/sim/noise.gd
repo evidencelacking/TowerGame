@@ -24,6 +24,7 @@ const SOURCES: Dictionary = {
 }
 ## Kinds that can be disturbed: residential and hotel rooms.
 const SENSITIVE: Array[String] = ["condo", "studio", "penthouse", "apartment", "assisted", "hotel_single", "hotel_twin", "hotel_suite"]
+const _SENSITIVE_SET: Dictionary = {"condo": true, "studio": true, "penthouse": true, "apartment": true, "assisted": true, "hotel_single": true, "hotel_twin": true, "hotel_suite": true}  ## SENSITIVE as keys, for one-lookup tests
 ## Desirable things nearby that mute noise: each one in range removes this much.
 const BUFFERS: Dictionary = {"medical": 2, "security": 1, "cathedral": 4}
 
@@ -43,7 +44,7 @@ static func is_source(kind: String) -> bool:
 
 
 static func is_sensitive(kind: String) -> bool:
-	return SENSITIVE.has(kind)
+	return _SENSITIVE_SET.has(kind)
 
 
 ## Steps between two runs [floor, column, length]: floors apart plus empty units between them.
@@ -141,8 +142,10 @@ const _OTHERS := -1
 ## A pure function of the grid and the room kinds, so it is thrown away whenever either changes. A sensitive
 ## room is never a source or a buffer, so the list can include the room it is asked about.
 static func _cache(grid: GridScript, rooms: RoomsScript) -> Dictionary:
-	var key: Array[int] = [grid.get_instance_id(), grid.revision, rooms.layout_revision]
-	if rooms.noise_key != key:
+	var held := rooms.noise_key
+	var grid_id := grid.get_instance_id()
+	if held.size() != 3 or held[0] != grid_id or held[1] != grid.revision or held[2] != rooms.layout_revision:  # no key array built when it still holds
+		var key: Array[int] = [grid_id, grid.revision, rooms.layout_revision]
 		rooms.noise_key = key
 		rooms.noise_cache = {}
 	return rooms.noise_cache
