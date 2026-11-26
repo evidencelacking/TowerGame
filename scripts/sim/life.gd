@@ -64,6 +64,13 @@ var _log: Array[int] = []  ## Flat STORY_INTS per story, oldest first.
 
 # --- Reading (for the view and tests) ---------------------------------------------------------
 
+
+## Id -> NamesScript.age_band for the seed in _bands_seed: the band is a pure function of both, and the daily passes ask for
+## every person three times. Derived, never saved or hashed.
+var _bands: Dictionary = {}
+var _bands_seed: int = 0
+const BANDS_MAX := 100000
+
 func partner_of(id: int) -> int:
 	for n in _couples.size() / 2:
 		if _couples[2 * n] == id:
@@ -192,7 +199,17 @@ static func _set_of(ids: Array[int]) -> Dictionary:
 
 ## Same answer as age_band, read from a set of the children.
 func _age_band_in(kids: Dictionary, t: Object, id: int) -> int:
-	return NamesScript.BAND_YOUNG if kids.has(id) else NamesScript.age_band(t.names.name_seed, id)
+	if kids.has(id):
+		return NamesScript.BAND_YOUNG
+	var seed_value: int = t.names.name_seed
+	if seed_value != _bands_seed or _bands.size() > BANDS_MAX:  # the cache is only good for one seed, and is kept small
+		_bands.clear()
+		_bands_seed = seed_value
+	if _bands.has(id):
+		return _bands[id]
+	var band := NamesScript.age_band(seed_value, id)
+	_bands[id] = band
+	return band
 
 
 func couple_up(t: Object) -> void:

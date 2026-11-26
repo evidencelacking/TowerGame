@@ -81,6 +81,8 @@ var _wake_day: int = -1  ## The day of the week the _wake minutes were worked ou
 ## Per person, 1 unless they are idle with no stress and no retry cooldown, when Trips has nothing to do for them (#454).
 var _active: PackedByteArray = PackedByteArray()
 var _riding: int = 0  ## How many people are TRIP_RIDING, so Trips can skip its scans on a quiet tick.
+const BREAK_END := BREAK + BREAK_LENGTH  ## The minute the break ends.
+const LUNCH_END := LUNCH + LUNCH_LENGTH  ## The minute lunch ends.
 const _NO_MORE_TODAY := Clock.MINUTES_PER_DAY  ## A wake minute no minute of the day reaches.
 
 
@@ -544,7 +546,25 @@ func tick(clock: Clock) -> void:
 			wake[i] = _NO_MORE_TODAY
 			continue
 		var offset := d[b + _OFFSET]
-		var goal := _goal_at(work, home, offset, day, minute)
+		var goal: int
+		var weekday_worker := work != NONE and day != Clock.WE
+		if weekday_worker:  # _goal_at's chain for a weekday worker, inline: the exodus visits thousands of people in one minute
+			goal = DEST_HOME
+			var arrive := ARRIVE + offset
+			if arrive <= minute:
+				goal = DEST_WORK
+			if BREAK <= minute:
+				goal = DEST_BREAK
+			if BREAK_END <= minute:
+				goal = DEST_WORK
+			if LUNCH <= minute:
+				goal = DEST_LUNCH
+			if LUNCH_END <= minute:
+				goal = DEST_WORK
+			if LEAVE <= minute:
+				goal = DEST_HOME
+		else:
+			goal = _goal_at(work, home, offset, day, minute)
 		if goal != d[b + _GOAL]:
 			d[b + _GOAL] = goal
 		var room := home if goal == DEST_HOME else (NONE if goal == DEST_AWAY else work)
@@ -557,7 +577,26 @@ func tick(clock: Clock) -> void:
 				_active[i] = 1
 				trip_requests.append(d[b + _ID])
 				settled = true
-		wake[i] = _next_change(work, home, offset, day, minute) if settled else 0
+		if not settled:
+			wake[i] = 0
+		elif weekday_worker:  # _next_change's weekday worker branch, inline
+			var next := _NO_MORE_TODAY
+			var t := ARRIVE + offset
+			if t > minute and t < next:
+				next = t
+			if BREAK > minute and BREAK < next:
+				next = BREAK
+			if BREAK_END > minute and BREAK_END < next:
+				next = BREAK_END
+			if LUNCH > minute and LUNCH < next:
+				next = LUNCH
+			if LUNCH_END > minute and LUNCH_END < next:
+				next = LUNCH_END
+			if LEAVE > minute and LEAVE < next:
+				next = LEAVE
+			wake[i] = next
+		else:
+			wake[i] = _next_change(work, home, offset, day, minute)
 
 
 ## Sets a person's trip state, keeping the riding count and the derived skip marks current (#454). Anything that changes
