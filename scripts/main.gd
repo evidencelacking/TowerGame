@@ -12,6 +12,7 @@ func _ready() -> void:
 	RenderingServer.set_default_clear_color(SKY)
 	UiSkin.apply(ViewSettingsScript.detailed_graphics)  # the toolbar's _ready has loaded the saved setting
 	var demo := DemoMode.active()
+	var tutorial := false
 	if demo:
 		# Demo mode (#262): a fresh tower with a huge balance, the top rating, everything unlocked.
 		# The driver and HUD read the driver's tower, so swap it in before anything binds to it.
@@ -22,15 +23,19 @@ func _ready() -> void:
 	else:
 		# The starting-funds setting (#248) reaches the sim as the Tower's constructor argument, never by the sim
 		# reading settings. The default keeps the driver's own tower.
-		NewGameSettings.applied = NewGameSettings.funds()
-		NewGameSettings.applied_difficulty = NewGameSettings.difficulty()
-		if NewGameSettings.applied != NewGameSettings.DEFAULT_FUNDS or NewGameSettings.applied_difficulty != Difficulty.DEFAULT:
-			$Hud/SimDriver.tower = Tower.new(0, NewGameSettings.applied, NewGameSettings.applied_difficulty)
+		# The tutorial (#503) always starts empty with the fixed seed, the normal funds and the Normal preset.
+		tutorial = Tutorial.pending
+		Tutorial.pending = false
+		NewGameSettings.applied = NewGameSettings.DEFAULT_FUNDS if tutorial else NewGameSettings.funds()
+		NewGameSettings.applied_difficulty = Difficulty.DEFAULT if tutorial else NewGameSettings.difficulty()
+		if tutorial or NewGameSettings.applied != NewGameSettings.DEFAULT_FUNDS or NewGameSettings.applied_difficulty != Difficulty.DEFAULT:
+			$Hud/SimDriver.tower = Tower.new(Tutorial.SEED if tutorial else 0, NewGameSettings.applied, NewGameSettings.applied_difficulty)
 			_tower = $Hud/SimDriver.tower
 		# Demo content until building commands exist (refs #6).
-		for i in 20:
+		for i in range(0 if tutorial else 20):
 			_tower.grid.place(i + 1, 1 + i % 8, 10 + (i * 7) % 60, 4 + i % 5)
-		_tower.grid.place(100, -2, 20, 12)
+		if not tutorial:
+			_tower.grid.place(100, -2, 20, 12)
 	# Debug switch (#156): `python tools/play.py -- --unlock-all`. Off unless asked for.
 	if "--unlock-all" in OS.get_cmdline_user_args():
 		_tower.enqueue(Tower.Command.make(_tower.tick + 1, Tower.Command.DEBUG_UNLOCK_ALL, [1] as Array[int]))
@@ -113,6 +118,11 @@ func _ready() -> void:
 		start_menu.name = "StartMenu"
 		add_child(start_menu)
 		start_menu.bind($Hud/SimDriver, save_menu)
+	if tutorial:
+		var tutorial_panel := TutorialPanel.new()
+		tutorial_panel.name = "TutorialPanel"
+		add_child(tutorial_panel)
+		tutorial_panel.bind($Hud/SimDriver)
 	var sound := SoundSystem.new()  # view only: reads the tower and camera, plays whatever sound files it finds (#247)
 	sound.name = "SoundSystem"
 	add_child(sound)
