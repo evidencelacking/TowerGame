@@ -60,6 +60,8 @@ const CASINO_COLOR := Color(0.62, 0.12, 0.20)
 const POOL_COLOR := Color(0.28, 0.66, 0.78)
 const THEATRE_COLOR := Color(0.40, 0.18, 0.34)  ## The movie theatre (#500): plum.
 const PARTY_COLOR := Color(0.92, 0.55, 0.64)  ## The party hall (#500): pink.
+const BOWLING_COLOR := Color(0.24, 0.42, 0.70)  ## The bowling alley (#324): lane blue.
+const ARCADE_COLOR := Color(0.55, 0.30, 0.78)  ## The arcade (#324): neon violet.
 const RECYCLING_COLOR := Color(0.45, 0.65, 0.40)
 const IDLE_TINT := Color(0.52, 0.55, 0.50)
 const RUBBISH_COLOR := Color(0.45, 0.33, 0.20, 0.85)
@@ -81,7 +83,7 @@ const INK := Color(0.10, 0.08, 0.08)
 const SPLASH_FRAME_TICKS := 2  ## Sim ticks per frame of the cannonball; PoolLife.SPLASH_TICKS / this frames in all.
 const SPLASH_FRAMES := 5
 const PoolLifeScript := preload("res://scripts/sim/pool_life.gd")
-const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "helipad", "school", "ballroom", "conference_center", "pool", "movie_theatre", "party_hall", "emergency_room", "operating_room", "imaging", "patient_ward"]
+const KINDS: Array[String] = ["hotel_single", "hotel_twin", "hotel_suite", "housekeeping", "fast_food", "restaurant", "retail", "security", "medical", "recycling", "parking_ramp", "parking_space", "gym", "daycare", "clinic", "nightclub", "coworking", "observation_deck", "casino", "cafe", "pizza", "sushi", "fine_dining", "bar", "grocery", "deli", "helipad", "school", "ballroom", "conference_center", "pool", "movie_theatre", "party_hall", "emergency_room", "operating_room", "imaging", "patient_ward", "bowling", "arcade"]
 
 
 static func handles(kind: String) -> bool:
@@ -125,6 +127,8 @@ static func base_color(kind: String) -> Color:
 		"pool": return POOL_COLOR
 		"movie_theatre": return THEATRE_COLOR
 		"party_hall": return PARTY_COLOR
+		"bowling": return BOWLING_COLOR
+		"arcade": return ARCADE_COLOR
 		"parking_ramp": return RAMP_COLOR
 		"parking_space": return SPACE_COLOR
 	return Color(0.85, 0.2, 0.85)

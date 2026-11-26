@@ -54,7 +54,7 @@ static func run(check: Callable) -> void:
 
 	# Save and load.
 	var saved := hard.save()
-	check.call(saved["version"] == TowerSim.SAVE_VERSION and saved["version"] == 53 and saved["difficulty"] == Difficulty.HARD, "difficulty: the save holds the preset at version 53")
+	check.call(saved["version"] == TowerSim.SAVE_VERSION and saved["version"] == 54 and saved["difficulty"] == Difficulty.HARD, "difficulty: the save holds the preset at version 54")
 	var loaded := TowerSim.new()
 	check.call(loaded.load_state(saved) and loaded.difficulty == Difficulty.HARD, "difficulty: a Hard save loads as Hard")
 	check.call(loaded.fire.cost_pct == 125 and loaded.ledger.income_pct == 90 and loaded.state_hash() == hard.state_hash(), "difficulty: a loaded Hard tower applies its knobs and hashes the same")

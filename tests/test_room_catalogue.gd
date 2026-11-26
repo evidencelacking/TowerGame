@@ -60,6 +60,8 @@ const EXPECTED: Array = [
 	["operating_room", 900000, 4, true, 0, ""],
 	["imaging", 600000, 4, true, 0, ""],
 	["patient_ward", 500000, 4, true, 0, ""],
+	["bowling", 160000, 3, true, 0, ""],
+	["arcade", 70000, 2, true, 0, ""],
 ]
 
 
